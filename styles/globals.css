@@ -1,0 +1,236 @@
+/* 🌸 Milan Global Styles */
+
+:root {
+  --bg-color: #1f2937;
+  --text-color: #ffffff;
+  --box-bg: rgba(255, 255, 255, 0.2);
+  --btn-bg: #ffffff;
+  --btn-text: #ec4899;
+  --red-star: #ff4d4f;
+}
+
+/* Light mode */
+.light-mode {
+  --bg-color: #f3f4f6;
+  --text-color: #1f2937;
+  --box-bg: rgba(0, 0, 0, 0.1);
+  --btn-bg: #ec4899;
+  --btn-text: #ffffff;
+}
+
+html, body {
+  margin: 0;
+  padding: 0;
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
+  font-family: 'Poppins', 'Segoe UI', sans-serif;
+  background: var(--bg-color);
+  color: var(--text-color);
+}
+
+/* ❤️ Hearts canvas */
+canvas {
+  position: fixed;
+  top: 0; left: 0;
+  width: 100%;
+  height: 100%;
+  z-index: 0;
+  pointer-events: none;
+}
+
+/* 🔹 Container layouts */
+.container {
+  position: relative;
+  z-index: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 100%;
+  padding: 10px;
+}
+
+/* ========== INDEX PAGE (Register/Login) ========== */
+.left, .right {
+  flex: 1;
+  padding: 10px;
+  box-sizing: border-box;
+}
+.left h1 { font-size: 2.2em; margin-bottom: 8px; }
+.left p { font-size: 16px; line-height: 1.4; }
+
+.form-container {
+  background: var(--box-bg);
+  padding: 20px;
+  border-radius: 15px;
+  backdrop-filter: blur(12px);
+  max-width: 420px;
+  margin: 0 auto;
+  box-shadow: 0 0 20px rgba(255,255,255,0.15);
+}
+.form-container h2 {
+  margin-top: 0;
+  color: var(--text-color);
+  font-size: 22px;
+  margin-bottom: 15px;
+  text-align: center;
+  text-shadow: 0 0 8px rgba(255,255,255,0.5);
+}
+
+/* Inputs */
+input, select, textarea, button {
+  width: 100%;
+  padding: 12px;
+  margin: 8px 0;
+  border: none;
+  border-radius: 8px;
+  font-size: 15px;
+  box-sizing: border-box;
+}
+input, textarea {
+  background: rgba(255,255,255,0.25);
+  color: var(--text-color);
+}
+select, option { color: #333; background: #fff; }
+::placeholder { color: #f3e8ff; }
+
+/* Buttons */
+button {
+  background: var(--btn-bg);
+  color: var(--btn-text);
+  font-weight: bold;
+  cursor: pointer;
+  transition: 0.3s;
+  border-radius: 10px;
+}
+button:hover:enabled {
+  background: var(--btn-text);
+  color: var(--btn-bg);
+  transform: scale(1.05);
+  box-shadow: 0 0 15px rgba(236,72,153,0.6);
+}
+button:disabled {
+  background: rgba(255,255,255,0.3);
+  color: rgba(255,255,255,0.7);
+  cursor: not-allowed;
+}
+label { display: block; margin-top: 5px; font-weight: bold; font-size: 14px; }
+.star { color: var(--red-star); margin-left: 4px; }
+
+/* Error Message */
+#errorMessage {
+  display: none;
+  position: fixed;
+  bottom: 20px;
+  left: 50%;
+  transform: translateX(-50%);
+  background: #ff4d4f;
+  color: #fff;
+  padding: 8px 16px;
+  border-radius: 8px;
+  font-weight: bold;
+  z-index: 9999;
+  box-shadow: 0 0 10px rgba(0,0,0,0.3);
+  font-size: 14px;
+}
+.hidden { display: none; }
+
+/* ========== CONNECT PAGE ========== */
+.center-box {
+  position: absolute;
+  top: 50%; left: 50%;
+  transform: translate(-50%, -50%);
+  background: rgba(255, 255, 255, 0.15);
+  padding: 80px 60px;
+  border-radius: 30px;
+  text-align: center;
+  backdrop-filter: blur(20px);
+  color: #fff;
+  width: 650px;
+  max-width: 95%;
+  box-shadow: 0 0 30px rgba(255, 255, 255, 0.2);
+  border: 2px solid rgba(255,255,255,0.3);
+  animation: glowBox 3s infinite alternate;
+}
+@keyframes glowBox {
+  from { box-shadow: 0 0 30px rgba(255, 255, 255, 0.2); border-color: rgba(255,255,255,0.3);}
+  to   { box-shadow: 0 0 60px rgba(255, 255, 255, 0.6); border-color: rgba(255,255,255,0.6);}
+}
+.center-box h2 {
+  font-size: 40px;
+  margin-bottom: 30px;
+  font-weight: 700;
+  text-shadow: 0 0 15px #ec4899;
+}
+.mode-text {
+  font-size: 22px;
+  margin: 15px 0;
+  font-weight: bold;
+  color: #ffe4f1;
+}
+.quote-box {
+  margin: 30px 0;
+  font-size: 20px;
+  font-weight: bold;
+  color: #ffeff7;
+  text-shadow: 0 0 5px #ff88aa;
+  padding: 20px;
+  border-radius: 15px;
+  background: rgba(255, 255, 255, 0.1);
+  border: 1px solid rgba(255,255,255,0.3);
+  backdrop-filter: blur(10px);
+}
+.center-box button {
+  margin: 15px;
+  padding: 20px 50px;
+  border: none;
+  border-radius: 12px;
+  font-size: 20px;
+  background: #fff;
+  color: #ec4899;
+  font-weight: bold;
+  cursor: pointer;
+  transition: all 0.3s;
+}
+.center-box button:hover:enabled {
+  background: #ec4899;
+  color: #fff;
+  transform: scale(1.05);
+  box-shadow: 0 0 20px #fff;
+}
+.disabled-message {
+  font-size: 16px;
+  margin-top: -10px;
+  margin-bottom: 15px;
+  color: #ffe4f1;
+  font-style: italic;
+}
+
+/* Loader hearts */
+.loader { display: none; margin: 20px auto; }
+.heart-loader {
+  font-size: 40px;
+  animation: blink 1s infinite;
+  color: #fff;
+}
+@keyframes blink {
+  0% { opacity: 0.2; transform: scale(1);}
+  50% { opacity: 1; transform: scale(1.3);}
+  100% { opacity: 0.2; transform: scale(1);}
+}
+#stopBtn {
+  background: #ff4d4f;
+  color: #fff;
+  margin-top: 30px;
+  padding: 14px 40px;
+  font-size: 18px;
+  border-radius: 12px;
+  display: none;
+}
+#statusMessage {
+  margin-top: 25px;
+  font-size: 28px;
+  font-weight: bold;
+  min-height: 40px;
+  text-shadow: 0 0 10px #fff;
+}
