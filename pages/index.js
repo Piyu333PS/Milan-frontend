@@ -8,6 +8,7 @@ export default function HomePage() {
   const [showReset, setShowReset] = useState(false);
 
   useEffect(() => {
+    // ❤️ Hearts background animation
     const canvas = document.getElementById("heartsCanvas");
     const ctx = canvas.getContext("2d");
     let hearts = [];
@@ -136,16 +137,36 @@ export default function HomePage() {
         <source src="music/romantic.mp3" type="audio/mpeg" />
       </audio>
 
+      {/* Bandanwar Mala (Top Decorative Garland) */}
+      <div className="bandanwar"></div>
+
       <div id="errorMessage"></div>
 
       <div className="container" id="userFormContainer">
         {/* Left Section with Ganesh Chaturthi Banner */}
         <div className="left">
           <div className="ganesh-banner">
-            <img src="/ganesh.png" alt="Ganesh Ji" className="ganesh-img" />
-            <h1>🚀 Grand Launch on Ganesh Chaturthi 🎉</h1>
-            <p>🙏 Blessings of Lord Ganesha with Love ❤️</p>
+            {/* Swastik + Ganesh Outline SVG Animation */}
+            <svg className="swastik" viewBox="0 0 200 200">
+              <path d="M 30 30 H 170 V 70 H 70 V 170 H 30 Z M 170 130 H 130 V 30 H 170 Z M 70 170 H 130 V 130 H 70 Z"
+                stroke="gold" strokeWidth="4" fill="none" />
+            </svg>
+            <svg className="ganesh-outline" viewBox="0 0 200 200">
+              <path d="M100 20 C 70 20, 50 60, 100 80 C 150 60, 130 20, 100 20 Z
+                       M80 90 C 60 110, 90 140, 100 120
+                       M120 90 C 140 110, 110 140, 100 120
+                       M95 125 Q 100 135 105 125" 
+                stroke="#ff6b81" strokeWidth="3" fill="none"/>
+            </svg>
+
+            <h1>🙏 Happy Ganesh Chaturthi! 🌺</h1>
+            <p>
+              A new beginning not just with Bappa’s arrival, but also with the <b>launch of Milan</b> –  
+              Your new destination to find love and meaningful connections.<br />
+              Let’s welcome love, togetherness, and positivity this festive season. ❤️
+            </p>
           </div>
+
           <h1>Welcome to Milan ❤️</h1>
           <p>
             “Love recognizes no barriers. It jumps hurdles, leaps fences, penetrates walls to arrive at its
@@ -279,6 +300,18 @@ export default function HomePage() {
           font-family: "Segoe UI", sans-serif;
         }
         #heartsCanvas { position: fixed; inset: 0; z-index: 0; }
+        .bandanwar {
+          width: 100%; height: 80px;
+          background: url('/bandanwar.png') repeat-x;
+          background-size: contain;
+          position: fixed; top: 0; left: 0;
+          z-index: 10;
+          animation: swing 3s ease-in-out infinite;
+        }
+        @keyframes swing {
+          0%,100% { transform: rotate(0deg); }
+          50% { transform: rotate(2deg); }
+        }
         .container {
           position: relative; z-index: 1;
           display: flex; align-items: center; justify-content: center;
@@ -288,13 +321,15 @@ export default function HomePage() {
         .left h1 { font-size: 2em; margin: 10px 0; }
         .left p { font-size: 16px; }
         .ganesh-banner { text-align: center; margin-bottom: 20px; }
-        .ganesh-img { width: 120px; animation: float 3s ease-in-out infinite; }
-        .ganesh-banner h1 { color: gold; font-size: 1.5em; margin-top: 10px; }
-        .ganesh-banner p { color: #ff6b81; font-weight: bold; }
-        @keyframes float {
-          0%, 100% { transform: translateY(0); }
-          50% { transform: translateY(-8px); }
+        .swastik, .ganesh-outline {
+          width: 120px; height: 120px; margin: auto;
+          stroke-dasharray: 1000; stroke-dashoffset: 1000;
+          animation: draw 4s forwards;
         }
+        .ganesh-outline { animation-delay: 2s; }
+        @keyframes draw { to { stroke-dashoffset: 0; } }
+        .ganesh-banner h1 { color: gold; font-size: 1.5em; margin-top: 10px; }
+        .ganesh-banner p { color: #ff6b81; font-weight: bold; margin-top: 10px; }
         .form-container {
           background: var(--box-bg);
           padding: 20px; border-radius: 12px;
