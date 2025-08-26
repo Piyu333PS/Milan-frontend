@@ -136,122 +136,183 @@ export default function HomePage() {
         <source src="music/romantic.mp3" type="audio/mpeg" />
       </audio>
 
-      {/* 🔥 Ganesh Chaturthi Banner */}
-      <div className="launch-banner">
-        <h1>🚀 Grand Launch on Ganesh Chaturthi 🎉</h1>
-        <p>Special blessings of Lord Ganesha on this auspicious day! 🙏</p>
-      </div>
-
       <div id="errorMessage"></div>
 
       <div className="container" id="userFormContainer">
-        <div className="form-container">
-          {!showLogin && !showReset && (
-            <div id="registerForm">
-              <h2>Create Your Account</h2>
-              <button
-                id="musicBtn"
-                type="button"
-                onClick={() => {
-                  const bgMusic = document.getElementById("bgMusic");
-                  if (musicPlaying) {
-                    bgMusic.pause();
-                  } else {
-                    bgMusic.play().catch(() => {});
-                  }
-                  setMusicPlaying(!musicPlaying);
-                }}
-              >
-                {musicPlaying ? "Music Off" : "Music On"}
-              </button>
+        {/* Left Section with Ganesh Chaturthi Banner */}
+        <div className="left">
+          <div className="ganesh-banner">
+            <img src="/ganesh.png" alt="Ganesh Ji" className="ganesh-img" />
+            <h1>🚀 Grand Launch on Ganesh Chaturthi 🎉</h1>
+            <p>🙏 Blessings of Lord Ganesha with Love ❤️</p>
+          </div>
+          <h1>Welcome to Milan ❤️</h1>
+          <p>
+            “Love recognizes no barriers. It jumps hurdles, leaps fences, penetrates walls to arrive at its
+            destination full of hope.”
+          </p>
+          <button
+            id="themeToggle"
+            type="button"
+            onClick={() => document.body.classList.toggle("light-mode")}
+          >
+            🌙 Switch Theme
+          </button>
+        </div>
 
-              <label>Name <span className="star">*</span></label>
-              <input type="text" id="name" placeholder="Your name or nickname" />
+        {/* Right Section with Forms */}
+        <div className="right">
+          <div className="form-container">
+            {!showLogin && !showReset && (
+              <div id="registerForm">
+                <h2>Create Your Account</h2>
+                <button
+                  id="musicBtn"
+                  type="button"
+                  onClick={() => {
+                    const bgMusic = document.getElementById("bgMusic");
+                    if (musicPlaying) {
+                      bgMusic.pause();
+                    } else {
+                      bgMusic.play().catch(() => {});
+                    }
+                    setMusicPlaying(!musicPlaying);
+                  }}
+                >
+                  {musicPlaying ? "Music Off" : "Music On"}
+                </button>
 
-              <label>Gender <span className="star">*</span></label>
-              <select id="gender">
-                <option value="">Select Gender</option>
-                <option value="Male">Male</option>
-                <option value="Female">Female</option>
-                <option value="Other">Other</option>
-              </select>
+                <label>Name <span className="star">*</span></label>
+                <input type="text" id="name" placeholder="Your name or nickname" />
 
-              <label>Email or Mobile <span className="star">*</span></label>
-              <input type="text" id="contact" placeholder="Email or 10-digit Mobile number" />
+                <label>Gender <span className="star">*</span></label>
+                <select id="gender">
+                  <option value="">Select Gender</option>
+                  <option value="Male">Male</option>
+                  <option value="Female">Female</option>
+                  <option value="Other">Other</option>
+                </select>
 
-              <label>Password <span className="star">*</span></label>
-              <input type="password" id="password" placeholder="Enter password" />
+                <label>Email or Mobile <span className="star">*</span></label>
+                <input type="text" id="contact" placeholder="Email or 10-digit Mobile number" />
 
-              <label>Age <span className="star">*</span></label>
-              <input type="number" id="age" placeholder="Your age" min="18" max="99" />
+                <label>Password <span className="star">*</span></label>
+                <input type="password" id="password" placeholder="Enter password" />
 
-              <label>City/Country <span className="star">*</span></label>
-              <input type="text" id="city" placeholder="City / Country" />
+                <label>Age <span className="star">*</span></label>
+                <input type="number" id="age" placeholder="Your age" min="18" max="99" />
 
-              <label>Reason for Joining <span className="star">*</span></label>
-              <select id="reason">
-                <option value="">Select reason</option>
-                <option value="Looking for Love">Looking for Love ❤️</option>
-                <option value="Friendship">Friendship 🤗</option>
-                <option value="Casual Chat">Casual Chat 🎈</option>
-                <option value="Exploring">Exploring 🌎</option>
-                <option value="Other">Other</option>
-              </select>
+                <label>City/Country <span className="star">*</span></label>
+                <input type="text" id="city" placeholder="City / Country" />
 
-              <button onClick={handleRegister}>Register & Start</button>
-              <p style={{ textAlign: "center", cursor: "pointer", color: "yellow" }} onClick={() => setShowLogin(true)}>
-                Already Registered? Login here
-              </p>
-            </div>
-          )}
+                <label>Reason for Joining <span className="star">*</span></label>
+                <select id="reason">
+                  <option value="">Select reason</option>
+                  <option value="Looking for Love">Looking for Love ❤️</option>
+                  <option value="Friendship">Friendship 🤗</option>
+                  <option value="Casual Chat">Casual Chat 🎈</option>
+                  <option value="Exploring">Exploring 🌎</option>
+                  <option value="Other">Other</option>
+                </select>
 
-          {showLogin && !showReset && (
-            <div id="loginForm">
-              <h2>Login to Milan</h2>
-              <label>Email or Mobile</label>
-              <input type="text" id="loginContact" placeholder="Enter Email/Mobile" />
-              <label>Password</label>
-              <input type="password" id="loginPassword" placeholder="Enter password" />
-              <button onClick={handleLogin}>Login</button>
-              <p style={{ textAlign: "center", cursor: "pointer", color: "yellow" }} onClick={() => setShowLogin(false)}>
-                New User? Register here
-              </p>
-              <p style={{ textAlign: "center", cursor: "pointer", color: "#ff4d4f" }} onClick={() => setShowReset(true)}>
-                Forgot Password?
-              </p>
-            </div>
-          )}
+                <button onClick={handleRegister}>Register & Start</button>
+                <p style={{ textAlign: "center", cursor: "pointer", color: "yellow" }} onClick={() => setShowLogin(true)}>
+                  Already Registered? Login here
+                </p>
+              </div>
+            )}
 
-          {showReset && (
-            <div id="resetForm">
-              <h2>Reset Password</h2>
-              <label>Email or Mobile</label>
-              <input type="text" id="resetContact" placeholder="Enter your Email/Mobile" />
-              <label>New Password</label>
-              <input type="password" id="newPassword" placeholder="Enter new password" />
-              <button onClick={handleReset}>Reset Password</button>
-              <p style={{ textAlign: "center", cursor: "pointer", color: "yellow" }}
-                 onClick={() => { setShowReset(false); setShowLogin(true); }}>
-                Back to Login
-              </p>
-            </div>
-          )}
+            {showLogin && !showReset && (
+              <div id="loginForm">
+                <h2>Login to Milan</h2>
+                <label>Email or Mobile</label>
+                <input type="text" id="loginContact" placeholder="Enter Email/Mobile" />
+                <label>Password</label>
+                <input type="password" id="loginPassword" placeholder="Enter password" />
+                <button onClick={handleLogin}>Login</button>
+                <p style={{ textAlign: "center", cursor: "pointer", color: "yellow" }} onClick={() => setShowLogin(false)}>
+                  New User? Register here
+                </p>
+                <p style={{ textAlign: "center", cursor: "pointer", color: "#ff4d4f" }} onClick={() => setShowReset(true)}>
+                  Forgot Password?
+                </p>
+              </div>
+            )}
+
+            {showReset && (
+              <div id="resetForm">
+                <h2>Reset Password</h2>
+                <label>Email or Mobile</label>
+                <input type="text" id="resetContact" placeholder="Enter your Email/Mobile" />
+                <label>New Password</label>
+                <input type="password" id="newPassword" placeholder="Enter new password" />
+                <button onClick={handleReset}>Reset Password</button>
+                <p style={{ textAlign: "center", cursor: "pointer", color: "yellow" }}
+                   onClick={() => { setShowReset(false); setShowLogin(true); }}>
+                  Back to Login
+                </p>
+              </div>
+            )}
+          </div>
         </div>
       </div>
 
       {/* Styles */}
       <style jsx global>{`
-        body { margin: 0; height: 100%; background: #111; color: #fff; font-family: "Segoe UI", sans-serif; }
-        .container { display: flex; align-items: center; justify-content: center; height: 100%; }
-        .form-container { background: rgba(255,255,255,0.1); padding: 20px; border-radius: 12px; max-width: 380px; width: 100%; }
-        .form-container input, .form-container select, .form-container button {
-          width: 100%; padding: 10px; margin: 8px 0; border: none; border-radius: 6px;
+        :root {
+          --bg-color: #1f2937;
+          --text-color: #ffffff;
+          --box-bg: rgba(255, 255, 255, 0.2);
+          --btn-bg: #ffffff;
+          --btn-text: #ec4899;
         }
-        button { background: #ec4899; color: #fff; font-weight: bold; }
-        button:hover { background: #f472b6; }
-        .launch-banner {
-          text-align: center; background: linear-gradient(45deg,#ec4899,#facc15);
-          padding: 12px; color: #000; font-weight: bold; position: fixed; top: 0; width: 100%; z-index: 1000;
+        .light-mode {
+          --bg-color: #f3f4f6;
+          --text-color: #1f2937;
+          --box-bg: rgba(0, 0, 0, 0.1);
+          --btn-bg: #ec4899;
+          --btn-text: #ffffff;
+        }
+        body {
+          margin: 0; padding: 0; height: 100%;
+          background: var(--bg-color); color: var(--text-color);
+          font-family: "Segoe UI", sans-serif;
+        }
+        #heartsCanvas { position: fixed; inset: 0; z-index: 0; }
+        .container {
+          position: relative; z-index: 1;
+          display: flex; align-items: center; justify-content: center;
+          height: 100%; padding: 10px;
+        }
+        .left, .right { flex: 1; padding: 20px; }
+        .left h1 { font-size: 2em; margin: 10px 0; }
+        .left p { font-size: 16px; }
+        .ganesh-banner { text-align: center; margin-bottom: 20px; }
+        .ganesh-img { width: 120px; animation: float 3s ease-in-out infinite; }
+        .ganesh-banner h1 { color: gold; font-size: 1.5em; margin-top: 10px; }
+        .ganesh-banner p { color: #ff6b81; font-weight: bold; }
+        @keyframes float {
+          0%, 100% { transform: translateY(0); }
+          50% { transform: translateY(-8px); }
+        }
+        .form-container {
+          background: var(--box-bg);
+          padding: 20px; border-radius: 12px;
+          max-width: 380px; margin: auto;
+        }
+        input, select, button {
+          width: 100%; padding: 10px; margin: 8px 0;
+          border: none; border-radius: 6px;
+        }
+        button { background: var(--btn-bg); color: var(--btn-text); font-weight: bold; cursor: pointer; }
+        button:hover { opacity: 0.9; }
+        #errorMessage {
+          display: none; position: fixed; bottom: 20px; left: 50%; transform: translateX(-50%);
+          background: #ff4d4f; color: #fff; padding: 8px 16px; border-radius: 5px; font-weight: bold;
+        }
+        @media (max-width: 768px) {
+          .container { flex-direction: column; text-align: center; }
+          .left, .right { padding: 10px; }
         }
       `}</style>
     </>
