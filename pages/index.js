@@ -139,6 +139,12 @@ export default function HomePage() {
 
       <div id="errorMessage"></div>
 
+      {/* 🎉 Banner for Ganesh Chaturthi & Milan Launch */}
+      <div className="banner">
+        <h2>🌺 Ganesh Chaturthi ki Shubhkamnaye! 🌺</h2>
+        <p>✨ Milan is Live! Let your hearts connect… ❤️</p>
+      </div>
+
       <div className="container" id="userFormContainer">
         <div className="left">
           <h1>Welcome to Milan ❤️</h1>
@@ -276,7 +282,6 @@ export default function HomePage() {
         </div>
       </div>
 
-      {/* ✅ Old UI Styles imported here */}
       <style jsx global>{`
         :root {
           --bg-color: #1f2937;
@@ -311,6 +316,32 @@ export default function HomePage() {
           width: 100%;
           height: 100%;
           z-index: 0;
+        }
+        .banner {
+          position: fixed;
+          top: 20px;
+          left: 50%;
+          transform: translateX(-50%);
+          background: rgba(255, 255, 255, 0.2);
+          padding: 15px 25px;
+          border-radius: 12px;
+          backdrop-filter: blur(10px);
+          text-align: center;
+          z-index: 10;
+          animation: fadeInPulse 2s ease-in-out infinite alternate;
+        }
+        .banner h2 {
+          margin: 0;
+          font-size: 20px;
+        }
+        .banner p {
+          margin: 5px 0 0 0;
+          font-size: 16px;
+        }
+        @keyframes fadeInPulse {
+          0% { opacity: 0.7; transform: translateX(-50%) scale(1); }
+          50% { opacity: 1; transform: translateX(-50%) scale(1.05); }
+          100% { opacity: 0.8; transform: translateX(-50%) scale(1); }
         }
         .container {
           position: relative;
