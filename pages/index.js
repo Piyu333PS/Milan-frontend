@@ -8,7 +8,6 @@ export default function HomePage() {
   const [showReset, setShowReset] = useState(false);
 
   useEffect(() => {
-    // Hearts background
     const canvas = document.getElementById("heartsCanvas");
     const ctx = canvas.getContext("2d");
     let hearts = [];
@@ -139,10 +138,13 @@ export default function HomePage() {
 
       <div id="errorMessage"></div>
 
-      {/* 🎉 Banner for Ganesh Chaturthi & Milan Launch */}
-      <div className="banner">
-        <h2>🌺 Ganesh Chaturthi ki Shubhkamnaye! 🌺</h2>
-        <p>✨ Milan is Live! Let your hearts connect… ❤️</p>
+      {/* 🎉 Ganesh Chaturthi Banner */}
+      <div className="ganesh-banner">
+        <img src="/images/ganesh.png" alt="Ganesh Ji" className="ganesh-img" />
+        <div className="ganesh-text">
+          <h2>गणेश चतुर्थी की हार्दिक शुभकामनाएं!</h2>
+          <p>✨ Milan is Live! Let your hearts connect… ❤️</p>
+        </div>
       </div>
 
       <div className="container" id="userFormContainer">
@@ -283,7 +285,6 @@ export default function HomePage() {
       </div>
 
       <style jsx global>{`
-        @import url('https://fonts.googleapis.com/css2?family=Poppins:wght@400;600;700&display=swap');
         :root {
           --bg-color: #1f2937;
           --text-color: #ffffff;
@@ -306,7 +307,7 @@ export default function HomePage() {
           width: 100%;
           height: 100%;
           overflow: hidden;
-          font-family: 'Poppins', sans-serif;
+          font-family: "Segoe UI", sans-serif;
           background: var(--bg-color);
           color: var(--text-color);
         }
@@ -318,40 +319,41 @@ export default function HomePage() {
           height: 100%;
           z-index: 0;
         }
-        .banner {
+        .ganesh-banner {
           position: fixed;
-          top: 10px;
+          top: 20px;
           left: 50%;
           transform: translateX(-50%);
-          background: linear-gradient(90deg, #ff4d6d, #ff1c68, #ff6b81);
-          padding: 20px 40px;
-          border-radius: 15px;
-          backdrop-filter: blur(10px);
-          text-align: center;
-          z-index: 10;
-          color: #fff;
-          box-shadow: 0 0 25px rgba(255, 0, 100, 0.5);
-          animation: pulseGlow 2s ease-in-out infinite alternate;
+          background: rgba(255, 255, 255, 0.2);
+          padding: 12px 20px;
+          border-radius: 16px;
+          backdrop-filter: blur(12px);
           display: flex;
-          flex-direction: column;
           align-items: center;
-          justify-content: center;
-          font-weight: 600;
+          gap: 15px;
+          z-index: 20;
+          animation: fadeInPulse 2s ease-in-out infinite alternate;
+          box-shadow: 0 4px 15px rgba(0, 0, 0, 0.2);
         }
-        .banner h2 {
+        .ganesh-img {
+          width: 50px;
+          height: 50px;
+          object-fit: contain;
+        }
+        .ganesh-text h2 {
           margin: 0;
-          font-size: 24px;
-          text-shadow: 0 0 8px #fff;
-        }
-        .banner p {
-          margin: 5px 0 0 0;
           font-size: 18px;
-          text-shadow: 0 0 6px #fff;
+          color: var(--text-color);
         }
-        @keyframes pulseGlow {
-          0% { transform: translateX(-50%) scale(1); box-shadow: 0 0 15px rgba(255, 0, 100,0.3); }
-          50% { transform: translateX(-50%) scale(1.05); box-shadow: 0 0 30px rgba(255, 0, 100,0.7); }
-          100% { transform: translateX(-50%) scale(1); box-shadow: 0 0 15px rgba(255, 0, 100,0.3); }
+        .ganesh-text p {
+          margin: 4px 0 0 0;
+          font-size: 14px;
+          color: var(--text-color);
+        }
+        @keyframes fadeInPulse {
+          0% { opacity: 0.7; transform: translateX(-50%) scale(1); }
+          50% { opacity: 1; transform: translateX(-50%) scale(1.05); }
+          100% { opacity: 0.8; transform: translateX(-50%) scale(1); }
         }
         .container {
           position: relative;
