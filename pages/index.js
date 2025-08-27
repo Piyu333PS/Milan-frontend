@@ -283,6 +283,7 @@ export default function HomePage() {
       </div>
 
       <style jsx global>{`
+        @import url('https://fonts.googleapis.com/css2?family=Poppins:wght@400;600;700&display=swap');
         :root {
           --bg-color: #1f2937;
           --text-color: #ffffff;
@@ -305,7 +306,7 @@ export default function HomePage() {
           width: 100%;
           height: 100%;
           overflow: hidden;
-          font-family: "Segoe UI", sans-serif;
+          font-family: 'Poppins', sans-serif;
           background: var(--bg-color);
           color: var(--text-color);
         }
@@ -319,29 +320,38 @@ export default function HomePage() {
         }
         .banner {
           position: fixed;
-          top: 20px;
+          top: 10px;
           left: 50%;
           transform: translateX(-50%);
-          background: rgba(255, 255, 255, 0.2);
-          padding: 15px 25px;
-          border-radius: 12px;
+          background: linear-gradient(90deg, #ff4d6d, #ff1c68, #ff6b81);
+          padding: 20px 40px;
+          border-radius: 15px;
           backdrop-filter: blur(10px);
           text-align: center;
           z-index: 10;
-          animation: fadeInPulse 2s ease-in-out infinite alternate;
+          color: #fff;
+          box-shadow: 0 0 25px rgba(255, 0, 100, 0.5);
+          animation: pulseGlow 2s ease-in-out infinite alternate;
+          display: flex;
+          flex-direction: column;
+          align-items: center;
+          justify-content: center;
+          font-weight: 600;
         }
         .banner h2 {
           margin: 0;
-          font-size: 20px;
+          font-size: 24px;
+          text-shadow: 0 0 8px #fff;
         }
         .banner p {
           margin: 5px 0 0 0;
-          font-size: 16px;
+          font-size: 18px;
+          text-shadow: 0 0 6px #fff;
         }
-        @keyframes fadeInPulse {
-          0% { opacity: 0.7; transform: translateX(-50%) scale(1); }
-          50% { opacity: 1; transform: translateX(-50%) scale(1.05); }
-          100% { opacity: 0.8; transform: translateX(-50%) scale(1); }
+        @keyframes pulseGlow {
+          0% { transform: translateX(-50%) scale(1); box-shadow: 0 0 15px rgba(255, 0, 100,0.3); }
+          50% { transform: translateX(-50%) scale(1.05); box-shadow: 0 0 30px rgba(255, 0, 100,0.7); }
+          100% { transform: translateX(-50%) scale(1); box-shadow: 0 0 15px rgba(255, 0, 100,0.3); }
         }
         .container {
           position: relative;
