@@ -110,7 +110,7 @@ export default function VideoPage() {
       }, 1000);
     })();
 
-    // Buttons
+    // === Buttons ===
     const micBtn = get("micBtn");
     micBtn.onclick = () => {
       const t = localStream?.getAudioTracks()[0];
@@ -118,6 +118,7 @@ export default function VideoPage() {
       t.enabled = !t.enabled;
       micBtn.classList.toggle("inactive", !t.enabled);
       showToast(t.enabled ? "🎤 Mic On" : "🔇 Mic Off");
+      createHeartBurst(micBtn);
     };
 
     const camBtn = get("camBtn");
@@ -127,6 +128,7 @@ export default function VideoPage() {
       t.enabled = !t.enabled;
       camBtn.classList.toggle("inactive", !t.enabled);
       showToast(t.enabled ? "📸 Camera On" : "📷 Camera Off");
+      createHeartBurst(camBtn);
     };
 
     const screenBtn = get("screenShareBtn");
@@ -139,6 +141,7 @@ export default function VideoPage() {
         sender.replaceTrack(track);
         track.onended = () => sender.replaceTrack(localStream.getVideoTracks()[0]);
         showToast("🖥️ Screen sharing");
+        createHeartBurst(screenBtn);
       } catch {
         showToast("❌ Screen share cancelled");
       }
@@ -149,6 +152,7 @@ export default function VideoPage() {
       try { socket?.emit("partnerLeft"); } catch {}
       cleanup();
       showRating();
+      createHeartBurst(disconnectBtn);
     };
 
     get("quitBtn").onclick = () => {
@@ -161,6 +165,7 @@ export default function VideoPage() {
       window.location.href = "/connect";
     };
 
+    // === Draggable Local Video ===
     const lb = get("localBox");
     let dragging = false, dx = 0, dy = 0;
     const startDrag = (x, y) => {
@@ -185,6 +190,18 @@ export default function VideoPage() {
     });
     document.addEventListener("touchend", stopDrag);
 
+    // === Floating Heart Particle ===
+    function createHeartBurst(el) {
+      for (let i = 0; i < 6; i++) {
+        const heart = document.createElement("div");
+        heart.className = "floating-heart";
+        heart.style.left = `${el.offsetLeft + el.offsetWidth/2}px`;
+        heart.style.top = `${el.offsetTop}px`;
+        document.body.appendChild(heart);
+        setTimeout(() => heart.remove(), 1200);
+      }
+    }
+
     return () => cleanup();
   }, []);
 
@@ -195,7 +212,7 @@ export default function VideoPage() {
         <div id="localBox"><video id="localVideo" autoPlay playsInline muted></video></div>
       </div>
 
-      {/* === Compact Romantic Control Bar === */}
+      {/* === Next-Level Romantic Control Bar === */}
       <div className="control-bar">
         <button id="micBtn" className="control-btn"><i className="fas fa-microphone"></i><span>Mic</span></button>
         <button id="camBtn" className="control-btn"><i className="fas fa-video"></i><span>Camera</span></button>
@@ -229,19 +246,18 @@ export default function VideoPage() {
         #localBox video{width:100%;height:100%;object-fit:cover;transform:scaleX(-1)}
         @media(max-width:768px){#localBox{width:140px;height:100px}}
 
-        /* === Compact Romantic Control Bar === */
         .control-bar {
           position: fixed;
-          bottom: 20px;
+          bottom: 25px;
           left: 50%;
           transform: translateX(-50%);
           display: flex;
-          gap: 16px;
-          padding: 12px 18px;
-          background: rgba(255,255,255,0.08);
-          backdrop-filter: blur(12px);
-          border-radius: 24px;
-          border: 1px solid rgba(255,77,141,0.3);
+          gap: 18px;
+          padding: 14px 20px;
+          background: rgba(255,255,255,0.06);
+          backdrop-filter: blur(16px);
+          border-radius: 28px;
+          border: 1px solid rgba(255,105,180,0.4);
           z-index: 3000;
         }
 
@@ -250,24 +266,27 @@ export default function VideoPage() {
           flex-direction: column;
           align-items: center;
           justify-content: center;
-          padding: 12px 16px;
-          min-width: 70px;
+          padding: 14px 18px;
+          min-width: 75px;
           font-size: 14px;
           color: #fff;
           background: linear-gradient(145deg, rgba(255,182,193,0.4), rgba(255,105,180,0.4));
           border: 1px solid rgba(255,105,180,0.5);
-          border-radius: 16px;
+          border-radius: 20px;
           cursor: pointer;
-          box-shadow: 0 4px 14px rgba(255,105,180,0.4);
+          box-shadow: 0 4px 16px rgba(255,105,180,0.5);
+          animation: heartbeat 2s infinite;
           transition: all 0.3s ease;
+          position: relative;
+          overflow: hidden;
         }
 
-        .control-btn i { font-size: 20px; margin-bottom: 4px; }
+        .control-btn i { font-size: 22px; margin-bottom: 4px; }
 
         .control-btn:hover {
           background: linear-gradient(145deg, rgba(255,182,193,0.7), rgba(255,105,180,0.7));
-          transform: scale(1.15) rotate(-2deg);
-          box-shadow: 0 6px 20px rgba(255,105,180,0.6);
+          transform: scale(1.2) rotate(-3deg);
+          box-shadow: 0 6px 24px rgba(255,105,180,0.7);
         }
 
         .control-btn.inactive { opacity: 0.6; filter: grayscale(30%); }
@@ -277,10 +296,31 @@ export default function VideoPage() {
         }
         .control-btn.danger:hover {
           background: linear-gradient(145deg, rgba(255,69,102,0.9), rgba(255,20,60,0.9));
-          transform: scale(1.18) rotate(1deg);
+          transform: scale(1.25) rotate(2deg);
         }
 
-        /* === Rating Overlay & Toast === */
+        @keyframes heartbeat {
+          0%, 100% { transform: scale(1); }
+          25% { transform: scale(1.05); }
+          50% { transform: scale(1.1); }
+          75% { transform: scale(1.05); }
+        }
+
+        .floating-heart {
+          position: absolute;
+          width: 14px;
+          height: 14px;
+          background: url('data:image/svg+xml;utf8,<svg fill="%23ff4d8d" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path d="M12 21.35l-1.45-1.32C5.4 15.36 2 12.28 2 8.5 2 5.42 4.42 3 7.5 3c1.74 0 3.41.81 4.5 2.09C13.09 3.81 14.76 3 16.5 3 19.58 3 22 5.42 22 8.5c0 3.78-3.4 6.86-8.55 11.54L12 21.35z"/></svg>') no-repeat center/contain;
+          animation: floatHeart 1.2s forwards;
+          pointer-events: none;
+          z-index: 5000;
+        }
+
+        @keyframes floatHeart {
+          0% { transform: translateY(0) scale(1); opacity: 1; }
+          100% { transform: translateY(-60px) scale(1.4); opacity: 0; }
+        }
+
         #ratingOverlay {position:fixed;inset:0;display:none;flex-direction:column;align-items:center;justify-content:center;background:rgba(27,0,52,0.95);color:#fff;z-index:4000;text-align:center;animation:fadeIn 0.6s ease-in-out}
         #ratingOverlay h2{font-size:28px;margin-bottom:20px;color:#ff4d8d;text-shadow:0 0 12px rgba(255,77,141,0.8)}
         .hearts{display:flex;gap:14px;font-size:50px}
