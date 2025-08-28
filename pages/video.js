@@ -1,5 +1,3 @@
-iss code ko old video.js code se replace kar skta hu?
-
 "use client";
 import { useEffect } from "react";
 import io from "socket.io-client";
