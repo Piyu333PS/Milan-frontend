@@ -1,410 +1,283 @@
 "use client";
-import { useEffect, useState } from "react";
+import { useEffect } from "react";
+import io from "socket.io-client";
 
-export default function HomePage() {
-  const API_BASE = "https://milan-j9u9.onrender.com";
-  const [musicPlaying, setMusicPlaying] = useState(false);
-  const [showLogin, setShowLogin] = useState(false);
-  const [showReset, setShowReset] = useState(false);
-
+export default function VideoPage() {
   useEffect(() => {
-    const canvas = document.getElementById("heartsCanvas");
-    const ctx = canvas.getContext("2d");
-    let hearts = [];
+    const BACKEND_URL = "https://milan-j9u9.onrender.com";
+    const ICE_CONFIG = { iceServers: [{ urls: "stun:stun.l.google.com:19302" }] };
 
-    function resizeCanvas() {
-      canvas.width = window.innerWidth;
-      canvas.height = window.innerHeight;
-    }
-    window.addEventListener("resize", resizeCanvas);
-    resizeCanvas();
+    let socket = null;
+    let pc = null;
+    let localStream = null;
 
-    function createHeart() {
-      return {
-        x: Math.random() * canvas.width,
-        y: canvas.height + 50,
-        size: Math.random() * 30 + 15,
-        speed: Math.random() * 1.5 + 0.5,
-        color: ["#ff4d6d", "#ff1c68", "#ff6b81", "#e6005c"][Math.floor(Math.random() * 4)],
-      };
-    }
+    const get = (id) => document.getElementById(id);
+    const showToast = (msg, ms = 2000) => {
+      const t = get("toast");
+      if (!t) return;
+      t.textContent = msg;
+      t.style.display = "block";
+      setTimeout(() => (t.style.display = "none"), ms);
+    };
 
-    function drawHearts() {
-      ctx.clearRect(0, 0, canvas.width, canvas.height);
-      hearts.forEach((h) => {
-        ctx.fillStyle = h.color;
-        ctx.beginPath();
-        ctx.moveTo(h.x, h.y);
-        ctx.bezierCurveTo(h.x + h.size / 2, h.y - h.size, h.x + h.size * 1.5, h.y + h.size / 3, h.x, h.y + h.size);
-        ctx.bezierCurveTo(h.x - h.size * 1.5, h.y + h.size / 3, h.x - h.size / 2, h.y - h.size, h.x, h.y);
-        ctx.fill();
-        h.y -= h.speed;
-      });
-      hearts = hearts.filter((h) => h.y + h.size > 0);
-      if (Math.random() < 0.1) hearts.push(createHeart());
-      requestAnimationFrame(drawHearts);
-    }
-    drawHearts();
-  }, []);
+    const showRating = () => {
+      const r = get("ratingOverlay");
+      if (r) r.style.display = "flex";
+    };
 
-  function showError(msg) {
-    const errDiv = document.getElementById("errorMessage");
-    if (!errDiv) return;
-    errDiv.textContent = msg;
-    errDiv.style.display = "block";
-    setTimeout(() => {
-      errDiv.style.display = "none";
-    }, 4000);
-  }
+    const cleanup = () => {
+      try { socket?.disconnect(); } catch {}
+      try {
+        pc?.getSenders()?.forEach((s) => s.track && s.track.stop());
+        pc?.close();
+      } catch {}
+      pc = null;
+      localStream = null;
+    };
 
-  async function handleRegister() {
-    const name = document.getElementById("name").value.trim();
-    const gender = document.getElementById("gender").value;
-    const contact = document.getElementById("contact").value.trim();
-    const password = document.getElementById("password").value.trim();
-    const age = document.getElementById("age").value.trim();
-    const city = document.getElementById("city").value.trim();
-    const reason = document.getElementById("reason").value;
-    if (!name || !gender || !contact || !password || !age || !city || !reason)
-      return showError("Please fill all required fields!");
-
-    try {
-      const res = await fetch(`${API_BASE}/register`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ emailOrMobile: contact, password, name }),
-      });
-      const data = await res.json();
-      if (res.ok) {
-        localStorage.setItem("token", data.token);
-        window.location.href = "/connect";
-      } else showError(data.error || "Registration failed");
-    } catch {
-      showError("Server error");
-    }
-  }
-
-  async function handleLogin() {
-    const contact = document.getElementById("loginContact").value.trim();
-    const password = document.getElementById("loginPassword").value.trim();
-    if (!contact || !password) return showError("Enter Email/Mobile and Password");
-
-    try {
-      const res = await fetch(`${API_BASE}/login`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ emailOrMobile: contact, password }),
-      });
-      const data = await res.json();
-      if (res.ok) {
-        localStorage.setItem("token", data.token);
-        window.location.href = "/connect";
-      } else {
-        showError(data.error || "Login failed");
+    (async function start() {
+      try {
+        localStream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
+        const lv = get("localVideo");
+        if (lv) lv.srcObject = localStream;
+      } catch (err) {
+        showToast("Camera/Mic access needed");
+        return;
       }
-    } catch {
-      showError("Server error");
-    }
-  }
 
-  async function handleReset() {
-    const contact = document.getElementById("resetContact").value.trim();
-    const newPassword = document.getElementById("newPassword").value.trim();
-    if (!contact || !newPassword) return showError("Fill all fields");
+      socket = io(BACKEND_URL, { transports: ["websocket"] });
 
-    try {
-      const res = await fetch(`${API_BASE}/reset-password`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ emailOrMobile: contact, password: newPassword }),
+      socket.on("connect", () => {
+        const token = localStorage.getItem("token");
+        const roomCode = sessionStorage.getItem("roomCode");
+        socket.emit("joinVideo", { token, roomCode });
       });
-      const data = await res.json();
-      if (res.ok) {
-        alert("Password reset successful, please login again.");
-        setShowReset(false);
-        setShowLogin(true);
-      } else showError(data.error || "Reset failed");
-    } catch {
-      showError("Server error");
-    }
-  }
+
+      const createPC = () => {
+        if (pc) return;
+        pc = new RTCPeerConnection(ICE_CONFIG);
+        localStream?.getTracks().forEach((t) => pc.addTrack(t, localStream));
+
+        pc.ontrack = (e) => {
+          const rv = get("remoteVideo");
+          if (rv && e.streams[0]) {
+            rv.srcObject = e.streams[0];
+          }
+        };
+
+        pc.onicecandidate = (e) => {
+          if (e.candidate) socket.emit("candidate", e.candidate);
+        };
+      };
+
+      socket.on("ready", () => createPC());
+
+      socket.on("offer", async (offer) => {
+        createPC();
+        await pc.setRemoteDescription(new RTCSessionDescription(offer));
+        const answer = await pc.createAnswer();
+        await pc.setLocalDescription(answer);
+        socket.emit("answer", answer);
+      });
+
+      socket.on("answer", async (answer) => {
+        if (!pc) createPC();
+        await pc.setRemoteDescription(new RTCSessionDescription(answer));
+      });
+
+      socket.on("candidate", async (candidate) => {
+        if (!pc) createPC();
+        try {
+          await pc.addIceCandidate(new RTCIceCandidate(candidate));
+        } catch {}
+      });
+
+      socket.on("partnerDisconnected", () => {
+        showToast("Partner disconnected");
+        showRating();
+      });
+
+      socket.on("partnerLeft", () => {
+        showToast("Partner left");
+        showRating();
+      });
+
+      // ensure only one offer at a time
+      setTimeout(async () => {
+        if (!pc) createPC();
+        if (pc.signalingState === "stable") {
+          const offer = await pc.createOffer();
+          await pc.setLocalDescription(offer);
+          socket.emit("offer", offer);
+        }
+      }, 1000);
+    })();
+
+    // === Buttons ===
+    const micBtn = get("micBtn");
+    micBtn.onclick = () => {
+      const t = localStream?.getAudioTracks()[0];
+      if (!t) return;
+      t.enabled = !t.enabled;
+      micBtn.classList.toggle("inactive", !t.enabled);
+      showToast(t.enabled ? "🎤 Mic On" : "🔇 Mic Off");
+    };
+
+    const camBtn = get("camBtn");
+    camBtn.onclick = () => {
+      const t = localStream?.getVideoTracks()[0];
+      if (!t) return;
+      t.enabled = !t.enabled;
+      camBtn.classList.toggle("inactive", !t.enabled);
+      showToast(t.enabled ? "📸 Camera On" : "📷 Camera Off");
+    };
+
+    const screenBtn = get("screenShareBtn");
+    screenBtn.onclick = async () => {
+      if (!pc) return showToast("No connection");
+      try {
+        const screen = await navigator.mediaDevices.getDisplayMedia({ video: true });
+        const track = screen.getVideoTracks()[0];
+        const sender = pc.getSenders().find((s) => s.track.kind === "video");
+        sender.replaceTrack(track);
+        track.onended = () => sender.replaceTrack(localStream.getVideoTracks()[0]);
+        showToast("🖥️ Screen sharing");
+      } catch {
+        showToast("❌ Screen share cancelled");
+      }
+    };
+
+    const disconnectBtn = get("disconnectBtn");
+    disconnectBtn.onclick = () => {
+      try { socket?.emit("partnerLeft"); } catch {}
+      cleanup();
+      showRating();
+    };
+
+    get("quitBtn").onclick = () => {
+      cleanup();
+      window.location.href = "/";
+    };
+
+    get("newPartnerBtn").onclick = () => {
+      cleanup();
+      window.location.href = "/connect";
+    };
+
+    // draggable local video
+    const lb = get("localBox");
+    let dragging = false, dx = 0, dy = 0;
+    const startDrag = (x, y) => {
+      const rect = lb.getBoundingClientRect();
+      dx = x - rect.left; dy = y - rect.top; dragging = true;
+    };
+    const moveDrag = (x, y) => {
+      if (!dragging) return;
+      lb.style.left = `${x - dx}px`;
+      lb.style.top = `${y - dy}px`;
+    };
+    const stopDrag = () => (dragging = false);
+
+    lb.addEventListener("mousedown", (e) => startDrag(e.clientX, e.clientY));
+    document.addEventListener("mousemove", (e) => moveDrag(e.clientX, e.clientY));
+    document.addEventListener("mouseup", stopDrag);
+    lb.addEventListener("touchstart", (e) => {
+      const t = e.touches[0]; startDrag(t.clientX, t.clientY);
+    });
+    document.addEventListener("touchmove", (e) => {
+      const t = e.touches[0]; moveDrag(t.clientX, t.clientY);
+    });
+    document.addEventListener("touchend", stopDrag);
+
+    return () => cleanup();
+  }, []);
 
   return (
     <>
-      <canvas id="heartsCanvas"></canvas>
-      <audio id="bgMusic" loop>
-        <source src="music/romantic.mp3" type="audio/mpeg" />
-      </audio>
+      <div className="video-container">
+        <video id="remoteVideo" autoPlay playsInline></video>
+        <div id="localBox"><video id="localVideo" autoPlay playsInline muted></video></div>
+      </div>
 
-      <div id="errorMessage"></div>
+      {/* === Icon Only Control Bar === */}
+      <div className="control-bar">
+        <button id="micBtn" className="control-btn" title="Mic"><i className="fas fa-microphone"></i></button>
+        <button id="camBtn" className="control-btn" title="Camera"><i className="fas fa-video"></i></button>
+        <button id="screenShareBtn" className="control-btn" title="Share Screen"><i className="fas fa-desktop"></i></button>
+        <button id="disconnectBtn" className="control-btn danger" title="End Call"><i className="fas fa-phone-slash"></i></button>
+      </div>
 
-      {/* ✅ Responsive Container */}
-      <div className="container" id="userFormContainer">
-        {/* Left Side - Text */}
-        <div className="left">
-          <h1>Welcome to Milan ❤️</h1>
-          <p>
-            “Love recognizes no barriers. It jumps hurdles, leaps fences,
-            penetrates walls to arrive at its destination full of hope.”
-          </p>
+      <div id="ratingOverlay">
+        <h2>💖 Rate your partner 💖</h2>
+        <div className="hearts">
+          <i className="far fa-heart" data-value="1"></i>
+          <i className="far fa-heart" data-value="2"></i>
+          <i className="far fa-heart" data-value="3"></i>
+          <i className="far fa-heart" data-value="4"></i>
+          <i className="far fa-heart" data-value="5"></i>
         </div>
-
-        {/* Right Side - Forms */}
-        <div className="right">
-          <div className="form-container">
-            {/* Register */}
-            {!showLogin && !showReset && (
-              <div id="registerForm">
-                <h2>Create Your Account</h2>
-                <button
-                  type="button"
-                  onClick={() => {
-                    const bgMusic = document.getElementById("bgMusic");
-                    if (musicPlaying) bgMusic.pause();
-                    else bgMusic.play().catch(() => {});
-                    setMusicPlaying(!musicPlaying);
-                  }}
-                >
-                  {musicPlaying ? "Music Off" : "Music On"}
-                </button>
-                <button type="button" onClick={() => document.body.classList.toggle("light-mode")}>
-                  🌙 Switch Theme
-                </button>
-
-                <label>
-                  Name <span className="star">*</span>
-                </label>
-                <input type="text" id="name" placeholder="Your name or nickname" />
-
-                <label>
-                  Gender <span className="star">*</span>
-                </label>
-                <select id="gender">
-                  <option value="">Select Gender</option>
-                  <option value="Male">Male</option>
-                  <option value="Female">Female</option>
-                  <option value="Other">Other</option>
-                </select>
-
-                <label>
-                  Email or Mobile <span className="star">*</span>
-                </label>
-                <input type="text" id="contact" placeholder="Email or 10-digit Mobile number" />
-
-                <label>
-                  Password <span className="star">*</span>
-                </label>
-                <input type="password" id="password" placeholder="Enter password" />
-
-                <label>
-                  Age <span className="star">*</span>
-                </label>
-                <input type="number" id="age" placeholder="Your age" min="18" max="99" />
-
-                <label>
-                  City/Country <span className="star">*</span>
-                </label>
-                <input type="text" id="city" placeholder="City / Country" />
-
-                <label>
-                  Reason for Joining <span className="star">*</span>
-                </label>
-                <select
-                  id="reason"
-                  onChange={(e) =>
-                    (document.getElementById("otherReason").style.display =
-                      e.target.value === "Other" ? "block" : "none")
-                  }
-                >
-                  <option value="">Select reason</option>
-                  <option value="Looking for Love">Looking for Love ❤️</option>
-                  <option value="Friendship">Friendship 🤗</option>
-                  <option value="Casual Chat">Casual Chat 🎈</option>
-                  <option value="Exploring">Exploring 🌎</option>
-                  <option value="Other">Other</option>
-                </select>
-                <textarea id="otherReason" placeholder="If other, please describe" style={{ display: "none" }} />
-
-                <button onClick={handleRegister}>Register & Start</button>
-                <p style={{ textAlign: "center", cursor: "pointer", color: "yellow" }} onClick={() => setShowLogin(true)}>
-                  Already Registered? Login here
-                </p>
-              </div>
-            )}
-
-            {/* Login */}
-            {showLogin && !showReset && (
-              <div id="loginForm">
-                <h2>Login to Milan</h2>
-                <label>Email or Mobile</label>
-                <input type="text" id="loginContact" placeholder="Enter Email/Mobile" />
-                <label>Password</label>
-                <input type="password" id="loginPassword" placeholder="Enter password" />
-                <button onClick={handleLogin}>Login</button>
-                <p style={{ textAlign: "center", cursor: "pointer", color: "yellow" }} onClick={() => setShowLogin(false)}>
-                  New User? Register here
-                </p>
-                <p style={{ textAlign: "center", cursor: "pointer", color: "#ff4d4f" }} onClick={() => setShowReset(true)}>
-                  Forgot Password?
-                </p>
-              </div>
-            )}
-
-            {/* Reset Password */}
-            {showReset && (
-              <div id="resetForm">
-                <h2>Reset Password</h2>
-                <label>Email or Mobile</label>
-                <input type="text" id="resetContact" placeholder="Enter your Email/Mobile" />
-                <label>New Password</label>
-                <input type="password" id="newPassword" placeholder="Enter new password" />
-                <button onClick={handleReset}>Reset Password</button>
-                <p
-                  style={{ textAlign: "center", cursor: "pointer", color: "yellow" }}
-                  onClick={() => {
-                    setShowReset(false);
-                    setShowLogin(true);
-                  }}
-                >
-                  Back to Login
-                </p>
-              </div>
-            )}
-          </div>
+        <div className="rating-buttons">
+          <button id="quitBtn">💔 Quit</button>
+          <button id="newPartnerBtn">💞 New Partner</button>
         </div>
       </div>
 
-      {/* ✅ CSS */}
+      <div id="toast"></div>
+
       <style jsx global>{`
-        :root {
-          --bg-color: #1f2937;
-          --text-color: #ffffff;
-          --box-bg: rgba(255, 255, 255, 0.2);
-          --btn-bg: #ffffff;
-          --btn-text: #ec4899;
-          --red-star: #ff4d4f;
-        }
-        .light-mode {
-          --bg-color: #f3f4f6;
-          --text-color: #1f2937;
-          --box-bg: rgba(0, 0, 0, 0.1);
-          --btn-bg: #ec4899;
-          --btn-text: #ffffff;
-        }
-        body {
-          margin: 0;
-          padding: 0;
-          font-family: "Segoe UI", sans-serif;
-          background: var(--bg-color);
-          color: var(--text-color);
-          overflow-y: auto;
-          width: 100%;
-          height: 100%;
-        }
-        #heartsCanvas {
-          position: fixed;
-          top: 0;
-          left: 0;
-          width: 100%;
-          height: 100%;
-          z-index: 0;
-        }
-        .container {
-          position: relative;
-          z-index: 1;
-          display: grid;
-          grid-template-columns: 1fr 1fr;
-          align-items: center;
-          min-height: 100vh;
-          padding: 0 40px;
-          margin: 0 auto;
-          max-width: 1200px;
-        }
-        .left {
-          text-align: center;
-          padding: 20px;
-        }
-        .left h1 {
-          font-size: 2em;
-          margin-bottom: 10px;
-        }
-        .left p {
-          font-size: 14px;
-          line-height: 1.5;
-        }
+        *{margin:0;padding:0;box-sizing:border-box}
+        html,body{height:100%;background:#1b0034;font-family:'Segoe UI',sans-serif;overflow:hidden}
+        .video-container{position:relative;width:100%;height:100%}
+        #remoteVideo{width:100%;height:100%;object-fit:cover;background:#000}
+        #localBox{position:absolute;bottom:20px;right:20px;width:200px;height:140px;border:2px solid #ff4d8d;border-radius:12px;overflow:hidden;cursor:grab;z-index:2000;background:rgba(255,255,255,0.05);backdrop-filter:blur(10px);box-shadow:0 8px 30px rgba(255,77,141,.5)}
+        #localBox video{width:100%;height:100%;object-fit:cover;transform:scaleX(-1)}
+        @media(max-width:768px){#localBox{width:140px;height:100px}}
 
-        .form-container {
-          background: var(--box-bg);
-          padding: 30px;
-          border-radius: 12px;
-          backdrop-filter: blur(8px);
-          width: 100%;
-          max-width: 400px;
-          margin: 0 auto;
-        }
-        input,
-        select,
-        textarea,
-        button {
-          width: 100%;
-          padding: 10px;
-          margin: 6px 0;
-          border: none;
-          border-radius: 6px;
-          font-size: 14px;
-        }
-        input,
-        textarea {
-          background: rgba(255, 255, 255, 0.3);
-          color: var(--text-color);
-        }
-        button {
-          background: var(--btn-bg);
-          color: var(--btn-text);
-          font-weight: bold;
-          cursor: pointer;
-        }
-        button:hover {
-          background: var(--btn-text);
-          color: var(--btn-bg);
-        }
-
-        #errorMessage {
-          display: none;
+        /* === Icon Control Bar === */
+        .control-bar {
           position: fixed;
-          bottom: 10px;
+          bottom: 20px;
           left: 50%;
           transform: translateX(-50%);
-          background: #ff4d4f;
-          color: #fff;
-          padding: 6px 12px;
-          border-radius: 6px;
-          z-index: 9999;
+          display: flex;
+          gap: 22px;
+          padding: 14px 20px;
+          background: rgba(255,255,255,0.08);
+          backdrop-filter: blur(12px);
+          border-radius: 24px;
+          border: 1px solid rgba(255,77,141,0.3);
+          z-index: 3000;
         }
 
-        /* ✅ Mobile View */
-        @media (max-width: 768px) {
-          .container {
-            grid-template-columns: 1fr;
-            text-align: center;
-            padding: 20px;
-          }
-          .left {
-            order: 2;
-            padding: 10px;
-          }
-          .right {
-            order: 1;
-            display: flex;
-            justify-content: center;
-          }
-          .form-container {
-            width: 100%;
-            max-width: 350px;
-            border-radius: 12px;
-            padding: 20px;
-          }
+        .control-btn {
+          width: 65px;
+          height: 65px;
+          border-radius: 50%;
+          border: none;
+          background: linear-gradient(145deg, rgba(255,182,193,0.6), rgba(255,105,180,0.6));
+          color: #fff;
+          font-size: 26px;
+          cursor: pointer;
+          box-shadow: 0 4px 14px rgba(255,105,180,0.4);
+          transition: all 0.3s ease;
         }
+
+        .control-btn:hover {
+          background: linear-gradient(145deg, rgba(255,182,193,0.9), rgba(255,105,180,0.9));
+          transform: scale(1.2);
+          box-shadow: 0 6px 20px rgba(255,105,180,0.6);
+        }
+
+        .control-btn.inactive { opacity: 0.6; filter: grayscale(30%); }
+        .control-btn.danger {
+          background: linear-gradient(145deg, rgba(255,69,102,0.8), rgba(255,20,60,0.8));
+        }
+        .control-btn.danger:hover {
+          background: linear-gradient(145deg, rgba(255,69,102,1), rgba(255,20,60,1));
+        }
+
+        /* Toast & Overlay remain same */
+        #toast{position:fixed;left:50%;bottom:90px;transform:translateX(-50%);background:rgba(17,17,17,0.85);color:#fff;padding:12px 18px;border-radius:10px;display:none;z-index:5000;font-size:14px}
       `}</style>
     </>
   );
