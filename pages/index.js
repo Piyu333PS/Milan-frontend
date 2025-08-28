@@ -25,13 +25,13 @@ export default function HomePage() {
         y: canvas.height + 50,
         size: Math.random() * 30 + 15,
         speed: Math.random() * 1.5 + 0.5,
-        color: ["#ff4d6d", "#ff1c68", "#ff6b81", "#e6005c"][Math.floor(Math.random() * 4)]
+        color: ["#ff4d6d", "#ff1c68", "#ff6b81", "#e6005c"][Math.floor(Math.random() * 4)],
       };
     }
 
     function drawHearts() {
       ctx.clearRect(0, 0, canvas.width, canvas.height);
-      hearts.forEach(h => {
+      hearts.forEach((h) => {
         ctx.fillStyle = h.color;
         ctx.beginPath();
         ctx.moveTo(h.x, h.y);
@@ -40,7 +40,7 @@ export default function HomePage() {
         ctx.fill();
         h.y -= h.speed;
       });
-      hearts = hearts.filter(h => h.y + h.size > 0);
+      hearts = hearts.filter((h) => h.y + h.size > 0);
       if (Math.random() < 0.1) hearts.push(createHeart());
       requestAnimationFrame(drawHearts);
     }
@@ -72,7 +72,7 @@ export default function HomePage() {
       const res = await fetch(`${API_BASE}/register`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ emailOrMobile: contact, password, name })
+        body: JSON.stringify({ emailOrMobile: contact, password, name }),
       });
       const data = await res.json();
       if (res.ok) {
@@ -93,7 +93,7 @@ export default function HomePage() {
       const res = await fetch(`${API_BASE}/login`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ emailOrMobile: contact, password })
+        body: JSON.stringify({ emailOrMobile: contact, password }),
       });
       const data = await res.json();
       if (res.ok) {
@@ -116,7 +116,7 @@ export default function HomePage() {
       const res = await fetch(`${API_BASE}/reset-password`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ emailOrMobile: contact, password: newPassword })
+        body: JSON.stringify({ emailOrMobile: contact, password: newPassword }),
       });
       const data = await res.json();
       if (res.ok) {
@@ -138,12 +138,15 @@ export default function HomePage() {
 
       <div id="errorMessage"></div>
 
+      {/* Banner */}
       <div className="banner">
         <h2>🌺 Ganesh Chaturthi ki Shubhkamnaye! 🌺</h2>
         <p>✨ Milan is Live! Let your hearts connect… ❤️</p>
       </div>
 
+      {/* ✅ Responsive Container */}
       <div className="container" id="userFormContainer">
+        {/* Left Side - Text */}
         <div className="left">
           <h1>Welcome to Milan ❤️</h1>
           <p>
@@ -151,31 +154,26 @@ export default function HomePage() {
             penetrates walls to arrive at its destination full of hope.”
           </p>
         </div>
+
+        {/* Right Side - Forms */}
         <div className="right">
           <div className="form-container">
+            {/* Register */}
             {!showLogin && !showReset && (
               <div id="registerForm">
                 <h2>Create Your Account</h2>
                 <button
-                  id="musicBtn"
                   type="button"
                   onClick={() => {
                     const bgMusic = document.getElementById("bgMusic");
-                    if (musicPlaying) {
-                      bgMusic.pause();
-                    } else {
-                      bgMusic.play().catch(() => {});
-                    }
+                    if (musicPlaying) bgMusic.pause();
+                    else bgMusic.play().catch(() => {});
                     setMusicPlaying(!musicPlaying);
                   }}
                 >
                   {musicPlaying ? "Music Off" : "Music On"}
                 </button>
-                <button
-                  id="themeToggle"
-                  type="button"
-                  onClick={() => document.body.classList.toggle("light-mode")}
-                >
+                <button type="button" onClick={() => document.body.classList.toggle("light-mode")}>
                   🌙 Switch Theme
                 </button>
 
@@ -240,6 +238,7 @@ export default function HomePage() {
               </div>
             )}
 
+            {/* Login */}
             {showLogin && !showReset && (
               <div id="loginForm">
                 <h2>Login to Milan</h2>
@@ -257,6 +256,7 @@ export default function HomePage() {
               </div>
             )}
 
+            {/* Reset Password */}
             {showReset && (
               <div id="resetForm">
                 <h2>Reset Password</h2>
@@ -265,13 +265,9 @@ export default function HomePage() {
                 <label>New Password</label>
                 <input type="password" id="newPassword" placeholder="Enter new password" />
                 <button onClick={handleReset}>Reset Password</button>
-                <p
-                  style={{ textAlign: "center", cursor: "pointer", color: "yellow" }}
-                  onClick={() => {
-                    setShowReset(false);
-                    setShowLogin(true);
-                  }}
-                >
+                <p style={{ textAlign: "center", cursor: "pointer", color: "yellow" }} onClick={() => {
+                  setShowReset(false); setShowLogin(true);
+                }}>
                   Back to Login
                 </p>
               </div>
@@ -280,6 +276,7 @@ export default function HomePage() {
         </div>
       </div>
 
+      {/* ✅ CSS */}
       <style jsx global>{`
         :root {
           --bg-color: #1f2937;
@@ -296,16 +293,13 @@ export default function HomePage() {
           --btn-bg: #ec4899;
           --btn-text: #ffffff;
         }
-        html,
         body {
           margin: 0;
           padding: 0;
-          width: 100%;
-          height: 100%;
-          overflow-y: auto; /* FIX: allow scrolling */
           font-family: "Segoe UI", sans-serif;
           background: var(--bg-color);
           color: var(--text-color);
+          overflow-y: auto;
         }
         #heartsCanvas {
           position: fixed;
@@ -328,104 +322,39 @@ export default function HomePage() {
           z-index: 10;
           animation: fadeInPulse 2s ease-in-out infinite alternate;
         }
-        .banner h2 {
-          margin: 0;
-          font-size: 20px;
-        }
-        .banner p {
-          margin: 5px 0 0 0;
-          font-size: 16px;
-        }
-        @keyframes fadeInPulse {
-          0% { opacity: 0.7; transform: translateX(-50%) scale(1); }
-          50% { opacity: 1; transform: translateX(-50%) scale(1.05); }
-          100% { opacity: 0.8; transform: translateX(-50%) scale(1); }
-        }
+        .banner h2 { margin: 0; font-size: 18px; }
+        .banner p { margin: 5px 0 0 0; font-size: 14px; }
+
         .container {
           position: relative;
           z-index: 1;
-          display: flex;
+          display: grid;
+          grid-template-columns: 1fr 1fr;
           align-items: center;
-          justify-content: center;
+          gap: 30px;
           min-height: 100vh;
-          padding: 20px;
-          gap: 20px;
+          padding: 40px;
         }
-        .left,
-        .right {
-          flex: 1;
-          padding: 10px;
-          box-sizing: border-box;
-        }
-        .left h1 {
-          font-size: 2.2em;
-          margin-bottom: 8px;
-        }
-        .left p {
-          font-size: 16px;
-          line-height: 1.4;
-        }
+        .left { text-align: left; }
+        .left h1 { font-size: 2.5em; margin-bottom: 10px; }
+        .left p { font-size: 16px; line-height: 1.5; }
+
         .form-container {
           background: var(--box-bg);
-          padding: 20px;
-          border-radius: 10px;
+          padding: 25px;
+          border-radius: 12px;
           backdrop-filter: blur(8px);
           max-width: 400px;
           margin: 0 auto;
         }
-        .form-container h2 {
-          margin-top: 0;
-          color: var(--text-color);
-          font-size: 22px;
-          margin-bottom: 15px;
-          text-align: center;
+        input, select, textarea, button {
+          width: 100%; padding: 10px; margin: 8px 0;
+          border: none; border-radius: 6px; font-size: 14px;
         }
-        input,
-        select,
-        textarea,
-        button {
-          width: 100%;
-          padding: 10px;
-          margin: 8px 0;
-          border: none;
-          border-radius: 5px;
-          font-size: 14px;
-          box-sizing: border-box;
-        }
-        input,
-        textarea {
-          background: rgba(255, 255, 255, 0.3);
-          color: var(--text-color);
-        }
-        select,
-        option {
-          color: #333;
-          background: #fff;
-        }
-        ::placeholder {
-          color: #f3e8ff;
-        }
-        button {
-          background: var(--btn-bg);
-          color: var(--btn-text);
-          font-weight: bold;
-          cursor: pointer;
-          transition: 0.3s;
-        }
-        button:hover {
-          background: var(--btn-text);
-          color: var(--btn-bg);
-        }
-        label {
-          display: block;
-          margin-top: 5px;
-          font-weight: bold;
-          font-size: 14px;
-        }
-        .star {
-          color: var(--red-star);
-          margin-left: 4px;
-        }
+        input, textarea { background: rgba(255, 255, 255, 0.3); color: var(--text-color); }
+        button { background: var(--btn-bg); color: var(--btn-text); font-weight: bold; cursor: pointer; }
+        button:hover { background: var(--btn-text); color: var(--btn-bg); }
+
         #errorMessage {
           display: none;
           position: fixed;
@@ -435,30 +364,21 @@ export default function HomePage() {
           background: #ff4d4f;
           color: #fff;
           padding: 8px 16px;
-          border-radius: 5px;
-          font-weight: bold;
+          border-radius: 6px;
           z-index: 9999;
-          box-shadow: 0 0 10px rgba(0, 0, 0, 0.3);
-          font-size: 14px;
         }
 
-        /* ✅ Responsive Fix */
+        /* ✅ Mobile View */
         @media (max-width: 768px) {
           .container {
-            flex-direction: column;
-            justify-content: flex-start;
-            padding: 20px 10px;
-          }
-          .left {
+            grid-template-columns: 1fr;
             text-align: center;
+            padding: 20px;
           }
-          .right {
-            width: 100%;
-          }
-          .form-container {
-            width: 100%;
-            max-width: 100%;
-          }
+          .left { order: 2; }
+          .right { order: 1; width: 100%; }
+          .form-container { width: 100%; max-width: 100%; }
+          .banner { font-size: 14px; padding: 10px 15px; }
         }
       `}</style>
     </>
