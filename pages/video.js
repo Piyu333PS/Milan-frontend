@@ -12,6 +12,10 @@ export default function VideoPage() {
     let localStream = null;
     let hasOffered = false;
 
+    // NEW: keep a saved camera track so we can restore after screen-share ends reliably
+    let cameraTrackSaved = null;
+    let isScreenSharingLocal = false;
+
     const get = (id) => document.getElementById(id);
     const showToast = (msg, ms = 2000) => {
       const t = get("toast");
@@ -96,6 +100,9 @@ export default function VideoPage() {
     (async function start() {
       try {
         localStream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
+        // SAVE camera track reference (so later when screen share ends we can restore it)
+        cameraTrackSaved = localStream?.getVideoTracks()?.[0] || null;
+
         const lv = get("localVideo");
         if (lv) {
           lv.srcObject = localStream;
@@ -120,12 +127,40 @@ export default function VideoPage() {
         if (pc) return;
         pc = new RTCPeerConnection(ICE_CONFIG);
 
+        // Add local tracks
         localStream?.getTracks().forEach((t) => pc.addTrack(t, localStream));
 
+        // When remote track arrives
         pc.ontrack = (e) => {
           const rv = get("remoteVideo");
           if (rv && e.streams && e.streams[0]) {
+            // set remote stream
             rv.srcObject = e.streams[0];
+
+            // Attach 'ended' handlers to remote video tracks so we can detect when partner stops sharing
+            try {
+              const remoteStream = e.streams[0];
+              const videoTracks = remoteStream.getVideoTracks();
+              if (videoTracks && videoTracks.length) {
+                videoTracks.forEach((vt) => {
+                  vt.onended = () => {
+                    console.warn("⚠️ remote video track ended");
+                    showToast("Partner stopped video");
+                    // Keep the element ready; when new tracks arrive pc.ontrack will run again
+                  };
+                });
+              }
+
+              // Also listen for addtrack to re-attach when partner restores camera
+              remoteStream.addEventListener &&
+                remoteStream.addEventListener("addtrack", () => {
+                  console.log("🔁 remote stream addtrack fired - new track probably arrived");
+                  // reassign to element in case it was cleared
+                  if (rv && remoteStream) rv.srcObject = remoteStream;
+                });
+            } catch (err) {
+              console.warn("Error attaching remote track handlers", err);
+            }
           }
         };
 
@@ -137,10 +172,14 @@ export default function VideoPage() {
       socket.on("ready", async () => {
         createPC();
         if (!hasOffered && pc.signalingState === "stable") {
-          const offer = await pc.createOffer();
-          await pc.setLocalDescription(offer);
-          socket.emit("offer", offer);
-          hasOffered = true;
+          try {
+            const offer = await pc.createOffer();
+            await pc.setLocalDescription(offer);
+            socket.emit("offer", offer);
+            hasOffered = true;
+          } catch (err) {
+            console.error("Offer error:", err);
+          }
         }
       });
 
@@ -159,7 +198,11 @@ export default function VideoPage() {
 
       socket.on("candidate", async (candidate) => {
         if (!pc) createPC();
-        await pc.addIceCandidate(new RTCIceCandidate(candidate));
+        try {
+          await pc.addIceCandidate(new RTCIceCandidate(candidate));
+        } catch (err) {
+          console.error("Error adding candidate:", err);
+        }
       });
 
       socket.on("partnerDisconnected", () => {
@@ -180,6 +223,11 @@ export default function VideoPage() {
       if (!t) return;
       t.enabled = !t.enabled;
       micBtn.classList.toggle("inactive", !t.enabled);
+
+      // Update icon
+      const i = micBtn.querySelector("i");
+      if (i) i.className = t.enabled ? "fas fa-microphone" : "fas fa-microphone-slash";
+
       showToast(t.enabled ? "Mic On" : "Mic Off");
     };
 
@@ -189,6 +237,11 @@ export default function VideoPage() {
       if (!t) return;
       t.enabled = !t.enabled;
       camBtn.classList.toggle("inactive", !t.enabled);
+
+      // Update icon
+      const i = camBtn.querySelector("i");
+      if (i) i.className = t.enabled ? "fas fa-video" : "fas fa-video-slash";
+
       showToast(t.enabled ? "Camera On" : "Camera Off");
     };
 
@@ -196,17 +249,68 @@ export default function VideoPage() {
     screenBtn.onclick = async () => {
       if (!pc) return showToast("No connection");
       try {
+        // Request display media
         const screen = await navigator.mediaDevices.getDisplayMedia({ video: true });
-        const track = screen.getVideoTracks()[0];
+        const screenTrack = screen.getVideoTracks()[0];
         const sender = pc.getSenders().find((s) => s.track && s.track.kind === "video");
-        if (sender) {
-          sender.replaceTrack(track);
-          track.onended = () => {
-            const cam = localStream?.getVideoTracks()?.[0];
-            if (cam) sender.replaceTrack(cam);
-          };
+        if (!sender) {
+          showToast("No video sender found");
+          // stop the screen track if we can't use it
+          screenTrack.stop();
+          return;
         }
+
+        // Save current camera track (in case it changed)
+        cameraTrackSaved = localStream?.getVideoTracks()?.[0] || cameraTrackSaved;
+
+        // replace and mark sharing state
+        sender.replaceTrack(screenTrack);
+        isScreenSharingLocal = true;
+        screenBtn.classList.add("active");
+        showToast("Screen sharing");
+
+        // When user stops screen sharing, restore camera track (robust)
+        screenTrack.onended = async () => {
+          try {
+            // If saved camera track is still usable, restore it. Otherwise try to get a fresh camera track.
+            let cam = cameraTrackSaved;
+            if (!cam || cam.readyState === "ended") {
+              try {
+                const fresh = await navigator.mediaDevices.getUserMedia({ video: true });
+                cam = fresh.getVideoTracks()[0];
+                // also update localStream so local preview works
+                if (localStream) {
+                  // stop previous video track in localStream if ended
+                  const prev = localStream.getVideoTracks()[0];
+                  try { prev && prev.stop(); } catch {}
+                  // remove tracks and add new
+                  localStream.removeTrack(prev);
+                  localStream.addTrack(cam);
+                  const lv = get("localVideo");
+                  if (lv) lv.srcObject = localStream;
+                }
+                cameraTrackSaved = cam;
+              } catch (err) {
+                console.warn("Couldn't reacquire camera after screen share ended", err);
+              }
+            }
+
+            if (sender && cam) {
+              sender.replaceTrack(cam);
+              showToast("Screen sharing stopped — camera restored");
+            } else {
+              showToast("Screen sharing stopped");
+            }
+          } catch (err) {
+            console.error("Error restoring camera after screen end", err);
+            showToast("Stopped screen sharing");
+          } finally {
+            isScreenSharingLocal = false;
+            screenBtn.classList.remove("active");
+          }
+        };
       } catch (e) {
+        console.warn("❌ Screen share cancelled / error", e);
         showToast("Screen share cancelled");
       }
     };
@@ -297,19 +401,19 @@ export default function VideoPage() {
       </div>
 
       <div className="control-bar">
-        <button id="micBtn" className="control-btn">
+        <button id="micBtn" className="control-btn" aria-label="Toggle Mic">
           <i className="fas fa-microphone"></i>
           <span>Mic</span>
         </button>
-        <button id="camBtn" className="control-btn">
+        <button id="camBtn" className="control-btn" aria-label="Toggle Camera">
           <i className="fas fa-video"></i>
           <span>Camera</span>
         </button>
-        <button id="screenShareBtn" className="control-btn">
+        <button id="screenShareBtn" className="control-btn" aria-label="Share Screen">
           <i className="fas fa-desktop"></i>
           <span>Share</span>
         </button>
-        <button id="disconnectBtn" className="control-btn danger">
+        <button id="disconnectBtn" className="control-btn danger" aria-label="End Call">
           <i className="fas fa-phone-slash"></i>
           <span>End</span>
         </button>
@@ -378,6 +482,8 @@ export default function VideoPage() {
           display:flex;flex-direction:column;align-items:center;justify-content:center;
           background:#18181b;color:#fff;border-radius:14px;width:68px;height:68px;cursor:pointer;
         }
+        .control-btn.inactive{opacity:0.5}
+        .control-btn.active{box-shadow:0 6px 18px rgba(255,77,141,0.18);transform:translateY(-2px)}
         .control-btn.danger{background:#9b1c2a}
 
         /* === Rating Overlay Rework === */
