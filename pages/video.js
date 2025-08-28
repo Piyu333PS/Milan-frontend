@@ -10,6 +10,7 @@ export default function VideoPage() {
     let socket = null;
     let pc = null;
     let localStream = null;
+    let hasOffered = false; // ✅ ensure we send offer only once after 'ready'
 
     const get = (id) => document.getElementById(id);
     const showToast = (msg, ms = 2000) => {
@@ -35,6 +36,7 @@ export default function VideoPage() {
       } catch {}
       pc = null;
       localStream = null;
+      hasOffered = false;
     };
 
     // Start
@@ -76,7 +78,9 @@ export default function VideoPage() {
         pc.ontrack = (e) => {
           console.log("📺 Remote track received:", e.streams);
           const rv = get("remoteVideo");
-          if (rv) rv.srcObject = e.streams[0];
+          if (rv && e.streams && e.streams[0]) {
+            rv.srcObject = e.streams[0];
+          }
         };
 
         pc.onicecandidate = (e) => {
@@ -88,12 +92,41 @@ export default function VideoPage() {
 
         pc.onconnectionstatechange = () => {
           console.log("🔄 PC state changed:", pc.connectionState);
+          if (pc.connectionState === "failed") {
+            console.warn("⚠️ ICE failed, consider TURN.");
+            showToast("Connection issue (ICE failed)");
+          }
+        };
+
+        pc.onsignalingstatechange = () => {
+          console.log("🧭 Signaling state:", pc.signalingState);
+        };
+
+        pc.onicegatheringstatechange = () => {
+          console.log("🧊 ICE gathering:", pc.iceGatheringState);
+        };
+
+        pc.oniceconnectionstatechange = () => {
+          console.log("🧊 ICE connection:", pc.iceConnectionState);
         };
       };
 
-      socket.on("ready", () => {
-        console.log("✅ Partner ready, creating PeerConnection...");
+      // Partner ready → create PC and send initial offer (only once)
+      socket.on("ready", async () => {
+        console.log("✅ Partner ready");
         createPC();
+        if (!hasOffered && pc.signalingState === "stable") {
+          try {
+            console.log("📡 Creating offer (after ready)...");
+            const offer = await pc.createOffer();
+            await pc.setLocalDescription(offer);
+            socket.emit("offer", offer);
+            console.log("📡 Offer sent:", offer);
+            hasOffered = true;
+          } catch (err) {
+            console.error("❌ Error creating/sending offer:", err);
+          }
+        }
       });
 
       socket.on("offer", async (offer) => {
@@ -135,17 +168,8 @@ export default function VideoPage() {
         showRating();
       });
 
-      // Initial offer
-      setTimeout(async () => {
-        createPC();
-        if (pc.signalingState === "stable") {
-          console.log("📡 Creating offer...");
-          const offer = await pc.createOffer();
-          await pc.setLocalDescription(offer);
-          socket.emit("offer", offer);
-          console.log("📡 Offer sent:", offer);
-        }
-      }, 1000);
+      // ❌ हटाया गया: टाइमर से early offer भेजना
+      // अब offer सिर्फ 'ready' पर जाएगा ताकि दोनों peers sync रहें.
     })();
 
     // Buttons
@@ -176,15 +200,20 @@ export default function VideoPage() {
         console.log("🖥️ Starting screen share...");
         const screen = await navigator.mediaDevices.getDisplayMedia({ video: true });
         const track = screen.getVideoTracks()[0];
-        const sender = pc.getSenders().find((s) => s.track.kind === "video");
+        const sender = pc.getSenders().find((s) => s.track && s.track.kind === "video");
+        if (!sender) {
+          console.warn("⚠️ No video sender found to replace");
+          return;
+        }
         sender.replaceTrack(track);
         track.onended = () => {
           console.log("🖥️ Screen share ended, restoring camera");
-          sender.replaceTrack(localStream.getVideoTracks()[0]);
+          const cam = localStream?.getVideoTracks()?.[0];
+          if (cam) sender.replaceTrack(cam);
         };
         showToast("Screen sharing");
-      } catch {
-        console.warn("❌ Screen share cancelled");
+      } catch (e) {
+        console.warn("❌ Screen share cancelled / error", e);
         showToast("Screen share cancelled");
       }
     };
@@ -209,46 +238,64 @@ export default function VideoPage() {
       window.location.href = "/connect";
     };
 
-    // Draggable local video
+    // Draggable local video (passive touch listeners to avoid warnings)
     const lb = get("localBox");
     let dragging = false, dx = 0, dy = 0;
+
     const startDrag = (x, y) => {
       const rect = lb.getBoundingClientRect();
       dx = x - rect.left; dy = y - rect.top; dragging = true;
+      lb.style.cursor = "grabbing";
     };
     const moveDrag = (x, y) => {
       if (!dragging) return;
       lb.style.left = `${x - dx}px`;
       lb.style.top = `${y - dy}px`;
     };
-    const stopDrag = () => (dragging = false);
+    const stopDrag = () => { dragging = false; lb.style.cursor = "grab"; };
 
     lb.addEventListener("mousedown", (e) => startDrag(e.clientX, e.clientY));
     document.addEventListener("mousemove", (e) => moveDrag(e.clientX, e.clientY));
     document.addEventListener("mouseup", stopDrag);
+
     lb.addEventListener("touchstart", (e) => {
       const t = e.touches[0]; startDrag(t.clientX, t.clientY);
-    });
+    }, { passive: true });
     document.addEventListener("touchmove", (e) => {
       const t = e.touches[0]; moveDrag(t.clientX, t.clientY);
-    });
-    document.addEventListener("touchend", stopDrag);
+    }, { passive: true });
+    document.addEventListener("touchend", stopDrag, { passive: true });
 
     return () => cleanup();
   }, []);
 
   return (
     <>
+      {/* Font Awesome for icons */}
+      <link
+        rel="stylesheet"
+        href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css"
+        referrerPolicy="no-referrer"
+      />
+
       <div className="video-container">
         <video id="remoteVideo" autoPlay playsInline></video>
         <div id="localBox"><video id="localVideo" autoPlay playsInline muted></video></div>
       </div>
 
       <div className="control-bar">
-        <button id="micBtn" className="control-btn"><i className="fas fa-microphone"></i><span>Mic</span></button>
-        <button id="camBtn" className="control-btn"><i className="fas fa-video"></i><span>Camera</span></button>
-        <button id="screenShareBtn" className="control-btn"><i className="fas fa-desktop"></i><span>Share</span></button>
-        <button id="disconnectBtn" className="control-btn danger"><i className="fas fa-phone-slash"></i><span>End</span></button>
+        <button id="micBtn" className="control-btn" aria-label="Toggle Mic">
+          <i className="fas fa-microphone"></i><span>Mic</span>
+        </button>
+        <button id="camBtn" className="control-btn" aria-label="Toggle Camera">
+          <i className="fas fa-video"></i><span>Camera</span>
+        </button>
+        <button id="screenShareBtn" className="control-btn" aria-label="Share Screen">
+          <i className="fas fa-desktop"></i><span>Share</span>
+        </button>
+        <button id="disconnectBtn" className="control-btn danger" aria-label="End Call">
+          <i className="fas fa-phone-slash"></i><span>End</span>
+        </button>
       </div>
 
       <div id="ratingOverlay">
@@ -267,6 +314,61 @@ export default function VideoPage() {
       </div>
 
       <div id="toast"></div>
+
+      {/* === Styles (restored + improved) === */}
+      <style jsx global>{`
+        *{margin:0;padding:0;box-sizing:border-box}
+        html,body{height:100%;background:#000;font-family:'Segoe UI',sans-serif;overflow:hidden}
+
+        .video-container{position:relative;width:100%;height:100%}
+        #remoteVideo{width:100%;height:100%;object-fit:cover;background:#000}
+        #localBox{
+          position:absolute;bottom:20px;right:20px;width:220px;height:150px;
+          border:2px solid #ff4d8d;border-radius:14px;overflow:hidden;cursor:grab;
+          z-index:2000;background:#111;box-shadow:0 8px 20px rgba(0,0,0,.5)
+        }
+        #localBox video{width:100%;height:100%;object-fit:cover;transform:scaleX(-1)}
+        @media(max-width:768px){#localBox{width:150px;height:110px}}
+
+        .control-bar{
+          position:fixed;bottom:18px;left:50%;transform:translateX(-50%);
+          display:flex;gap:18px;padding:12px 16px;background:rgba(0,0,0,.6);
+          border:1px solid rgba(255,255,255,.12);border-radius:16px;z-index:3000;
+          backdrop-filter: blur(8px);
+        }
+        .control-btn{
+          position:relative;display:flex;flex-direction:column;align-items:center;justify-content:center;
+          background:#18181b;color:#fff;border:1px solid rgba(255,255,255,.15);border-radius:14px;
+          width:68px;height:68px;cursor:pointer;transition:transform .15s,border-color .15s,background .15s;
+        }
+        .control-btn i{font-size:22px;line-height:1}
+        .control-btn span{
+          position:absolute;bottom:-30px;opacity:0;pointer-events:none;
+          background:#111;color:#fff;padding:6px 10px;border-radius:8px;font-size:12px;white-space:nowrap;
+          border:1px solid rgba(255,255,255,.15);transition:opacity .2s,transform .2s;transform:translateY(5px);
+        }
+        .control-btn:hover{border-color:#ff4d8d;transform:scale(1.05)}
+        .control-btn:hover span{opacity:1;transform:translateY(0)}
+        .control-btn.inactive{opacity:.55}
+        .control-btn.danger{background:#9b1c2a;border-color:#ff5a79}
+
+        #ratingOverlay{
+          position:fixed;inset:0;display:none;flex-direction:column;align-items:center;justify-content:center;
+          background:rgba(0,0,0,.9);color:#fff;z-index:4000
+        }
+        .hearts{display:flex;gap:12px;font-size:44px}
+        .hearts i{color:#666;cursor:pointer}
+        .hearts i:hover{color:#ff4d8d}
+        .hearts i.selected{color:#ff1744}
+        .rating-buttons{display:flex;gap:16px;margin-top:20px}
+        .rating-buttons button{background:#ff4d8d;color:#fff;border:none;border-radius:8px;padding:10px 16px;cursor:pointer}
+
+        #toast{
+          position:fixed;left:50%;bottom:110px;transform:translateX(-50%);
+          background:#111;color:#fff;padding:10px 14px;border-radius:8px;display:none;z-index:5000;
+          border:1px solid rgba(255,255,255,.12)
+        }
+      `}</style>
     </>
   );
 }
