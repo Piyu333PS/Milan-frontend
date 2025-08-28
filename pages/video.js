@@ -32,6 +32,41 @@ export default function VideoPage() {
       localStream = null;
     };
 
+    const randomGradient = () => {
+      const colors = [
+        ['#ff9a9e','#fad0c4'],
+        ['#a18cd1','#fbc2eb'],
+        ['#fbc2eb','#a6c1ee'],
+        ['#84fab0','#8fd3f4'],
+        ['#ffecd2','#fcb69f']
+      ];
+      return colors[Math.floor(Math.random()*colors.length)];
+    };
+
+    const applyRandomGlow = () => {
+      const rv = get("remoteVideo");
+      if(!rv) return;
+      const [c1,c2] = randomGradient();
+      rv.style.boxShadow = `0 0 25px 8px ${c1}, 0 0 50px 20px ${c2}`;
+      rv.style.border = `2px solid ${c1}`;
+    };
+
+    const createPC = () => {
+      if (pc) return;
+      pc = new RTCPeerConnection(ICE_CONFIG);
+      localStream?.getTracks().forEach((t) => pc.addTrack(t, localStream));
+
+      pc.ontrack = (e) => {
+        const rv = get("remoteVideo");
+        if (rv) rv.srcObject = e.streams[0];
+        applyRandomGlow();
+      };
+
+      pc.onicecandidate = (e) => {
+        if (e.candidate) socket.emit("candidate", e.candidate);
+      };
+    };
+
     (async function start() {
       try {
         localStream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
@@ -50,47 +85,17 @@ export default function VideoPage() {
         socket.emit("joinVideo", { token, roomCode });
       });
 
-      const createPC = () => {
-        if (pc) return;
-        pc = new RTCPeerConnection(ICE_CONFIG);
-        localStream?.getTracks().forEach((t) => pc.addTrack(t, localStream));
-
-        pc.ontrack = (e) => {
-          const rv = get("remoteVideo");
-          if (rv) rv.srcObject = e.streams[0];
-        };
-
-        pc.onicecandidate = (e) => {
-          if (e.candidate) socket.emit("candidate", e.candidate);
-        };
-      };
-
       socket.on("ready", () => createPC());
-
-      socket.on("offer", async (offer) => {
-        createPC();
-        await pc.setRemoteDescription(new RTCSessionDescription(offer));
-        const answer = await pc.createAnswer();
-        await pc.setLocalDescription(answer);
-        socket.emit("answer", answer);
-      });
-
-      socket.on("answer", async (answer) => {
-        if (!pc) createPC();
-        await pc.setRemoteDescription(new RTCSessionDescription(answer));
-      });
-
-      socket.on("candidate", async (candidate) => {
-        if (!pc) createPC();
-        try { await pc.addIceCandidate(new RTCIceCandidate(candidate)); } catch {}
-      });
+      socket.on("offer", async (offer) => { createPC(); await pc.setRemoteDescription(offer); const answer = await pc.createAnswer(); await pc.setLocalDescription(answer); socket.emit("answer", answer); });
+      socket.on("answer", async (answer) => { if (!pc) createPC(); await pc.setRemoteDescription(answer); });
+      socket.on("candidate", async (candidate) => { if (!pc) createPC(); try { await pc.addIceCandidate(candidate); } catch {} });
 
       socket.on("partnerDisconnected", () => { showToast("Partner disconnected"); showRating(); });
       socket.on("partnerLeft", () => { showToast("Partner left"); showRating(); });
 
       setTimeout(async () => {
         createPC();
-        if (pc.signalingState === "stable") {
+        if(pc.signalingState==="stable") {
           const offer = await pc.createOffer();
           await pc.setLocalDescription(offer);
           socket.emit("offer", offer);
@@ -98,81 +103,79 @@ export default function VideoPage() {
       }, 1000);
     })();
 
-    // Buttons
     const micBtn = get("micBtn");
     micBtn.onclick = () => {
       const t = localStream?.getAudioTracks()[0];
-      if (!t) return;
+      if(!t) return;
       t.enabled = !t.enabled;
       micBtn.classList.toggle("inactive", !t.enabled);
-      showToast(t.enabled ? "🎤 Mic On" : "🔇 Mic Off");
+      showToast(t.enabled?"🎤 Mic On":"🔇 Mic Off");
       animateHeartbeat(t.enabled);
     };
 
     const camBtn = get("camBtn");
     camBtn.onclick = () => {
       const t = localStream?.getVideoTracks()[0];
-      if (!t) return;
+      if(!t) return;
       t.enabled = !t.enabled;
       camBtn.classList.toggle("inactive", !t.enabled);
-      showToast(t.enabled ? "📸 Camera On" : "📷 Camera Off");
+      showToast(t.enabled?"📸 Camera On":"📷 Camera Off");
     };
 
     const screenBtn = get("screenShareBtn");
     screenBtn.onclick = async () => {
-      if (!pc) return showToast("No connection");
+      if(!pc) return showToast("No connection");
       try {
-        const screen = await navigator.mediaDevices.getDisplayMedia({ video: true });
+        const screen = await navigator.mediaDevices.getDisplayMedia({ video:true });
         const track = screen.getVideoTracks()[0];
-        const sender = pc.getSenders().find((s) => s.track.kind === "video");
+        const sender = pc.getSenders().find((s)=>s.track.kind==="video");
         sender.replaceTrack(track);
-        track.onended = () => sender.replaceTrack(localStream.getVideoTracks()[0]);
+        track.onended = ()=>sender.replaceTrack(localStream.getVideoTracks()[0]);
         showToast("🖥️ Screen sharing");
       } catch { showToast("❌ Screen share cancelled"); }
     };
 
     const disconnectBtn = get("disconnectBtn");
-    disconnectBtn.onclick = () => { try { socket?.emit("partnerLeft"); } catch {} cleanup(); showRating(); };
+    disconnectBtn.onclick = () => { try{socket?.emit("partnerLeft");} catch {} cleanup(); showRating(); };
 
-    get("quitBtn").onclick = () => { cleanup(); window.location.href = "/"; };
-    get("newPartnerBtn").onclick = () => { cleanup(); window.location.href = "/connect"; };
+    get("quitBtn").onclick = () => { cleanup(); window.location.href="/"; };
+    get("newPartnerBtn").onclick = () => { cleanup(); window.location.href="/connect"; };
 
     // Draggable local video
     const lb = get("localBox");
-    let dragging=false, dx=0, dy=0;
+    let dragging=false,dx=0,dy=0;
     const startDrag=(x,y)=>{const rect=lb.getBoundingClientRect();dx=x-rect.left;dy=y-rect.top;dragging=true;}
     const moveDrag=(x,y)=>{if(!dragging)return;lb.style.left=`${x-dx}px`;lb.style.top=`${y-dy}px`;}
     const stopDrag=()=>dragging=false;
     lb.addEventListener("mousedown",e=>startDrag(e.clientX,e.clientY));
     document.addEventListener("mousemove",e=>moveDrag(e.clientX,e.clientY));
     document.addEventListener("mouseup",stopDrag);
-    lb.addEventListener("touchstart",e=>{const t=e.touches[0];startDrag(t.clientX,t.clientY);});
-    document.addEventListener("touchmove",e=>{const t=e.touches[0];moveDrag(t.clientX,t.clientY);});
+    lb.addEventListener("touchstart",e=>{const t=e.touches[0];startDrag(t.clientX,t.clientY)});
+    document.addEventListener("touchmove",e=>{const t=e.touches[0];moveDrag(t.clientX,t.clientY)});
     document.addEventListener("touchend",stopDrag);
 
-    // === Next-Level Heartbeat Animation ===
+    // Heartbeat Animation
     const animateHeartbeat = (micOn) => {
       const rv = get("remoteVideo");
-      if (!rv) return;
-      rv.style.transition = "box-shadow 0.3s ease-in-out";
-      rv.style.boxShadow = micOn
-        ? "0 0 25px 8px rgba(255,105,180,0.7), 0 0 50px 20px rgba(255,77,141,0.5)"
-        : "0 0 8px rgba(0,0,0,0)";
+      if(!rv) return;
+      rv.style.transition="box-shadow 0.3s ease-in-out";
+      rv.style.boxShadow= micOn ? "0 0 25px 8px rgba(255,105,180,0.7),0 0 50px 20px rgba(255,77,141,0.5)":"0 0 8px rgba(0,0,0,0)";
       setTimeout(()=>{rv.style.boxShadow="";},300);
     };
 
-    // === Floating Particle Hearts ===
+    // Floating Hearts & Click Mini Game
     const createParticle = (x,y) => {
       const p = document.createElement("div");
-      p.className = "particle-heart";
-      p.style.left = `${x}px`;
-      p.style.top = `${y}px`;
+      p.className="particle-heart";
+      p.style.left=`${x}px`; p.style.top=`${y}px`;
+      const scale=Math.random()*0.6+0.6;
+      p.style.transform=`scale(${scale}) rotate(${Math.random()*360}deg)`;
+      p.style.opacity="0.9";
       document.body.appendChild(p);
       setTimeout(()=>p.remove(),2000);
     };
     document.body.addEventListener("click",(e)=>createParticle(e.clientX,e.clientY));
-    
-    return ()=>cleanup();
+
   }, []);
 
   return (
@@ -214,25 +217,13 @@ export default function VideoPage() {
         #localBox{position:absolute;bottom:20px;right:20px;width:200px;height:140px;border:2px solid #ff4d8d;border-radius:12px;overflow:hidden;cursor:grab;z-index:2000;background:rgba(255,255,255,0.05);backdrop-filter:blur(10px);box-shadow:0 8px 30px rgba(255,77,141,.5)}
         #localBox video{width:100%;height:100%;object-fit:cover;transform:scaleX(-1)}
         @media(max-width:768px){#localBox{width:140px;height:100px}}
-
-        .control-bar{
-          position:fixed;bottom:20px;left:50%;transform:translateX(-50%);
-          display:flex;gap:16px;padding:12px 18px;background:rgba(255,255,255,0.08);
-          backdrop-filter:blur(12px);border-radius:24px;border:1px solid rgba(255,77,141,0.3);z-index:3000;
-        }
-        .control-btn{
-          display:flex;flex-direction:column;align-items:center;justify-content:center;
-          padding:12px 16px;min-width:70px;font-size:14px;color:#fff;
-          background:linear-gradient(145deg, rgba(255,182,193,0.4), rgba(255,105,180,0.4));
-          border:1px solid rgba(255,105,180,0.5);border-radius:16px;cursor:pointer;
-          box-shadow:0 4px 14px rgba(255,105,180,0.4);transition:all 0.3s ease;
-        }
+        .control-bar{position:fixed;bottom:20px;left:50%;transform:translateX(-50%);display:flex;gap:16px;padding:12px 18px;background:rgba(255,255,255,0.08);backdrop-filter:blur(12px);border-radius:24px;border:1px solid rgba(255,77,141,0.3);z-index:3000;}
+        .control-btn{display:flex;flex-direction:column;align-items:center;justify-content:center;padding:12px 16px;min-width:70px;font-size:14px;color:#fff;background:linear-gradient(145deg, rgba(255,182,193,0.4), rgba(255,105,180,0.4));border:1px solid rgba(255,105,180,0.5);border-radius:16px;cursor:pointer;box-shadow:0 4px 14px rgba(255,105,180,0.4);transition:all 0.3s ease;}
         .control-btn i{font-size:20px;margin-bottom:4px}
         .control-btn:hover{background:linear-gradient(145deg, rgba(255,182,193,0.7), rgba(255,105,180,0.7));transform:scale(1.15) rotate(-2deg);box-shadow:0 6px 20px rgba(255,105,180,0.6);}
         .control-btn.inactive{opacity:0.6;filter:grayscale(30%)}
         .control-btn.danger{background:linear-gradient(145deg, rgba(255,69,102,0.7), rgba(255,20,60,0.7));border-color:rgba(255,69,102,0.6);}
         .control-btn.danger:hover{background:linear-gradient(145deg, rgba(255,69,102,0.9), rgba(255,20,60,0.9));transform:scale(1.18) rotate(1deg);}
-
         #ratingOverlay{position:fixed;inset:0;display:none;flex-direction:column;align-items:center;justify-content:center;background:rgba(27,0,52,0.95);color:#fff;z-index:4000;text-align:center;animation:fadeIn 0.6s ease-in-out}
         #ratingOverlay h2{font-size:28px;margin-bottom:20px;color:#ff4d8d;text-shadow:0 0 12px rgba(255,77,141,0.8)}
         .hearts{display:flex;gap:14px;font-size:50px}
