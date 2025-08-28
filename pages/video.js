@@ -25,7 +25,6 @@ export default function VideoPage() {
       if (r) r.style.display = "flex";
     };
 
-    // Cleanup
     const cleanup = () => {
       try { socket?.disconnect(); } catch {}
       try {
@@ -36,7 +35,6 @@ export default function VideoPage() {
       localStream = null;
     };
 
-    // Start
     (async function start() {
       try {
         localStream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
@@ -55,11 +53,9 @@ export default function VideoPage() {
         socket.emit("joinVideo", { token, roomCode });
       });
 
-      // Create PeerConnection
       const createPC = () => {
         if (pc) return;
         pc = new RTCPeerConnection(ICE_CONFIG);
-
         localStream?.getTracks().forEach((t) => pc.addTrack(t, localStream));
 
         pc.ontrack = (e) => {
@@ -104,7 +100,6 @@ export default function VideoPage() {
         showRating();
       });
 
-      // Initial offer
       setTimeout(async () => {
         createPC();
         if (pc.signalingState === "stable") {
@@ -166,7 +161,6 @@ export default function VideoPage() {
       window.location.href = "/connect";
     };
 
-    // Draggable local video
     const lb = get("localBox");
     let dragging = false, dx = 0, dy = 0;
     const startDrag = (x, y) => {
@@ -201,6 +195,7 @@ export default function VideoPage() {
         <div id="localBox"><video id="localVideo" autoPlay playsInline muted></video></div>
       </div>
 
+      {/* === Compact Romantic Control Bar === */}
       <div className="control-bar">
         <button id="micBtn" className="control-btn"><i className="fas fa-microphone"></i><span>Mic</span></button>
         <button id="camBtn" className="control-btn"><i className="fas fa-video"></i><span>Camera</span></button>
@@ -227,26 +222,26 @@ export default function VideoPage() {
 
       <style jsx global>{`
         *{margin:0;padding:0;box-sizing:border-box}
-        html,body{height:100%;background:linear-gradient(135deg,#1b0034,#2d0b45,#3a0d5d);font-family:'Segoe UI',sans-serif;overflow:hidden}
-
+        html,body{height:100%;background:#1b0034;font-family:'Segoe UI',sans-serif;overflow:hidden}
         .video-container{position:relative;width:100%;height:100%}
         #remoteVideo{width:100%;height:100%;object-fit:cover;background:#000}
         #localBox{position:absolute;bottom:20px;right:20px;width:200px;height:140px;border:2px solid #ff4d8d;border-radius:12px;overflow:hidden;cursor:grab;z-index:2000;background:rgba(255,255,255,0.05);backdrop-filter:blur(10px);box-shadow:0 8px 30px rgba(255,77,141,.5)}
         #localBox video{width:100%;height:100%;object-fit:cover;transform:scaleX(-1)}
         @media(max-width:768px){#localBox{width:140px;height:100px}}
 
-        /* === Romantic Glassy Control Bar === */
+        /* === Compact Romantic Control Bar === */
         .control-bar {
           position: fixed;
-          bottom: 0;
-          width: 100%;
+          bottom: 20px;
+          left: 50%;
+          transform: translateX(-50%);
           display: flex;
-          justify-content: center;
-          gap: 20px;
-          padding: 18px;
-          background: rgba(255, 255, 255, 0.06);
-          backdrop-filter: blur(14px);
-          border-top: 1px solid rgba(255, 255, 255, 0.2);
+          gap: 16px;
+          padding: 12px 18px;
+          background: rgba(255,255,255,0.08);
+          backdrop-filter: blur(12px);
+          border-radius: 24px;
+          border: 1px solid rgba(255,77,141,0.3);
           z-index: 3000;
         }
 
@@ -255,128 +250,49 @@ export default function VideoPage() {
           flex-direction: column;
           align-items: center;
           justify-content: center;
-          background: linear-gradient(145deg, rgba(255,77,141,0.4), rgba(123,31,162,0.3));
+          padding: 12px 16px;
+          min-width: 70px;
+          font-size: 14px;
           color: #fff;
-          border: 1px solid rgba(255, 255, 255, 0.25);
-          border-radius: 18px;
-          padding: 14px 20px;
-          min-width: 90px;
-          font-size: 15px;
+          background: linear-gradient(145deg, rgba(255,182,193,0.4), rgba(255,105,180,0.4));
+          border: 1px solid rgba(255,105,180,0.5);
+          border-radius: 16px;
           cursor: pointer;
-          transition: all 0.3s ease-in-out;
-          box-shadow: 0 6px 16px rgba(0,0,0,0.4);
+          box-shadow: 0 4px 14px rgba(255,105,180,0.4);
+          transition: all 0.3s ease;
         }
 
-        .control-btn i {
-          font-size: 22px;
-          margin-bottom: 6px;
-        }
+        .control-btn i { font-size: 20px; margin-bottom: 4px; }
 
         .control-btn:hover {
-          border-color: #ff4d8d;
-          background: linear-gradient(145deg, rgba(255,77,141,0.7), rgba(123,31,162,0.5));
-          transform: scale(1.12) rotate(-2deg);
-          box-shadow: 0 8px 22px rgba(255, 77, 141, 0.5);
+          background: linear-gradient(145deg, rgba(255,182,193,0.7), rgba(255,105,180,0.7));
+          transform: scale(1.15) rotate(-2deg);
+          box-shadow: 0 6px 20px rgba(255,105,180,0.6);
         }
 
-        .control-btn.inactive {
-          opacity: 0.6;
-          filter: grayscale(40%);
-        }
-
+        .control-btn.inactive { opacity: 0.6; filter: grayscale(30%); }
         .control-btn.danger {
-          background: linear-gradient(145deg, rgba(220,20,60,0.7), rgba(155,28,42,0.7));
-          border-color: #ff5a79;
-          box-shadow: 0 4px 18px rgba(255, 90, 121, 0.45);
+          background: linear-gradient(145deg, rgba(255,69,102,0.7), rgba(255,20,60,0.7));
+          border-color: rgba(255,69,102,0.6);
         }
-
         .control-btn.danger:hover {
-          background: linear-gradient(145deg, rgba(255,90,121,0.9), rgba(200,40,60,0.9));
-          transform: scale(1.15) rotate(1deg);
+          background: linear-gradient(145deg, rgba(255,69,102,0.9), rgba(255,20,60,0.9));
+          transform: scale(1.18) rotate(1deg);
         }
 
-        /* === Rating Overlay === */
-        #ratingOverlay {
-          position: fixed; inset: 0;
-          display: none;
-          flex-direction: column;
-          align-items: center;
-          justify-content: center;
-          background: linear-gradient(135deg, rgba(27,0,52,0.95), rgba(45,11,69,0.95));
-          color: #fff;
-          z-index: 4000;
-          text-align: center;
-          animation: fadeIn 0.6s ease-in-out;
-        }
-
-        #ratingOverlay h2 {
-          font-size: 28px;
-          margin-bottom: 20px;
-          color: #ff4d8d;
-          text-shadow: 0 0 12px rgba(255,77,141,0.8);
-        }
-
-        .hearts {
-          display: flex; gap: 14px; font-size: 50px;
-        }
-
-        .hearts i {
-          color: #555;
-          cursor: pointer;
-          transition: transform 0.25s, color 0.25s;
-        }
-
-        .hearts i:hover {
-          color: #ff4d8d;
-          transform: scale(1.3);
-        }
-
-        .hearts i.selected {
-          color: #ff1744;
-          text-shadow: 0 0 10px rgba(255,23,68,0.8);
-        }
-
-        .rating-buttons {
-          display: flex;
-          gap: 20px;
-          margin-top: 24px;
-        }
-
-        .rating-buttons button {
-          background: linear-gradient(135deg, #ff4d8d, #e040fb);
-          color: #fff;
-          border: none;
-          border-radius: 12px;
-          padding: 12px 20px;
-          font-size: 16px;
-          cursor: pointer;
-          box-shadow: 0 4px 16px rgba(255,77,141,0.5);
-          transition: all 0.3s;
-        }
-
-        .rating-buttons button:hover {
-          transform: scale(1.08);
-          box-shadow: 0 6px 20px rgba(255,77,141,0.7);
-        }
-
-        /* === Toast === */
-        #toast {
-          position: fixed;
-          left: 50%;
-          bottom: 90px;
-          transform: translateX(-50%);
-          background: rgba(17, 17, 17, 0.85);
-          color: #fff;
-          padding: 12px 18px;
-          border-radius: 10px;
-          display: none;
-          z-index: 5000;
-          font-size: 14px;
-          animation: fadeInUp 0.4s ease;
-        }
-
-        @keyframes fadeIn { from {opacity:0;} to {opacity:1;} }
-        @keyframes fadeInUp { from {opacity:0; transform:translateY(20px);} to {opacity:1; transform:translateY(0);} }
+        /* === Rating Overlay & Toast === */
+        #ratingOverlay {position:fixed;inset:0;display:none;flex-direction:column;align-items:center;justify-content:center;background:rgba(27,0,52,0.95);color:#fff;z-index:4000;text-align:center;animation:fadeIn 0.6s ease-in-out}
+        #ratingOverlay h2{font-size:28px;margin-bottom:20px;color:#ff4d8d;text-shadow:0 0 12px rgba(255,77,141,0.8)}
+        .hearts{display:flex;gap:14px;font-size:50px}
+        .hearts i{color:#555;cursor:pointer;transition:transform 0.25s,color 0.25s}
+        .hearts i:hover{color:#ff4d8d;transform:scale(1.3)}
+        .hearts i.selected{color:#ff1744;text-shadow:0 0 10px rgba(255,23,68,0.8)}
+        .rating-buttons{display:flex;gap:20px;margin-top:24px}
+        .rating-buttons button{background:linear-gradient(135deg,#ff4d8d,#e040fb);color:#fff;border:none;border-radius:12px;padding:12px 20px;font-size:16px;cursor:pointer;box-shadow:0 4px 16px rgba(255,77,141,0.5);transition:all 0.3s}
+        .rating-buttons button:hover{transform:scale(1.08);box-shadow:0 6px 20px rgba(255,77,141,0.7)}
+        #toast{position:fixed;left:50%;bottom:90px;transform:translateX(-50%);background:rgba(17,17,17,0.85);color:#fff;padding:12px 18px;border-radius:10px;display:none;z-index:5000;font-size:14px;animation:fadeInUp 0.4s ease}
+        @keyframes fadeIn {from{opacity:0}to{opacity:1}}
+        @keyframes fadeInUp {from{opacity:0;transform:translateY(20px)}to{opacity:1;transform:translateY(0)}}
       `}</style>
     </>
   );
