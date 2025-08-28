@@ -1,5 +1,3 @@
-ye complete code old video.js ke code se replace kar du?
-
 "use client";
 import { useEffect } from "react";
 import io from "socket.io-client";
@@ -70,7 +68,6 @@ export default function VideoPage() {
         if (!rv) return;
         const [stream] = e.streams;
         if (rv.srcObject !== stream) rv.srcObject = stream;
-        // Ensure autoplay (iOS/Android)
         rv.play?.().catch(() => {});
       };
 
@@ -85,12 +82,10 @@ export default function VideoPage() {
         if (s === "connected") toast("Connected");
         if (s === "failed" || s === "disconnected") {
           toast("Reconnecting…");
-          // Try restart ICE
           pc.restartIce?.();
         }
       };
 
-      // Renegotiation (e.g., screen share)
       pc.onnegotiationneeded = async () => {
         if (!socket) return;
         try {
@@ -128,11 +123,8 @@ export default function VideoPage() {
         socket.emit("joinVideo", { token, roomCode });
       });
 
-      // Server indicates both peers are present
       socket.on("ready", async () => {
         createPC();
-        // Caller side will trigger offer via onnegotiationneeded automatically
-        // because local tracks are already added; to be safe, force one initial offer:
         try {
           const offer = await pc.createOffer();
           await pc.setLocalDescription(offer);
@@ -140,11 +132,10 @@ export default function VideoPage() {
         } catch {}
       });
 
-      // Perfect Negotiation pattern (simplified)
       socket.on("offer", async (offer) => {
         createPC();
         const offerDesc = new RTCSessionDescription(offer);
-        const polite = true; // make both polite with server's 'ready' sync
+        const polite = true;
 
         const readyForOffer =
           !makingOffer && (pc.signalingState === "stable" || pc.signalingState === "have-local-offer");
@@ -222,7 +213,7 @@ export default function VideoPage() {
       showOverlay();
     };
 
-    // Local PIP drag + dblclick size toggle
+    // ---- Local video draggable & zoom ----
     const box = $("localBox");
     let dragging = false, dx = 0, dy = 0, large = true;
     const startDrag = (x, y) => {
@@ -289,8 +280,6 @@ export default function VideoPage() {
     <>
       <div className="video-container">
         <video id="remoteVideo" autoPlay playsInline></video>
-
-        {/* Draggable, larger local PIP (dblclick to toggle mini) */}
         <div id="localBox">
           <video id="localVideo" autoPlay playsInline muted></video>
         </div>
@@ -337,10 +326,9 @@ export default function VideoPage() {
         .video-container{position:relative;width:100%;height:100%}
         #remoteVideo{width:100%;height:100%;object-fit:cover;background:#000}
 
-        /* Bigger local video (Zoom-like) */
         #localBox{
           position:absolute;bottom:20px;right:20px;
-          width:320px;height:220px; /* desktop large */
+          width:320px;height:220px;
           border:2px solid rgba(255,77,141,.9);
           border-radius:14px;overflow:hidden;cursor:grab;z-index:2000;background:#0b0b0b;
           box-shadow:0 18px 40px rgba(0,0,0,.55);
@@ -355,7 +343,6 @@ export default function VideoPage() {
           #localBox.mini{ width:150px; height:110px; }
         }
 
-        /* Glassy Controls */
         .control-bar{
           position:fixed;left:50%;transform:translateX(-50%);
           bottom:22px;display:flex;gap:18px;z-index:3000;
@@ -382,7 +369,6 @@ export default function VideoPage() {
           border-color:rgba(255,90,121,.9);
         }
 
-        /* Rating overlay */
         #ratingOverlay{
           position:fixed;inset:0;display:none;flex-direction:column;align-items:center;justify-content:center;
           background:rgba(0,0,0,.88);color:#fff;z-index:4000;padding:20px;text-align:center;
@@ -398,7 +384,6 @@ export default function VideoPage() {
           box-shadow:0 10px 20px rgba(255,77,141,.25);
         }
 
-        /* Toast */
         #toast{
           position:fixed;left:50%;bottom:100px;transform:translateX(-50%);
           background:rgba(15,15,15,.9);color:#fff;padding:10px 14px;border-radius:10px;display:none;z-index:5000;
