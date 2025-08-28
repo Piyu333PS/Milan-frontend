@@ -8,7 +8,6 @@ export default function HomePage() {
   const [showReset, setShowReset] = useState(false);
 
   useEffect(() => {
-    // Hearts background
     const canvas = document.getElementById("heartsCanvas");
     const ctx = canvas.getContext("2d");
     let hearts = [];
@@ -139,7 +138,6 @@ export default function HomePage() {
 
       <div id="errorMessage"></div>
 
-      {/* 🎉 Banner for Ganesh Chaturthi & Milan Launch */}
       <div className="banner">
         <h2>🌺 Ganesh Chaturthi ki Shubhkamnaye! 🌺</h2>
         <p>✨ Milan is Live! Let your hearts connect… ❤️</p>
@@ -149,8 +147,8 @@ export default function HomePage() {
         <div className="left">
           <h1>Welcome to Milan ❤️</h1>
           <p>
-            “Love recognizes no barriers. It jumps hurdles, leaps fences, penetrates walls to arrive at its
-            destination full of hope.”
+            “Love recognizes no barriers. It jumps hurdles, leaps fences,
+            penetrates walls to arrive at its destination full of hope.”
           </p>
         </div>
         <div className="right">
@@ -304,7 +302,7 @@ export default function HomePage() {
           padding: 0;
           width: 100%;
           height: 100%;
-          overflow: hidden;
+          overflow-y: auto; /* FIX: allow scrolling */
           font-family: "Segoe UI", sans-serif;
           background: var(--bg-color);
           color: var(--text-color);
@@ -349,8 +347,9 @@ export default function HomePage() {
           display: flex;
           align-items: center;
           justify-content: center;
-          height: 100%;
-          padding: 10px;
+          min-height: 100vh;
+          padding: 20px;
+          gap: 20px;
         }
         .left,
         .right {
@@ -441,6 +440,25 @@ export default function HomePage() {
           z-index: 9999;
           box-shadow: 0 0 10px rgba(0, 0, 0, 0.3);
           font-size: 14px;
+        }
+
+        /* ✅ Responsive Fix */
+        @media (max-width: 768px) {
+          .container {
+            flex-direction: column;
+            justify-content: flex-start;
+            padding: 20px 10px;
+          }
+          .left {
+            text-align: center;
+          }
+          .right {
+            width: 100%;
+          }
+          .form-container {
+            width: 100%;
+            max-width: 100%;
+          }
         }
       `}</style>
     </>
