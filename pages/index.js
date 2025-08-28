@@ -316,13 +316,13 @@ export default function HomePage() {
           grid-template-columns: 1fr 1fr;
           align-items: center;
           min-height: 100vh;
-          padding: 0;
-          margin: 0;
-          width: 100%;
+          padding: 0 40px;
+          margin: 0 auto;
+          max-width: 1200px;
         }
         .left {
           text-align: center;
-          padding: 10px;
+          padding: 20px;
         }
         .left h1 {
           font-size: 2em;
@@ -335,11 +335,12 @@ export default function HomePage() {
 
         .form-container {
           background: var(--box-bg);
-          padding: 20px;
-          border-radius: 0;
+          padding: 30px;
+          border-radius: 12px;
           backdrop-filter: blur(8px);
           width: 100%;
-          margin: 0;
+          max-width: 400px;
+          margin: 0 auto;
         }
         input,
         select,
@@ -386,7 +387,7 @@ export default function HomePage() {
           .container {
             grid-template-columns: 1fr;
             text-align: center;
-            padding: 0;
+            padding: 20px;
           }
           .left {
             order: 2;
@@ -394,11 +395,14 @@ export default function HomePage() {
           }
           .right {
             order: 1;
-            width: 100%;
+            display: flex;
+            justify-content: center;
           }
           .form-container {
             width: 100%;
-            border-radius: 0;
+            max-width: 350px;
+            border-radius: 12px;
+            padding: 20px;
           }
         }
       `}</style>
