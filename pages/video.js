@@ -26,10 +26,10 @@ export default function VideoPage() {
       if (r) r.style.display = "flex";
     };
 
-    // ⭐ Emoji Animation Function
+    // ⭐ Emoji Animation Function (now targets .emoji-container so it stays behind hearts/buttons)
     const triggerRatingAnimation = (rating) => {
-      const overlay = get("ratingOverlay");
-      if (!overlay) return;
+      const container = document.querySelector("#ratingOverlay .emoji-container");
+      if (!container) return;
 
       const emojiMap = {
         1: ["😐"],
@@ -40,29 +40,40 @@ export default function VideoPage() {
       };
 
       const emojis = emojiMap[rating] || ["❤️"];
-      const count = rating === 5 ? 25 : 15; // more emojis for 5 star
+      const count = rating === 5 ? 28 : 18; // little more for 5
 
+      const containerRect = container.getBoundingClientRect();
       for (let i = 0; i < count; i++) {
         const e = document.createElement("div");
         e.className = "floating-emoji";
         e.textContent = emojis[Math.floor(Math.random() * emojis.length)];
-        e.style.left = Math.random() * 100 + "vw";
-        e.style.fontSize = 24 + Math.random() * 24 + "px";
-        overlay.appendChild(e);
+
+        // Random position within the emoji container bounds
+        const x = Math.random() * containerRect.width;
+        const y = Math.random() * containerRect.height;
+
+        e.style.left = `${x}px`;
+        e.style.top = `${y}px`;
+        e.style.fontSize = 24 + Math.random() * 26 + "px";
+        container.appendChild(e);
 
         // Different animation styles
         if (rating === 1 || rating === 2) {
-          e.style.animation = `fall ${2 + Math.random() * 2}s linear`;
+          e.style.animation = `fallLocal ${2 + Math.random() * 1.8}s linear`;
         } else if (rating === 3) {
-          e.style.animation = `orbit ${3 + Math.random() * 2}s linear`;
+          // randomize orbit radius and direction
+          const r = 80 + Math.random() * 120;
+          const dir = Math.random() > 0.5 ? "orbitCW" : "orbitCCW";
+          e.style.setProperty("--r", `${r}px`);
+          e.style.animation = `${dir} ${3 + Math.random() * 2}s linear`;
         } else if (rating === 4) {
-          e.style.animation = `flyUp ${3 + Math.random() * 2}s ease-out`;
+          e.style.animation = `flyUpLocal ${3 + Math.random() * 2}s ease-out`;
         } else if (rating === 5) {
-          e.style.animation = `burst ${3 + Math.random() * 2}s ease-in-out`;
+          e.style.animation = `burstLocal ${3 + Math.random() * 2}s ease-in-out`;
         }
 
-        // Remove after animation
-        setTimeout(() => e.remove(), 4000);
+        // Remove after animation end
+        setTimeout(() => e.remove(), 4200);
       }
     };
 
@@ -271,9 +282,11 @@ export default function VideoPage() {
 
   return (
     <>
+      {/* Font Awesome for heart icons */}
       <link
         rel="stylesheet"
         href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css"
+        referrerPolicy="no-referrer"
       />
 
       <div className="video-container">
@@ -302,188 +315,139 @@ export default function VideoPage() {
         </button>
       </div>
 
+      {/* ✅ Reworked rating overlay: content wrapper + emoji-container behind it */}
       <div id="ratingOverlay">
-        <h2>Rate your partner ❤️</h2>
-        <div className="hearts">
-          <i className="far fa-heart" data-value="1"></i>
-          <i className="far fa-heart" data-value="2"></i>
-          <i className="far fa-heart" data-value="3"></i>
-          <i className="far fa-heart" data-value="4"></i>
-          <i className="far fa-heart" data-value="5"></i>
-        </div>
-        <div className="rating-buttons">
-          <button id="quitBtn">Quit</button>
-          <button id="newPartnerBtn">Search New Partner</button>
+        <div className="rating-content">
+          <h2>Rate your partner ❤️</h2>
+
+          <div className="hearts">
+            <i className="far fa-heart" data-value="1" aria-label="1 star"></i>
+            <i className="far fa-heart" data-value="2" aria-label="2 stars"></i>
+            <i className="far fa-heart" data-value="3" aria-label="3 stars"></i>
+            <i className="far fa-heart" data-value="4" aria-label="4 stars"></i>
+            <i className="far fa-heart" data-value="5" aria-label="5 stars"></i>
+          </div>
+
+          <div className="rating-buttons">
+            <button id="quitBtn">Quit</button>
+            <button id="newPartnerBtn">Search New Partner</button>
+          </div>
+
+          {/* emojis animate inside this, behind content */}
+          <div className="emoji-container" aria-hidden="true"></div>
         </div>
       </div>
 
       <div id="toast"></div>
 
       <style jsx global>{`
-        * {
-          margin: 0;
-          padding: 0;
-          box-sizing: border-box;
+        *{margin:0;padding:0;box-sizing:border-box}
+        html,body{height:100%;background:#000;font-family:'Segoe UI',sans-serif;overflow:hidden}
+
+        .video-container{position:relative;width:100%;height:100%}
+        #remoteVideo{width:100%;height:100%;object-fit:cover;background:#000}
+        #localBox{
+          position:absolute;bottom:20px;right:20px;width:220px;height:150px;
+          border:2px solid #ff4d8d;border-radius:14px;overflow:hidden;cursor:grab;
+          z-index:2000;background:#111;box-shadow:0 8px 20px rgba(0,0,0,.5)
         }
-        html,
-        body {
-          height: 100%;
-          background: #000;
-          font-family: "Segoe UI", sans-serif;
-          overflow: hidden;
+        #localBox video{width:100%;height:100%;object-fit:cover;transform:scaleX(-1)}
+
+        .control-bar{
+          position:fixed;bottom:18px;left:50%;transform:translateX(-50%);
+          display:flex;gap:18px;padding:12px 16px;background:rgba(0,0,0,.6);
+          border-radius:16px;z-index:3000;backdrop-filter: blur(8px);
+        }
+        .control-btn{
+          display:flex;flex-direction:column;align-items:center;justify-content:center;
+          background:#18181b;color:#fff;border-radius:14px;width:68px;height:68px;cursor:pointer;
+        }
+        .control-btn.danger{background:#9b1c2a}
+
+        /* === Rating Overlay Rework === */
+        #ratingOverlay{
+          position:fixed;inset:0;display:none;align-items:center;justify-content:center;
+          background:rgba(0,0,0,.9);color:#fff;z-index:4000;padding:40px
+        }
+        .rating-content{
+          position:relative;min-width: min(720px, 92vw);
+          padding:48px 56px;border-radius:24px;text-align:center;
+          background:rgba(255,255,255,.10);
+          border:1px solid rgba(255,255,255,.18);
+          box-shadow:0 20px 60px rgba(0,0,0,.55);
+          z-index:1
+        }
+        .rating-content h2{
+          font-size:32px;margin-bottom:18px;letter-spacing:.3px
+        }
+        .hearts{
+          display:flex;gap:30px;font-size:70px;margin:26px 0 8px 0;justify-content:center;z-index:2;position:relative
+        }
+        .hearts i{color:#777;cursor:pointer;transition:transform .18s,color .18s}
+        .hearts i:hover{transform:scale(1.2);color:#ff6fa3}
+        .hearts i.selected{color:#ff1744}
+
+        .rating-buttons{
+          display:flex;gap:26px;margin-top:32px;justify-content:center;position:relative;z-index:2
+        }
+        .rating-buttons button{
+          padding:18px 32px;font-size:20px;border-radius:16px;border:none;color:#fff;cursor:pointer;
+          background:linear-gradient(135deg,#ff4d8d,#6a5acd);
+          box-shadow:0 10px 28px rgba(0,0,0,.45);
+          backdrop-filter: blur(14px);
+          transition:transform .2s ease,opacity .2s ease
+        }
+        .rating-buttons button:hover{transform:scale(1.06);opacity:.92}
+
+        /* Emoji layer behind content so it won't cover hearts/buttons */
+        .emoji-container{
+          position:absolute;inset:-16px; /* a little larger than content so emojis orbit around */
+          pointer-events:none;z-index:0;overflow:visible
+        }
+        .floating-emoji{position:absolute;user-select:none}
+
+        /* Container-scoped animations (no viewport overlap) */
+        @keyframes fallLocal{
+          from{transform:translateY(-40px);opacity:1}
+          to{transform:translateY(360px);opacity:0}
+        }
+        @keyframes flyUpLocal{
+          from{transform:translateY(0);opacity:1}
+          to{transform:translateY(-360px);opacity:0}
+        }
+        /* Orbit clockwise using CSS variable radius --r */
+        @keyframes orbitCW{
+          from{transform:rotate(0deg) translateX(var(--r)) rotate(0deg)}
+          to{transform:rotate(360deg) translateX(var(--r)) rotate(-360deg)}
+        }
+        /* Orbit counter-clockwise */
+        @keyframes orbitCCW{
+          from{transform:rotate(360deg) translateX(var(--r)) rotate(-360deg)}
+          to{transform:rotate(0deg) translateX(var(--r)) rotate(360deg)}
+        }
+        @keyframes burstLocal{
+          0%{transform:scale(.6) translateY(0);opacity:1}
+          60%{transform:scale(1.4) translateY(-80px)}
+          100%{transform:scale(1) translateY(-320px);opacity:0}
         }
 
-        .video-container {
-          position: relative;
-          width: 100%;
-          height: 100%;
-        }
-        #remoteVideo {
-          width: 100%;
-          height: 100%;
-          object-fit: cover;
-          background: #000;
-        }
-        #localBox {
-          position: absolute;
-          bottom: 20px;
-          right: 20px;
-          width: 220px;
-          height: 150px;
-          border: 2px solid #ff4d8d;
-          border-radius: 14px;
-          overflow: hidden;
-          cursor: grab;
-          z-index: 2000;
-          background: #111;
-          box-shadow: 0 8px 20px rgba(0, 0, 0, 0.5);
-        }
-        #localBox video {
-          width: 100%;
-          height: 100%;
-          object-fit: cover;
-          transform: scaleX(-1);
+        #toast{
+          position:fixed;left:50%;bottom:110px;transform:translateX(-50%);
+          background:#111;color:#fff;padding:10px 14px;border-radius:8px;display:none;z-index:5000;
+          border:1px solid rgba(255,255,255,.12)
         }
 
-        .control-bar {
-          position: fixed;
-          bottom: 18px;
-          left: 50%;
-          transform: translateX(-50%);
-          display: flex;
-          gap: 18px;
-          padding: 12px 16px;
-          background: rgba(0, 0, 0, 0.6);
-          border-radius: 16px;
-          z-index: 3000;
-          backdrop-filter: blur(8px);
+        /* Responsive tweaks */
+        @media(max-width:768px){
+          .rating-content{min-width:min(560px, 94vw);padding:38px 28px}
+          .hearts{font-size:56px;gap:22px}
+          .rating-buttons button{padding:16px 24px;font-size:18px}
         }
-        .control-btn {
-          display: flex;
-          flex-direction: column;
-          align-items: center;
-          justify-content: center;
-          background: #18181b;
-          color: #fff;
-          border-radius: 14px;
-          width: 68px;
-          height: 68px;
-          cursor: pointer;
-        }
-        .control-btn.danger {
-          background: #9b1c2a;
-        }
-
-        #ratingOverlay {
-          position: fixed;
-          inset: 0;
-          display: none;
-          flex-direction: column;
-          align-items: center;
-          justify-content: center;
-          background: rgba(0, 0, 0, 0.9);
-          color: #fff;
-          z-index: 4000;
-        }
-        .hearts {
-          display: flex;
-          gap: 12px;
-          font-size: 44px;
-        }
-        .hearts i {
-          color: #666;
-          cursor: pointer;
-        }
-        .hearts i:hover {
-          color: #ff4d8d;
-        }
-        .hearts i.selected {
-          color: #ff1744;
-        }
-        .floating-emoji {
-          position: absolute;
-          top: 50%;
-          left: 50%;
-          transform: translate(-50%, -50%);
-          pointer-events: none;
-          z-index: 5000;
-        }
-
-        @keyframes fall {
-          0% {
-            transform: translateY(-100vh);
-            opacity: 1;
-          }
-          100% {
-            transform: translateY(100vh);
-            opacity: 0;
-          }
-        }
-        @keyframes orbit {
-          0% {
-            transform: rotate(0deg) translateX(0) translateY(0);
-            opacity: 1;
-          }
-          100% {
-            transform: rotate(360deg) translateX(150px) translateY(150px);
-            opacity: 0;
-          }
-        }
-        @keyframes flyUp {
-          0% {
-            transform: translateY(0);
-            opacity: 1;
-          }
-          100% {
-            transform: translateY(-100vh) rotate(720deg);
-            opacity: 0;
-          }
-        }
-        @keyframes burst {
-          0% {
-            transform: scale(0.5) translateY(0);
-            opacity: 1;
-          }
-          50% {
-            transform: scale(1.5) translateY(-50px);
-          }
-          100% {
-            transform: scale(0.8) translateY(-100vh);
-            opacity: 0;
-          }
-        }
-
-        #toast {
-          position: fixed;
-          left: 50%;
-          bottom: 110px;
-          transform: translateX(-50%);
-          background: #111;
-          color: #fff;
-          padding: 10px 14px;
-          border-radius: 8px;
-          display: none;
-          z-index: 5000;
+        @media(max-width:480px){
+          .rating-content{min-width:92vw;padding:30px 20px}
+          .hearts{font-size:46px;gap:18px}
+          .rating-buttons{gap:16px}
+          .rating-buttons button{padding:14px 18px;font-size:16px;border-radius:14px}
         }
       `}</style>
     </>
