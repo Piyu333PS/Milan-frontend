@@ -233,11 +233,66 @@ export default function VideoPage() {
         #localBox{position:absolute;bottom:20px;right:20px;width:200px;height:140px;border:2px solid #ff4d8d;border-radius:10px;overflow:hidden;cursor:grab;z-index:2000;background:#111;box-shadow:0 8px 20px rgba(0,0,0,.5)}
         #localBox video{width:100%;height:100%;object-fit:cover;transform:scaleX(-1)}
         @media(max-width:768px){#localBox{width:140px;height:100px}}
-        .control-bar{position:fixed;bottom:0;width:100%;display:flex;justify-content:center;gap:14px;padding:10px;background:rgba(0,0,0,.7);z-index:3000}
-        .control-btn{display:flex;flex-direction:column;align-items:center;background:#18181b;color:#fff;border:1px solid rgba(255,255,255,.15);border-radius:12px;padding:10px;min-width:70px;cursor:pointer;transition:.2s}
-        .control-btn:hover{border-color:#ff4d8d;transform:scale(1.05)}
-        .control-btn.inactive{opacity:.5}
-        .control-btn.danger{background:#9b1c2a;border-color:#ff5a79}
+
+        /* === Glassy Control Bar === */
+        .control-bar {
+          position: fixed;
+          bottom: 0;
+          width: 100%;
+          display: flex;
+          justify-content: center;
+          gap: 20px;
+          padding: 16px;
+          background: rgba(255, 255, 255, 0.05);
+          backdrop-filter: blur(12px);
+          border-top: 1px solid rgba(255, 255, 255, 0.15);
+          z-index: 3000;
+        }
+
+        .control-btn {
+          display: flex;
+          flex-direction: column;
+          align-items: center;
+          justify-content: center;
+          background: rgba(255, 255, 255, 0.08);
+          color: #fff;
+          border: 1px solid rgba(255, 255, 255, 0.2);
+          border-radius: 18px;
+          padding: 16px 20px;
+          min-width: 80px;
+          font-size: 16px;
+          cursor: pointer;
+          transition: all 0.25s ease-in-out;
+          box-shadow: 0 4px 12px rgba(0,0,0,0.4);
+        }
+
+        .control-btn i {
+          font-size: 22px;
+          margin-bottom: 6px;
+        }
+
+        .control-btn:hover {
+          border-color: #ff4d8d;
+          background: rgba(255, 77, 141, 0.2);
+          transform: scale(1.08);
+          box-shadow: 0 6px 18px rgba(255, 77, 141, 0.35);
+        }
+
+        .control-btn.inactive {
+          opacity: 0.6;
+        }
+
+        .control-btn.danger {
+          background: rgba(155, 28, 42, 0.8);
+          border-color: #ff5a79;
+          box-shadow: 0 4px 16px rgba(255, 90, 121, 0.4);
+        }
+
+        .control-btn.danger:hover {
+          background: rgba(255, 90, 121, 0.9);
+          transform: scale(1.1);
+        }
+
         #ratingOverlay{position:fixed;inset:0;display:none;flex-direction:column;align-items:center;justify-content:center;background:rgba(0,0,0,.9);color:#fff;z-index:4000}
         .hearts{display:flex;gap:12px;font-size:44px}
         .hearts i{color:#666;cursor:pointer}
