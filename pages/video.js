@@ -344,8 +344,24 @@ export default function VideoPage() {
         *{margin:0;padding:0;box-sizing:border-box}
         html,body{height:100%;background:#000;font-family:'Segoe UI',sans-serif;overflow:hidden}
 
-        .video-container{position:relative;width:100%;height:100%}
-        #remoteVideo{width:100%;height:100%;object-fit:cover;background:#000}
+        /* ---------- VIDEO LAYOUT FIXES (mobile fullscreen) ---------- */
+        .video-container{
+          position:relative;
+          width:100%;
+          height:100vh; /* <-- changed: force full viewport height to avoid half-black on mobile */
+          overflow:hidden;
+          background:#000;
+        }
+        #remoteVideo{
+          position:absolute; /* <-- changed: make remote truly fullscreen inside container */
+          inset:0;
+          width:100%;
+          height:100%;
+          object-fit:cover;
+          background:#000;
+        }
+
+        /* Local small draggable preview */
         #localBox{
           position:absolute;bottom:20px;right:20px;width:220px;height:150px;
           border:2px solid #ff4d8d;border-radius:14px;overflow:hidden;cursor:grab;
@@ -442,12 +458,20 @@ export default function VideoPage() {
           .rating-content{min-width:min(560px, 94vw);padding:38px 28px}
           .hearts{font-size:56px;gap:22px}
           .rating-buttons button{padding:16px 24px;font-size:18px}
+
+          /* Make local preview slightly larger proportionally on smaller screens */
+          #localBox{width:30%;max-width:140px;height:auto;min-height:90px;bottom:14px;right:12px}
+          #localBox video{height:100%}
         }
         @media(max-width:480px){
           .rating-content{min-width:92vw;padding:30px 20px}
           .hearts{font-size:46px;gap:18px}
           .rating-buttons{gap:16px}
           .rating-buttons button{padding:14px 18px;font-size:16px;border-radius:14px}
+
+          /* smaller devices: local preview a bit bigger relative, but capped */
+          #localBox{width:36%;max-width:120px;height:auto;min-height:80px;bottom:12px;right:10px}
+          #localBox video{height:100%}
         }
       `}</style>
     </>
