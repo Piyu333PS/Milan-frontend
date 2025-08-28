@@ -40,6 +40,7 @@ export default function VideoPage() {
         if (rv) rv.srcObject = e.streams[0];
       };
 
+      // ICE candidate handling
       pc.onicecandidate = (e) => {
         if (e.candidate) socket.emit("candidate", e.candidate);
       };
@@ -65,7 +66,7 @@ export default function VideoPage() {
 
       socket.on("ready", async () => {
         createPC();
-        if(pc.signalingState==="stable") {
+        if(pc.signalingState === "stable") {
           const offer = await pc.createOffer();
           await pc.setLocalDescription(offer);
           socket.emit("offer", offer);
@@ -100,9 +101,59 @@ export default function VideoPage() {
     <>
       <div className="video-container">
         <video id="remoteVideo" autoPlay playsInline></video>
-        <div id="localBox"><video id="localVideo" autoPlay playsInline muted></video></div>
+        <div id="localBox">
+          <video id="localVideo" autoPlay playsInline muted></video>
+        </div>
       </div>
       <div id="toast"></div>
+
+      <style jsx>{`
+        .video-container {
+          position: relative;
+          width: 100%;
+          height: 100vh;
+          background: #000;
+        }
+        #remoteVideo {
+          width: 100%;
+          height: 100%;
+          object-fit: cover;
+          background: #000;
+        }
+        #localBox {
+          position: absolute;
+          bottom: 20px;
+          right: 20px;
+          width: 200px;
+          height: 140px;
+          border: 2px solid #ff4d8d;
+          border-radius: 12px;
+          overflow: hidden;
+          cursor: grab;
+          z-index: 10;
+          background: rgba(255,255,255,0.05);
+          backdrop-filter: blur(10px);
+        }
+        #localBox video {
+          width: 100%;
+          height: 100%;
+          object-fit: cover;
+          transform: scaleX(-1);
+        }
+        #toast {
+          position: fixed;
+          left: 50%;
+          bottom: 40px;
+          transform: translateX(-50%);
+          background: rgba(17,17,17,0.85);
+          color: #fff;
+          padding: 12px 18px;
+          border-radius: 10px;
+          display: none;
+          font-size: 14px;
+          z-index: 1000;
+        }
+      `}</style>
     </>
   );
 }
