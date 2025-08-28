@@ -122,7 +122,7 @@ export default function VideoPage() {
       if (!t) return;
       t.enabled = !t.enabled;
       micBtn.classList.toggle("inactive", !t.enabled);
-      showToast(t.enabled ? "Mic On" : "Mic Off");
+      showToast(t.enabled ? "🎤 Mic On" : "🔇 Mic Off");
     };
 
     const camBtn = get("camBtn");
@@ -131,7 +131,7 @@ export default function VideoPage() {
       if (!t) return;
       t.enabled = !t.enabled;
       camBtn.classList.toggle("inactive", !t.enabled);
-      showToast(t.enabled ? "Camera On" : "Camera Off");
+      showToast(t.enabled ? "📸 Camera On" : "📷 Camera Off");
     };
 
     const screenBtn = get("screenShareBtn");
@@ -143,9 +143,9 @@ export default function VideoPage() {
         const sender = pc.getSenders().find((s) => s.track.kind === "video");
         sender.replaceTrack(track);
         track.onended = () => sender.replaceTrack(localStream.getVideoTracks()[0]);
-        showToast("Screen sharing");
+        showToast("🖥️ Screen sharing");
       } catch {
-        showToast("Screen share cancelled");
+        showToast("❌ Screen share cancelled");
       }
     };
 
@@ -209,7 +209,7 @@ export default function VideoPage() {
       </div>
 
       <div id="ratingOverlay">
-        <h2>Rate your partner ❤️</h2>
+        <h2>💖 Rate your partner 💖</h2>
         <div className="hearts">
           <i className="far fa-heart" data-value="1"></i>
           <i className="far fa-heart" data-value="2"></i>
@@ -218,8 +218,8 @@ export default function VideoPage() {
           <i className="far fa-heart" data-value="5"></i>
         </div>
         <div className="rating-buttons">
-          <button id="quitBtn">Quit</button>
-          <button id="newPartnerBtn">Search New Partner</button>
+          <button id="quitBtn">💔 Quit</button>
+          <button id="newPartnerBtn">💞 New Partner</button>
         </div>
       </div>
 
@@ -227,14 +227,15 @@ export default function VideoPage() {
 
       <style jsx global>{`
         *{margin:0;padding:0;box-sizing:border-box}
-        html,body{height:100%;background:#000;font-family:'Segoe UI',sans-serif;overflow:hidden}
+        html,body{height:100%;background:linear-gradient(135deg,#1b0034,#2d0b45,#3a0d5d);font-family:'Segoe UI',sans-serif;overflow:hidden}
+
         .video-container{position:relative;width:100%;height:100%}
         #remoteVideo{width:100%;height:100%;object-fit:cover;background:#000}
-        #localBox{position:absolute;bottom:20px;right:20px;width:200px;height:140px;border:2px solid #ff4d8d;border-radius:10px;overflow:hidden;cursor:grab;z-index:2000;background:#111;box-shadow:0 8px 20px rgba(0,0,0,.5)}
+        #localBox{position:absolute;bottom:20px;right:20px;width:200px;height:140px;border:2px solid #ff4d8d;border-radius:12px;overflow:hidden;cursor:grab;z-index:2000;background:rgba(255,255,255,0.05);backdrop-filter:blur(10px);box-shadow:0 8px 30px rgba(255,77,141,.5)}
         #localBox video{width:100%;height:100%;object-fit:cover;transform:scaleX(-1)}
         @media(max-width:768px){#localBox{width:140px;height:100px}}
 
-        /* === Glassy Control Bar === */
+        /* === Romantic Glassy Control Bar === */
         .control-bar {
           position: fixed;
           bottom: 0;
@@ -242,10 +243,10 @@ export default function VideoPage() {
           display: flex;
           justify-content: center;
           gap: 20px;
-          padding: 16px;
-          background: rgba(255, 255, 255, 0.05);
-          backdrop-filter: blur(12px);
-          border-top: 1px solid rgba(255, 255, 255, 0.15);
+          padding: 18px;
+          background: rgba(255, 255, 255, 0.06);
+          backdrop-filter: blur(14px);
+          border-top: 1px solid rgba(255, 255, 255, 0.2);
           z-index: 3000;
         }
 
@@ -254,16 +255,16 @@ export default function VideoPage() {
           flex-direction: column;
           align-items: center;
           justify-content: center;
-          background: rgba(255, 255, 255, 0.08);
+          background: linear-gradient(145deg, rgba(255,77,141,0.4), rgba(123,31,162,0.3));
           color: #fff;
-          border: 1px solid rgba(255, 255, 255, 0.2);
+          border: 1px solid rgba(255, 255, 255, 0.25);
           border-radius: 18px;
-          padding: 16px 20px;
-          min-width: 80px;
-          font-size: 16px;
+          padding: 14px 20px;
+          min-width: 90px;
+          font-size: 15px;
           cursor: pointer;
-          transition: all 0.25s ease-in-out;
-          box-shadow: 0 4px 12px rgba(0,0,0,0.4);
+          transition: all 0.3s ease-in-out;
+          box-shadow: 0 6px 16px rgba(0,0,0,0.4);
         }
 
         .control-btn i {
@@ -273,34 +274,109 @@ export default function VideoPage() {
 
         .control-btn:hover {
           border-color: #ff4d8d;
-          background: rgba(255, 77, 141, 0.2);
-          transform: scale(1.08);
-          box-shadow: 0 6px 18px rgba(255, 77, 141, 0.35);
+          background: linear-gradient(145deg, rgba(255,77,141,0.7), rgba(123,31,162,0.5));
+          transform: scale(1.12) rotate(-2deg);
+          box-shadow: 0 8px 22px rgba(255, 77, 141, 0.5);
         }
 
         .control-btn.inactive {
           opacity: 0.6;
+          filter: grayscale(40%);
         }
 
         .control-btn.danger {
-          background: rgba(155, 28, 42, 0.8);
+          background: linear-gradient(145deg, rgba(220,20,60,0.7), rgba(155,28,42,0.7));
           border-color: #ff5a79;
-          box-shadow: 0 4px 16px rgba(255, 90, 121, 0.4);
+          box-shadow: 0 4px 18px rgba(255, 90, 121, 0.45);
         }
 
         .control-btn.danger:hover {
-          background: rgba(255, 90, 121, 0.9);
-          transform: scale(1.1);
+          background: linear-gradient(145deg, rgba(255,90,121,0.9), rgba(200,40,60,0.9));
+          transform: scale(1.15) rotate(1deg);
         }
 
-        #ratingOverlay{position:fixed;inset:0;display:none;flex-direction:column;align-items:center;justify-content:center;background:rgba(0,0,0,.9);color:#fff;z-index:4000}
-        .hearts{display:flex;gap:12px;font-size:44px}
-        .hearts i{color:#666;cursor:pointer}
-        .hearts i:hover{color:#ff4d8d}
-        .hearts i.selected{color:#ff1744}
-        .rating-buttons{display:flex;gap:16px;margin-top:20px}
-        .rating-buttons button{background:#ff4d8d;color:#fff;border:none;border-radius:8px;padding:10px 16px;cursor:pointer}
-        #toast{position:fixed;left:50%;bottom:80px;transform:translateX(-50%);background:#111;color:#fff;padding:10px 14px;border-radius:8px;display:none;z-index:5000}
+        /* === Rating Overlay === */
+        #ratingOverlay {
+          position: fixed; inset: 0;
+          display: none;
+          flex-direction: column;
+          align-items: center;
+          justify-content: center;
+          background: linear-gradient(135deg, rgba(27,0,52,0.95), rgba(45,11,69,0.95));
+          color: #fff;
+          z-index: 4000;
+          text-align: center;
+          animation: fadeIn 0.6s ease-in-out;
+        }
+
+        #ratingOverlay h2 {
+          font-size: 28px;
+          margin-bottom: 20px;
+          color: #ff4d8d;
+          text-shadow: 0 0 12px rgba(255,77,141,0.8);
+        }
+
+        .hearts {
+          display: flex; gap: 14px; font-size: 50px;
+        }
+
+        .hearts i {
+          color: #555;
+          cursor: pointer;
+          transition: transform 0.25s, color 0.25s;
+        }
+
+        .hearts i:hover {
+          color: #ff4d8d;
+          transform: scale(1.3);
+        }
+
+        .hearts i.selected {
+          color: #ff1744;
+          text-shadow: 0 0 10px rgba(255,23,68,0.8);
+        }
+
+        .rating-buttons {
+          display: flex;
+          gap: 20px;
+          margin-top: 24px;
+        }
+
+        .rating-buttons button {
+          background: linear-gradient(135deg, #ff4d8d, #e040fb);
+          color: #fff;
+          border: none;
+          border-radius: 12px;
+          padding: 12px 20px;
+          font-size: 16px;
+          cursor: pointer;
+          box-shadow: 0 4px 16px rgba(255,77,141,0.5);
+          transition: all 0.3s;
+        }
+
+        .rating-buttons button:hover {
+          transform: scale(1.08);
+          box-shadow: 0 6px 20px rgba(255,77,141,0.7);
+        }
+
+        /* === Toast === */
+        #toast {
+          position: fixed;
+          left: 50%;
+          bottom: 90px;
+          transform: translateX(-50%);
+          background: rgba(17, 17, 17, 0.85);
+          color: #fff;
+          padding: 12px 18px;
+          border-radius: 10px;
+          display: none;
+          z-index: 5000;
+          font-size: 14px;
+          animation: fadeInUp 0.4s ease;
+        }
+
+        @keyframes fadeIn { from {opacity:0;} to {opacity:1;} }
+        @keyframes fadeInUp { from {opacity:0; transform:translateY(20px);} to {opacity:1; transform:translateY(0);} }
       `}</style>
     </>
   );
