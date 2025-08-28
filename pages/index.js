@@ -138,12 +138,6 @@ export default function HomePage() {
 
       <div id="errorMessage"></div>
 
-      {/* Banner */}
-      <div className="banner">
-        <h2>🌺 Ganesh Chaturthi ki Shubhkamnaye! 🌺</h2>
-        <p>✨ Milan is Live! Let your hearts connect… ❤️</p>
-      </div>
-
       {/* ✅ Responsive Container */}
       <div className="container" id="userFormContainer">
         {/* Left Side - Text */}
@@ -265,9 +259,13 @@ export default function HomePage() {
                 <label>New Password</label>
                 <input type="password" id="newPassword" placeholder="Enter new password" />
                 <button onClick={handleReset}>Reset Password</button>
-                <p style={{ textAlign: "center", cursor: "pointer", color: "yellow" }} onClick={() => {
-                  setShowReset(false); setShowLogin(true);
-                }}>
+                <p
+                  style={{ textAlign: "center", cursor: "pointer", color: "yellow" }}
+                  onClick={() => {
+                    setShowReset(false);
+                    setShowLogin(true);
+                  }}
+                >
                   Back to Login
                 </p>
               </div>
@@ -300,6 +298,8 @@ export default function HomePage() {
           background: var(--bg-color);
           color: var(--text-color);
           overflow-y: auto;
+          width: 100%;
+          height: 100%;
         }
         #heartsCanvas {
           position: fixed;
@@ -309,61 +309,74 @@ export default function HomePage() {
           height: 100%;
           z-index: 0;
         }
-        .banner {
-          position: fixed;
-          top: 20px;
-          left: 50%;
-          transform: translateX(-50%);
-          background: rgba(255, 255, 255, 0.2);
-          padding: 15px 25px;
-          border-radius: 12px;
-          backdrop-filter: blur(10px);
-          text-align: center;
-          z-index: 10;
-          animation: fadeInPulse 2s ease-in-out infinite alternate;
-        }
-        .banner h2 { margin: 0; font-size: 18px; }
-        .banner p { margin: 5px 0 0 0; font-size: 14px; }
-
         .container {
           position: relative;
           z-index: 1;
           display: grid;
           grid-template-columns: 1fr 1fr;
           align-items: center;
-          gap: 30px;
           min-height: 100vh;
-          padding: 40px;
+          padding: 0;
+          margin: 0;
+          width: 100%;
         }
-        .left { text-align: left; }
-        .left h1 { font-size: 2.5em; margin-bottom: 10px; }
-        .left p { font-size: 16px; line-height: 1.5; }
+        .left {
+          text-align: center;
+          padding: 10px;
+        }
+        .left h1 {
+          font-size: 2em;
+          margin-bottom: 10px;
+        }
+        .left p {
+          font-size: 14px;
+          line-height: 1.5;
+        }
 
         .form-container {
           background: var(--box-bg);
-          padding: 25px;
-          border-radius: 12px;
+          padding: 20px;
+          border-radius: 0;
           backdrop-filter: blur(8px);
-          max-width: 400px;
-          margin: 0 auto;
+          width: 100%;
+          margin: 0;
         }
-        input, select, textarea, button {
-          width: 100%; padding: 10px; margin: 8px 0;
-          border: none; border-radius: 6px; font-size: 14px;
+        input,
+        select,
+        textarea,
+        button {
+          width: 100%;
+          padding: 10px;
+          margin: 6px 0;
+          border: none;
+          border-radius: 6px;
+          font-size: 14px;
         }
-        input, textarea { background: rgba(255, 255, 255, 0.3); color: var(--text-color); }
-        button { background: var(--btn-bg); color: var(--btn-text); font-weight: bold; cursor: pointer; }
-        button:hover { background: var(--btn-text); color: var(--btn-bg); }
+        input,
+        textarea {
+          background: rgba(255, 255, 255, 0.3);
+          color: var(--text-color);
+        }
+        button {
+          background: var(--btn-bg);
+          color: var(--btn-text);
+          font-weight: bold;
+          cursor: pointer;
+        }
+        button:hover {
+          background: var(--btn-text);
+          color: var(--btn-bg);
+        }
 
         #errorMessage {
           display: none;
           position: fixed;
-          bottom: 20px;
+          bottom: 10px;
           left: 50%;
           transform: translateX(-50%);
           background: #ff4d4f;
           color: #fff;
-          padding: 8px 16px;
+          padding: 6px 12px;
           border-radius: 6px;
           z-index: 9999;
         }
@@ -373,12 +386,20 @@ export default function HomePage() {
           .container {
             grid-template-columns: 1fr;
             text-align: center;
-            padding: 20px;
+            padding: 0;
           }
-          .left { order: 2; }
-          .right { order: 1; width: 100%; }
-          .form-container { width: 100%; max-width: 100%; }
-          .banner { font-size: 14px; padding: 10px 15px; }
+          .left {
+            order: 2;
+            padding: 10px;
+          }
+          .right {
+            order: 1;
+            width: 100%;
+          }
+          .form-container {
+            width: 100%;
+            border-radius: 0;
+          }
         }
       `}</style>
     </>
