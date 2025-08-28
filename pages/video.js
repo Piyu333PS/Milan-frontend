@@ -45,8 +45,13 @@ export default function VideoPage() {
         console.log("🎥 Requesting camera + mic access...");
         localStream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
         console.log("✅ Got local stream:", localStream);
+
         const lv = get("localVideo");
-        if (lv) lv.srcObject = localStream;
+        if (lv) {
+          lv.srcObject = localStream;
+          lv.muted = true; // ✅ always mute self view
+          lv.play().catch((e) => console.warn("Local video play error:", e));
+        }
       } catch (err) {
         console.error("❌ Camera/Mic error:", err);
         showToast("Camera/Mic access needed");
@@ -168,8 +173,7 @@ export default function VideoPage() {
         showRating();
       });
 
-      // ❌ हटाया गया: टाइमर से early offer भेजना
-      // अब offer सिर्फ 'ready' पर जाएगा ताकि दोनों peers sync रहें.
+      // ❌ Removed: early timer offer sending
     })();
 
     // Buttons
@@ -238,7 +242,7 @@ export default function VideoPage() {
       window.location.href = "/connect";
     };
 
-    // Draggable local video (passive touch listeners to avoid warnings)
+    // Draggable local video
     const lb = get("localBox");
     let dragging = false, dx = 0, dy = 0;
 
@@ -315,7 +319,7 @@ export default function VideoPage() {
 
       <div id="toast"></div>
 
-      {/* === Styles (restored + improved) === */}
+      {/* === Styles === */}
       <style jsx global>{`
         *{margin:0;padding:0;box-sizing:border-box}
         html,body{height:100%;background:#000;font-family:'Segoe UI',sans-serif;overflow:hidden}
@@ -329,6 +333,7 @@ export default function VideoPage() {
         }
         #localBox video{width:100%;height:100%;object-fit:cover;transform:scaleX(-1)}
         @media(max-width:768px){#localBox{width:150px;height:110px}}
+        @media(max-width:768px){#remoteVideo{object-fit:contain;background:#000}}
 
         .control-bar{
           position:fixed;bottom:18px;left:50%;transform:translateX(-50%);
