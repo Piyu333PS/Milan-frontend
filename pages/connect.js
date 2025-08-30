@@ -181,24 +181,34 @@ export default function ConnectPage() {
         </ul>
       </div>
 
-      {/* Main connect UI */}
-      <div className="center-box">
-        <h2>Select Connection Mode</h2>
-        <div className="mode-text" id="modeText"></div>
-        <button id="videoBtn">Start Video Chat</button>
-        <button id="textBtn" disabled>Start Text Chat</button>
-        <div className="disabled-message">💌 Text Chat on the way… Video Chat ka maza lijiye ❤️</div>
+      {/* Content area that fills the remaining space after sidebar */}
+      <div className="content-wrap">
+        {/* Centered Glass Box */}
+        <div className="glass-card">
+          <div className="center-box">
+            <h2>Select Connection Mode</h2>
+            <div className="mode-text" id="modeText"></div>
 
-        <div className="loader" id="loader">
-          <div className="heart-loader" id="statusMessage"></div>
-        </div>
-        <button id="stopBtn" style={{ display: "none" }}>Stop Searching</button>
+            <div className="btn-row">
+              <button id="videoBtn">Start Video Chat</button>
+              <button id="textBtn" disabled>Start Text Chat</button>
+            </div>
+            <div className="disabled-message">
+              💌 Text Chat on the way… Video Chat ka maza lijiye ❤️
+            </div>
 
-        <div className="quote-box" id="quoteBox">
-          ❤️ जहाँ दिल मिले, वहीं होती है शुरुआत Milan की… <br />
-          <span style={{ fontSize: "16px", display: "block", marginTop: "5px" }}>
-            (Where hearts meet, that’s where Milan begins…)
-          </span>
+            <div className="loader" id="loader">
+              <div className="heart-loader" id="statusMessage"></div>
+            </div>
+            <button id="stopBtn" style={{ display: "none" }}>Stop Searching</button>
+
+            <div className="quote-box" id="quoteBox">
+              ❤️ जहाँ दिल मिले, वहीं होती है शुरुआत Milan की… <br />
+              <span style={{ fontSize: "16px", display: "block", marginTop: "5px" }}>
+                (Where hearts meet, that’s where Milan begins…)
+              </span>
+            </div>
+          </div>
         </div>
       </div>
 
@@ -251,6 +261,7 @@ export default function ConnectPage() {
           background: rgba(0,0,0,0.3);
           padding: 8px 12px;
           border-radius: 6px;
+          user-select: none;
         }
 
         /* Sidebar */
@@ -302,30 +313,128 @@ export default function ConnectPage() {
           transform: translateX(5px);
         }
 
-        /* Center box */
-        .center-box {
-          position: relative;
-          margin-left: 240px;
-          padding: 20px;
-          text-align: center;
-          color: white;
+        /* Content area (fills remaining space besides sidebar) */
+        .content-wrap {
+          position: fixed;
+          top: 0;
+          left: 220px;           /* equal to sidebar width on desktop */
+          right: 0;
+          bottom: 0;
+          display: grid;         /* easy centering */
+          place-items: center;   /* vertical + horizontal center */
+          padding: 24px;
           z-index: 5;
         }
-        .center-box h2 { font-size: 26px; margin-bottom: 15px; }
-        .center-box button {
-          margin: 10px;
-          padding: 12px 20px;
-          border: none;
-          border-radius: 8px;
-          background: #ec4899;
-          color: white;
-          font-size: 16px;
-          cursor: pointer;
-          transition: all 0.3s;
+
+        /* Big transparent glass box */
+        .glass-card {
+          width: min(100%, 1100px);           /* cap width */
+          height: min(88vh, 820px);           /* nice height – not too tall */
+          background: rgba(255,255,255,0.14); /* transparent box */
+          border: 2px solid rgba(255,255,255,0.28);
+          border-radius: 24px;
+          backdrop-filter: blur(18px);
+          box-shadow: 0 10px 40px rgba(0,0,0,0.25), inset 0 0 60px rgba(255,255,255,0.08);
+          display: grid;
+          place-items: center;                /* center inner content */
+          padding: 32px;
         }
-        .center-box button:hover { background: #db2777; }
-        .disabled-message { font-size: 14px; margin-top: 10px; color: #eee; }
-        .quote-box { margin-top: 20px; font-size: 18px; font-style: italic; }
+
+        /* Inner content */
+        .center-box {
+          width: 100%;
+          max-width: 820px;
+          color: #fff;
+          text-align: center;
+        }
+        .center-box h2 {
+          font-size: 40px;
+          margin-bottom: 20px;
+          font-weight: 700;
+          text-shadow: 0 0 10px #ec4899;
+        }
+        .mode-text {
+          font-size: 20px;
+          margin: 6px 0 18px;
+          font-weight: 600;
+          color: #ffe4f1;
+        }
+        .btn-row {
+          display: flex;
+          justify-content: center;
+          gap: 16px;
+          flex-wrap: wrap;
+        }
+        .center-box button {
+          margin: 0;
+          padding: 16px 36px;
+          border: none;
+          border-radius: 12px;
+          font-size: 18px;
+          background: #fff;
+          color: #ec4899;
+          font-weight: 700;
+          cursor: pointer;
+          transition: all 0.25s ease;
+        }
+        .center-box button:hover:enabled {
+          background: #ec4899;
+          color: #fff;
+          transform: translateY(-2px);
+          box-shadow: 0 10px 18px rgba(236,72,153,0.35);
+        }
+        .center-box button:disabled {
+          background: rgba(255,255,255,0.45);
+          color: rgba(255,255,255,0.85);
+          cursor: not-allowed;
+        }
+        .disabled-message {
+          font-size: 14px;
+          margin-top: 10px;
+          color: #ffe4f1;
+          font-style: italic;
+        }
+
+        .loader { display: none; margin: 20px auto; }
+        .heart-loader {
+          font-size: 36px;
+          animation: blink 1s infinite;
+          color: #fff;
+        }
+        @keyframes blink {
+          0% { opacity: 0.2; transform: scale(1); }
+          50% { opacity: 1; transform: scale(1.2); }
+          100% { opacity: 0.2; transform: scale(1); }
+        }
+        #stopBtn {
+          background: #ff4d4f;
+          color: #fff;
+          margin: 18px auto 0;
+          padding: 12px 32px;
+          font-size: 16px;
+          display: none;
+          border-radius: 10px;
+        }
+        #statusMessage {
+          margin-top: 16px;
+          font-size: 24px;
+          font-weight: bold;
+          min-height: 34px;
+          text-shadow: 0 0 10px #fff;
+        }
+        .quote-box {
+          margin: 22px auto 0;
+          font-size: 18px;
+          font-weight: 600;
+          color: #ffeff7;
+          text-shadow: 0 0 5px #ff88aa;
+          padding: 16px 18px;
+          border-radius: 14px;
+          background: rgba(255, 255, 255, 0.12);
+          border: 1px solid rgba(255,255,255,0.28);
+          backdrop-filter: blur(10px);
+          width: 100%;
+        }
 
         /* Panels */
         .panel {
@@ -340,12 +449,19 @@ export default function ConnectPage() {
           display: flex;
           flex-direction: column;
           gap: 10px;
-          width: 300px;
+          width: 320px;
         }
+        .panel h3 { margin: 0 0 10px; }
         .panel input { padding: 10px; border: 1px solid #ccc; border-radius: 6px; }
         .panel button { padding: 10px; border: none; border-radius: 6px; background: #ec4899; color: white; font-weight: bold; cursor: pointer; }
 
         /* Responsive */
+        @media (max-width: 1024px) {
+          .glass-card {
+            width: min(100%, 960px);
+            height: min(86vh, 760px);
+          }
+        }
         @media (max-width: 768px) {
           .hamburger { display: block; }
           .sidebar {
@@ -353,7 +469,21 @@ export default function ConnectPage() {
             width: 200px;
           }
           .sidebar.open { transform: translateX(0); }
-          .center-box { margin-left: 0; padding-top: 80px; }
+
+          /* Content takes full width on mobile */
+          .content-wrap {
+            left: 0;            /* no fixed space for sidebar on mobile */
+            padding: 16px;
+          }
+          .glass-card {
+            width: 100%;
+            height: auto;
+            min-height: 72vh;   /* mobile par bhi achchi height */
+            padding: 22px;
+            border-radius: 20px;
+          }
+          .center-box h2 { font-size: 30px; }
+          .quote-box { font-size: 16px; }
         }
       `}</style>
     </>
