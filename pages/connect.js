@@ -1035,66 +1035,110 @@ export default function ConnectPage() {
 
           .content-wrap {
             left: 0;
-            padding: 10px;
+            padding: 8px;
           }
 
           .glass-card {
             width: 100%;
             height: 100vh; /* make it take viewport fully */
-            padding: 12px;
-            border-radius: 16px;
+            padding: 8px;
+            border-radius: 12px;
+          }
+
+          /* Reduce outer transparent box's vertical footprint:
+             center-box is now compact and uses space-between so
+             heading + cards + quote fit without scrolling. */
+          .center-box {
+            padding: 8px;
+            gap: 6px;
           }
 
           /* heading smaller and moved up so it's visible */
           .center-box h2 {
-            font-size: 22px;
+            font-size: 20px;
             margin: 4px 0 6px 0;
+            line-height: 1.05;
+          }
+
+          .mode-text {
+            font-size: 14px;
           }
 
           /* stack cards vertically and reduce their height / padding */
           .mode-options {
             flex-direction: column;
-            gap: 10px;
+            gap: 8px;
             margin-top: 6px;
             align-items: center;
+            justify-content: flex-start;
           }
           .mode-card,
           .disabled-card {
-            width: 94%;
-            max-width: 94%;
-            padding: 10px;
+            width: 96%;
+            max-width: 96%;
+            padding: 8px;
             border-radius: 12px;
-            min-height: 98px; /* keep card compact */
+            min-height: 84px; /* compact but comfortable */
+            display: flex;
+            flex-direction: row;
+            align-items: center;
+            gap: 12px;
           }
 
+          /* Put icon left, content right — saves vertical space */
           .mode-animation {
-            margin-bottom: 6px;
+            flex: 0 0 auto;
+            margin-bottom: 0;
+            margin-right: 8px;
+          }
+          .mode-card .mode-animation,
+          .disabled-card .mode-animation {
+            align-self: center;
           }
 
           .video-svg {
-            width: 88px;
-            height: 56px;
+            width: 72px;
+            height: 48px;
           }
 
           .phone-mock {
-            width: 64px;
-            height: 98px;
+            width: 56px;
+            height: 88px;
           }
 
           .mode-btn {
-            font-size: 15px;
-            padding: 10px;
+            font-size: 14px;
+            padding: 8px;
+            min-width: 120px;
+            border-radius: 10px;
           }
 
           .mode-desc {
-            font-size: 13px;
+            font-size: 12px;
+            margin-top: 0;
           }
 
           .quote-box {
             font-size: 13px;
-            padding: 10px;
-            margin-bottom: 4px;
+            padding: 8px;
+            margin-bottom: 6px;
           }
+
+          /* ensure quote box is visible and does not overflow */
+          .quote-box {
+            flex-shrink: 0;
+          }
+        }
+
+        /* Extra small screens */
+        @media (max-width: 420px) {
+          .center-box h2 { font-size: 18px; }
+          .video-svg { width: 64px; height: 44px; }
+          .phone-mock { width: 52px; height: 76px; }
+          .mode-btn { font-size: 13px; padding: 7px; }
+          .mode-desc { font-size: 12px; }
+          .mode-card { min-height: 74px; padding: 6px; gap: 8px; }
+          .quote-box { font-size: 12px; padding: 6px; }
         }
       `}</style>
     </>
