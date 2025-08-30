@@ -12,9 +12,8 @@ export default function VideoPage() {
     let localStream = null;
     let hasOffered = false;
 
-    // NEW: keep a saved camera track so we can restore after screen-share ends reliably
+    // keep a saved camera track so we can restore after screen-share ends reliably
     let cameraTrackSaved = null;
-    let isScreenSharingLocal = false;
 
     const get = (id) => document.getElementById(id);
     const showToast = (msg, ms = 2000) => {
@@ -30,7 +29,7 @@ export default function VideoPage() {
       if (r) r.style.display = "flex";
     };
 
-    // ⭐ Emoji Animation Function (now targets .emoji-container so it stays behind hearts/buttons)
+    // ⭐ Emoji Animation Function (targets .emoji-container behind content)
     const triggerRatingAnimation = (rating) => {
       const container = document.querySelector("#ratingOverlay .emoji-container");
       if (!container) return;
@@ -44,7 +43,7 @@ export default function VideoPage() {
       };
 
       const emojis = emojiMap[rating] || ["❤️"];
-      const count = rating === 5 ? 28 : 18; // little more for 5
+      const count = rating === 5 ? 28 : 18;
 
       const containerRect = container.getBoundingClientRect();
       for (let i = 0; i < count; i++) {
@@ -52,7 +51,6 @@ export default function VideoPage() {
         e.className = "floating-emoji";
         e.textContent = emojis[Math.floor(Math.random() * emojis.length)];
 
-        // Random position within the emoji container bounds
         const x = Math.random() * containerRect.width;
         const y = Math.random() * containerRect.height;
 
@@ -61,11 +59,9 @@ export default function VideoPage() {
         e.style.fontSize = 24 + Math.random() * 26 + "px";
         container.appendChild(e);
 
-        // Different animation styles
         if (rating === 1 || rating === 2) {
           e.style.animation = `fallLocal ${2 + Math.random() * 1.8}s linear`;
         } else if (rating === 3) {
-          // randomize orbit radius and direction
           const r = 80 + Math.random() * 120;
           const dir = Math.random() > 0.5 ? "orbitCW" : "orbitCCW";
           e.style.setProperty("--r", `${r}px`);
@@ -76,17 +72,13 @@ export default function VideoPage() {
           e.style.animation = `burstLocal ${3 + Math.random() * 2}s ease-in-out`;
         }
 
-        // Remove after animation end
         setTimeout(() => e.remove(), 4200);
       }
     };
 
     // Cleanup
     const cleanup = () => {
-      console.log("🧹 Cleanup called");
-      try {
-        socket?.disconnect();
-      } catch {}
+      try { socket?.disconnect(); } catch {}
       try {
         pc?.getSenders()?.forEach((s) => s.track && s.track.stop());
         pc?.close();
@@ -100,7 +92,6 @@ export default function VideoPage() {
     (async function start() {
       try {
         localStream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
-        // SAVE camera track reference (so later when screen share ends we can restore it)
         cameraTrackSaved = localStream?.getVideoTracks()?.[0] || null;
 
         const lv = get("localVideo");
@@ -134,28 +125,20 @@ export default function VideoPage() {
         pc.ontrack = (e) => {
           const rv = get("remoteVideo");
           if (rv && e.streams && e.streams[0]) {
-            // set remote stream
             rv.srcObject = e.streams[0];
 
-            // Attach 'ended' handlers to remote video tracks so we can detect when partner stops sharing
             try {
               const remoteStream = e.streams[0];
               const videoTracks = remoteStream.getVideoTracks();
               if (videoTracks && videoTracks.length) {
                 videoTracks.forEach((vt) => {
                   vt.onended = () => {
-                    console.warn("⚠️ remote video track ended");
                     showToast("Partner stopped video");
-                    // Keep the element ready; when new tracks arrive pc.ontrack will run again
                   };
                 });
               }
-
-              // Also listen for addtrack to re-attach when partner restores camera
               remoteStream.addEventListener &&
                 remoteStream.addEventListener("addtrack", () => {
-                  console.log("🔁 remote stream addtrack fired - new track probably arrived");
-                  // reassign to element in case it was cleared
                   if (rv && remoteStream) rv.srcObject = remoteStream;
                 });
             } catch (err) {
@@ -216,18 +199,15 @@ export default function VideoPage() {
       });
     })();
 
-    // Buttons
+    // Controls
     const micBtn = get("micBtn");
     micBtn.onclick = () => {
       const t = localStream?.getAudioTracks()[0];
       if (!t) return;
       t.enabled = !t.enabled;
       micBtn.classList.toggle("inactive", !t.enabled);
-
-      // Update icon
       const i = micBtn.querySelector("i");
       if (i) i.className = t.enabled ? "fas fa-microphone" : "fas fa-microphone-slash";
-
       showToast(t.enabled ? "Mic On" : "Mic Off");
     };
 
@@ -237,11 +217,8 @@ export default function VideoPage() {
       if (!t) return;
       t.enabled = !t.enabled;
       camBtn.classList.toggle("inactive", !t.enabled);
-
-      // Update icon
       const i = camBtn.querySelector("i");
       if (i) i.className = t.enabled ? "fas fa-video" : "fas fa-video-slash";
-
       showToast(t.enabled ? "Camera On" : "Camera Off");
     };
 
@@ -249,13 +226,11 @@ export default function VideoPage() {
     screenBtn.onclick = async () => {
       if (!pc) return showToast("No connection");
       try {
-        // Request display media
         const screen = await navigator.mediaDevices.getDisplayMedia({ video: true });
         const screenTrack = screen.getVideoTracks()[0];
         const sender = pc.getSenders().find((s) => s.track && s.track.kind === "video");
         if (!sender) {
           showToast("No video sender found");
-          // stop the screen track if we can't use it
           screenTrack.stop();
           return;
         }
@@ -263,28 +238,23 @@ export default function VideoPage() {
         // Save current camera track (in case it changed)
         cameraTrackSaved = localStream?.getVideoTracks()?.[0] || cameraTrackSaved;
 
-        // replace and mark sharing state
-        sender.replaceTrack(screenTrack);
-        isScreenSharingLocal = true;
+        // replace with screen
+        await sender.replaceTrack(screenTrack);
         screenBtn.classList.add("active");
         showToast("Screen sharing");
 
-        // When user stops screen sharing, restore camera track (robust)
+        // When screen sharing stops, restore camera
         screenTrack.onended = async () => {
           try {
-            // If saved camera track is still usable, restore it. Otherwise try to get a fresh camera track.
             let cam = cameraTrackSaved;
             if (!cam || cam.readyState === "ended") {
               try {
                 const fresh = await navigator.mediaDevices.getUserMedia({ video: true });
                 cam = fresh.getVideoTracks()[0];
-                // also update localStream so local preview works
                 if (localStream) {
-                  // stop previous video track in localStream if ended
                   const prev = localStream.getVideoTracks()[0];
                   try { prev && prev.stop(); } catch {}
-                  // remove tracks and add new
-                  localStream.removeTrack(prev);
+                  if (prev) localStream.removeTrack(prev);
                   localStream.addTrack(cam);
                   const lv = get("localVideo");
                   if (lv) lv.srcObject = localStream;
@@ -294,9 +264,8 @@ export default function VideoPage() {
                 console.warn("Couldn't reacquire camera after screen share ended", err);
               }
             }
-
             if (sender && cam) {
-              sender.replaceTrack(cam);
+              await sender.replaceTrack(cam);
               showToast("Screen sharing stopped — camera restored");
             } else {
               showToast("Screen sharing stopped");
@@ -305,7 +274,6 @@ export default function VideoPage() {
             console.error("Error restoring camera after screen end", err);
             showToast("Stopped screen sharing");
           } finally {
-            isScreenSharingLocal = false;
             screenBtn.classList.remove("active");
           }
         };
@@ -317,9 +285,7 @@ export default function VideoPage() {
 
     const disconnectBtn = get("disconnectBtn");
     disconnectBtn.onclick = () => {
-      try {
-        socket?.emit("partnerLeft");
-      } catch {}
+      try { socket?.emit("partnerLeft"); } catch {}
       cleanup();
       showRating();
     };
@@ -345,58 +311,29 @@ export default function VideoPage() {
       });
     });
 
-    // Draggable local video
-    const lb = get("localBox");
-    let dragging = false,
-      dx = 0,
-      dy = 0;
-    const startDrag = (x, y) => {
-      const rect = lb.getBoundingClientRect();
-      dx = x - rect.left;
-      dy = y - rect.top;
-      dragging = true;
-      lb.style.cursor = "grabbing";
-    };
-    const moveDrag = (x, y) => {
-      if (!dragging) return;
-      lb.style.left = `${x - dx}px`;
-      lb.style.top = `${y - dy}px`;
-    };
-    const stopDrag = () => {
-      dragging = false;
-      lb.style.cursor = "grab";
-    };
-
-    lb.addEventListener("mousedown", (e) => startDrag(e.clientX, e.clientY));
-    document.addEventListener("mousemove", (e) => moveDrag(e.clientX, e.clientY));
-    document.addEventListener("mouseup", stopDrag);
-
-    lb.addEventListener("touchstart", (e) => {
-      const t = e.touches[0];
-      startDrag(t.clientX, t.clientY);
-    });
-    document.addEventListener("touchmove", (e) => {
-      const t = e.touches[0];
-      moveDrag(t.clientX, t.clientY);
-    });
-    document.addEventListener("touchend", stopDrag);
-
     return () => cleanup();
   }, []);
 
   return (
     <>
-      {/* Font Awesome for heart icons */}
+      {/* Font Awesome */}
       <link
         rel="stylesheet"
         href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css"
         referrerPolicy="no-referrer"
       />
 
-      <div className="video-container">
-        <video id="remoteVideo" autoPlay playsInline></video>
-        <div id="localBox">
-          <video id="localVideo" autoPlay playsInline muted></video>
+      {/* ======= Omegle-style Layout ======= */}
+      <div className="video-stage">
+        <div className="video-panes">
+          <div className="video-box">
+            <video id="remoteVideo" autoPlay playsInline></video>
+            <div className="label">Partner</div>
+          </div>
+          <div className="video-box">
+            <video id="localVideo" autoPlay playsInline muted></video>
+            <div className="label">You</div>
+          </div>
         </div>
       </div>
 
@@ -419,7 +356,7 @@ export default function VideoPage() {
         </button>
       </div>
 
-      {/* ✅ Reworked rating overlay: content wrapper + emoji-container behind it */}
+      {/* ✅ Rating overlay */}
       <div id="ratingOverlay">
         <div className="rating-content">
           <h2>Rate your partner ❤️</h2>
@@ -437,7 +374,6 @@ export default function VideoPage() {
             <button id="newPartnerBtn">Search New Partner</button>
           </div>
 
-          {/* emojis animate inside this, behind content */}
           <div className="emoji-container" aria-hidden="true"></div>
         </div>
       </div>
@@ -448,31 +384,54 @@ export default function VideoPage() {
         *{margin:0;padding:0;box-sizing:border-box}
         html,body{height:100%;background:#000;font-family:'Segoe UI',sans-serif;overflow:hidden}
 
-        /* ---------- VIDEO LAYOUT FIXES (mobile fullscreen) ---------- */
-        .video-container{
+        /* ======= Stage (reserves space for controls) ======= */
+        .video-stage{
           position:relative;
           width:100%;
-          height:100vh; /* <-- changed: force full viewport height to avoid half-black on mobile */
-          overflow:hidden;
+          height:100vh;
+          padding-bottom:110px; /* space for bottom control bar */
           background:#000;
         }
-        #remoteVideo{
-          position:absolute; /* <-- changed: make remote truly fullscreen inside container */
-          inset:0;
+
+        /* ======= Two-panes layout (Omegle style) ======= */
+        .video-panes{
+          position:absolute;
+          left:0; right:0; top:0; bottom:110px; /* keep clear for controls */
+          display:flex;
+          gap:12px;
+          padding:12px;
+        }
+        .video-box{
+          position:relative;
+          flex:1 1 50%;
+          border-radius:14px;
+          overflow:hidden;
+          background:#111;
+          border:1px solid rgba(255,255,255,.08);
+        }
+        .video-box video{
           width:100%;
           height:100%;
           object-fit:cover;
           background:#000;
         }
 
-        /* Local small draggable preview */
-        #localBox{
-          position:absolute;bottom:20px;right:20px;width:220px;height:150px;
-          border:2px solid #ff4d8d;border-radius:14px;overflow:hidden;cursor:grab;
-          z-index:2000;background:#111;box-shadow:0 8px 20px rgba(0,0,0,.5)
-        }
-        #localBox video{width:100%;height:100%;object-fit:cover;transform:scaleX(-1)}
+        /* Mirror local like most apps (feels natural) */
+        #localVideo{ transform: scaleX(-1); }
 
+        .label{
+          position:absolute;
+          left:10px; bottom:10px;
+          padding:6px 10px;
+          font-size:12px;
+          color:#fff;
+          background:rgba(0,0,0,.5);
+          border:1px solid rgba(255,255,255,.15);
+          border-radius:10px;
+          pointer-events:none;
+        }
+
+        /* ======= Controls ======= */
         .control-bar{
           position:fixed;bottom:18px;left:50%;transform:translateX(-50%);
           display:flex;gap:18px;padding:12px 16px;background:rgba(0,0,0,.6);
@@ -486,7 +445,7 @@ export default function VideoPage() {
         .control-btn.active{box-shadow:0 6px 18px rgba(255,77,141,0.18);transform:translateY(-2px)}
         .control-btn.danger{background:#9b1c2a}
 
-        /* === Rating Overlay Rework === */
+        /* ======= Rating Overlay ======= */
         #ratingOverlay{
           position:fixed;inset:0;display:none;align-items:center;justify-content:center;
           background:rgba(0,0,0,.9);color:#fff;z-index:4000;padding:40px
@@ -521,14 +480,12 @@ export default function VideoPage() {
         }
         .rating-buttons button:hover{transform:scale(1.06);opacity:.92}
 
-        /* Emoji layer behind content so it won't cover hearts/buttons */
         .emoji-container{
-          position:absolute;inset:-16px; /* a little larger than content so emojis orbit around */
+          position:absolute;inset:-16px;
           pointer-events:none;z-index:0;overflow:visible
         }
         .floating-emoji{position:absolute;user-select:none}
 
-        /* Container-scoped animations (no viewport overlap) */
         @keyframes fallLocal{
           from{transform:translateY(-40px);opacity:1}
           to{transform:translateY(360px);opacity:0}
@@ -537,12 +494,10 @@ export default function VideoPage() {
           from{transform:translateY(0);opacity:1}
           to{transform:translateY(-360px);opacity:0}
         }
-        /* Orbit clockwise using CSS variable radius --r */
         @keyframes orbitCW{
           from{transform:rotate(0deg) translateX(var(--r)) rotate(0deg)}
           to{transform:rotate(360deg) translateX(var(--r)) rotate(-360deg)}
         }
-        /* Orbit counter-clockwise */
         @keyframes orbitCCW{
           from{transform:rotate(360deg) translateX(var(--r)) rotate(-360deg)}
           to{transform:rotate(0deg) translateX(var(--r)) rotate(360deg)}
@@ -559,25 +514,26 @@ export default function VideoPage() {
           border:1px solid rgba(255,255,255,.12)
         }
 
-        /* Responsive tweaks */
-        @media(max-width:768px){
-          .rating-content{min-width:min(560px, 94vw);padding:38px 28px}
-          .hearts{font-size:56px;gap:22px}
-          .rating-buttons button{padding:16px 24px;font-size:18px}
-
-          /* Make local preview slightly larger proportionally on smaller screens */
-          #localBox{width:30%;max-width:140px;height:auto;min-height:90px;bottom:14px;right:12px}
-          #localBox video{height:100%}
+        /* ======= Mobile: stack top/bottom ======= */
+        @media(max-width: 900px){
+          .video-panes{
+            flex-direction:column;
+          }
+          .video-box{
+            flex:1 1 50%;
+            min-height: 0; /* allow flexible shrink */
+          }
         }
+
+        /* Small phones: tighter gaps/padding */
         @media(max-width:480px){
+          .video-panes{ gap:8px; padding:8px; bottom:108px; }
+          .label{ font-size:11px; padding:5px 8px; }
+          .control-btn{ width:62px; height:62px; }
           .rating-content{min-width:92vw;padding:30px 20px}
           .hearts{font-size:46px;gap:18px}
           .rating-buttons{gap:16px}
           .rating-buttons button{padding:14px 18px;font-size:16px;border-radius:14px}
-
-          /* smaller devices: local preview a bit bigger relative, but capped */
-          #localBox{width:36%;max-width:120px;height:auto;min-height:80px;bottom:12px;right:10px}
-          #localBox video{height:100%}
         }
       `}</style>
     </>
