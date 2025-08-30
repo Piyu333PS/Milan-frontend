@@ -299,15 +299,15 @@ export default function HomePage() {
           z-index: 1;
           display: flex;
           align-items: center;
-          justify-content: center;
+          justify-content: space-between;
           height: 100%;
-          padding: 20px;
+          padding: 40px;
           box-sizing: border-box;
         }
         .left,
         .right {
           flex: 1;
-          padding: 10px;
+          padding: 20px;
           box-sizing: border-box;
         }
         .left h1 {
@@ -324,7 +324,7 @@ export default function HomePage() {
           border-radius: 10px;
           backdrop-filter: blur(8px);
           max-width: 400px;
-          margin: 0 auto;
+          margin: auto;
         }
         .form-container h2 {
           margin-top: 0;
@@ -399,13 +399,12 @@ export default function HomePage() {
         @media (max-width: 768px) {
           .container {
             flex-direction: column;
-            justify-content: flex-start;
-            padding: 30px 15px;
-            overflow-y: auto;
+            justify-content: center;
+            padding: 20px;
           }
           .left {
             text-align: center;
-            margin-bottom: 20px;
+            margin-bottom: 15px;
           }
           .left h1 {
             font-size: 2.2em;
@@ -415,7 +414,7 @@ export default function HomePage() {
           }
           .form-container {
             width: 100%;
-            max-width: 100%;
+            max-width: 360px;
           }
         }
       `}</style>
