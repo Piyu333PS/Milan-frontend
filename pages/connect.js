@@ -163,9 +163,15 @@ export default function ConnectPage() {
         <div className="profile-pic">M</div>
         <div className="username">My Name</div>
         <ul>
-          <li onClick={() => { setShowProfile(true); setShowSecurity(false); }}>👤 Profile Info</li>
-          <li onClick={() => { setShowSecurity(true); setShowProfile(false); }}>🔒 Security</li>
-          <li onClick={() => setShowLogoutConfirm(true)}>🚪 Logout</li>
+          <li onClick={() => { setShowProfile(true); setShowSecurity(false); }}>
+            <span>👤</span> <span>Profile Info</span>
+          </li>
+          <li onClick={() => { setShowSecurity(true); setShowProfile(false); }}>
+            <span>🔒</span> <span>Security</span>
+          </li>
+          <li onClick={() => setShowLogoutConfirm(true)}>
+            <span>🚪</span> <span>Logout</span>
+          </li>
         </ul>
       </div>
 
@@ -224,11 +230,14 @@ export default function ConnectPage() {
           background: linear-gradient(135deg, #8b5cf6, #ec4899);
           overflow: hidden;
         }
+        canvas { position: fixed; top: 0; left: 0; z-index: 0; }
+
+        /* Sidebar */
         .sidebar {
           position: fixed;
           top: 0;
           left: 0;
-          width: 200px;
+          width: 220px;
           height: 100%;
           background: rgba(255,255,255,0.1);
           backdrop-filter: blur(12px);
@@ -254,28 +263,72 @@ export default function ConnectPage() {
         .username { margin-bottom: 30px; font-size: 18px; font-weight: 600; }
         .sidebar ul { list-style: none; padding: 0; width: 100%; }
         .sidebar li {
-          padding: 12px;
+          display: flex;
+          align-items: center;
+          justify-content: flex-start;
+          gap: 12px;
+          padding: 14px 20px;
+          margin: 8px 15px;
+          background: rgba(255,255,255,0.15);
+          border-radius: 10px;
           cursor: pointer;
-          text-align: center;
-          transition: background 0.3s;
+          font-size: 16px;
+          transition: all 0.3s;
         }
-        .sidebar li:hover { background: rgba(255,255,255,0.2); }
+        .sidebar li:hover {
+          background: rgba(255,255,255,0.3);
+          transform: translateX(5px);
+        }
+
+        /* Center box */
+        .center-box {
+          position: relative;
+          margin-left: 240px;
+          padding: 20px;
+          text-align: center;
+          color: white;
+          z-index: 5;
+        }
+        .center-box h2 { font-size: 26px; margin-bottom: 15px; }
+        .center-box button {
+          margin: 10px;
+          padding: 12px 20px;
+          border: none;
+          border-radius: 8px;
+          background: #ec4899;
+          color: white;
+          font-size: 16px;
+          cursor: pointer;
+          transition: all 0.3s;
+        }
+        .center-box button:hover { background: #db2777; }
+        .disabled-message { font-size: 14px; margin-top: 10px; color: #eee; }
+        .quote-box { margin-top: 20px; font-size: 18px; font-style: italic; }
+
+        /* Panels */
         .panel {
           position: fixed;
           top: 50%;
           left: 50%;
           transform: translate(-50%, -50%);
-          background: rgba(255,255,255,0.9);
+          background: rgba(255,255,255,0.95);
           padding: 30px;
           border-radius: 12px;
           z-index: 20;
           display: flex;
           flex-direction: column;
           gap: 10px;
+          width: 300px;
         }
         .panel h3 { margin: 0 0 10px; }
         .panel input { padding: 10px; border: 1px solid #ccc; border-radius: 6px; }
         .panel button { padding: 10px; border: none; border-radius: 6px; background: #ec4899; color: white; font-weight: bold; cursor: pointer; }
+
+        /* Responsive */
+        @media (max-width: 768px) {
+          .sidebar { width: 180px; }
+          .center-box { margin-left: 0; padding-top: 120px; }
+        }
       `}</style>
     </>
   );
