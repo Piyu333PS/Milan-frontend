@@ -319,26 +319,26 @@ export default function HomePage() {
           min-height: 100vh;
           padding: 40px 60px;
           box-sizing: border-box;
-          gap: 40px;
+          gap: 20px;
         }
         .left-box {
           flex: 1;
           max-width: 600px;
         }
         .welcome {
-          font-size: 52px;
+          font-size: 60px;
           font-weight: bold;
-          margin-bottom: 20px;
+          margin-bottom: 25px;
           text-shadow: 2px 2px 6px rgba(0,0,0,0.4);
         }
         .rainbow {
-          background: linear-gradient(90deg, 
-            #ff0000, #ff7f00, #ffff00, 
-            #00ff00, #0000ff, #4b0082, #8f00ff);
+          background: linear-gradient(270deg,
+            #ff0000, #ff7f00, #ffff00, #00ff00,
+            #00ffff, #0000ff, #8b00ff, #ff1493);
           -webkit-background-clip: text;
           -webkit-text-fill-color: transparent;
-          background-size: 400% 400%;
-          animation: rainbowMove 8s linear infinite;
+          background-size: 800% 800%;
+          animation: rainbowMove 10s ease infinite;
         }
         @keyframes rainbowMove {
           0% { background-position: 0% 50%; }
@@ -346,12 +346,13 @@ export default function HomePage() {
           100% { background-position: 0% 50%; }
         }
         .intro-text {
-          font-size: 20px;
-          line-height: 1.8;
+          font-size: 22px;
+          line-height: 1.9;
         }
         .form-wrapper {
-          flex: 0 0 380px;
-          max-width: 400px;
+          flex: 0 0 360px;
+          max-width: 380px;
+          margin-right: 40px; /* thoda left shift */
         }
         .form-container {
           background: var(--box-bg);
@@ -433,13 +434,14 @@ export default function HomePage() {
             text-align: center;
           }
           .welcome {
-            font-size: 38px;
+            font-size: 42px;
           }
           .intro-text {
             font-size: 16px;
           }
           .form-wrapper {
             width: 100%;
+            margin-right: 0;
           }
         }
       `}</style>
