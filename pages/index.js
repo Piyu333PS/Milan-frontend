@@ -7,6 +7,7 @@ export default function HomePage() {
   const [showLogin, setShowLogin] = useState(false);
   const [showReset, setShowReset] = useState(false);
 
+  // Heart floating animation on canvas
   useEffect(() => {
     const canvas = document.getElementById("heartsCanvas");
     const ctx = canvas.getContext("2d");
@@ -139,7 +140,6 @@ export default function HomePage() {
       <div id="errorMessage"></div>
 
       <div className="container" id="userFormContainer">
-        {/* Left side - Welcome Message */}
         <div className="left-box">
           <h1 className="welcome">
             <span className="white-text">Welcome to </span>
@@ -150,7 +150,6 @@ export default function HomePage() {
           </p>
         </div>
 
-        {/* Right side - Form */}
         <div className="form-wrapper">
           <div className="form-container">
             {!showLogin && !showReset && (
@@ -161,11 +160,8 @@ export default function HomePage() {
                   type="button"
                   onClick={() => {
                     const bgMusic = document.getElementById("bgMusic");
-                    if (musicPlaying) {
-                      bgMusic.pause();
-                    } else {
-                      bgMusic.play().catch(() => {});
-                    }
+                    if (musicPlaying) bgMusic.pause();
+                    else bgMusic.play().catch(() => {});
                     setMusicPlaying(!musicPlaying);
                   }}
                 >
@@ -179,10 +175,8 @@ export default function HomePage() {
                   🌙 Switch Theme
                 </button>
 
-                {/* Form fields same as before */}
                 <label>Name <span className="star">*</span></label>
                 <input type="text" id="name" placeholder="Your name or nickname" />
-
                 <label>Gender <span className="star">*</span></label>
                 <select id="gender">
                   <option value="">Select Gender</option>
@@ -190,19 +184,14 @@ export default function HomePage() {
                   <option value="Female">Female</option>
                   <option value="Other">Other</option>
                 </select>
-
                 <label>Email or Mobile <span className="star">*</span></label>
                 <input type="text" id="contact" placeholder="Email or 10-digit Mobile number" />
-
                 <label>Password <span className="star">*</span></label>
                 <input type="password" id="password" placeholder="Enter password" />
-
                 <label>Age <span className="star">*</span></label>
                 <input type="number" id="age" placeholder="Your age" min="18" max="99" />
-
                 <label>City/Country <span className="star">*</span></label>
                 <input type="text" id="city" placeholder="City / Country" />
-
                 <label>Reason for Joining <span className="star">*</span></label>
                 <select
                   id="reason"
