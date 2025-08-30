@@ -317,7 +317,7 @@ export default function HomePage() {
           z-index: 1;
           display: flex;
           align-items: center; /* vertical center */
-          justify-content: space-between;
+          justify-content: space-around; /* form thoda left */
           min-height: 100vh;
           padding: 40px;
           box-sizing: border-box;
@@ -328,15 +328,24 @@ export default function HomePage() {
           max-width: 600px;
         }
         .welcome {
-          font-size: 32px;
+          font-size: 42px; /* bada font */
           font-weight: bold;
-          margin-bottom: 15px;
-          color: #ff4d6d;
-          text-shadow: 1px 1px 4px rgba(0,0,0,0.5);
+          margin-bottom: 20px;
+          background: linear-gradient(270deg, #ff4d6d, #ff9a8b, #ff4d6d);
+          background-size: 600% 600%;
+          -webkit-background-clip: text;
+          -webkit-text-fill-color: transparent;
+          animation: colorShift 6s ease infinite;
+          text-shadow: 1px 1px 4px rgba(0,0,0,0.4);
+        }
+        @keyframes colorShift {
+          0% { background-position: 0% 50%; }
+          50% { background-position: 100% 50%; }
+          100% { background-position: 0% 50%; }
         }
         .intro-text {
-          font-size: 16px;
-          line-height: 1.6;
+          font-size: 20px; /* thoda bada */
+          line-height: 1.8;
         }
         .form-wrapper {
           flex: 0 0 400px;
@@ -427,10 +436,10 @@ export default function HomePage() {
             text-align: center;
           }
           .welcome {
-            font-size: 26px;
+            font-size: 32px;
           }
           .intro-text {
-            font-size: 14px;
+            font-size: 16px;
           }
           .form-wrapper {
             width: 100%;
