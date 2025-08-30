@@ -7,7 +7,6 @@ export default function HomePage() {
   const [showLogin, setShowLogin] = useState(false);
   const [showReset, setShowReset] = useState(false);
 
-  // Heart floating animation on canvas
   useEffect(() => {
     const canvas = document.getElementById("heartsCanvas");
     const ctx = canvas.getContext("2d");
@@ -100,9 +99,7 @@ export default function HomePage() {
       if (res.ok) {
         localStorage.setItem("token", data.token);
         window.location.href = "/connect";
-      } else {
-        showError(data.error || "Login failed");
-      }
+      } else showError(data.error || "Login failed");
     } catch {
       showError("Server error");
     }
@@ -150,7 +147,7 @@ export default function HomePage() {
           </p>
         </div>
 
-        <div className="form-wrapper">
+        <div className="form-wrapper" style={{ marginRight: "20px" }}>
           <div className="form-container">
             {!showLogin && !showReset && (
               <div id="registerForm">
@@ -303,38 +300,29 @@ export default function HomePage() {
           font-weight: bold;
           margin-bottom: 25px;
           display: flex;
-          flex-wrap: wrap;
+          flex-wrap: nowrap;
           align-items: center;
         }
         .white-text {
-          color: #ffffff;
+          color: #ff69b4;
         }
         .milan-text {
-          background: linear-gradient(90deg,
-            #ff0000, #ff7f00, #ffff00, #00ff00,
-            #00ffff, #0000ff, #8b00ff, #ff1493);
-          -webkit-background-clip: text;
-          -webkit-text-fill-color: transparent;
-          background-size: 400% 400%;
-          animation: rainbowMove 15s ease infinite;
+          color: #ff69b4;
           font-weight: bold;
-          position: relative;
+          margin-left: 10px;
         }
         .heart {
           display: inline-block;
           color: #ff0000;
-          animation: heartbeat 1.5s infinite;
-        }
-        @keyframes rainbowMove {
-          0% { background-position: 0% 50%; }
-          50% { background-position: 100% 50%; }
-          100% { background-position: 0% 50%; }
+          font-size: 70px;
+          margin-left: 10px;
+          animation: heartbeat 1.2s infinite;
         }
         @keyframes heartbeat {
           0%, 100% { transform: scale(1); }
-          25% { transform: scale(1.15); }
+          25% { transform: scale(1.3); }
           50% { transform: scale(1); }
-          75% { transform: scale(1.15); }
+          75% { transform: scale(1.3); }
         }
         .intro-text {
           font-size: 22px;
@@ -343,19 +331,12 @@ export default function HomePage() {
         .form-wrapper {
           flex: 0 0 360px;
           max-width: 380px;
-          margin-right: 40px;
         }
         .form-container {
           background: var(--box-bg);
           padding: 20px;
           border-radius: 12px;
           backdrop-filter: blur(8px);
-        }
-        .form-container h2 {
-          margin-top: 0;
-          font-size: 22px;
-          margin-bottom: 15px;
-          text-align: center;
         }
         input, select, textarea, button {
           width: 100%;
