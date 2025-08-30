@@ -139,21 +139,8 @@ export default function HomePage() {
 
       <div id="errorMessage"></div>
 
-      {/* 🎉 Banner for Ganesh Chaturthi & Milan Launch */}
-      <div className="banner">
-        <h2>🌺 Ganesh Chaturthi ki Shubhkamnaye! 🌺</h2>
-        <p>✨ Milan is Live! Let your hearts connect… ❤️</p>
-      </div>
-
       <div className="container" id="userFormContainer">
-        <div className="left">
-          <h1>Welcome to Milan ❤️</h1>
-          <p>
-            “Love recognizes no barriers. It jumps hurdles, leaps fences, penetrates walls to arrive at its
-            destination full of hope.”
-          </p>
-        </div>
-        <div className="right">
+        <div className="form-wrapper">
           <div className="form-container">
             {!showLogin && !showReset && (
               <div id="registerForm">
@@ -304,7 +291,6 @@ export default function HomePage() {
           padding: 0;
           width: 100%;
           height: 100%;
-          overflow: hidden;
           font-family: "Segoe UI", sans-serif;
           background: var(--bg-color);
           color: var(--text-color);
@@ -317,66 +303,28 @@ export default function HomePage() {
           height: 100%;
           z-index: 0;
         }
-        .banner {
-          position: fixed;
-          top: 20px;
-          left: 50%;
-          transform: translateX(-50%);
-          background: rgba(255, 255, 255, 0.2);
-          padding: 15px 25px;
-          border-radius: 12px;
-          backdrop-filter: blur(10px);
-          text-align: center;
-          z-index: 10;
-          animation: fadeInPulse 2s ease-in-out infinite alternate;
-        }
-        .banner h2 {
-          margin: 0;
-          font-size: 20px;
-        }
-        .banner p {
-          margin: 5px 0 0 0;
-          font-size: 16px;
-        }
-        @keyframes fadeInPulse {
-          0% { opacity: 0.7; transform: translateX(-50%) scale(1); }
-          50% { opacity: 1; transform: translateX(-50%) scale(1.05); }
-          100% { opacity: 0.8; transform: translateX(-50%) scale(1); }
-        }
         .container {
           position: relative;
           z-index: 1;
           display: flex;
           align-items: center;
           justify-content: center;
-          height: 100%;
-          padding: 10px;
+          height: 100vh;
+          padding: 20px;
         }
-        .left,
-        .right {
-          flex: 1;
-          padding: 10px;
-          box-sizing: border-box;
-        }
-        .left h1 {
-          font-size: 2.2em;
-          margin-bottom: 8px;
-        }
-        .left p {
-          font-size: 16px;
-          line-height: 1.4;
+        .form-wrapper {
+          width: 100%;
+          max-width: 420px;
         }
         .form-container {
           background: var(--box-bg);
           padding: 20px;
-          border-radius: 10px;
+          border-radius: 12px;
           backdrop-filter: blur(8px);
-          max-width: 400px;
-          margin: 0 auto;
+          margin: auto;
         }
         .form-container h2 {
           margin-top: 0;
-          color: var(--text-color);
           font-size: 22px;
           margin-bottom: 15px;
           text-align: center;
@@ -389,7 +337,7 @@ export default function HomePage() {
           padding: 10px;
           margin: 8px 0;
           border: none;
-          border-radius: 5px;
+          border-radius: 6px;
           font-size: 14px;
           box-sizing: border-box;
         }
