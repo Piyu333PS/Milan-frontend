@@ -6,6 +6,7 @@ export default function ConnectPage() {
   const [showProfile, setShowProfile] = useState(false);
   const [showSecurity, setShowSecurity] = useState(false);
   const [showLogoutConfirm, setShowLogoutConfirm] = useState(false);
+  const [sidebarOpen, setSidebarOpen] = useState(false); // ✅ mobile toggle
 
   // ❤️ Hearts + Socket effect
   useEffect(() => {
@@ -158,8 +159,13 @@ export default function ConnectPage() {
     <>
       <canvas id="heartCanvas"></canvas>
 
+      {/* Hamburger (only mobile visible) */}
+      <div className="hamburger" onClick={() => setSidebarOpen(!sidebarOpen)}>
+        ☰
+      </div>
+
       {/* Sidebar */}
-      <div className="sidebar">
+      <div className={`sidebar ${sidebarOpen ? "open" : ""}`}>
         <div className="profile-pic">M</div>
         <div className="username">My Name</div>
         <ul>
@@ -232,6 +238,21 @@ export default function ConnectPage() {
         }
         canvas { position: fixed; top: 0; left: 0; z-index: 0; }
 
+        /* Hamburger */
+        .hamburger {
+          display: none;
+          position: fixed;
+          top: 15px;
+          left: 15px;
+          font-size: 26px;
+          color: white;
+          z-index: 20;
+          cursor: pointer;
+          background: rgba(0,0,0,0.3);
+          padding: 8px 12px;
+          border-radius: 6px;
+        }
+
         /* Sidebar */
         .sidebar {
           position: fixed;
@@ -245,9 +266,11 @@ export default function ConnectPage() {
           flex-direction: column;
           align-items: center;
           padding-top: 40px;
-          z-index: 10;
+          z-index: 15;
           color: white;
+          transition: transform 0.3s ease;
         }
+        .sidebar.open { transform: translateX(0); }
         .profile-pic {
           width: 70px;
           height: 70px;
@@ -265,7 +288,6 @@ export default function ConnectPage() {
         .sidebar li {
           display: flex;
           align-items: center;
-          justify-content: flex-start;
           gap: 12px;
           padding: 14px 20px;
           margin: 8px 15px;
@@ -314,20 +336,24 @@ export default function ConnectPage() {
           background: rgba(255,255,255,0.95);
           padding: 30px;
           border-radius: 12px;
-          z-index: 20;
+          z-index: 30;
           display: flex;
           flex-direction: column;
           gap: 10px;
           width: 300px;
         }
-        .panel h3 { margin: 0 0 10px; }
         .panel input { padding: 10px; border: 1px solid #ccc; border-radius: 6px; }
         .panel button { padding: 10px; border: none; border-radius: 6px; background: #ec4899; color: white; font-weight: bold; cursor: pointer; }
 
         /* Responsive */
         @media (max-width: 768px) {
-          .sidebar { width: 180px; }
-          .center-box { margin-left: 0; padding-top: 120px; }
+          .hamburger { display: block; }
+          .sidebar {
+            transform: translateX(-100%);
+            width: 200px;
+          }
+          .sidebar.open { transform: translateX(0); }
+          .center-box { margin-left: 0; padding-top: 80px; }
         }
       `}</style>
     </>
