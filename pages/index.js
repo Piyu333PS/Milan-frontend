@@ -147,7 +147,8 @@ export default function HomePage() {
           </p>
         </div>
 
-        <div className="form-wrapper" style={{ marginRight: "20px" }}>
+        {/* --- FORM --- */}
+        <div className="form-wrapper">
           <div className="form-container">
             {!showLogin && !showReset && (
               <div id="registerForm">
@@ -285,18 +286,18 @@ export default function HomePage() {
           z-index: 1;
           display: flex;
           align-items: center;
-          justify-content: space-between;
+          justify-content: flex-start; /* <-- changed from space-between */
           min-height: 100vh;
           padding: 40px 60px;
           box-sizing: border-box;
-          gap: 20px;
+          gap: 80px; /* more space between left and form */
         }
         .left-box {
           flex: 1;
           max-width: 600px;
         }
         .welcome {
-          font-size: 60px;
+          font-size: 70px; /* bigger font size */
           font-weight: bold;
           margin-bottom: 25px;
           display: flex;
@@ -406,14 +407,13 @@ export default function HomePage() {
             text-align: center;
           }
           .welcome {
-            font-size: 42px;
+            font-size: 46px;
           }
           .intro-text {
             font-size: 16px;
           }
           .form-wrapper {
             width: 100%;
-            margin-right: 0;
           }
         }
       `}</style>
