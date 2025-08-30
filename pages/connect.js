@@ -1,10 +1,14 @@
 "use client";
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import io from "socket.io-client";
 
 export default function ConnectPage() {
+  const [showProfile, setShowProfile] = useState(false);
+  const [showSecurity, setShowSecurity] = useState(false);
+  const [showLogoutConfirm, setShowLogoutConfirm] = useState(false);
+
+  // ❤️ Hearts + Socket effect
   useEffect(() => {
-    // ❤️ Hearts background
     const canvas = document.getElementById("heartCanvas");
     const ctx = canvas.getContext("2d");
     let hearts = [];
@@ -43,7 +47,7 @@ export default function ConnectPage() {
     }
     drawHearts();
 
-    // ❤️ Socket.io logic
+    // Socket logic
     let socket = null;
     let currentMode = null;
 
@@ -100,13 +104,11 @@ export default function ConnectPage() {
       const randomQuote = quotes[Math.floor(Math.random() * quotes.length)];
       quoteBox.textContent = randomQuote;
 
-      // ✅ Connect to backend
       socket = io("https://milan-j9u9.onrender.com");
       const token = localStorage.getItem("token");
       socket.emit("lookingForPartner", { type, token });
 
       socket.on("partnerFound", (data) => {
-        console.log("✅ Partner found:", data);
         const partner = data.partner || {};
         const safePartner = {
           name: partner.name || "Romantic Stranger",
@@ -145,9 +147,29 @@ export default function ConnectPage() {
     };
   }, []);
 
+  // ✅ Logout confirm handler
+  const handleLogout = () => {
+    localStorage.clear();
+    sessionStorage.clear();
+    window.location.href = "/";
+  };
+
   return (
     <>
       <canvas id="heartCanvas"></canvas>
+
+      {/* Sidebar */}
+      <div className="sidebar">
+        <div className="profile-pic">M</div>
+        <div className="username">My Name</div>
+        <ul>
+          <li onClick={() => { setShowProfile(true); setShowSecurity(false); }}>👤 Profile Info</li>
+          <li onClick={() => { setShowSecurity(true); setShowProfile(false); }}>🔒 Security</li>
+          <li onClick={() => setShowLogoutConfirm(true)}>🚪 Logout</li>
+        </ul>
+      </div>
+
+      {/* Main connect UI */}
       <div className="center-box">
         <h2>Select Connection Mode</h2>
         <div className="mode-text" id="modeText"></div>
@@ -168,7 +190,31 @@ export default function ConnectPage() {
         </div>
       </div>
 
-      {/* ✅ Old UI Styles */}
+      {/* Panels */}
+      {showProfile && (
+        <div className="panel">
+          <h3>Personal Info</h3>
+          <input placeholder="Full Name" />
+          <input placeholder="Email or Mobile" />
+          <button>Save</button>
+        </div>
+      )}
+      {showSecurity && (
+        <div className="panel">
+          <h3>Security</h3>
+          <input type="password" placeholder="Current Password" />
+          <input type="password" placeholder="New Password" />
+          <button>Save</button>
+        </div>
+      )}
+      {showLogoutConfirm && (
+        <div className="panel">
+          <p>Do you want to Logout?</p>
+          <label><input type="radio" name="logout" onClick={handleLogout}/> Yes</label>
+          <label><input type="radio" name="logout" onClick={() => setShowLogoutConfirm(false)} /> No</label>
+        </div>
+      )}
+
       <style jsx global>{`
         body, html {
           margin: 0;
@@ -178,117 +224,58 @@ export default function ConnectPage() {
           background: linear-gradient(135deg, #8b5cf6, #ec4899);
           overflow: hidden;
         }
-        .center-box {
-          position: absolute;
-          top: 50%;
-          left: 50%;
-          transform: translate(-50%, -50%);
-          background: rgba(255, 255, 255, 0.15);
-          padding: 80px 60px;
-          border-radius: 30px;
-          text-align: center;
-          backdrop-filter: blur(20px);
-          color: #fff;
-          width: 650px;
-          max-width: 95%;
-          box-shadow: 0 0 30px rgba(255, 255, 255, 0.2);
-          border: 2px solid rgba(255,255,255,0.3);
-          animation: glowBox 3s infinite alternate;
-        }
-        @keyframes glowBox {
-          from { box-shadow: 0 0 30px rgba(255, 255, 255, 0.2); border-color: rgba(255,255,255,0.3);}
-          to   { box-shadow: 0 0 60px rgba(255, 255, 255, 0.5); border-color: rgba(255,255,255,0.6);}
-        }
-        .center-box h2 {
-          font-size: 40px;
-          margin-bottom: 30px;
-          font-weight: 700;
-          text-shadow: 0 0 10px #ec4899;
-        }
-        .mode-text {
-          font-size: 22px;
-          margin: 15px 0;
-          font-weight: bold;
-          color: #ffe4f1;
-        }
-        .quote-box {
-          margin: 30px 0;
-          font-size: 20px;
-          font-weight: bold;
-          color: #ffeff7;
-          text-shadow: 0 0 5px #ff88aa;
-          padding: 20px;
-          border-radius: 15px;
-          background: rgba(255, 255, 255, 0.1);
-          border: 1px solid rgba(255,255,255,0.3);
-          backdrop-filter: blur(10px);
-        }
-        .center-box button {
-          margin: 15px;
-          padding: 20px 50px;
-          border: none;
-          border-radius: 12px;
-          font-size: 20px;
-          background: #fff;
-          color: #ec4899;
-          font-weight: bold;
-          cursor: pointer;
-          transition: all 0.3s;
-        }
-        .center-box button:hover:enabled {
-          background: #ec4899;
-          color: #fff;
-          transform: scale(1.05);
-          box-shadow: 0 0 15px #fff;
-        }
-        .center-box button:disabled {
-          background: rgba(255,255,255,0.4);
-          color: rgba(255,255,255,0.8);
-          cursor: not-allowed;
-        }
-        .disabled-message {
-          font-size: 16px;
-          margin-top: -10px;
-          margin-bottom: 15px;
-          color: #ffe4f1;
-          font-style: italic;
-        }
-        .loader { display: none; margin: 20px auto; }
-        .heart-loader {
-          font-size: 40px;
-          animation: blink 1s infinite;
-          color: #fff;
-        }
-        @keyframes blink {
-          0% { opacity: 0.2; transform: scale(1);}
-          50% { opacity: 1; transform: scale(1.3);}
-          100% { opacity: 0.2; transform: scale(1);}
-        }
-        #stopBtn {
-          background: #ff4d4f;
-          color: #fff;
-          margin-top: 30px;
-          padding: 14px 40px;
-          font-size: 18px;
-          display: none;
-          border-radius: 12px;
-        }
-        #statusMessage {
-          margin-top: 25px;
-          font-size: 28px;
-          font-weight: bold;
-          min-height: 40px;
-          text-shadow: 0 0 10px #fff;
-        }
-        canvas {
+        .sidebar {
           position: fixed;
           top: 0;
           left: 0;
-          width: 100%;
+          width: 200px;
           height: 100%;
-          pointer-events: none;
-          z-index: 0;
+          background: rgba(255,255,255,0.1);
+          backdrop-filter: blur(12px);
+          display: flex;
+          flex-direction: column;
+          align-items: center;
+          padding-top: 40px;
+          z-index: 10;
+          color: white;
         }
+        .profile-pic {
+          width: 70px;
+          height: 70px;
+          border-radius: 50%;
+          background: #ec4899;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          font-size: 28px;
+          font-weight: bold;
+          margin-bottom: 10px;
+        }
+        .username { margin-bottom: 30px; font-size: 18px; font-weight: 600; }
+        .sidebar ul { list-style: none; padding: 0; width: 100%; }
+        .sidebar li {
+          padding: 12px;
+          cursor: pointer;
+          text-align: center;
+          transition: background 0.3s;
+        }
+        .sidebar li:hover { background: rgba(255,255,255,0.2); }
+        .panel {
+          position: fixed;
+          top: 50%;
+          left: 50%;
+          transform: translate(-50%, -50%);
+          background: rgba(255,255,255,0.9);
+          padding: 30px;
+          border-radius: 12px;
+          z-index: 20;
+          display: flex;
+          flex-direction: column;
+          gap: 10px;
+        }
+        .panel h3 { margin: 0 0 10px; }
+        .panel input { padding: 10px; border: 1px solid #ccc; border-radius: 6px; }
+        .panel button { padding: 10px; border: none; border-radius: 6px; background: #ec4899; color: white; font-weight: bold; cursor: pointer; }
       `}</style>
     </>
   );
