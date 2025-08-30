@@ -317,7 +317,7 @@ export default function HomePage() {
           z-index: 1;
           display: flex;
           align-items: center; /* vertical center */
-          justify-content: space-around; /* form thoda left */
+          justify-content: space-around;
           min-height: 100vh;
           padding: 40px;
           box-sizing: border-box;
@@ -328,14 +328,14 @@ export default function HomePage() {
           max-width: 600px;
         }
         .welcome {
-          font-size: 42px; /* bada font */
+          font-size: 42px;
           font-weight: bold;
           margin-bottom: 20px;
-          background: linear-gradient(270deg, #ff4d6d, #ff9a8b, #ff4d6d);
-          background-size: 600% 600%;
+          background: linear-gradient(90deg, #ff4d6d, #ff8fab, #ffccd5);
+          background-size: 300% 300%;
           -webkit-background-clip: text;
           -webkit-text-fill-color: transparent;
-          animation: colorShift 6s ease infinite;
+          animation: colorShift 8s ease infinite;
           text-shadow: 1px 1px 4px rgba(0,0,0,0.4);
         }
         @keyframes colorShift {
@@ -343,8 +343,13 @@ export default function HomePage() {
           50% { background-position: 100% 50%; }
           100% { background-position: 0% 50%; }
         }
+        body.light-mode .welcome {
+          background: linear-gradient(90deg, #ff6b81, #ff9a8b, #ffccd5);
+          -webkit-background-clip: text;
+          -webkit-text-fill-color: transparent;
+        }
         .intro-text {
-          font-size: 20px; /* thoda bada */
+          font-size: 20px;
           line-height: 1.8;
         }
         .form-wrapper {
