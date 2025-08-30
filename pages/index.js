@@ -8,7 +8,6 @@ export default function HomePage() {
   const [showReset, setShowReset] = useState(false);
 
   useEffect(() => {
-    // Hearts background
     const canvas = document.getElementById("heartsCanvas");
     const ctx = canvas.getContext("2d");
     let hearts = [];
@@ -142,7 +141,7 @@ export default function HomePage() {
       <div className="container" id="userFormContainer">
         {/* Left side - Welcome Message */}
         <div className="left-box">
-          <h1 className="welcome">Welcome to Milan ❤️</h1>
+          <h1 className="welcome rainbow">Welcome to Milan ❤️</h1>
           <p className="intro-text">
             “Love recognizes no barriers. It jumps hurdles, leaps fences, penetrates walls to arrive at its destination full of hope.”
           </p>
@@ -294,8 +293,7 @@ export default function HomePage() {
           --btn-bg: #ec4899;
           --btn-text: #ffffff;
         }
-        html,
-        body {
+        html, body {
           margin: 0;
           padding: 0;
           width: 100%;
@@ -316,10 +314,10 @@ export default function HomePage() {
           position: relative;
           z-index: 1;
           display: flex;
-          align-items: center; /* vertical center */
-          justify-content: space-around;
+          align-items: center;
+          justify-content: space-between;
           min-height: 100vh;
-          padding: 40px;
+          padding: 40px 60px;
           box-sizing: border-box;
           gap: 40px;
         }
@@ -328,33 +326,32 @@ export default function HomePage() {
           max-width: 600px;
         }
         .welcome {
-          font-size: 42px;
+          font-size: 52px;
           font-weight: bold;
           margin-bottom: 20px;
-          background: linear-gradient(90deg, #ff4d6d, #ff8fab, #ffccd5);
-          background-size: 300% 300%;
+          text-shadow: 2px 2px 6px rgba(0,0,0,0.4);
+        }
+        .rainbow {
+          background: linear-gradient(90deg, 
+            #ff0000, #ff7f00, #ffff00, 
+            #00ff00, #0000ff, #4b0082, #8f00ff);
           -webkit-background-clip: text;
           -webkit-text-fill-color: transparent;
-          animation: colorShift 8s ease infinite;
-          text-shadow: 1px 1px 4px rgba(0,0,0,0.4);
+          background-size: 400% 400%;
+          animation: rainbowMove 8s linear infinite;
         }
-        @keyframes colorShift {
+        @keyframes rainbowMove {
           0% { background-position: 0% 50%; }
           50% { background-position: 100% 50%; }
           100% { background-position: 0% 50%; }
-        }
-        body.light-mode .welcome {
-          background: linear-gradient(90deg, #ff6b81, #ff9a8b, #ffccd5);
-          -webkit-background-clip: text;
-          -webkit-text-fill-color: transparent;
         }
         .intro-text {
           font-size: 20px;
           line-height: 1.8;
         }
         .form-wrapper {
-          flex: 0 0 400px;
-          max-width: 420px;
+          flex: 0 0 380px;
+          max-width: 400px;
         }
         .form-container {
           background: var(--box-bg);
@@ -368,10 +365,7 @@ export default function HomePage() {
           margin-bottom: 15px;
           text-align: center;
         }
-        input,
-        select,
-        textarea,
-        button {
+        input, select, textarea, button {
           width: 100%;
           padding: 10px;
           margin: 8px 0;
@@ -380,13 +374,11 @@ export default function HomePage() {
           font-size: 14px;
           box-sizing: border-box;
         }
-        input,
-        textarea {
+        input, textarea {
           background: rgba(255, 255, 255, 0.3);
           color: var(--text-color);
         }
-        select,
-        option {
+        select, option {
           color: #333;
           background: #fff;
         }
@@ -441,7 +433,7 @@ export default function HomePage() {
             text-align: center;
           }
           .welcome {
-            font-size: 32px;
+            font-size: 38px;
           }
           .intro-text {
             font-size: 16px;
