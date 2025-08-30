@@ -8,6 +8,7 @@ export default function HomePage() {
   const [showReset, setShowReset] = useState(false);
 
   useEffect(() => {
+    // Hearts background
     const canvas = document.getElementById("heartsCanvas");
     const ctx = canvas.getContext("2d");
     let hearts = [];
@@ -25,7 +26,7 @@ export default function HomePage() {
         y: canvas.height + 50,
         size: Math.random() * 30 + 15,
         speed: Math.random() * 1.5 + 0.5,
-        color: ["#ff4d4d", "#ff1c1c", "#ff6666"][Math.floor(Math.random() * 3)]
+        color: ["#ff4d6d", "#ff1c68", "#ff6b81", "#e6005c"][Math.floor(Math.random() * 4)]
       };
     }
 
@@ -99,7 +100,9 @@ export default function HomePage() {
       if (res.ok) {
         localStorage.setItem("token", data.token);
         window.location.href = "/connect";
-      } else showError(data.error || "Login failed");
+      } else {
+        showError(data.error || "Login failed");
+      }
     } catch {
       showError("Server error");
     }
@@ -136,19 +139,21 @@ export default function HomePage() {
 
       <div id="errorMessage"></div>
 
+      {/* 🎉 Banner for Ganesh Chaturthi & Milan Launch */}
+      <div className="banner">
+        <h2>🌺 Ganesh Chaturthi ki Shubhkamnaye! 🌺</h2>
+        <p>✨ Milan is Live! Let your hearts connect… ❤️</p>
+      </div>
+
       <div className="container" id="userFormContainer">
-        <div className="left-box">
-          <h1 className="welcome">
-            <span className="white-text">Welcome to </span>
-            <span className="milan-text">Milan <span className="heart">❤️</span></span>
-          </h1>
-          <p className="intro-text">
-            “Love recognizes no barriers. It jumps hurdles, leaps fences, penetrates walls to arrive at its destination full of hope.”
+        <div className="left">
+          <h1>Welcome to Milan ❤️</h1>
+          <p>
+            “Love recognizes no barriers. It jumps hurdles, leaps fences, penetrates walls to arrive at its
+            destination full of hope.”
           </p>
         </div>
-
-        {/* --- FORM --- */}
-        <div className="form-wrapper">
+        <div className="right">
           <div className="form-container">
             {!showLogin && !showReset && (
               <div id="registerForm">
@@ -158,8 +163,11 @@ export default function HomePage() {
                   type="button"
                   onClick={() => {
                     const bgMusic = document.getElementById("bgMusic");
-                    if (musicPlaying) bgMusic.pause();
-                    else bgMusic.play().catch(() => {});
+                    if (musicPlaying) {
+                      bgMusic.pause();
+                    } else {
+                      bgMusic.play().catch(() => {});
+                    }
                     setMusicPlaying(!musicPlaying);
                   }}
                 >
@@ -173,24 +181,44 @@ export default function HomePage() {
                   🌙 Switch Theme
                 </button>
 
-                <label>Name <span className="star">*</span></label>
+                <label>
+                  Name <span className="star">*</span>
+                </label>
                 <input type="text" id="name" placeholder="Your name or nickname" />
-                <label>Gender <span className="star">*</span></label>
+
+                <label>
+                  Gender <span className="star">*</span>
+                </label>
                 <select id="gender">
                   <option value="">Select Gender</option>
                   <option value="Male">Male</option>
                   <option value="Female">Female</option>
                   <option value="Other">Other</option>
                 </select>
-                <label>Email or Mobile <span className="star">*</span></label>
+
+                <label>
+                  Email or Mobile <span className="star">*</span>
+                </label>
                 <input type="text" id="contact" placeholder="Email or 10-digit Mobile number" />
-                <label>Password <span className="star">*</span></label>
+
+                <label>
+                  Password <span className="star">*</span>
+                </label>
                 <input type="password" id="password" placeholder="Enter password" />
-                <label>Age <span className="star">*</span></label>
+
+                <label>
+                  Age <span className="star">*</span>
+                </label>
                 <input type="number" id="age" placeholder="Your age" min="18" max="99" />
-                <label>City/Country <span className="star">*</span></label>
+
+                <label>
+                  City/Country <span className="star">*</span>
+                </label>
                 <input type="text" id="city" placeholder="City / Country" />
-                <label>Reason for Joining <span className="star">*</span></label>
+
+                <label>
+                  Reason for Joining <span className="star">*</span>
+                </label>
                 <select
                   id="reason"
                   onChange={(e) =>
@@ -239,7 +267,13 @@ export default function HomePage() {
                 <label>New Password</label>
                 <input type="password" id="newPassword" placeholder="Enter new password" />
                 <button onClick={handleReset}>Reset Password</button>
-                <p style={{ textAlign: "center", cursor: "pointer", color: "yellow" }} onClick={() => { setShowReset(false); setShowLogin(true); }}>
+                <p
+                  style={{ textAlign: "center", cursor: "pointer", color: "yellow" }}
+                  onClick={() => {
+                    setShowReset(false);
+                    setShowLogin(true);
+                  }}
+                >
                   Back to Login
                 </p>
               </div>
@@ -264,11 +298,13 @@ export default function HomePage() {
           --btn-bg: #ec4899;
           --btn-text: #ffffff;
         }
-        html, body {
+        html,
+        body {
           margin: 0;
           padding: 0;
           width: 100%;
           height: 100%;
+          overflow: hidden;
           font-family: "Segoe UI", sans-serif;
           background: var(--bg-color);
           color: var(--text-color);
@@ -281,78 +317,89 @@ export default function HomePage() {
           height: 100%;
           z-index: 0;
         }
+        .banner {
+          position: fixed;
+          top: 20px;
+          left: 50%;
+          transform: translateX(-50%);
+          background: rgba(255, 255, 255, 0.2);
+          padding: 15px 25px;
+          border-radius: 12px;
+          backdrop-filter: blur(10px);
+          text-align: center;
+          z-index: 10;
+          animation: fadeInPulse 2s ease-in-out infinite alternate;
+        }
+        .banner h2 {
+          margin: 0;
+          font-size: 20px;
+        }
+        .banner p {
+          margin: 5px 0 0 0;
+          font-size: 16px;
+        }
+        @keyframes fadeInPulse {
+          0% { opacity: 0.7; transform: translateX(-50%) scale(1); }
+          50% { opacity: 1; transform: translateX(-50%) scale(1.05); }
+          100% { opacity: 0.8; transform: translateX(-50%) scale(1); }
+        }
         .container {
           position: relative;
           z-index: 1;
           display: flex;
           align-items: center;
-          justify-content: flex-start; /* <-- changed from space-between */
-          min-height: 100vh;
-          padding: 40px 60px;
-          box-sizing: border-box;
-          gap: 80px; /* more space between left and form */
+          justify-content: center;
+          height: 100%;
+          padding: 10px;
         }
-        .left-box {
+        .left,
+        .right {
           flex: 1;
-          max-width: 600px;
+          padding: 10px;
+          box-sizing: border-box;
         }
-        .welcome {
-          font-size: 70px; /* bigger font size */
-          font-weight: bold;
-          margin-bottom: 25px;
-          display: flex;
-          flex-wrap: nowrap;
-          align-items: center;
+        .left h1 {
+          font-size: 2.2em;
+          margin-bottom: 8px;
         }
-        .white-text {
-          color: #ff69b4;
-        }
-        .milan-text {
-          color: #ff69b4;
-          font-weight: bold;
-          margin-left: 10px;
-        }
-        .heart {
-          display: inline-block;
-          color: #ff0000;
-          font-size: 70px;
-          margin-left: 10px;
-          animation: heartbeat 1.2s infinite;
-        }
-        @keyframes heartbeat {
-          0%, 100% { transform: scale(1); }
-          25% { transform: scale(1.3); }
-          50% { transform: scale(1); }
-          75% { transform: scale(1.3); }
-        }
-        .intro-text {
-          font-size: 22px;
-          line-height: 1.9;
-        }
-        .form-wrapper {
-          flex: 0 0 360px;
-          max-width: 380px;
+        .left p {
+          font-size: 16px;
+          line-height: 1.4;
         }
         .form-container {
           background: var(--box-bg);
           padding: 20px;
-          border-radius: 12px;
+          border-radius: 10px;
           backdrop-filter: blur(8px);
+          max-width: 400px;
+          margin: 0 auto;
         }
-        input, select, textarea, button {
+        .form-container h2 {
+          margin-top: 0;
+          color: var(--text-color);
+          font-size: 22px;
+          margin-bottom: 15px;
+          text-align: center;
+        }
+        input,
+        select,
+        textarea,
+        button {
           width: 100%;
           padding: 10px;
           margin: 8px 0;
           border: none;
-          border-radius: 6px;
+          border-radius: 5px;
           font-size: 14px;
           box-sizing: border-box;
         }
-        input, textarea {
+        input,
+        textarea {
           background: rgba(255, 255, 255, 0.3);
           color: var(--text-color);
         }
-        select, option {
+        select,
+        option {
           color: #333;
           background: #fff;
         }
@@ -394,27 +441,6 @@ export default function HomePage() {
           z-index: 9999;
           box-shadow: 0 0 10px rgba(0, 0, 0, 0.3);
           font-size: 14px;
-        }
-        @media (max-width: 768px) {
-          .container {
-            flex-direction: column;
-            align-items: center;
-            justify-content: flex-start;
-            padding: 20px;
-            gap: 20px;
-          }
-          .left-box {
-            text-align: center;
-          }
-          .welcome {
-            font-size: 46px;
-          }
-          .intro-text {
-            font-size: 16px;
-          }
-          .form-wrapper {
-            width: 100%;
-          }
         }
       `}</style>
     </>
