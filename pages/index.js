@@ -133,17 +133,8 @@ export default function HomePage() {
   return (
     <>
       <canvas id="heartsCanvas"></canvas>
-      <audio id="bgMusic" loop>
-        <source src="music/romantic.mp3" type="audio/mpeg" />
-      </audio>
 
       <div id="errorMessage"></div>
-
-      {/* 🎉 Banner for Ganesh Chaturthi & Milan Launch */}
-      <div className="banner">
-        <h2>🌺 Ganesh Chaturthi ki Shubhkamnaye! 🌺</h2>
-        <p>✨ Milan is Live! Let your hearts connect… ❤️</p>
-      </div>
 
       <div className="container" id="userFormContainer">
         <div className="left">
@@ -158,21 +149,7 @@ export default function HomePage() {
             {!showLogin && !showReset && (
               <div id="registerForm">
                 <h2>Create Your Account</h2>
-                <button
-                  id="musicBtn"
-                  type="button"
-                  onClick={() => {
-                    const bgMusic = document.getElementById("bgMusic");
-                    if (musicPlaying) {
-                      bgMusic.pause();
-                    } else {
-                      bgMusic.play().catch(() => {});
-                    }
-                    setMusicPlaying(!musicPlaying);
-                  }}
-                >
-                  {musicPlaying ? "Music Off" : "Music On"}
-                </button>
+
                 <button
                   id="themeToggle"
                   type="button"
@@ -317,32 +294,6 @@ export default function HomePage() {
           height: 100%;
           z-index: 0;
         }
-        .banner {
-          position: fixed;
-          top: 20px;
-          left: 50%;
-          transform: translateX(-50%);
-          background: rgba(255, 255, 255, 0.2);
-          padding: 15px 25px;
-          border-radius: 12px;
-          backdrop-filter: blur(10px);
-          text-align: center;
-          z-index: 10;
-          animation: fadeInPulse 2s ease-in-out infinite alternate;
-        }
-        .banner h2 {
-          margin: 0;
-          font-size: 20px;
-        }
-        .banner p {
-          margin: 5px 0 0 0;
-          font-size: 16px;
-        }
-        @keyframes fadeInPulse {
-          0% { opacity: 0.7; transform: translateX(-50%) scale(1); }
-          50% { opacity: 1; transform: translateX(-50%) scale(1.05); }
-          100% { opacity: 0.8; transform: translateX(-50%) scale(1); }
-        }
         .container {
           position: relative;
           z-index: 1;
@@ -350,7 +301,8 @@ export default function HomePage() {
           align-items: center;
           justify-content: center;
           height: 100%;
-          padding: 10px;
+          padding: 20px;
+          box-sizing: border-box;
         }
         .left,
         .right {
@@ -359,12 +311,12 @@ export default function HomePage() {
           box-sizing: border-box;
         }
         .left h1 {
-          font-size: 2.2em;
-          margin-bottom: 8px;
+          font-size: 2.8em;
+          margin-bottom: 12px;
         }
         .left p {
-          font-size: 16px;
-          line-height: 1.4;
+          font-size: 18px;
+          line-height: 1.5;
         }
         .form-container {
           background: var(--box-bg);
@@ -441,6 +393,30 @@ export default function HomePage() {
           z-index: 9999;
           box-shadow: 0 0 10px rgba(0, 0, 0, 0.3);
           font-size: 14px;
+        }
+
+        /* Mobile responsive */
+        @media (max-width: 768px) {
+          .container {
+            flex-direction: column;
+            justify-content: flex-start;
+            padding: 30px 15px;
+            overflow-y: auto;
+          }
+          .left {
+            text-align: center;
+            margin-bottom: 20px;
+          }
+          .left h1 {
+            font-size: 2.2em;
+          }
+          .left p {
+            font-size: 16px;
+          }
+          .form-container {
+            width: 100%;
+            max-width: 100%;
+          }
         }
       `}</style>
     </>
