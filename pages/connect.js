@@ -464,9 +464,11 @@ export default function ConnectPage() {
       <main className="content-wrap" role="main">
         <div className="glass-card">
           <div className="center-box">
-            <h2>Select Milan Mode</h2>
-            <div className="mode-text" id="modeText">
-              {modeText}
+            <div className="center-top">
+              <h2>Select Milan Mode</h2>
+              <div className="mode-text" id="modeText">
+                {modeText}
+              </div>
             </div>
 
             {/* Mode options */}
@@ -487,8 +489,7 @@ export default function ConnectPage() {
                   <div className="mode-animation video-animation" aria-hidden>
                     <svg
                       viewBox="0 0 64 48"
-                      width="120"
-                      height="80"
+                      className="video-svg"
                       xmlns="http://www.w3.org/2000/svg"
                     >
                       <rect
@@ -678,14 +679,14 @@ export default function ConnectPage() {
 
       <style jsx global>{`
         /* Basic page setup */
-        body,
-        html {
+        html,
+        body {
           margin: 0;
           padding: 0;
           height: 100%;
           font-family: "Poppins", sans-serif;
           background: linear-gradient(135deg, #8b5cf6, #ec4899);
-          overflow: hidden;
+          overflow: hidden; /* we intentionally keep it hidden so everything fits on one screen */
         }
         canvas {
           position: fixed;
@@ -701,8 +702,8 @@ export default function ConnectPage() {
         .hamburger {
           display: none;
           position: fixed;
-          top: 16px;
-          left: 16px;
+          top: env(safe-area-inset-top, 12px);
+          left: 12px;
           font-size: 24px;
           color: white;
           z-index: 50;
@@ -733,12 +734,6 @@ export default function ConnectPage() {
         }
         .sidebar.open {
           transform: translateX(0);
-        }
-        .sidebar .sidebar-top {
-          display: flex;
-          flex-direction: column;
-          align-items: center;
-          gap: 8px;
         }
         .profile-pic-wrapper {
           width: 70px;
@@ -782,11 +777,6 @@ export default function ConnectPage() {
           border-radius: 10px;
           cursor: pointer;
         }
-        .sidebar-list li:hover {
-          background: rgba(255, 255, 255, 0.12);
-          transform: translateX(6px);
-          transition: all 0.18s;
-        }
 
         /* Content area */
         .content-wrap {
@@ -797,74 +787,86 @@ export default function ConnectPage() {
           bottom: 0;
           display: grid;
           place-items: center;
-          padding: 24px;
+          padding: 12px;
           z-index: 10;
         }
 
         /* Glass card */
         .glass-card {
           width: min(100%, 1100px);
-          height: min(88vh, 820px);
+          height: calc(100vh - 24px); /* occupy almost full viewport */
           background: rgba(255, 255, 255, 0.14);
           border: 2px solid rgba(255, 255, 255, 0.28);
-          border-radius: 24px;
+          border-radius: 20px;
           backdrop-filter: blur(18px);
           box-shadow: 0 10px 40px rgba(0, 0, 0, 0.25),
             inset 0 0 60px rgba(255, 255, 255, 0.06);
-          display: grid;
-          place-items: center;
-          padding: 28px;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          padding: 18px;
         }
+
+        /* center-box uses full height so we can space items and keep everything visible */
         .center-box {
           width: 100%;
           max-width: 900px;
           color: #fff;
           text-align: center;
           z-index: 12;
+          display: flex;
+          flex-direction: column;
+          justify-content: space-between; /* top = heading, middle = cards, bottom = quote */
+          height: 100%;
+          box-sizing: border-box;
+          padding: 6px 8px;
         }
+
+        .center-top {
+          /* top area (heading + small status) */
+          margin-bottom: 6px;
+        }
+
         .center-box h2 {
-          font-size: 40px;
-          margin-bottom: 12px;
+          font-size: 36px;
+          margin: 6px 0 8px 0;
           font-weight: 700;
           text-shadow: 0 0 10px #ec4899;
         }
+
         .mode-text {
           color: #ffe4f1;
           font-weight: 600;
-          margin-bottom: 8px;
-          min-height: 24px;
+          margin-bottom: 6px;
+          min-height: 22px;
         }
 
         .mode-options {
           display: flex;
           justify-content: center;
-          gap: 20px;
+          gap: 16px;
           align-items: stretch;
-          flex-wrap: wrap;
-          margin-top: 14px;
+          flex-wrap: nowrap;
+          margin-top: 6px;
+          /* keep cards horizontally on desktop */
         }
+
         .mode-card,
         .disabled-card {
           flex: 1 1 300px;
           max-width: 420px;
           background: rgba(255, 255, 255, 0.08);
           border: 1px solid rgba(255, 255, 255, 0.12);
-          border-radius: 18px;
-          padding: 18px;
+          border-radius: 14px;
+          padding: 16px;
           display: flex;
           flex-direction: column;
           align-items: center;
-          gap: 12px;
+          gap: 10px;
           box-shadow: 0 8px 24px rgba(0, 0, 0, 0.18);
           transition: transform 0.22s ease, box-shadow 0.22s ease;
           outline: none;
-        }
-        .mode-card:hover {
-          transform: translateY(-8px);
-          box-shadow: 0 14px 30px rgba(0, 0, 0, 0.26);
-        }
-        .disabled-card {
-          opacity: 0.95;
+          box-sizing: border-box;
         }
 
         .mode-animation {
@@ -874,9 +876,15 @@ export default function ConnectPage() {
           justify-content: center;
           margin-bottom: 6px;
         }
+
+        .video-svg {
+          width: 120px;
+          height: 80px;
+        }
+
         .mode-btn {
           width: 100%;
-          padding: 12px 14px;
+          padding: 10px 12px;
           border-radius: 10px;
           border: none;
           background: #fff;
@@ -884,10 +892,6 @@ export default function ConnectPage() {
           font-size: 16px;
           font-weight: 700;
           cursor: pointer;
-        }
-        .mode-btn:disabled {
-          opacity: 0.6;
-          cursor: not-allowed;
         }
 
         .mode-desc {
@@ -903,26 +907,10 @@ export default function ConnectPage() {
           font-style: italic;
         }
 
-        /* Video camera animation (simple pulse) */
-        .video-animation svg {
-          width: 120px;
-          height: 80px;
-        }
-        .video-animation svg rect,
-        .video-animation svg circle,
-        .video-animation svg path {
-          transition: transform 0.4s ease;
-        }
-        .mode-card:hover .video-animation svg rect,
-        .mode-card:hover .video-animation svg circle {
-          transform: scale(1.03);
-        }
-
-        /* Phone mockup + typing dots */
         .phone-mock {
           width: 84px;
-          height: 140px;
-          border-radius: 14px;
+          height: 120px;
+          border-radius: 12px;
           background: linear-gradient(
             180deg,
             rgba(255, 255, 255, 0.9),
@@ -933,25 +921,7 @@ export default function ConnectPage() {
           align-items: center;
           justify-content: center;
         }
-        .phone-screen {
-          width: 72px;
-          height: 120px;
-          background: linear-gradient(
-            180deg,
-            rgba(236, 72, 153, 0.12),
-            rgba(139, 92, 246, 0.06)
-          );
-          border-radius: 10px;
-          display: flex;
-          align-items: center;
-          justify-content: center;
-        }
-        .typing-dots {
-          display: flex;
-          gap: 8px;
-          align-items: center;
-          justify-content: center;
-        }
+
         .typing-dots .dot {
           width: 8px;
           height: 8px;
@@ -961,15 +931,7 @@ export default function ConnectPage() {
           transform: scale(0.8);
           animation: typing-bounce 1.2s infinite ease-in-out;
         }
-        .typing-dots .dot1 {
-          animation-delay: 0s;
-        }
-        .typing-dots .dot2 {
-          animation-delay: 0.18s;
-        }
-        .typing-dots .dot3 {
-          animation-delay: 0.36s;
-        }
+
         @keyframes typing-bounce {
           0% {
             opacity: 0.25;
@@ -989,7 +951,6 @@ export default function ConnectPage() {
           }
         }
 
-        /* Loader & status */
         .loader {
           margin: 10px auto;
         }
@@ -1012,9 +973,10 @@ export default function ConnectPage() {
             transform: scale(1);
           }
         }
+
         .stop-btn {
-          margin-top: 12px;
-          padding: 10px 18px;
+          margin-top: 10px;
+          padding: 10px 16px;
           background: #ff4d4f;
           color: #fff;
           border: none;
@@ -1023,12 +985,12 @@ export default function ConnectPage() {
         }
 
         .quote-box {
-          margin-top: 20px;
+          margin-top: 8px;
           font-weight: 600;
           color: #ffeff7;
           text-shadow: 0 0 5px #ff88aa;
-          padding: 12px 14px;
-          border-radius: 12px;
+          padding: 10px 12px;
+          border-radius: 10px;
           background: rgba(255, 255, 255, 0.08);
           border: 1px solid rgba(255, 255, 255, 0.12);
         }
@@ -1040,7 +1002,7 @@ export default function ConnectPage() {
           left: 50%;
           transform: translate(-50%, -50%);
           background: rgba(255, 255, 255, 0.98);
-          padding: 22px;
+          padding: 18px;
           border-radius: 12px;
           z-index: 60;
           box-shadow: 0 12px 40px rgba(0, 0, 0, 0.25);
@@ -1049,42 +1011,20 @@ export default function ConnectPage() {
           flex-direction: column;
           gap: 10px;
         }
-        .panel input {
-          padding: 10px;
-          border: 1px solid #ddd;
-          border-radius: 8px;
-          width: 100%;
-        }
-        .save-btn {
-          padding: 10px 12px;
-          background: #ec4899;
-          color: #fff;
-          border: none;
-          border-radius: 8px;
-          cursor: pointer;
-        }
-        .cancel-btn {
-          padding: 10px 12px;
-          background: #f1f1f1;
-          border: none;
-          border-radius: 8px;
-          cursor: pointer;
-        }
 
-        .radio-label input {
-          margin-right: 8px;
-        }
-
-        /* Responsive */
+        /* Responsive adjustments */
         @media (max-width: 1024px) {
           .glass-card {
-            height: min(86vh, 760px);
+            height: calc(100vh - 20px);
           }
         }
+
         @media (max-width: 768px) {
+          /* show hamburger */
           .hamburger {
             display: block;
           }
+          /* collapse sidebar */
           .sidebar {
             transform: translateX(-100%);
             width: 200px;
@@ -1092,26 +1032,68 @@ export default function ConnectPage() {
           .sidebar.open {
             transform: translateX(0);
           }
+
           .content-wrap {
             left: 0;
-            padding: 16px;
+            padding: 10px;
           }
+
           .glass-card {
             width: 100%;
-            height: auto;
-            min-height: 72vh;
-            padding: 22px;
-            border-radius: 20px;
+            height: 100vh; /* make it take viewport fully */
+            padding: 12px;
+            border-radius: 16px;
           }
+
+          /* heading smaller and moved up so it's visible */
           .center-box h2 {
-            font-size: 28px;
+            font-size: 22px;
+            margin: 4px 0 6px 0;
           }
+
+          /* stack cards vertically and reduce their height / padding */
           .mode-options {
-            gap: 12px;
+            flex-direction: column;
+            gap: 10px;
+            margin-top: 6px;
+            align-items: center;
           }
           .mode-card,
           .disabled-card {
-            max-width: 100%;
+            width: 94%;
+            max-width: 94%;
+            padding: 10px;
+            border-radius: 12px;
+            min-height: 98px; /* keep card compact */
+          }
+
+          .mode-animation {
+            margin-bottom: 6px;
+          }
+
+          .video-svg {
+            width: 88px;
+            height: 56px;
+          }
+
+          .phone-mock {
+            width: 64px;
+            height: 98px;
+          }
+
+          .mode-btn {
+            font-size: 15px;
+            padding: 10px;
+          }
+
+          .mode-desc {
+            font-size: 13px;
+          }
+
+          .quote-box {
+            font-size: 13px;
+            padding: 10px;
+            margin-bottom: 4px;
           }
         }
       `}</style>
