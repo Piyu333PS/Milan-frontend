@@ -140,135 +140,140 @@ export default function HomePage() {
       <div id="errorMessage"></div>
 
       <div className="container" id="userFormContainer">
-        <div className="content-box">
+        {/* Left side - Welcome Message */}
+        <div className="left-box">
           <h1 className="welcome">Welcome to Milan ❤️</h1>
+          <p className="intro-text">
+            “Love recognizes no barriers. It jumps hurdles, leaps fences, penetrates walls to arrive at its destination full of hope.”
+          </p>
+        </div>
 
-          <div className="form-wrapper">
-            <div className="form-container">
-              {!showLogin && !showReset && (
-                <div id="registerForm">
-                  <h2>Create Your Account</h2>
-                  <button
-                    id="musicBtn"
-                    type="button"
-                    onClick={() => {
-                      const bgMusic = document.getElementById("bgMusic");
-                      if (musicPlaying) {
-                        bgMusic.pause();
-                      } else {
-                        bgMusic.play().catch(() => {});
-                      }
-                      setMusicPlaying(!musicPlaying);
-                    }}
-                  >
-                    {musicPlaying ? "Music Off" : "Music On"}
-                  </button>
-                  <button
-                    id="themeToggle"
-                    type="button"
-                    onClick={() => document.body.classList.toggle("light-mode")}
-                  >
-                    🌙 Switch Theme
-                  </button>
-
-                  <label>
-                    Name <span className="star">*</span>
-                  </label>
-                  <input type="text" id="name" placeholder="Your name or nickname" />
-
-                  <label>
-                    Gender <span className="star">*</span>
-                  </label>
-                  <select id="gender">
-                    <option value="">Select Gender</option>
-                    <option value="Male">Male</option>
-                    <option value="Female">Female</option>
-                    <option value="Other">Other</option>
-                  </select>
-
-                  <label>
-                    Email or Mobile <span className="star">*</span>
-                  </label>
-                  <input type="text" id="contact" placeholder="Email or 10-digit Mobile number" />
-
-                  <label>
-                    Password <span className="star">*</span>
-                  </label>
-                  <input type="password" id="password" placeholder="Enter password" />
-
-                  <label>
-                    Age <span className="star">*</span>
-                  </label>
-                  <input type="number" id="age" placeholder="Your age" min="18" max="99" />
-
-                  <label>
-                    City/Country <span className="star">*</span>
-                  </label>
-                  <input type="text" id="city" placeholder="City / Country" />
-
-                  <label>
-                    Reason for Joining <span className="star">*</span>
-                  </label>
-                  <select
-                    id="reason"
-                    onChange={(e) =>
-                      (document.getElementById("otherReason").style.display =
-                        e.target.value === "Other" ? "block" : "none")
+        {/* Right side - Form */}
+        <div className="form-wrapper">
+          <div className="form-container">
+            {!showLogin && !showReset && (
+              <div id="registerForm">
+                <h2>Create Your Account</h2>
+                <button
+                  id="musicBtn"
+                  type="button"
+                  onClick={() => {
+                    const bgMusic = document.getElementById("bgMusic");
+                    if (musicPlaying) {
+                      bgMusic.pause();
+                    } else {
+                      bgMusic.play().catch(() => {});
                     }
-                  >
-                    <option value="">Select reason</option>
-                    <option value="Looking for Love">Looking for Love ❤️</option>
-                    <option value="Friendship">Friendship 🤗</option>
-                    <option value="Casual Chat">Casual Chat 🎈</option>
-                    <option value="Exploring">Exploring 🌎</option>
-                    <option value="Other">Other</option>
-                  </select>
-                  <textarea id="otherReason" placeholder="If other, please describe" style={{ display: "none" }} />
+                    setMusicPlaying(!musicPlaying);
+                  }}
+                >
+                  {musicPlaying ? "Music Off" : "Music On"}
+                </button>
+                <button
+                  id="themeToggle"
+                  type="button"
+                  onClick={() => document.body.classList.toggle("light-mode")}
+                >
+                  🌙 Switch Theme
+                </button>
 
-                  <button onClick={handleRegister}>Register & Start</button>
-                  <p style={{ textAlign: "center", cursor: "pointer", color: "yellow" }} onClick={() => setShowLogin(true)}>
-                    Already Registered? Login here
-                  </p>
-                </div>
-              )}
+                <label>
+                  Name <span className="star">*</span>
+                </label>
+                <input type="text" id="name" placeholder="Your name or nickname" />
 
-              {showLogin && !showReset && (
-                <div id="loginForm">
-                  <h2>Login to Milan</h2>
-                  <label>Email or Mobile</label>
-                  <input type="text" id="loginContact" placeholder="Enter Email/Mobile" />
-                  <label>Password</label>
-                  <input type="password" id="loginPassword" placeholder="Enter password" />
-                  <button onClick={handleLogin}>Login</button>
-                  <p style={{ textAlign: "center", cursor: "pointer", color: "yellow" }} onClick={() => setShowLogin(false)}>
-                    New User? Register here
-                  </p>
-                  <p style={{ textAlign: "center", cursor: "pointer", color: "#ff4d4f" }} onClick={() => setShowReset(true)}>
-                    Forgot Password?
-                  </p>
-                </div>
-              )}
+                <label>
+                  Gender <span className="star">*</span>
+                </label>
+                <select id="gender">
+                  <option value="">Select Gender</option>
+                  <option value="Male">Male</option>
+                  <option value="Female">Female</option>
+                  <option value="Other">Other</option>
+                </select>
 
-              {showReset && (
-                <div id="resetForm">
-                  <h2>Reset Password</h2>
-                  <label>Email or Mobile</label>
-                  <input type="text" id="resetContact" placeholder="Enter your Email/Mobile" />
-                  <label>New Password</label>
-                  <input type="password" id="newPassword" placeholder="Enter new password" />
-                  <button onClick={handleReset}>Reset Password</button>
-                  <p
-                    style={{ textAlign: "center", cursor: "pointer", color: "yellow" }}
-                    onClick={() => {
-                      setShowReset(false);
-                      setShowLogin(true);
-                    }}
-                  >
-                    Back to Login
-                  </p>
-                </div>
-              )}
-            </div>
+                <label>
+                  Email or Mobile <span className="star">*</span>
+                </label>
+                <input type="text" id="contact" placeholder="Email or 10-digit Mobile number" />
+
+                <label>
+                  Password <span className="star">*</span>
+                </label>
+                <input type="password" id="password" placeholder="Enter password" />
+
+                <label>
+                  Age <span className="star">*</span>
+                </label>
+                <input type="number" id="age" placeholder="Your age" min="18" max="99" />
+
+                <label>
+                  City/Country <span className="star">*</span>
+                </label>
+                <input type="text" id="city" placeholder="City / Country" />
+
+                <label>
+                  Reason for Joining <span className="star">*</span>
+                </label>
+                <select
+                  id="reason"
+                  onChange={(e) =>
+                    (document.getElementById("otherReason").style.display =
+                      e.target.value === "Other" ? "block" : "none")
+                  }
+                >
+                  <option value="">Select reason</option>
+                  <option value="Looking for Love">Looking for Love ❤️</option>
+                  <option value="Friendship">Friendship 🤗</option>
+                  <option value="Casual Chat">Casual Chat 🎈</option>
+                  <option value="Exploring">Exploring 🌎</option>
+                  <option value="Other">Other</option>
+                </select>
+                <textarea id="otherReason" placeholder="If other, please describe" style={{ display: "none" }} />
+
+                <button onClick={handleRegister}>Register & Start</button>
+                <p style={{ textAlign: "center", cursor: "pointer", color: "yellow" }} onClick={() => setShowLogin(true)}>
+                  Already Registered? Login here
+                </p>
+              </div>
+            )}
+
+            {showLogin && !showReset && (
+              <div id="loginForm">
+                <h2>Login to Milan</h2>
+                <label>Email or Mobile</label>
+                <input type="text" id="loginContact" placeholder="Enter Email/Mobile" />
+                <label>Password</label>
+                <input type="password" id="loginPassword" placeholder="Enter password" />
+                <button onClick={handleLogin}>Login</button>
+                <p style={{ textAlign: "center", cursor: "pointer", color: "yellow" }} onClick={() => setShowLogin(false)}>
+                  New User? Register here
+                </p>
+                <p style={{ textAlign: "center", cursor: "pointer", color: "#ff4d4f" }} onClick={() => setShowReset(true)}>
+                  Forgot Password?
+                </p>
+              </div>
+            )}
+
+            {showReset && (
+              <div id="resetForm">
+                <h2>Reset Password</h2>
+                <label>Email or Mobile</label>
+                <input type="text" id="resetContact" placeholder="Enter your Email/Mobile" />
+                <label>New Password</label>
+                <input type="password" id="newPassword" placeholder="Enter new password" />
+                <button onClick={handleReset}>Reset Password</button>
+                <p
+                  style={{ textAlign: "center", cursor: "pointer", color: "yellow" }}
+                  onClick={() => {
+                    setShowReset(false);
+                    setShowLogin(true);
+                  }}
+                >
+                  Back to Login
+                </p>
+              </div>
+            )}
           </div>
         </div>
       </div>
@@ -311,26 +316,31 @@ export default function HomePage() {
           position: relative;
           z-index: 1;
           display: flex;
-          align-items: flex-start;
-          justify-content: center;
+          align-items: center; /* vertical center */
+          justify-content: space-between;
           min-height: 100vh;
-          padding: 40px 20px;
+          padding: 40px;
           box-sizing: border-box;
+          gap: 40px;
         }
-        .content-box {
-          text-align: center;
+        .left-box {
+          flex: 1;
+          max-width: 600px;
         }
         .welcome {
-          font-size: 28px;
+          font-size: 32px;
           font-weight: bold;
-          margin-bottom: 20px;
+          margin-bottom: 15px;
           color: #ff4d6d;
           text-shadow: 1px 1px 4px rgba(0,0,0,0.5);
         }
+        .intro-text {
+          font-size: 16px;
+          line-height: 1.6;
+        }
         .form-wrapper {
-          width: 100%;
+          flex: 0 0 400px;
           max-width: 420px;
-          margin: 0 auto;
         }
         .form-container {
           background: var(--box-bg);
@@ -405,14 +415,25 @@ export default function HomePage() {
           box-shadow: 0 0 10px rgba(0, 0, 0, 0.3);
           font-size: 14px;
         }
-        @media (max-width: 600px) {
+        @media (max-width: 768px) {
           .container {
-            align-items: flex-start;
-            padding-top: 30px;
+            flex-direction: column;
+            align-items: center;
+            justify-content: flex-start;
+            padding: 20px;
+            gap: 20px;
+          }
+          .left-box {
+            text-align: center;
           }
           .welcome {
-            font-size: 22px;
-            margin-bottom: 15px;
+            font-size: 26px;
+          }
+          .intro-text {
+            font-size: 14px;
+          }
+          .form-wrapper {
+            width: 100%;
           }
         }
       `}</style>
