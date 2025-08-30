@@ -141,7 +141,10 @@ export default function HomePage() {
       <div className="container" id="userFormContainer">
         {/* Left side - Welcome Message */}
         <div className="left-box">
-          <h1 className="welcome rainbow">Welcome to Milan ❤️</h1>
+          <h1 className="welcome">
+            <span className="white-text">Welcome to </span>
+            <span className="milan-text">Milan <span className="heart">❤️</span></span>
+          </h1>
           <p className="intro-text">
             “Love recognizes no barriers. It jumps hurdles, leaps fences, penetrates walls to arrive at its destination full of hope.”
           </p>
@@ -176,14 +179,11 @@ export default function HomePage() {
                   🌙 Switch Theme
                 </button>
 
-                <label>
-                  Name <span className="star">*</span>
-                </label>
+                {/* Form fields same as before */}
+                <label>Name <span className="star">*</span></label>
                 <input type="text" id="name" placeholder="Your name or nickname" />
 
-                <label>
-                  Gender <span className="star">*</span>
-                </label>
+                <label>Gender <span className="star">*</span></label>
                 <select id="gender">
                   <option value="">Select Gender</option>
                   <option value="Male">Male</option>
@@ -191,29 +191,19 @@ export default function HomePage() {
                   <option value="Other">Other</option>
                 </select>
 
-                <label>
-                  Email or Mobile <span className="star">*</span>
-                </label>
+                <label>Email or Mobile <span className="star">*</span></label>
                 <input type="text" id="contact" placeholder="Email or 10-digit Mobile number" />
 
-                <label>
-                  Password <span className="star">*</span>
-                </label>
+                <label>Password <span className="star">*</span></label>
                 <input type="password" id="password" placeholder="Enter password" />
 
-                <label>
-                  Age <span className="star">*</span>
-                </label>
+                <label>Age <span className="star">*</span></label>
                 <input type="number" id="age" placeholder="Your age" min="18" max="99" />
 
-                <label>
-                  City/Country <span className="star">*</span>
-                </label>
+                <label>City/Country <span className="star">*</span></label>
                 <input type="text" id="city" placeholder="City / Country" />
 
-                <label>
-                  Reason for Joining <span className="star">*</span>
-                </label>
+                <label>Reason for Joining <span className="star">*</span></label>
                 <select
                   id="reason"
                   onChange={(e) =>
@@ -262,13 +252,7 @@ export default function HomePage() {
                 <label>New Password</label>
                 <input type="password" id="newPassword" placeholder="Enter new password" />
                 <button onClick={handleReset}>Reset Password</button>
-                <p
-                  style={{ textAlign: "center", cursor: "pointer", color: "yellow" }}
-                  onClick={() => {
-                    setShowReset(false);
-                    setShowLogin(true);
-                  }}
-                >
+                <p style={{ textAlign: "center", cursor: "pointer", color: "yellow" }} onClick={() => { setShowReset(false); setShowLogin(true); }}>
                   Back to Login
                 </p>
               </div>
@@ -329,21 +313,43 @@ export default function HomePage() {
           font-size: 60px;
           font-weight: bold;
           margin-bottom: 25px;
-          text-shadow: 2px 2px 6px rgba(0,0,0,0.4);
+          display: flex;
+          flex-wrap: wrap;
+          align-items: center;
         }
-        .rainbow {
+        .white-text {
+          color: #ffffff;
+        }
+        .milan-text {
           background: linear-gradient(270deg,
             #ff0000, #ff7f00, #ffff00, #00ff00,
             #00ffff, #0000ff, #8b00ff, #ff1493);
           -webkit-background-clip: text;
           -webkit-text-fill-color: transparent;
           background-size: 800% 800%;
-          animation: rainbowMove 10s ease infinite;
+          animation: rainbowMove 10s ease infinite, neonGlow 3s ease infinite alternate;
+          font-weight: bold;
+          position: relative;
+        }
+        .heart {
+          display: inline-block;
+          animation: heartbeat 1s infinite;
         }
         @keyframes rainbowMove {
           0% { background-position: 0% 50%; }
           50% { background-position: 100% 50%; }
           100% { background-position: 0% 50%; }
+        }
+        @keyframes neonGlow {
+          0% { text-shadow: 0 0 8px #ff1493, 0 0 12px #ff1493, 0 0 16px #ff1493; }
+          50% { text-shadow: 0 0 8px #00ffff, 0 0 12px #00ffff, 0 0 16px #00ffff; }
+          100% { text-shadow: 0 0 8px #ff1493, 0 0 12px #ff1493, 0 0 16px #ff1493; }
+        }
+        @keyframes heartbeat {
+          0%, 100% { transform: scale(1); }
+          25% { transform: scale(1.3); }
+          50% { transform: scale(1); }
+          75% { transform: scale(1.3); }
         }
         .intro-text {
           font-size: 22px;
@@ -352,7 +358,7 @@ export default function HomePage() {
         .form-wrapper {
           flex: 0 0 360px;
           max-width: 380px;
-          margin-right: 40px; /* thoda left shift */
+          margin-right: 40px;
         }
         .form-container {
           background: var(--box-bg);
