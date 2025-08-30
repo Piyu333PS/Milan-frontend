@@ -8,7 +8,6 @@ export default function HomePage() {
   const [showReset, setShowReset] = useState(false);
 
   useEffect(() => {
-    // Hearts background
     const canvas = document.getElementById("heartsCanvas");
     const ctx = canvas.getContext("2d");
     let hearts = [];
@@ -133,23 +132,42 @@ export default function HomePage() {
   return (
     <>
       <canvas id="heartsCanvas"></canvas>
+      <audio id="bgMusic" loop>
+        <source src="music/romantic.mp3" type="audio/mpeg" />
+      </audio>
 
       <div id="errorMessage"></div>
 
       <div className="container" id="userFormContainer">
-        <div className="left">
-          <h1>Welcome to Milan ❤️</h1>
-          <p>
-            “Love recognizes no barriers. It jumps hurdles, leaps fences, penetrates walls to arrive at its
-            destination full of hope.”
+        {/* Left side - Welcome Message */}
+        <div className="left-box">
+          <h1 className="welcome rainbow">Welcome to Milan ❤️</h1>
+          <p className="intro-text">
+            “Love recognizes no barriers. It jumps hurdles, leaps fences, penetrates walls to arrive at its destination full of hope.”
           </p>
         </div>
-        <div className="right">
+
+        {/* Right side - Form */}
+        <div className="form-wrapper">
           <div className="form-container">
             {!showLogin && !showReset && (
               <div id="registerForm">
                 <h2>Create Your Account</h2>
-
+                <button
+                  id="musicBtn"
+                  type="button"
+                  onClick={() => {
+                    const bgMusic = document.getElementById("bgMusic");
+                    if (musicPlaying) {
+                      bgMusic.pause();
+                    } else {
+                      bgMusic.play().catch(() => {});
+                    }
+                    setMusicPlaying(!musicPlaying);
+                  }}
+                >
+                  {musicPlaying ? "Music Off" : "Music On"}
+                </button>
                 <button
                   id="themeToggle"
                   type="button"
@@ -275,13 +293,11 @@ export default function HomePage() {
           --btn-bg: #ec4899;
           --btn-text: #ffffff;
         }
-        html,
-        body {
+        html, body {
           margin: 0;
           padding: 0;
           width: 100%;
           height: 100%;
-          overflow: hidden;
           font-family: "Segoe UI", sans-serif;
           background: var(--bg-color);
           color: var(--text-color);
@@ -300,58 +316,70 @@ export default function HomePage() {
           display: flex;
           align-items: center;
           justify-content: space-between;
-          height: 100%;
-          padding: 40px;
+          min-height: 100vh;
+          padding: 40px 60px;
           box-sizing: border-box;
+          gap: 20px;
         }
-        .left,
-        .right {
+        .left-box {
           flex: 1;
-          padding: 20px;
-          box-sizing: border-box;
+          max-width: 600px;
         }
-        .left h1 {
-          font-size: 2.8em;
-          margin-bottom: 12px;
+        .welcome {
+          font-size: 60px;
+          font-weight: bold;
+          margin-bottom: 25px;
+          text-shadow: 2px 2px 6px rgba(0,0,0,0.4);
         }
-        .left p {
-          font-size: 18px;
-          line-height: 1.5;
+        .rainbow {
+          background: linear-gradient(270deg,
+            #ff0000, #ff7f00, #ffff00, #00ff00,
+            #00ffff, #0000ff, #8b00ff, #ff1493);
+          -webkit-background-clip: text;
+          -webkit-text-fill-color: transparent;
+          background-size: 800% 800%;
+          animation: rainbowMove 10s ease infinite;
+        }
+        @keyframes rainbowMove {
+          0% { background-position: 0% 50%; }
+          50% { background-position: 100% 50%; }
+          100% { background-position: 0% 50%; }
+        }
+        .intro-text {
+          font-size: 22px;
+          line-height: 1.9;
+        }
+        .form-wrapper {
+          flex: 0 0 360px;
+          max-width: 380px;
+          margin-right: 40px; /* thoda left shift */
         }
         .form-container {
           background: var(--box-bg);
           padding: 20px;
-          border-radius: 10px;
+          border-radius: 12px;
           backdrop-filter: blur(8px);
-          max-width: 400px;
-          margin: auto;
         }
         .form-container h2 {
           margin-top: 0;
-          color: var(--text-color);
           font-size: 22px;
           margin-bottom: 15px;
           text-align: center;
         }
-        input,
-        select,
-        textarea,
-        button {
+        input, select, textarea, button {
           width: 100%;
           padding: 10px;
           margin: 8px 0;
           border: none;
-          border-radius: 5px;
+          border-radius: 6px;
           font-size: 14px;
           box-sizing: border-box;
         }
-        input,
-        textarea {
+        input, textarea {
           background: rgba(255, 255, 255, 0.3);
           color: var(--text-color);
         }
-        select,
-        option {
+        select, option {
           color: #333;
           background: #fff;
         }
@@ -394,27 +422,26 @@ export default function HomePage() {
           box-shadow: 0 0 10px rgba(0, 0, 0, 0.3);
           font-size: 14px;
         }
-
-        /* Mobile responsive */
         @media (max-width: 768px) {
           .container {
             flex-direction: column;
-            justify-content: center;
+            align-items: center;
+            justify-content: flex-start;
             padding: 20px;
+            gap: 20px;
           }
-          .left {
+          .left-box {
             text-align: center;
-            margin-bottom: 15px;
           }
-          .left h1 {
-            font-size: 2.2em;
+          .welcome {
+            font-size: 42px;
           }
-          .left p {
+          .intro-text {
             font-size: 16px;
           }
-          .form-container {
+          .form-wrapper {
             width: 100%;
-            max-width: 360px;
+            margin-right: 0;
           }
         }
       `}</style>
