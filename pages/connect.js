@@ -469,6 +469,21 @@ export default function ConnectPage() {
               <div className="mode-text" id="modeText">
                 {modeText}
               </div>
+
+
+            <div className="quote-box" id="quoteBox">
+              {statusMessage}
+              <span
+                style={{
+                  display: "block",
+                  fontSize: 14,
+                  marginTop: 6,
+                  opacity: 0.95,
+                }}
+              >
+                (Where hearts meet, that’s where Milan begins…)
+              </span>
+            </div>
             </div>
 
             {/* Mode options */}
@@ -529,7 +544,7 @@ export default function ConnectPage() {
                   onKeyDown={(e) => {
                     if (e.key === "Enter") startSearch("text");
                   }}
-                  id="textBtn"
+                  id="textBtn" style={{pointerEvents:"none",opacity:0.6,cursor:"not-allowed"}} title="Coming Soon"
                   aria-label="Start Text Chat"
                 >
                   <div className="mode-animation text-animation" aria-hidden>
@@ -574,20 +589,6 @@ export default function ConnectPage() {
                 Stop Searching
               </button>
             )}
-
-            <div className="quote-box" id="quoteBox">
-              {statusMessage}
-              <span
-                style={{
-                  display: "block",
-                  fontSize: 14,
-                  marginTop: 6,
-                  opacity: 0.95,
-                }}
-              >
-                (Where hearts meet, that’s where Milan begins…)
-              </span>
-            </div>
           </div>
         </div>
       </main>
