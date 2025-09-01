@@ -1,5 +1,6 @@
 "use client";
 import { useEffect, useState } from "react";
+import Footer from "../components/Footer"; // Added Footer import
 
 export default function HomePage() {
   const API_BASE = "https://milan-j9u9.onrender.com";
@@ -277,7 +278,11 @@ export default function HomePage() {
         </div>
       </div>
 
+      {/* Footer usage added here */}
+      <Footer />
+
       <style jsx global>{`
+        /* same styles as before */
         :root {
           --bg-color: #1f2937;
           --text-color: #ffffff;
@@ -352,7 +357,7 @@ export default function HomePage() {
         .form-wrapper {
           flex: 0 0 360px;
           max-width: 380px;
-          margin-right: 40px; /* thoda left shift */
+          margin-right: 40px;
         }
         .form-container {
           background: var(--box-bg);
