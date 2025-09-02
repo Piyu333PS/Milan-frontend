@@ -3,7 +3,6 @@ import { useEffect, useState } from "react";
 
 export default function HomePage() {
   const API_BASE = "https://milan-j9u9.onrender.com";
-  const [musicPlaying, setMusicPlaying] = useState(false);
   const [showLogin, setShowLogin] = useState(false);
   const [showReset, setShowReset] = useState(false);
 
@@ -75,7 +74,7 @@ export default function HomePage() {
     const gender = document.getElementById("gender").value;
     const contact = document.getElementById("contact").value.trim();
     const password = document.getElementById("password").value.trim();
-    const dob = document.getElementById("dob").value; 
+    const dob = document.getElementById("dob").value;
     const city = document.getElementById("city").value.trim();
     const reason = document.getElementById("reason").value;
     const termsAccepted = document.getElementById("terms").checked;
@@ -179,21 +178,7 @@ export default function HomePage() {
             {!showLogin && !showReset && (
               <div id="registerForm">
                 <h2>Create Your Account</h2>
-                <button
-                  id="musicBtn"
-                  type="button"
-                  onClick={() => {
-                    const bgMusic = document.getElementById("bgMusic");
-                    if (musicPlaying) {
-                      bgMusic.pause();
-                    } else {
-                      bgMusic.play().catch(() => {});
-                    }
-                    setMusicPlaying(!musicPlaying);
-                  }}
-                >
-                  {musicPlaying ? "Music Off" : "Music On"}
-                </button>
+
                 <button
                   id="themeToggle"
                   type="button"
@@ -256,10 +241,10 @@ export default function HomePage() {
                 </select>
                 <textarea id="otherReason" placeholder="If other, please describe" style={{ display: "none" }} />
 
-                {/* Terms checkbox */}
-                <div style={{ marginTop: "10px", fontSize: "14px" }}>
-                  <input type="checkbox" id="terms" />
-                  <label htmlFor="terms" style={{ marginLeft: "5px" }}>
+                {/* Terms checkbox - inline */}
+                <div style={{ marginTop: "10px", fontSize: "14px", display: "flex", alignItems: "center" }}>
+                  <input type="checkbox" id="terms" style={{ marginRight: "6px" }} />
+                  <label htmlFor="terms">
                     I agree to the{" "}
                     <a href="/terms.html" target="_blank" style={{ color: "yellow" }}>
                       Terms & Conditions
