@@ -58,21 +58,44 @@ export default function HomePage() {
     }, 4000);
   }
 
+  // Helper to calculate age from DOB
+  function calculateAge(dateString) {
+    const today = new Date();
+    const birthDate = new Date(dateString);
+    let age = today.getFullYear() - birthDate.getFullYear();
+    const m = today.getMonth() - birthDate.getMonth();
+    if (m < 0 || (m === 0 && today.getDate() < birthDate.getDate())) {
+      age--;
+    }
+    return age;
+  }
+
   async function handleRegister() {
     const name = document.getElementById("name").value.trim();
     const gender = document.getElementById("gender").value;
     const contact = document.getElementById("contact").value.trim();
     const password = document.getElementById("password").value.trim();
-    const age = document.getElementById("age").value.trim();
+    const dob = document.getElementById("dob").value; // <- NEW (DOB instead of age)
     const city = document.getElementById("city").value.trim();
     const reason = document.getElementById("reason").value;
-    if (!name || !gender || !contact || !password || !age || !city || !reason)
+
+    if (!name || !gender || !contact || !password || !dob || !city || !reason)
       return showError("Please fill all required fields!");
+
+    const userAge = calculateAge(dob);
+    if (isNaN(userAge)) {
+      return showError("Please enter a valid Date of Birth.");
+    }
+    if (userAge < 18) {
+      return showError("Milan is strictly 18+ only.");
+    }
 
     try {
       const res = await fetch(`${API_BASE}/register`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
+        // NOTE: Backend body untouched to avoid breaking API contract.
+        // If backend supports DOB, you can add { dob } too.
         body: JSON.stringify({ emailOrMobile: contact, password, name })
       });
       const data = await res.json();
@@ -152,6 +175,8 @@ export default function HomePage() {
             “Love recognizes no barriers. It jumps hurdles, leaps fences, penetrates walls to arrive at its
             destination full of hope.”
           </p>
+          {/* 18+ notice (as requested) */}
+          <p style={{ marginTop: 8, fontWeight: "bold" }}>🔞 Milan is strictly for 18+ users.</p>
         </div>
         <div className="right">
           <div className="form-container">
@@ -206,10 +231,16 @@ export default function HomePage() {
                 </label>
                 <input type="password" id="password" placeholder="Enter password" />
 
+                {/* REPLACED Age with DOB */}
                 <label>
-                  Age <span className="star">*</span>
+                  Date of Birth <span className="star">*</span>
                 </label>
-                <input type="number" id="age" placeholder="Your age" min="18" max="99" />
+                <input
+                  type="date"
+                  id="dob"
+                  // prevent future dates
+                  max={new Date().toISOString().split("T")[0]}
+                />
 
                 <label>
                   City/Country <span className="star">*</span>
