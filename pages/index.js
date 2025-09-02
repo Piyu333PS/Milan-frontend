@@ -1,6 +1,5 @@
 "use client";
 import { useEffect, useState } from "react";
-import Footer from "../components/Footer"; // Added Footer import
 
 export default function HomePage() {
   const API_BASE = "https://milan-j9u9.onrender.com";
@@ -9,6 +8,7 @@ export default function HomePage() {
   const [showReset, setShowReset] = useState(false);
 
   useEffect(() => {
+    // Hearts background
     const canvas = document.getElementById("heartsCanvas");
     const ctx = canvas.getContext("2d");
     let hearts = [];
@@ -139,17 +139,21 @@ export default function HomePage() {
 
       <div id="errorMessage"></div>
 
+      {/* 🎉 Banner for Ganesh Chaturthi & Milan Launch */}
+      <div className="banner">
+        <h2>🌺 Ganesh Chaturthi ki Shubhkamnaye! 🌺</h2>
+        <p>✨ Milan is Live! Let your hearts connect… ❤️</p>
+      </div>
+
       <div className="container" id="userFormContainer">
-        {/* Left side - Welcome Message */}
-        <div className="left-box">
-          <h1 className="welcome rainbow">Welcome to Milan ❤️</h1>
-          <p className="intro-text">
-            “Love recognizes no barriers. It jumps hurdles, leaps fences, penetrates walls to arrive at its destination full of hope.”
+        <div className="left">
+          <h1>Welcome to Milan ❤️</h1>
+          <p>
+            “Love recognizes no barriers. It jumps hurdles, leaps fences, penetrates walls to arrive at its
+            destination full of hope.”
           </p>
         </div>
-
-        {/* Right side - Form */}
-        <div className="form-wrapper">
+        <div className="right">
           <div className="form-container">
             {!showLogin && !showReset && (
               <div id="registerForm">
@@ -278,11 +282,7 @@ export default function HomePage() {
         </div>
       </div>
 
-      {/* Footer usage added here */}
-      <Footer />
-
       <style jsx global>{`
-        /* same styles as before */
         :root {
           --bg-color: #1f2937;
           --text-color: #ffffff;
@@ -298,11 +298,13 @@ export default function HomePage() {
           --btn-bg: #ec4899;
           --btn-text: #ffffff;
         }
-        html, body {
+        html,
+        body {
           margin: 0;
           padding: 0;
           width: 100%;
           height: 100%;
+          overflow: hidden;
           font-family: "Segoe UI", sans-serif;
           background: var(--bg-color);
           color: var(--text-color);
@@ -315,76 +317,89 @@ export default function HomePage() {
           height: 100%;
           z-index: 0;
         }
+        .banner {
+          position: fixed;
+          top: 20px;
+          left: 50%;
+          transform: translateX(-50%);
+          background: rgba(255, 255, 255, 0.2);
+          padding: 15px 25px;
+          border-radius: 12px;
+          backdrop-filter: blur(10px);
+          text-align: center;
+          z-index: 10;
+          animation: fadeInPulse 2s ease-in-out infinite alternate;
+        }
+        .banner h2 {
+          margin: 0;
+          font-size: 20px;
+        }
+        .banner p {
+          margin: 5px 0 0 0;
+          font-size: 16px;
+        }
+        @keyframes fadeInPulse {
+          0% { opacity: 0.7; transform: translateX(-50%) scale(1); }
+          50% { opacity: 1; transform: translateX(-50%) scale(1.05); }
+          100% { opacity: 0.8; transform: translateX(-50%) scale(1); }
+        }
         .container {
           position: relative;
           z-index: 1;
           display: flex;
           align-items: center;
-          justify-content: space-between;
-          min-height: 100vh;
-          padding: 40px 60px;
-          box-sizing: border-box;
-          gap: 20px;
+          justify-content: center;
+          height: 100%;
+          padding: 10px;
         }
-        .left-box {
+        .left,
+        .right {
           flex: 1;
-          max-width: 600px;
+          padding: 10px;
+          box-sizing: border-box;
         }
-        .welcome {
-          font-size: 60px;
-          font-weight: bold;
-          margin-bottom: 25px;
-          text-shadow: 2px 2px 6px rgba(0,0,0,0.4);
+        .left h1 {
+          font-size: 2.2em;
+          margin-bottom: 8px;
         }
-        .rainbow {
-          background: linear-gradient(270deg,
-            #ff0000, #ff7f00, #ffff00, #00ff00,
-            #00ffff, #0000ff, #8b00ff, #ff1493);
-          -webkit-background-clip: text;
-          -webkit-text-fill-color: transparent;
-          background-size: 800% 800%;
-          animation: rainbowMove 10s ease infinite;
-        }
-        @keyframes rainbowMove {
-          0% { background-position: 0% 50%; }
-          50% { background-position: 100% 50%; }
-          100% { background-position: 0% 50%; }
-        }
-        .intro-text {
-          font-size: 22px;
-          line-height: 1.9;
-        }
-        .form-wrapper {
-          flex: 0 0 360px;
-          max-width: 380px;
-          margin-right: 40px;
+        .left p {
+          font-size: 16px;
+          line-height: 1.4;
         }
         .form-container {
           background: var(--box-bg);
           padding: 20px;
-          border-radius: 12px;
+          border-radius: 10px;
           backdrop-filter: blur(8px);
+          max-width: 400px;
+          margin: 0 auto;
         }
         .form-container h2 {
           margin-top: 0;
+          color: var(--text-color);
           font-size: 22px;
           margin-bottom: 15px;
           text-align: center;
         }
-        input, select, textarea, button {
+        input,
+        select,
+        textarea,
+        button {
           width: 100%;
           padding: 10px;
           margin: 8px 0;
           border: none;
-          border-radius: 6px;
+          border-radius: 5px;
           font-size: 14px;
           box-sizing: border-box;
         }
-        input, textarea {
+        input,
+        textarea {
           background: rgba(255, 255, 255, 0.3);
           color: var(--text-color);
         }
-        select, option {
+        select,
+        option {
           color: #333;
           background: #fff;
         }
@@ -426,28 +441,6 @@ export default function HomePage() {
           z-index: 9999;
           box-shadow: 0 0 10px rgba(0, 0, 0, 0.3);
           font-size: 14px;
-        }
-        @media (max-width: 768px) {
-          .container {
-            flex-direction: column;
-            align-items: center;
-            justify-content: flex-start;
-            padding: 20px;
-            gap: 20px;
-          }
-          .left-box {
-            text-align: center;
-          }
-          .welcome {
-            font-size: 42px;
-          }
-          .intro-text {
-            font-size: 16px;
-          }
-          .form-wrapper {
-            width: 100%;
-            margin-right: 0;
-          }
         }
       `}</style>
     </>
