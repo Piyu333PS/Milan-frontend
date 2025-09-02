@@ -78,9 +78,14 @@ export default function HomePage() {
     const dob = document.getElementById("dob").value; 
     const city = document.getElementById("city").value.trim();
     const reason = document.getElementById("reason").value;
+    const termsAccepted = document.getElementById("terms").checked;
 
     if (!name || !gender || !contact || !password || !dob || !city || !reason)
       return showError("Please fill all required fields!");
+
+    if (!termsAccepted) {
+      return showError("Please accept Terms & Conditions to continue.");
+    }
 
     const userAge = calculateAge(dob);
     if (isNaN(userAge)) {
@@ -251,6 +256,25 @@ export default function HomePage() {
                 </select>
                 <textarea id="otherReason" placeholder="If other, please describe" style={{ display: "none" }} />
 
+                {/* Terms checkbox */}
+                <div style={{ marginTop: "10px", fontSize: "14px" }}>
+                  <input type="checkbox" id="terms" />
+                  <label htmlFor="terms" style={{ marginLeft: "5px" }}>
+                    I agree to the{" "}
+                    <a href="/terms.html" target="_blank" style={{ color: "yellow" }}>
+                      Terms & Conditions
+                    </a>
+                    ,{" "}
+                    <a href="/privacy.html" target="_blank" style={{ color: "yellow" }}>
+                      Privacy Policy
+                    </a>{" "}
+                    and{" "}
+                    <a href="/guidelines.html" target="_blank" style={{ color: "yellow" }}>
+                      Community Guidelines
+                    </a>
+                  </label>
+                </div>
+
                 <button onClick={handleRegister}>Register & Start</button>
                 <p style={{ textAlign: "center", cursor: "pointer", color: "yellow" }} onClick={() => setShowLogin(true)}>
                   Already Registered? Login here
@@ -297,6 +321,13 @@ export default function HomePage() {
           </div>
         </div>
       </div>
+
+      {/* Footer links */}
+      <footer style={{ textAlign: "center", marginTop: "20px", zIndex: "2", position: "relative", color: "white" }}>
+        <a href="/terms.html" target="_blank" style={{ color: "yellow", marginRight: "10px" }}>Terms & Conditions</a>
+        <a href="/privacy.html" target="_blank" style={{ color: "yellow", marginRight: "10px" }}>Privacy Policy</a>
+        <a href="/guidelines.html" target="_blank" style={{ color: "yellow" }}>Community Guidelines</a>
+      </footer>
 
       <style jsx global>{`
         :root {
