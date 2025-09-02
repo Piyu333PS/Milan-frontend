@@ -75,7 +75,7 @@ export default function HomePage() {
     const gender = document.getElementById("gender").value;
     const contact = document.getElementById("contact").value.trim();
     const password = document.getElementById("password").value.trim();
-    const dob = document.getElementById("dob").value; // <- NEW (DOB instead of age)
+    const dob = document.getElementById("dob").value; 
     const city = document.getElementById("city").value.trim();
     const reason = document.getElementById("reason").value;
 
@@ -94,8 +94,6 @@ export default function HomePage() {
       const res = await fetch(`${API_BASE}/register`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        // NOTE: Backend body untouched to avoid breaking API contract.
-        // If backend supports DOB, you can add { dob } too.
         body: JSON.stringify({ emailOrMobile: contact, password, name })
       });
       const data = await res.json();
@@ -162,12 +160,6 @@ export default function HomePage() {
 
       <div id="errorMessage"></div>
 
-      {/* 🎉 Banner for Ganesh Chaturthi & Milan Launch */}
-      <div className="banner">
-        <h2>🌺 Ganesh Chaturthi ki Shubhkamnaye! 🌺</h2>
-        <p>✨ Milan is Live! Let your hearts connect… ❤️</p>
-      </div>
-
       <div className="container" id="userFormContainer">
         <div className="left">
           <h1>Welcome to Milan ❤️</h1>
@@ -175,7 +167,6 @@ export default function HomePage() {
             “Love recognizes no barriers. It jumps hurdles, leaps fences, penetrates walls to arrive at its
             destination full of hope.”
           </p>
-          {/* 18+ notice (as requested) */}
           <p style={{ marginTop: 8, fontWeight: "bold" }}>🔞 Milan is strictly for 18+ users.</p>
         </div>
         <div className="right">
@@ -231,16 +222,10 @@ export default function HomePage() {
                 </label>
                 <input type="password" id="password" placeholder="Enter password" />
 
-                {/* REPLACED Age with DOB */}
                 <label>
                   Date of Birth <span className="star">*</span>
                 </label>
-                <input
-                  type="date"
-                  id="dob"
-                  // prevent future dates
-                  max={new Date().toISOString().split("T")[0]}
-                />
+                <input type="date" id="dob" max={new Date().toISOString().split("T")[0]} />
 
                 <label>
                   City/Country <span className="star">*</span>
@@ -347,32 +332,6 @@ export default function HomePage() {
           width: 100%;
           height: 100%;
           z-index: 0;
-        }
-        .banner {
-          position: fixed;
-          top: 20px;
-          left: 50%;
-          transform: translateX(-50%);
-          background: rgba(255, 255, 255, 0.2);
-          padding: 15px 25px;
-          border-radius: 12px;
-          backdrop-filter: blur(10px);
-          text-align: center;
-          z-index: 10;
-          animation: fadeInPulse 2s ease-in-out infinite alternate;
-        }
-        .banner h2 {
-          margin: 0;
-          font-size: 20px;
-        }
-        .banner p {
-          margin: 5px 0 0 0;
-          font-size: 16px;
-        }
-        @keyframes fadeInPulse {
-          0% { opacity: 0.7; transform: translateX(-50%) scale(1); }
-          50% { opacity: 1; transform: translateX(-50%) scale(1.05); }
-          100% { opacity: 0.8; transform: translateX(-50%) scale(1); }
         }
         .container {
           position: relative;
