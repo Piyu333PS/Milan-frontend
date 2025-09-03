@@ -7,7 +7,6 @@ export default function HomePage() {
   const [showReset, setShowReset] = useState(false);
 
   useEffect(() => {
-    // Hearts background
     const canvas = document.getElementById("heartsCanvas");
     const ctx = canvas.getContext("2d");
     let hearts = [];
@@ -25,22 +24,38 @@ export default function HomePage() {
         y: canvas.height + 50,
         size: Math.random() * 30 + 15,
         speed: Math.random() * 1.5 + 0.5,
-        color: ["#ff4d6d", "#ff1c68", "#ff6b81", "#e6005c"][Math.floor(Math.random() * 4)]
+        color: ["#ff4d6d", "#ff1c68", "#ff6b81", "#e6005c"][
+          Math.floor(Math.random() * 4)
+        ],
       };
     }
 
     function drawHearts() {
       ctx.clearRect(0, 0, canvas.width, canvas.height);
-      hearts.forEach(h => {
+      hearts.forEach((h) => {
         ctx.fillStyle = h.color;
         ctx.beginPath();
         ctx.moveTo(h.x, h.y);
-        ctx.bezierCurveTo(h.x + h.size / 2, h.y - h.size, h.x + h.size * 1.5, h.y + h.size / 3, h.x, h.y + h.size);
-        ctx.bezierCurveTo(h.x - h.size * 1.5, h.y + h.size / 3, h.x - h.size / 2, h.y - h.size, h.x, h.y);
+        ctx.bezierCurveTo(
+          h.x + h.size / 2,
+          h.y - h.size,
+          h.x + h.size * 1.5,
+          h.y + h.size / 3,
+          h.x,
+          h.y + h.size
+        );
+        ctx.bezierCurveTo(
+          h.x - h.size * 1.5,
+          h.y + h.size / 3,
+          h.x - h.size / 2,
+          h.y - h.size,
+          h.x,
+          h.y
+        );
         ctx.fill();
         h.y -= h.speed;
       });
-      hearts = hearts.filter(h => h.y + h.size > 0);
+      hearts = hearts.filter((h) => h.y + h.size > 0);
       if (Math.random() < 0.1) hearts.push(createHeart());
       requestAnimationFrame(drawHearts);
     }
@@ -57,7 +72,6 @@ export default function HomePage() {
     }, 4000);
   }
 
-  // Helper to calculate age from DOB
   function calculateAge(dateString) {
     const today = new Date();
     const birthDate = new Date(dateString);
@@ -98,7 +112,7 @@ export default function HomePage() {
       const res = await fetch(`${API_BASE}/register`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ emailOrMobile: contact, password, name })
+        body: JSON.stringify({ emailOrMobile: contact, password, name }),
       });
       const data = await res.json();
       if (res.ok) {
@@ -113,13 +127,14 @@ export default function HomePage() {
   async function handleLogin() {
     const contact = document.getElementById("loginContact").value.trim();
     const password = document.getElementById("loginPassword").value.trim();
-    if (!contact || !password) return showError("Enter Email/Mobile and Password");
+    if (!contact || !password)
+      return showError("Enter Email/Mobile and Password");
 
     try {
       const res = await fetch(`${API_BASE}/login`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ emailOrMobile: contact, password })
+        body: JSON.stringify({ emailOrMobile: contact, password }),
       });
       const data = await res.json();
       if (res.ok) {
@@ -142,7 +157,7 @@ export default function HomePage() {
       const res = await fetch(`${API_BASE}/reset-password`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ emailOrMobile: contact, password: newPassword })
+        body: JSON.stringify({ emailOrMobile: contact, password: newPassword }),
       });
       const data = await res.json();
       if (res.ok) {
@@ -158,9 +173,6 @@ export default function HomePage() {
   return (
     <>
       <canvas id="heartsCanvas"></canvas>
-      <audio id="bgMusic" loop autoPlay>
-        <source src="music/romantic.mp3" type="audio/mpeg" />
-      </audio>
 
       <div id="errorMessage"></div>
 
@@ -168,10 +180,12 @@ export default function HomePage() {
         <div className="left">
           <h1>Welcome to Milan ❤️</h1>
           <p>
-            “Love recognizes no barriers. It jumps hurdles, leaps fences, penetrates walls to arrive at its
-            destination full of hope.”
+            “Love recognizes no barriers. It jumps hurdles, leaps fences,
+            penetrates walls to arrive at its destination full of hope.”
           </p>
-          <p style={{ marginTop: 8, fontWeight: "bold" }}>🔞 Milan is strictly for 18+ users.</p>
+          <p style={{ marginTop: 8, fontWeight: "bold" }}>
+            🔞 Milan is strictly for 18+ users.
+          </p>
         </div>
         <div className="right">
           <div className="form-container">
@@ -182,7 +196,11 @@ export default function HomePage() {
                 <label>
                   Name <span className="star">*</span>
                 </label>
-                <input type="text" id="name" placeholder="Your name or nickname" />
+                <input
+                  type="text"
+                  id="name"
+                  placeholder="Your name or nickname"
+                />
 
                 <label>
                   Gender <span className="star">*</span>
@@ -197,17 +215,29 @@ export default function HomePage() {
                 <label>
                   Email or Mobile <span className="star">*</span>
                 </label>
-                <input type="text" id="contact" placeholder="Email or 10-digit Mobile number" />
+                <input
+                  type="text"
+                  id="contact"
+                  placeholder="Email or 10-digit Mobile number"
+                />
 
                 <label>
                   Password <span className="star">*</span>
                 </label>
-                <input type="password" id="password" placeholder="Enter password" />
+                <input
+                  type="password"
+                  id="password"
+                  placeholder="Enter password"
+                />
 
                 <label>
                   Date of Birth <span className="star">*</span>
                 </label>
-                <input type="date" id="dob" max={new Date().toISOString().split("T")[0]} />
+                <input
+                  type="date"
+                  id="dob"
+                  max={new Date().toISOString().split("T")[0]}
+                />
 
                 <label>
                   City/Country <span className="star">*</span>
@@ -231,11 +261,26 @@ export default function HomePage() {
                   <option value="Exploring">Exploring 🌎</option>
                   <option value="Other">Other</option>
                 </select>
-                <textarea id="otherReason" placeholder="If other, please describe" style={{ display: "none" }} />
+                <textarea
+                  id="otherReason"
+                  placeholder="If other, please describe"
+                  style={{ display: "none" }}
+                />
 
-                {/* Terms checkbox - inline fix */}
-                <div style={{ marginTop: "10px", fontSize: "14px", display: "flex", alignItems: "center" }}>
-                  <input type="checkbox" id="terms" style={{ marginRight: "6px" }} />
+                {/* ✅ Terms checkbox - inline fix */}
+                <div
+                  style={{
+                    marginTop: "10px",
+                    fontSize: "14px",
+                    display: "flex",
+                    alignItems: "center",
+                  }}
+                >
+                  <input
+                    type="checkbox"
+                    id="terms"
+                    style={{ marginRight: "6px" }}
+                  />
                   <label htmlFor="terms" style={{ margin: 0 }}>
                     I agree to the{" "}
                     <a href="/terms.html" target="_blank" style={{ color: "yellow" }}>
@@ -253,7 +298,14 @@ export default function HomePage() {
                 </div>
 
                 <button onClick={handleRegister}>Register & Start</button>
-                <p style={{ textAlign: "center", cursor: "pointer", color: "yellow" }} onClick={() => setShowLogin(true)}>
+                <p
+                  style={{
+                    textAlign: "center",
+                    cursor: "pointer",
+                    color: "yellow",
+                  }}
+                  onClick={() => setShowLogin(true)}
+                >
                   Already Registered? Login here
                 </p>
               </div>
@@ -263,14 +315,36 @@ export default function HomePage() {
               <div id="loginForm">
                 <h2>Login to Milan</h2>
                 <label>Email or Mobile</label>
-                <input type="text" id="loginContact" placeholder="Enter Email/Mobile" />
+                <input
+                  type="text"
+                  id="loginContact"
+                  placeholder="Enter Email/Mobile"
+                />
                 <label>Password</label>
-                <input type="password" id="loginPassword" placeholder="Enter password" />
+                <input
+                  type="password"
+                  id="loginPassword"
+                  placeholder="Enter password"
+                />
                 <button onClick={handleLogin}>Login</button>
-                <p style={{ textAlign: "center", cursor: "pointer", color: "yellow" }} onClick={() => setShowLogin(false)}>
+                <p
+                  style={{
+                    textAlign: "center",
+                    cursor: "pointer",
+                    color: "yellow",
+                  }}
+                  onClick={() => setShowLogin(false)}
+                >
                   New User? Register here
                 </p>
-                <p style={{ textAlign: "center", cursor: "pointer", color: "#ff4d4f" }} onClick={() => setShowReset(true)}>
+                <p
+                  style={{
+                    textAlign: "center",
+                    cursor: "pointer",
+                    color: "#ff4d4f",
+                  }}
+                  onClick={() => setShowReset(true)}
+                >
                   Forgot Password?
                 </p>
               </div>
@@ -280,12 +354,24 @@ export default function HomePage() {
               <div id="resetForm">
                 <h2>Reset Password</h2>
                 <label>Email or Mobile</label>
-                <input type="text" id="resetContact" placeholder="Enter your Email/Mobile" />
+                <input
+                  type="text"
+                  id="resetContact"
+                  placeholder="Enter your Email/Mobile"
+                />
                 <label>New Password</label>
-                <input type="password" id="newPassword" placeholder="Enter new password" />
+                <input
+                  type="password"
+                  id="newPassword"
+                  placeholder="Enter new password"
+                />
                 <button onClick={handleReset}>Reset Password</button>
                 <p
-                  style={{ textAlign: "center", cursor: "pointer", color: "yellow" }}
+                  style={{
+                    textAlign: "center",
+                    cursor: "pointer",
+                    color: "yellow",
+                  }}
                   onClick={() => {
                     setShowReset(false);
                     setShowLogin(true);
@@ -299,12 +385,34 @@ export default function HomePage() {
         </div>
       </div>
 
-      {/* Footer links */}
-      <footer style={{ textAlign: "center", marginTop: "20px", zIndex: "2", position: "relative", color: "white" }}>
-        <a href="/terms.html" target="_blank" style={{ color: "yellow", marginRight: "10px" }}>Terms & Conditions</a>
-        <a href="/privacy.html" target="_blank" style={{ color: "yellow", marginRight: "10px" }}>Privacy Policy</a>
-        <a href="/guidelines.html" target="_blank" style={{ color: "yellow", marginRight: "10px" }}>Community Guidelines</a>
-        <span style={{ color: "yellow", marginLeft: "10px" }}>Support@milanlove.in</span>
+      {/* ✅ Footer links clean */}
+      <footer
+        style={{
+          textAlign: "center",
+          marginTop: "20px",
+          zIndex: "2",
+          position: "relative",
+          color: "white",
+          fontSize: "14px",
+        }}
+      >
+        <div style={{ display: "inline-flex", gap: "20px" }}>
+          <a href="/terms.html" target="_blank" style={{ color: "yellow" }}>
+            Terms & Conditions
+          </a>
+          <a href="/privacy.html" target="_blank" style={{ color: "yellow" }}>
+            Privacy Policy
+          </a>
+          <a href="/guidelines.html" target="_blank" style={{ color: "yellow" }}>
+            Community Guidelines
+          </a>
+          <a
+            href="mailto:Support@milanlove.in"
+            style={{ color: "yellow", textDecoration: "none" }}
+          >
+            Support@milanlove.in
+          </a>
+        </div>
       </footer>
 
       <style jsx global>{`
