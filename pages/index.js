@@ -158,7 +158,7 @@ export default function HomePage() {
   return (
     <>
       <canvas id="heartsCanvas"></canvas>
-      <audio id="bgMusic" loop>
+      <audio id="bgMusic" loop autoPlay>
         <source src="music/romantic.mp3" type="audio/mpeg" />
       </audio>
 
@@ -241,10 +241,10 @@ export default function HomePage() {
                 </select>
                 <textarea id="otherReason" placeholder="If other, please describe" style={{ display: "none" }} />
 
-                {/* Terms checkbox - inline */}
+                {/* Terms checkbox - inline fix */}
                 <div style={{ marginTop: "10px", fontSize: "14px", display: "flex", alignItems: "center" }}>
                   <input type="checkbox" id="terms" style={{ marginRight: "6px" }} />
-                  <label htmlFor="terms">
+                  <label htmlFor="terms" style={{ lineHeight: "1.4" }}>
                     I agree to the{" "}
                     <a href="/terms.html" target="_blank" style={{ color: "yellow" }}>
                       Terms & Conditions
@@ -311,7 +311,8 @@ export default function HomePage() {
       <footer style={{ textAlign: "center", marginTop: "20px", zIndex: "2", position: "relative", color: "white" }}>
         <a href="/terms.html" target="_blank" style={{ color: "yellow", marginRight: "10px" }}>Terms & Conditions</a>
         <a href="/privacy.html" target="_blank" style={{ color: "yellow", marginRight: "10px" }}>Privacy Policy</a>
-        <a href="/guidelines.html" target="_blank" style={{ color: "yellow" }}>Community Guidelines</a>
+        <a href="/guidelines.html" target="_blank" style={{ color: "yellow", marginRight: "10px" }}>Community Guidelines</a>
+        <a href="mailto:Support@milanlove.in" style={{ color: "yellow" }}>Support</a>
       </footer>
 
       <style jsx global>{`
