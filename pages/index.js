@@ -7,6 +7,7 @@ export default function HomePage() {
   const [showReset, setShowReset] = useState(false);
 
   useEffect(() => {
+    // Hearts background
     const canvas = document.getElementById("heartsCanvas");
     const ctx = canvas.getContext("2d");
     let hearts = [];
@@ -24,38 +25,22 @@ export default function HomePage() {
         y: canvas.height + 50,
         size: Math.random() * 30 + 15,
         speed: Math.random() * 1.5 + 0.5,
-        color: ["#ff4d6d", "#ff1c68", "#ff6b81", "#e6005c"][
-          Math.floor(Math.random() * 4)
-        ],
+        color: ["#ff4d6d", "#ff1c68", "#ff6b81", "#e6005c"][Math.floor(Math.random() * 4)]
       };
     }
 
     function drawHearts() {
       ctx.clearRect(0, 0, canvas.width, canvas.height);
-      hearts.forEach((h) => {
+      hearts.forEach(h => {
         ctx.fillStyle = h.color;
         ctx.beginPath();
         ctx.moveTo(h.x, h.y);
-        ctx.bezierCurveTo(
-          h.x + h.size / 2,
-          h.y - h.size,
-          h.x + h.size * 1.5,
-          h.y + h.size / 3,
-          h.x,
-          h.y + h.size
-        );
-        ctx.bezierCurveTo(
-          h.x - h.size * 1.5,
-          h.y + h.size / 3,
-          h.x - h.size / 2,
-          h.y - h.size,
-          h.x,
-          h.y
-        );
+        ctx.bezierCurveTo(h.x + h.size / 2, h.y - h.size, h.x + h.size * 1.5, h.y + h.size / 3, h.x, h.y + h.size);
+        ctx.bezierCurveTo(h.x - h.size * 1.5, h.y + h.size / 3, h.x - h.size / 2, h.y - h.size, h.x, h.y);
         ctx.fill();
         h.y -= h.speed;
       });
-      hearts = hearts.filter((h) => h.y + h.size > 0);
+      hearts = hearts.filter(h => h.y + h.size > 0);
       if (Math.random() < 0.1) hearts.push(createHeart());
       requestAnimationFrame(drawHearts);
     }
@@ -72,6 +57,7 @@ export default function HomePage() {
     }, 4000);
   }
 
+  // Helper to calculate age from DOB
   function calculateAge(dateString) {
     const today = new Date();
     const birthDate = new Date(dateString);
@@ -112,7 +98,7 @@ export default function HomePage() {
       const res = await fetch(`${API_BASE}/register`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ emailOrMobile: contact, password, name }),
+        body: JSON.stringify({ emailOrMobile: contact, password, name })
       });
       const data = await res.json();
       if (res.ok) {
@@ -127,14 +113,13 @@ export default function HomePage() {
   async function handleLogin() {
     const contact = document.getElementById("loginContact").value.trim();
     const password = document.getElementById("loginPassword").value.trim();
-    if (!contact || !password)
-      return showError("Enter Email/Mobile and Password");
+    if (!contact || !password) return showError("Enter Email/Mobile and Password");
 
     try {
       const res = await fetch(`${API_BASE}/login`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ emailOrMobile: contact, password }),
+        body: JSON.stringify({ emailOrMobile: contact, password })
       });
       const data = await res.json();
       if (res.ok) {
@@ -157,7 +142,7 @@ export default function HomePage() {
       const res = await fetch(`${API_BASE}/reset-password`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ emailOrMobile: contact, password: newPassword }),
+        body: JSON.stringify({ emailOrMobile: contact, password: newPassword })
       });
       const data = await res.json();
       if (res.ok) {
@@ -173,6 +158,9 @@ export default function HomePage() {
   return (
     <>
       <canvas id="heartsCanvas"></canvas>
+      <audio id="bgMusic" loop>
+        <source src="music/romantic.mp3" type="audio/mpeg" />
+      </audio>
 
       <div id="errorMessage"></div>
 
@@ -180,18 +168,24 @@ export default function HomePage() {
         <div className="left">
           <h1>Welcome to Milan ❤️</h1>
           <p>
-            “Love recognizes no barriers. It jumps hurdles, leaps fences,
-            penetrates walls to arrive at its destination full of hope.”
+            “Love recognizes no barriers. It jumps hurdles, leaps fences, penetrates walls to arrive at its
+            destination full of hope.”
           </p>
-          <p style={{ marginTop: 8, fontWeight: "bold" }}>
-            🔞 Milan is strictly for 18+ users.
-          </p>
+          <p style={{ marginTop: 8, fontWeight: "bold" }}>🔞 Milan is strictly for 18+ users.</p>
         </div>
         <div className="right">
           <div className="form-container">
             {!showLogin && !showReset && (
               <div id="registerForm">
                 <h2>Create Your Account</h2>
+
+                <button
+                  id="themeToggle"
+                  type="button"
+                  onClick={() => document.body.classList.toggle("light-mode")}
+                >
+                  🌙 Switch Theme
+                </button>
 
                 <label>
                   Name <span className="star">*</span>
@@ -245,25 +239,29 @@ export default function HomePage() {
                   <option value="Exploring">Exploring 🌎</option>
                   <option value="Other">Other</option>
                 </select>
-                <textarea
-                  id="otherReason"
-                  placeholder="If other, please describe"
-                  style={{ display: "none" }}
-                />
+                <textarea id="otherReason" placeholder="If other, please describe" style={{ display: "none" }} />
 
-                {/* ✅ Terms checkbox inline */}
-                <div className="terms-container">
-                  <input type="checkbox" id="terms" />
+                {/* Terms checkbox - inline */}
+                <div style={{ marginTop: "10px", fontSize: "14px", display: "flex", alignItems: "center" }}>
+                  <input type="checkbox" id="terms" style={{ marginRight: "6px" }} />
                   <label htmlFor="terms">
                     I agree to the{" "}
-                    <a href="/terms.html" target="_blank">Terms & Conditions</a>,{" "}
-                    <a href="/privacy.html" target="_blank">Privacy Policy</a> and{" "}
-                    <a href="/guidelines.html" target="_blank">Community Guidelines</a>
+                    <a href="/terms.html" target="_blank" style={{ color: "yellow" }}>
+                      Terms & Conditions
+                    </a>
+                    ,{" "}
+                    <a href="/privacy.html" target="_blank" style={{ color: "yellow" }}>
+                      Privacy Policy
+                    </a>{" "}
+                    and{" "}
+                    <a href="/guidelines.html" target="_blank" style={{ color: "yellow" }}>
+                      Community Guidelines
+                    </a>
                   </label>
                 </div>
 
                 <button onClick={handleRegister}>Register & Start</button>
-                <p className="link-text" onClick={() => setShowLogin(true)}>
+                <p style={{ textAlign: "center", cursor: "pointer", color: "yellow" }} onClick={() => setShowLogin(true)}>
                   Already Registered? Login here
                 </p>
               </div>
@@ -277,10 +275,10 @@ export default function HomePage() {
                 <label>Password</label>
                 <input type="password" id="loginPassword" placeholder="Enter password" />
                 <button onClick={handleLogin}>Login</button>
-                <p className="link-text" onClick={() => setShowLogin(false)}>
+                <p style={{ textAlign: "center", cursor: "pointer", color: "yellow" }} onClick={() => setShowLogin(false)}>
                   New User? Register here
                 </p>
-                <p className="reset-link" onClick={() => setShowReset(true)}>
+                <p style={{ textAlign: "center", cursor: "pointer", color: "#ff4d4f" }} onClick={() => setShowReset(true)}>
                   Forgot Password?
                 </p>
               </div>
@@ -294,7 +292,13 @@ export default function HomePage() {
                 <label>New Password</label>
                 <input type="password" id="newPassword" placeholder="Enter new password" />
                 <button onClick={handleReset}>Reset Password</button>
-                <p className="link-text" onClick={() => { setShowReset(false); setShowLogin(true); }}>
+                <p
+                  style={{ textAlign: "center", cursor: "pointer", color: "yellow" }}
+                  onClick={() => {
+                    setShowReset(false);
+                    setShowLogin(true);
+                  }}
+                >
                   Back to Login
                 </p>
               </div>
@@ -303,12 +307,11 @@ export default function HomePage() {
         </div>
       </div>
 
-      {/* ✅ Footer links professional */}
-      <footer className="footer-links">
-        <a href="/terms.html" target="_blank">Terms & Conditions</a>
-        <a href="/privacy.html" target="_blank">Privacy Policy</a>
-        <a href="/guidelines.html" target="_blank">Community Guidelines</a>
-        <span>Support@milanlove.in</span>
+      {/* Footer links */}
+      <footer style={{ textAlign: "center", marginTop: "20px", zIndex: "2", position: "relative", color: "white" }}>
+        <a href="/terms.html" target="_blank" style={{ color: "yellow", marginRight: "10px" }}>Terms & Conditions</a>
+        <a href="/privacy.html" target="_blank" style={{ color: "yellow", marginRight: "10px" }}>Privacy Policy</a>
+        <a href="/guidelines.html" target="_blank" style={{ color: "yellow" }}>Community Guidelines</a>
       </footer>
 
       <style jsx global>{`
@@ -320,7 +323,15 @@ export default function HomePage() {
           --btn-text: #ec4899;
           --red-star: #ff4d4f;
         }
-        html, body {
+        .light-mode {
+          --bg-color: #f3f4f6;
+          --text-color: #1f2937;
+          --box-bg: rgba(0, 0, 0, 0.1);
+          --btn-bg: #ec4899;
+          --btn-text: #ffffff;
+        }
+        html,
+        body {
           margin: 0;
           padding: 0;
           width: 100%;
@@ -347,6 +358,20 @@ export default function HomePage() {
           height: 100%;
           padding: 10px;
         }
+        .left,
+        .right {
+          flex: 1;
+          padding: 10px;
+          box-sizing: border-box;
+        }
+        .left h1 {
+          font-size: 2.2em;
+          margin-bottom: 8px;
+        }
+        .left p {
+          font-size: 16px;
+          line-height: 1.4;
+        }
         .form-container {
           background: var(--box-bg);
           padding: 20px;
@@ -356,72 +381,72 @@ export default function HomePage() {
           margin: 0 auto;
         }
         .form-container h2 {
+          margin-top: 0;
+          color: var(--text-color);
+          font-size: 22px;
+          margin-bottom: 15px;
           text-align: center;
         }
-        input, select, textarea, button {
+        input,
+        select,
+        textarea,
+        button {
           width: 100%;
           padding: 10px;
           margin: 8px 0;
           border: none;
           border-radius: 5px;
           font-size: 14px;
+          box-sizing: border-box;
+        }
+        input,
+        textarea {
+          background: rgba(255, 255, 255, 0.3);
+          color: var(--text-color);
+        }
+        select,
+        option {
+          color: #333;
+          background: #fff;
+        }
+        ::placeholder {
+          color: #f3e8ff;
         }
         button {
           background: var(--btn-bg);
           color: var(--btn-text);
           font-weight: bold;
           cursor: pointer;
+          transition: 0.3s;
         }
         button:hover {
           background: var(--btn-text);
           color: var(--btn-bg);
         }
-        .terms-container {
-          display: flex;
-          align-items: center;
+        label {
+          display: block;
+          margin-top: 5px;
+          font-weight: bold;
           font-size: 14px;
-          margin: 10px 0;
         }
-        .terms-container input {
-          margin-right: 6px;
+        .star {
+          color: var(--red-star);
+          margin-left: 4px;
         }
-        .terms-container a {
-          color: yellow;
-          text-decoration: none;
-        }
-        .terms-container a:hover {
-          text-decoration: underline;
-        }
-        .link-text {
-          text-align: center;
-          cursor: pointer;
-          color: yellow;
-        }
-        .reset-link {
-          text-align: center;
-          cursor: pointer;
-          color: #ff4d4f;
-        }
-        .footer-links {
-          text-align: center;
-          margin-top: 20px;
-          position: relative;
-          z-index: 2;
+        #errorMessage {
+          display: none;
+          position: fixed;
+          bottom: 20px;
+          left: 50%;
+          transform: translateX(-50%);
+          background: #ff4d4f;
+          color: #fff;
+          padding: 8px 16px;
+          border-radius: 5px;
+          font-weight: bold;
+          z-index: 9999;
+          box-shadow: 0 0 10px rgba(0, 0, 0, 0.3);
           font-size: 14px;
-          display: flex;
-          justify-content: center;
-          gap: 20px;
-          color: white;
-        }
-        .footer-links a {
-          color: yellow;
-          text-decoration: none;
-        }
-        .footer-links a:hover {
-          text-decoration: underline;
-        }
-        .footer-links span {
-          color: yellow;
         }
       `}</style>
     </>
