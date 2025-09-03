@@ -179,14 +179,6 @@ export default function HomePage() {
               <div id="registerForm">
                 <h2>Create Your Account</h2>
 
-                <button
-                  id="themeToggle"
-                  type="button"
-                  onClick={() => document.body.classList.toggle("light-mode")}
-                >
-                  🌙 Switch Theme
-                </button>
-
                 <label>
                   Name <span className="star">*</span>
                 </label>
@@ -244,7 +236,7 @@ export default function HomePage() {
                 {/* Terms checkbox - inline fix */}
                 <div style={{ marginTop: "10px", fontSize: "14px", display: "flex", alignItems: "center" }}>
                   <input type="checkbox" id="terms" style={{ marginRight: "6px" }} />
-                  <label htmlFor="terms" style={{ lineHeight: "1.4" }}>
+                  <label htmlFor="terms" style={{ margin: 0 }}>
                     I agree to the{" "}
                     <a href="/terms.html" target="_blank" style={{ color: "yellow" }}>
                       Terms & Conditions
@@ -312,7 +304,7 @@ export default function HomePage() {
         <a href="/terms.html" target="_blank" style={{ color: "yellow", marginRight: "10px" }}>Terms & Conditions</a>
         <a href="/privacy.html" target="_blank" style={{ color: "yellow", marginRight: "10px" }}>Privacy Policy</a>
         <a href="/guidelines.html" target="_blank" style={{ color: "yellow", marginRight: "10px" }}>Community Guidelines</a>
-        <a href="mailto:Support@milanlove.in" style={{ color: "yellow" }}>Support</a>
+        <span style={{ color: "yellow", marginLeft: "10px" }}>Support@milanlove.in</span>
       </footer>
 
       <style jsx global>{`
