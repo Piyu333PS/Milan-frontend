@@ -196,11 +196,7 @@ export default function HomePage() {
                 <label>
                   Name <span className="star">*</span>
                 </label>
-                <input
-                  type="text"
-                  id="name"
-                  placeholder="Your name or nickname"
-                />
+                <input type="text" id="name" placeholder="Your name or nickname" />
 
                 <label>
                   Gender <span className="star">*</span>
@@ -215,29 +211,17 @@ export default function HomePage() {
                 <label>
                   Email or Mobile <span className="star">*</span>
                 </label>
-                <input
-                  type="text"
-                  id="contact"
-                  placeholder="Email or 10-digit Mobile number"
-                />
+                <input type="text" id="contact" placeholder="Email or 10-digit Mobile number" />
 
                 <label>
                   Password <span className="star">*</span>
                 </label>
-                <input
-                  type="password"
-                  id="password"
-                  placeholder="Enter password"
-                />
+                <input type="password" id="password" placeholder="Enter password" />
 
                 <label>
                   Date of Birth <span className="star">*</span>
                 </label>
-                <input
-                  type="date"
-                  id="dob"
-                  max={new Date().toISOString().split("T")[0]}
-                />
+                <input type="date" id="dob" max={new Date().toISOString().split("T")[0]} />
 
                 <label>
                   City/Country <span className="star">*</span>
@@ -267,45 +251,19 @@ export default function HomePage() {
                   style={{ display: "none" }}
                 />
 
-                {/* ✅ Terms checkbox - inline fix */}
-                <div
-                  style={{
-                    marginTop: "10px",
-                    fontSize: "14px",
-                    display: "flex",
-                    alignItems: "center",
-                  }}
-                >
-                  <input
-                    type="checkbox"
-                    id="terms"
-                    style={{ marginRight: "6px" }}
-                  />
-                  <label htmlFor="terms" style={{ margin: 0 }}>
+                {/* ✅ Terms checkbox inline */}
+                <div className="terms-container">
+                  <input type="checkbox" id="terms" />
+                  <label htmlFor="terms">
                     I agree to the{" "}
-                    <a href="/terms.html" target="_blank" style={{ color: "yellow" }}>
-                      Terms & Conditions
-                    </a>
-                    ,{" "}
-                    <a href="/privacy.html" target="_blank" style={{ color: "yellow" }}>
-                      Privacy Policy
-                    </a>{" "}
-                    and{" "}
-                    <a href="/guidelines.html" target="_blank" style={{ color: "yellow" }}>
-                      Community Guidelines
-                    </a>
+                    <a href="/terms.html" target="_blank">Terms & Conditions</a>,{" "}
+                    <a href="/privacy.html" target="_blank">Privacy Policy</a> and{" "}
+                    <a href="/guidelines.html" target="_blank">Community Guidelines</a>
                   </label>
                 </div>
 
                 <button onClick={handleRegister}>Register & Start</button>
-                <p
-                  style={{
-                    textAlign: "center",
-                    cursor: "pointer",
-                    color: "yellow",
-                  }}
-                  onClick={() => setShowLogin(true)}
-                >
+                <p className="link-text" onClick={() => setShowLogin(true)}>
                   Already Registered? Login here
                 </p>
               </div>
@@ -315,36 +273,14 @@ export default function HomePage() {
               <div id="loginForm">
                 <h2>Login to Milan</h2>
                 <label>Email or Mobile</label>
-                <input
-                  type="text"
-                  id="loginContact"
-                  placeholder="Enter Email/Mobile"
-                />
+                <input type="text" id="loginContact" placeholder="Enter Email/Mobile" />
                 <label>Password</label>
-                <input
-                  type="password"
-                  id="loginPassword"
-                  placeholder="Enter password"
-                />
+                <input type="password" id="loginPassword" placeholder="Enter password" />
                 <button onClick={handleLogin}>Login</button>
-                <p
-                  style={{
-                    textAlign: "center",
-                    cursor: "pointer",
-                    color: "yellow",
-                  }}
-                  onClick={() => setShowLogin(false)}
-                >
+                <p className="link-text" onClick={() => setShowLogin(false)}>
                   New User? Register here
                 </p>
-                <p
-                  style={{
-                    textAlign: "center",
-                    cursor: "pointer",
-                    color: "#ff4d4f",
-                  }}
-                  onClick={() => setShowReset(true)}
-                >
+                <p className="reset-link" onClick={() => setShowReset(true)}>
                   Forgot Password?
                 </p>
               </div>
@@ -354,29 +290,11 @@ export default function HomePage() {
               <div id="resetForm">
                 <h2>Reset Password</h2>
                 <label>Email or Mobile</label>
-                <input
-                  type="text"
-                  id="resetContact"
-                  placeholder="Enter your Email/Mobile"
-                />
+                <input type="text" id="resetContact" placeholder="Enter your Email/Mobile" />
                 <label>New Password</label>
-                <input
-                  type="password"
-                  id="newPassword"
-                  placeholder="Enter new password"
-                />
+                <input type="password" id="newPassword" placeholder="Enter new password" />
                 <button onClick={handleReset}>Reset Password</button>
-                <p
-                  style={{
-                    textAlign: "center",
-                    cursor: "pointer",
-                    color: "yellow",
-                  }}
-                  onClick={() => {
-                    setShowReset(false);
-                    setShowLogin(true);
-                  }}
-                >
+                <p className="link-text" onClick={() => { setShowReset(false); setShowLogin(true); }}>
                   Back to Login
                 </p>
               </div>
@@ -385,34 +303,12 @@ export default function HomePage() {
         </div>
       </div>
 
-      {/* ✅ Footer links clean */}
-      <footer
-        style={{
-          textAlign: "center",
-          marginTop: "20px",
-          zIndex: "2",
-          position: "relative",
-          color: "white",
-          fontSize: "14px",
-        }}
-      >
-        <div style={{ display: "inline-flex", gap: "20px" }}>
-          <a href="/terms.html" target="_blank" style={{ color: "yellow" }}>
-            Terms & Conditions
-          </a>
-          <a href="/privacy.html" target="_blank" style={{ color: "yellow" }}>
-            Privacy Policy
-          </a>
-          <a href="/guidelines.html" target="_blank" style={{ color: "yellow" }}>
-            Community Guidelines
-          </a>
-          <a
-            href="mailto:Support@milanlove.in"
-            style={{ color: "yellow", textDecoration: "none" }}
-          >
-            Support@milanlove.in
-          </a>
-        </div>
+      {/* ✅ Footer links professional */}
+      <footer className="footer-links">
+        <a href="/terms.html" target="_blank">Terms & Conditions</a>
+        <a href="/privacy.html" target="_blank">Privacy Policy</a>
+        <a href="/guidelines.html" target="_blank">Community Guidelines</a>
+        <span>Support@milanlove.in</span>
       </footer>
 
       <style jsx global>{`
@@ -424,15 +320,7 @@ export default function HomePage() {
           --btn-text: #ec4899;
           --red-star: #ff4d4f;
         }
-        .light-mode {
-          --bg-color: #f3f4f6;
-          --text-color: #1f2937;
-          --box-bg: rgba(0, 0, 0, 0.1);
-          --btn-bg: #ec4899;
-          --btn-text: #ffffff;
-        }
-        html,
-        body {
+        html, body {
           margin: 0;
           padding: 0;
           width: 100%;
@@ -459,20 +347,6 @@ export default function HomePage() {
           height: 100%;
           padding: 10px;
         }
-        .left,
-        .right {
-          flex: 1;
-          padding: 10px;
-          box-sizing: border-box;
-        }
-        .left h1 {
-          font-size: 2.2em;
-          margin-bottom: 8px;
-        }
-        .left p {
-          font-size: 16px;
-          line-height: 1.4;
-        }
         .form-container {
           background: var(--box-bg);
           padding: 20px;
@@ -482,72 +356,72 @@ export default function HomePage() {
           margin: 0 auto;
         }
         .form-container h2 {
-          margin-top: 0;
-          color: var(--text-color);
-          font-size: 22px;
-          margin-bottom: 15px;
           text-align: center;
         }
-        input,
-        select,
-        textarea,
-        button {
+        input, select, textarea, button {
           width: 100%;
           padding: 10px;
           margin: 8px 0;
           border: none;
           border-radius: 5px;
           font-size: 14px;
-          box-sizing: border-box;
-        }
-        input,
-        textarea {
-          background: rgba(255, 255, 255, 0.3);
-          color: var(--text-color);
-        }
-        select,
-        option {
-          color: #333;
-          background: #fff;
-        }
-        ::placeholder {
-          color: #f3e8ff;
         }
         button {
           background: var(--btn-bg);
           color: var(--btn-text);
           font-weight: bold;
           cursor: pointer;
-          transition: 0.3s;
         }
         button:hover {
           background: var(--btn-text);
           color: var(--btn-bg);
         }
-        label {
-          display: block;
-          margin-top: 5px;
-          font-weight: bold;
+        .terms-container {
+          display: flex;
+          align-items: center;
           font-size: 14px;
+          margin: 10px 0;
         }
-        .star {
-          color: var(--red-star);
-          margin-left: 4px;
+        .terms-container input {
+          margin-right: 6px;
         }
-        #errorMessage {
-          display: none;
-          position: fixed;
-          bottom: 20px;
-          left: 50%;
-          transform: translateX(-50%);
-          background: #ff4d4f;
-          color: #fff;
-          padding: 8px 16px;
-          border-radius: 5px;
-          font-weight: bold;
-          z-index: 9999;
-          box-shadow: 0 0 10px rgba(0, 0, 0, 0.3);
+        .terms-container a {
+          color: yellow;
+          text-decoration: none;
+        }
+        .terms-container a:hover {
+          text-decoration: underline;
+        }
+        .link-text {
+          text-align: center;
+          cursor: pointer;
+          color: yellow;
+        }
+        .reset-link {
+          text-align: center;
+          cursor: pointer;
+          color: #ff4d4f;
+        }
+        .footer-links {
+          text-align: center;
+          margin-top: 20px;
+          position: relative;
+          z-index: 2;
           font-size: 14px;
+          display: flex;
+          justify-content: center;
+          gap: 20px;
+          color: white;
+        }
+        .footer-links a {
+          color: yellow;
+          text-decoration: none;
+        }
+        .footer-links a:hover {
+          text-decoration: underline;
+        }
+        .footer-links span {
+          color: yellow;
         }
       `}</style>
     </>
