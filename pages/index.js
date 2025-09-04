@@ -179,7 +179,7 @@ export default function HomePage() {
       <div className="container" id="userFormContainer">
         <div className="left">
           <h1>Welcome to Milan ❤️</h1>
-          <p>
+          <p className="welcome-text">
             “Love recognizes no barriers. It jumps hurdles, leaps fences,
             penetrates walls to arrive at its destination full of hope.”
           </p>
@@ -251,7 +251,7 @@ export default function HomePage() {
                   style={{ display: "none" }}
                 />
 
-                {/* ✅ Terms checkbox inline */}
+                {/* ✅ Terms checkbox inline full-width */}
                 <div className="terms-container">
                   <input type="checkbox" id="terms" />
                   <label htmlFor="terms">
@@ -303,12 +303,16 @@ export default function HomePage() {
         </div>
       </div>
 
-      {/* ✅ Footer links professional */}
-      <footer className="footer-links">
-        <a href="/terms.html" target="_blank">Terms & Conditions</a>
-        <a href="/privacy.html" target="_blank">Privacy Policy</a>
-        <a href="/guidelines.html" target="_blank">Community Guidelines</a>
-        <span>Support@milanlove.in</span>
+      {/* ✅ Footer links + Support info */}
+      <footer className="footer-section">
+        <div className="footer-links">
+          <a href="/terms.html" target="_blank">Terms & Conditions</a>
+          <a href="/privacy.html" target="_blank">Privacy Policy</a>
+          <a href="/guidelines.html" target="_blank">Community Guidelines</a>
+        </div>
+        <p className="support-text">
+          For any support, contact us at <span>Support@milanlove.in</span>
+        </p>
       </footer>
 
       <style jsx global>{`
@@ -345,18 +349,26 @@ export default function HomePage() {
           align-items: center;
           justify-content: center;
           height: 100%;
-          padding: 10px;
+          padding: 40px 10px;
+        }
+        .left {
+          flex: 1;
+          padding-right: 40px;
+        }
+        .welcome-text {
+          margin-bottom: 20px;
         }
         .form-container {
           background: var(--box-bg);
-          padding: 20px;
-          border-radius: 10px;
+          padding: 30px;
+          border-radius: 12px;
           backdrop-filter: blur(8px);
           max-width: 400px;
-          margin: 0 auto;
+          margin: auto;
         }
         .form-container h2 {
           text-align: center;
+          margin-bottom: 20px;
         }
         input, select, textarea, button {
           width: 100%;
@@ -380,10 +392,10 @@ export default function HomePage() {
           display: flex;
           align-items: center;
           font-size: 14px;
-          margin: 10px 0;
+          margin: 15px 0;
         }
         .terms-container input {
-          margin-right: 6px;
+          margin-right: 8px;
         }
         .terms-container a {
           color: yellow;
@@ -402,16 +414,17 @@ export default function HomePage() {
           cursor: pointer;
           color: #ff4d4f;
         }
-        .footer-links {
+        .footer-section {
           text-align: center;
-          margin-top: 20px;
+          margin-top: 30px;
           position: relative;
           z-index: 2;
-          font-size: 14px;
+        }
+        .footer-links {
           display: flex;
           justify-content: center;
-          gap: 20px;
-          color: white;
+          gap: 30px;
+          margin-bottom: 10px;
         }
         .footer-links a {
           color: yellow;
@@ -420,8 +433,13 @@ export default function HomePage() {
         .footer-links a:hover {
           text-decoration: underline;
         }
-        .footer-links span {
+        .support-text {
+          font-size: 14px;
+          color: #ddd;
+        }
+        .support-text span {
           color: yellow;
+          font-weight: bold;
         }
       `}</style>
     </>
