@@ -178,9 +178,7 @@ export default function HomePage() {
 
       <div className="container" id="userFormContainer">
         <div className="left">
-          {/* ✅ Logo added above heading */}
           <img src="/logo.png" alt="Milan Logo" className="milan-logo" />
-
           <h1>Welcome to Milan ❤️</h1>
           <p className="welcome-text">
             “Love recognizes no barriers. It jumps hurdles, leaps fences,
@@ -387,22 +385,28 @@ export default function HomePage() {
           position: relative;
           z-index: 1;
           display: flex;
-          align-items: center;
+          align-items: flex-start;
           justify-content: center;
           height: 100%;
-          padding: 40px 10px;
+          padding: 40px 50px;
+          gap: 50px;
         }
         .left {
           flex: 1;
-          padding-right: 40px;
           text-align: center;
+          margin-top: 40px;
         }
         .milan-logo {
-          width: 150px;
-          margin-bottom: 15px;
+          width: 220px;
+          margin-bottom: 20px;
         }
         .welcome-text {
           margin-bottom: 20px;
+        }
+        .right {
+          flex: 1;
+          max-width: 420px;
+          margin-right: 40px;
         }
         .form-container {
           background: var(--box-bg);
