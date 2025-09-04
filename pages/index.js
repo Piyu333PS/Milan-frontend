@@ -173,7 +173,6 @@ export default function HomePage() {
   return (
     <>
       <canvas id="heartsCanvas"></canvas>
-
       <div id="errorMessage"></div>
 
       <div className="container" id="userFormContainer">
@@ -183,24 +182,21 @@ export default function HomePage() {
             “Love recognizes no barriers. It jumps hurdles, leaps fences,
             penetrates walls to arrive at its destination full of hope.”
           </p>
-          <p style={{ marginTop: 8, fontWeight: "bold" }}>
+          <p style={{ marginTop: 12, fontWeight: "bold", fontSize: "18px" }}>
             🔞 Milan is strictly for 18+ users.
           </p>
         </div>
+
         <div className="right">
           <div className="form-container">
             {!showLogin && !showReset && (
               <div id="registerForm">
                 <h2>Create Your Account</h2>
 
-                <label>
-                  Name <span className="star">*</span>
-                </label>
+                <label>Name *</label>
                 <input type="text" id="name" placeholder="Your name or nickname" />
 
-                <label>
-                  Gender <span className="star">*</span>
-                </label>
+                <label>Gender *</label>
                 <select id="gender">
                   <option value="">Select Gender</option>
                   <option value="Male">Male</option>
@@ -208,36 +204,20 @@ export default function HomePage() {
                   <option value="Other">Other</option>
                 </select>
 
-                <label>
-                  Email or Mobile <span className="star">*</span>
-                </label>
+                <label>Email or Mobile *</label>
                 <input type="text" id="contact" placeholder="Email or 10-digit Mobile number" />
 
-                <label>
-                  Password <span className="star">*</span>
-                </label>
+                <label>Password *</label>
                 <input type="password" id="password" placeholder="Enter password" />
 
-                <label>
-                  Date of Birth <span className="star">*</span>
-                </label>
+                <label>Date of Birth *</label>
                 <input type="date" id="dob" max={new Date().toISOString().split("T")[0]} />
 
-                <label>
-                  City/Country <span className="star">*</span>
-                </label>
+                <label>City/Country *</label>
                 <input type="text" id="city" placeholder="City / Country" />
 
-                <label>
-                  Reason for Joining <span className="star">*</span>
-                </label>
-                <select
-                  id="reason"
-                  onChange={(e) =>
-                    (document.getElementById("otherReason").style.display =
-                      e.target.value === "Other" ? "block" : "none")
-                  }
-                >
+                <label>Reason for Joining *</label>
+                <select id="reason">
                   <option value="">Select reason</option>
                   <option value="Looking for Love">Looking for Love ❤️</option>
                   <option value="Friendship">Friendship 🤗</option>
@@ -245,13 +225,8 @@ export default function HomePage() {
                   <option value="Exploring">Exploring 🌎</option>
                   <option value="Other">Other</option>
                 </select>
-                <textarea
-                  id="otherReason"
-                  placeholder="If other, please describe"
-                  style={{ display: "none" }}
-                />
 
-                {/* ✅ Terms checkbox inline full-width */}
+                {/* ✅ Checkbox + Text inline fix */}
                 <div className="terms-container">
                   <input type="checkbox" id="terms" />
                   <label htmlFor="terms">
@@ -268,42 +243,11 @@ export default function HomePage() {
                 </p>
               </div>
             )}
-
-            {showLogin && !showReset && (
-              <div id="loginForm">
-                <h2>Login to Milan</h2>
-                <label>Email or Mobile</label>
-                <input type="text" id="loginContact" placeholder="Enter Email/Mobile" />
-                <label>Password</label>
-                <input type="password" id="loginPassword" placeholder="Enter password" />
-                <button onClick={handleLogin}>Login</button>
-                <p className="link-text" onClick={() => setShowLogin(false)}>
-                  New User? Register here
-                </p>
-                <p className="reset-link" onClick={() => setShowReset(true)}>
-                  Forgot Password?
-                </p>
-              </div>
-            )}
-
-            {showReset && (
-              <div id="resetForm">
-                <h2>Reset Password</h2>
-                <label>Email or Mobile</label>
-                <input type="text" id="resetContact" placeholder="Enter your Email/Mobile" />
-                <label>New Password</label>
-                <input type="password" id="newPassword" placeholder="Enter new password" />
-                <button onClick={handleReset}>Reset Password</button>
-                <p className="link-text" onClick={() => { setShowReset(false); setShowLogin(true); }}>
-                  Back to Login
-                </p>
-              </div>
-            )}
           </div>
         </div>
       </div>
 
-      {/* ✅ Footer links + Support info */}
+      {/* ✅ Footer always visible */}
       <footer className="footer-section">
         <div className="footer-links">
           <a href="/terms.html" target="_blank">Terms & Conditions</a>
@@ -319,119 +263,114 @@ export default function HomePage() {
         :root {
           --bg-color: #1f2937;
           --text-color: #ffffff;
-          --box-bg: rgba(255, 255, 255, 0.2);
-          --btn-bg: #ffffff;
-          --btn-text: #ec4899;
-          --red-star: #ff4d4f;
         }
         html, body {
           margin: 0;
           padding: 0;
           width: 100%;
           height: 100%;
-          overflow: hidden;
           font-family: "Segoe UI", sans-serif;
           background: var(--bg-color);
           color: var(--text-color);
         }
         #heartsCanvas {
           position: fixed;
-          top: 0;
-          left: 0;
-          width: 100%;
-          height: 100%;
+          top: 0; left: 0;
+          width: 100%; height: 100%;
           z-index: 0;
         }
         .container {
           position: relative;
           z-index: 1;
           display: flex;
-          align-items: center;
+          align-items: flex-start;
           justify-content: center;
-          height: 100%;
-          padding: 40px 10px;
+          gap: 40px;
+          padding: 40px 20px;
+          flex-wrap: wrap;
         }
         .left {
           flex: 1;
-          padding-right: 40px;
+          min-width: 250px;
+        }
+        .left h1 {
+          font-size: 28px;
+          margin-bottom: 10px;
         }
         .welcome-text {
+          font-size: 18px;
           margin-bottom: 20px;
         }
+        .right {
+          flex: 1;
+          min-width: 320px;
+          max-width: 420px;
+        }
         .form-container {
-          background: var(--box-bg);
-          padding: 30px;
-          border-radius: 12px;
-          backdrop-filter: blur(8px);
-          max-width: 400px;
-          margin: auto;
+          background: rgba(255,255,255,0.1);
+          padding: 25px;
+          border-radius: 10px;
         }
         .form-container h2 {
           text-align: center;
           margin-bottom: 20px;
+          font-size: 22px;
         }
-        input, select, textarea, button {
+        label {
+          font-size: 15px;
+          font-weight: bold;
+          margin-top: 10px;
+          display: block;
+        }
+        input, select, button {
           width: 100%;
           padding: 10px;
-          margin: 8px 0;
+          margin-top: 6px;
+          margin-bottom: 12px;
           border: none;
           border-radius: 5px;
-          font-size: 14px;
+          font-size: 15px;
         }
         button {
-          background: var(--btn-bg);
-          color: var(--btn-text);
+          background: #fff;
+          color: #ec4899;
           font-weight: bold;
           cursor: pointer;
         }
         button:hover {
-          background: var(--btn-text);
-          color: var(--btn-bg);
+          background: #ec4899;
+          color: #fff;
         }
         .terms-container {
           display: flex;
           align-items: center;
           font-size: 14px;
-          margin: 15px 0;
-        }
-        .terms-container input {
-          margin-right: 8px;
+          gap: 8px;
+          white-space: nowrap;
+          overflow: hidden;
+          text-overflow: ellipsis;
         }
         .terms-container a {
           color: yellow;
-          text-decoration: none;
-        }
-        .terms-container a:hover {
-          text-decoration: underline;
-        }
-        .link-text {
-          text-align: center;
-          cursor: pointer;
-          color: yellow;
-        }
-        .reset-link {
-          text-align: center;
-          cursor: pointer;
-          color: #ff4d4f;
         }
         .footer-section {
+          position: fixed;
+          bottom: 10px;
+          left: 0;
+          width: 100%;
           text-align: center;
-          margin-top: 30px;
-          position: relative;
-          z-index: 2;
+          z-index: 5;
         }
         .footer-links {
           display: flex;
           justify-content: center;
-          gap: 30px;
-          margin-bottom: 10px;
+          gap: 25px;
+          margin-bottom: 6px;
         }
         .footer-links a {
           color: yellow;
           text-decoration: none;
-        }
-        .footer-links a:hover {
-          text-decoration: underline;
+          font-size: 15px;
         }
         .support-text {
           font-size: 14px;
@@ -440,6 +379,16 @@ export default function HomePage() {
         .support-text span {
           color: yellow;
           font-weight: bold;
+        }
+        @media(max-width: 600px) {
+          .container {
+            flex-direction: column;
+            align-items: center;
+          }
+          .left, .right {
+            text-align: center;
+            padding: 0;
+          }
         }
       `}</style>
     </>
