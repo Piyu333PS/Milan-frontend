@@ -311,7 +311,8 @@ export default function HomePage() {
           <a href="/guidelines.html" target="_blank">Community Guidelines</a>
         </div>
         <p className="support-text">
-          For any support, contact us at <span>Support@milanlove.in</span>
+          For any support, contact us at{" "}
+          <a href="mailto:Support@milanlove.in">Support@milanlove.in</a>
         </p>
       </footer>
 
@@ -437,9 +438,13 @@ export default function HomePage() {
           font-size: 14px;
           color: #ddd;
         }
-        .support-text span {
+        .support-text a {
           color: yellow;
           font-weight: bold;
+          text-decoration: none;
+        }
+        .support-text a:hover {
+          text-decoration: underline;
         }
       `}</style>
     </>
