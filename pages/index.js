@@ -178,6 +178,9 @@ export default function HomePage() {
 
       <div className="container" id="userFormContainer">
         <div className="left">
+          {/* ✅ Logo added above heading */}
+          <img src="/logo.png" alt="Milan Logo" className="milan-logo" />
+
           <h1>Welcome to Milan ❤️</h1>
           <p className="welcome-text">
             “Love recognizes no barriers. It jumps hurdles, leaps fences,
@@ -192,12 +195,10 @@ export default function HomePage() {
             {!showLogin && !showReset && (
               <div id="registerForm">
                 <h2>Create Your Account</h2>
-
                 <label>
                   Name <span className="star">*</span>
                 </label>
                 <input type="text" id="name" placeholder="Your name or nickname" />
-
                 <label>
                   Gender <span className="star">*</span>
                 </label>
@@ -207,27 +208,30 @@ export default function HomePage() {
                   <option value="Female">Female</option>
                   <option value="Other">Other</option>
                 </select>
-
                 <label>
                   Email or Mobile <span className="star">*</span>
                 </label>
-                <input type="text" id="contact" placeholder="Email or 10-digit Mobile number" />
-
+                <input
+                  type="text"
+                  id="contact"
+                  placeholder="Email or 10-digit Mobile number"
+                />
                 <label>
                   Password <span className="star">*</span>
                 </label>
                 <input type="password" id="password" placeholder="Enter password" />
-
                 <label>
                   Date of Birth <span className="star">*</span>
                 </label>
-                <input type="date" id="dob" max={new Date().toISOString().split("T")[0]} />
-
+                <input
+                  type="date"
+                  id="dob"
+                  max={new Date().toISOString().split("T")[0]}
+                />
                 <label>
                   City/Country <span className="star">*</span>
                 </label>
                 <input type="text" id="city" placeholder="City / Country" />
-
                 <label>
                   Reason for Joining <span className="star">*</span>
                 </label>
@@ -250,18 +254,23 @@ export default function HomePage() {
                   placeholder="If other, please describe"
                   style={{ display: "none" }}
                 />
-
-                {/* ✅ Terms checkbox inline full-width */}
                 <div className="terms-container">
                   <input type="checkbox" id="terms" />
                   <label htmlFor="terms">
                     I agree to the{" "}
-                    <a href="/terms.html" target="_blank">Terms & Conditions</a>,{" "}
-                    <a href="/privacy.html" target="_blank">Privacy Policy</a> and{" "}
-                    <a href="/guidelines.html" target="_blank">Community Guidelines</a>
+                    <a href="/terms.html" target="_blank">
+                      Terms & Conditions
+                    </a>
+                    ,{" "}
+                    <a href="/privacy.html" target="_blank">
+                      Privacy Policy
+                    </a>{" "}
+                    and{" "}
+                    <a href="/guidelines.html" target="_blank">
+                      Community Guidelines
+                    </a>
                   </label>
                 </div>
-
                 <button onClick={handleRegister}>Register & Start</button>
                 <p className="link-text" onClick={() => setShowLogin(true)}>
                   Already Registered? Login here
@@ -273,9 +282,17 @@ export default function HomePage() {
               <div id="loginForm">
                 <h2>Login to Milan</h2>
                 <label>Email or Mobile</label>
-                <input type="text" id="loginContact" placeholder="Enter Email/Mobile" />
+                <input
+                  type="text"
+                  id="loginContact"
+                  placeholder="Enter Email/Mobile"
+                />
                 <label>Password</label>
-                <input type="password" id="loginPassword" placeholder="Enter password" />
+                <input
+                  type="password"
+                  id="loginPassword"
+                  placeholder="Enter password"
+                />
                 <button onClick={handleLogin}>Login</button>
                 <p className="link-text" onClick={() => setShowLogin(false)}>
                   New User? Register here
@@ -290,11 +307,25 @@ export default function HomePage() {
               <div id="resetForm">
                 <h2>Reset Password</h2>
                 <label>Email or Mobile</label>
-                <input type="text" id="resetContact" placeholder="Enter your Email/Mobile" />
+                <input
+                  type="text"
+                  id="resetContact"
+                  placeholder="Enter your Email/Mobile"
+                />
                 <label>New Password</label>
-                <input type="password" id="newPassword" placeholder="Enter new password" />
+                <input
+                  type="password"
+                  id="newPassword"
+                  placeholder="Enter new password"
+                />
                 <button onClick={handleReset}>Reset Password</button>
-                <p className="link-text" onClick={() => { setShowReset(false); setShowLogin(true); }}>
+                <p
+                  className="link-text"
+                  onClick={() => {
+                    setShowReset(false);
+                    setShowLogin(true);
+                  }}
+                >
                   Back to Login
                 </p>
               </div>
@@ -303,12 +334,17 @@ export default function HomePage() {
         </div>
       </div>
 
-      {/* ✅ Footer links + Support info */}
       <footer className="footer-section">
         <div className="footer-links">
-          <a href="/terms.html" target="_blank">Terms & Conditions</a>
-          <a href="/privacy.html" target="_blank">Privacy Policy</a>
-          <a href="/guidelines.html" target="_blank">Community Guidelines</a>
+          <a href="/terms.html" target="_blank">
+            Terms & Conditions
+          </a>
+          <a href="/privacy.html" target="_blank">
+            Privacy Policy
+          </a>
+          <a href="/guidelines.html" target="_blank">
+            Community Guidelines
+          </a>
         </div>
         <p className="support-text">
           For any support, contact us at{" "}
@@ -328,7 +364,8 @@ export default function HomePage() {
           --btn-text: #ec4899;
           --red-star: #ff4d4f;
         }
-        html, body {
+        html,
+        body {
           margin: 0;
           padding: 0;
           width: 100%;
@@ -358,6 +395,11 @@ export default function HomePage() {
         .left {
           flex: 1;
           padding-right: 40px;
+          text-align: center;
+        }
+        .milan-logo {
+          width: 150px;
+          margin-bottom: 15px;
         }
         .welcome-text {
           margin-bottom: 20px;
@@ -374,7 +416,10 @@ export default function HomePage() {
           text-align: center;
           margin-bottom: 20px;
         }
-        input, select, textarea, button {
+        input,
+        select,
+        textarea,
+        button {
           width: 100%;
           padding: 10px;
           margin: 8px 0;
