@@ -183,7 +183,7 @@ export default function HomePage() {
             “Love recognizes no barriers. It jumps hurdles, leaps fences,
             penetrates walls to arrive at its destination full of hope.”
           </p>
-          <p style={{ marginTop: 8, fontWeight: "bold" }}>
+          <p style={{ marginTop: 8, fontWeight: "bold", fontSize: "18px" }}>
             🔞 Milan is strictly for 18+ users.
           </p>
         </div>
@@ -193,14 +193,10 @@ export default function HomePage() {
               <div id="registerForm">
                 <h2>Create Your Account</h2>
 
-                <label>
-                  Name <span className="star">*</span>
-                </label>
+                <label>Name *</label>
                 <input type="text" id="name" placeholder="Your name or nickname" />
 
-                <label>
-                  Gender <span className="star">*</span>
-                </label>
+                <label>Gender *</label>
                 <select id="gender">
                   <option value="">Select Gender</option>
                   <option value="Male">Male</option>
@@ -208,36 +204,20 @@ export default function HomePage() {
                   <option value="Other">Other</option>
                 </select>
 
-                <label>
-                  Email or Mobile <span className="star">*</span>
-                </label>
+                <label>Email or Mobile *</label>
                 <input type="text" id="contact" placeholder="Email or 10-digit Mobile number" />
 
-                <label>
-                  Password <span className="star">*</span>
-                </label>
+                <label>Password *</label>
                 <input type="password" id="password" placeholder="Enter password" />
 
-                <label>
-                  Date of Birth <span className="star">*</span>
-                </label>
+                <label>Date of Birth *</label>
                 <input type="date" id="dob" max={new Date().toISOString().split("T")[0]} />
 
-                <label>
-                  City/Country <span className="star">*</span>
-                </label>
+                <label>City/Country *</label>
                 <input type="text" id="city" placeholder="City / Country" />
 
-                <label>
-                  Reason for Joining <span className="star">*</span>
-                </label>
-                <select
-                  id="reason"
-                  onChange={(e) =>
-                    (document.getElementById("otherReason").style.display =
-                      e.target.value === "Other" ? "block" : "none")
-                  }
-                >
+                <label>Reason for Joining *</label>
+                <select id="reason">
                   <option value="">Select reason</option>
                   <option value="Looking for Love">Looking for Love ❤️</option>
                   <option value="Friendship">Friendship 🤗</option>
@@ -245,13 +225,8 @@ export default function HomePage() {
                   <option value="Exploring">Exploring 🌎</option>
                   <option value="Other">Other</option>
                 </select>
-                <textarea
-                  id="otherReason"
-                  placeholder="If other, please describe"
-                  style={{ display: "none" }}
-                />
 
-                {/* ✅ Terms checkbox inline full-width */}
+                {/* ✅ Terms checkbox inline fix */}
                 <div className="terms-container">
                   <input type="checkbox" id="terms" />
                   <label htmlFor="terms">
@@ -311,7 +286,8 @@ export default function HomePage() {
           <a href="/guidelines.html" target="_blank">Community Guidelines</a>
         </div>
         <p className="support-text">
-          For any support, contact us at <span>Support@milanlove.in</span>
+          For any support, contact us at{" "}
+          <a href="mailto:Support@milanlove.in">Support@milanlove.in</a>
         </p>
       </footer>
 
@@ -329,54 +305,68 @@ export default function HomePage() {
           padding: 0;
           width: 100%;
           height: 100%;
-          overflow: hidden;
           font-family: "Segoe UI", sans-serif;
           background: var(--bg-color);
           color: var(--text-color);
         }
         #heartsCanvas {
           position: fixed;
-          top: 0;
-          left: 0;
-          width: 100%;
-          height: 100%;
+          top: 0; left: 0;
+          width: 100%; height: 100%;
           z-index: 0;
         }
         .container {
           position: relative;
           z-index: 1;
           display: flex;
-          align-items: center;
+          align-items: flex-start;
           justify-content: center;
-          height: 100%;
-          padding: 40px 10px;
+          gap: 40px;
+          padding: 40px 20px;
+          flex-wrap: wrap;
         }
         .left {
           flex: 1;
-          padding-right: 40px;
+          min-width: 250px;
+        }
+        .left h1 {
+          font-size: 28px;
+          margin-bottom: 10px;
         }
         .welcome-text {
+          font-size: 18px;
           margin-bottom: 20px;
+        }
+        .right {
+          flex: 1;
+          min-width: 320px;
+          max-width: 420px;
         }
         .form-container {
           background: var(--box-bg);
           padding: 30px;
           border-radius: 12px;
           backdrop-filter: blur(8px);
-          max-width: 400px;
-          margin: auto;
         }
         .form-container h2 {
           text-align: center;
           margin-bottom: 20px;
+          font-size: 22px;
+        }
+        label {
+          font-size: 15px;
+          font-weight: bold;
+          margin-top: 10px;
+          display: block;
         }
         input, select, textarea, button {
           width: 100%;
           padding: 10px;
-          margin: 8px 0;
+          margin-top: 6px;
+          margin-bottom: 12px;
           border: none;
           border-radius: 5px;
-          font-size: 14px;
+          font-size: 15px;
         }
         button {
           background: var(--btn-bg);
@@ -393,9 +383,10 @@ export default function HomePage() {
           align-items: center;
           font-size: 14px;
           margin: 15px 0;
+          gap: 8px;
         }
         .terms-container input {
-          margin-right: 8px;
+          margin-top: 0;
         }
         .terms-container a {
           color: yellow;
@@ -437,9 +428,24 @@ export default function HomePage() {
           font-size: 14px;
           color: #ddd;
         }
-        .support-text span {
+        .support-text a {
           color: yellow;
           font-weight: bold;
+          text-decoration: none;
+        }
+        .support-text a:hover {
+          text-decoration: underline;
+        }
+        @media(max-width: 600px) {
+          .container {
+            flex-direction: column;
+            align-items: center;
+            padding: 20px;
+          }
+          .left, .right {
+            text-align: center;
+            padding: 0;
+          }
         }
       `}</style>
     </>
