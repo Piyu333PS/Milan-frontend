@@ -124,130 +124,80 @@ export default function HomePage() {
     }
   }
 
-  async function handleLogin() {
-    const contact = document.getElementById("loginContact").value.trim();
-    const password = document.getElementById("loginPassword").value.trim();
-    if (!contact || !password)
-      return showError("Enter Email/Mobile and Password");
-
-    try {
-      const res = await fetch(`${API_BASE}/login`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ emailOrMobile: contact, password }),
-      });
-      const data = await res.json();
-      if (res.ok) {
-        localStorage.setItem("token", data.token);
-        window.location.href = "/connect";
-      } else {
-        showError(data.error || "Login failed");
-      }
-    } catch {
-      showError("Server error");
-    }
-  }
-
-  async function handleReset() {
-    const contact = document.getElementById("resetContact").value.trim();
-    const newPassword = document.getElementById("newPassword").value.trim();
-    if (!contact || !newPassword) return showError("Fill all fields");
-
-    try {
-      const res = await fetch(`${API_BASE}/reset-password`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ emailOrMobile: contact, password: newPassword }),
-      });
-      const data = await res.json();
-      if (res.ok) {
-        alert("Password reset successful, please login again.");
-        setShowReset(false);
-        setShowLogin(true);
-      } else showError(data.error || "Reset failed");
-    } catch {
-      showError("Server error");
-    }
-  }
-
   return (
     <>
       <canvas id="heartsCanvas"></canvas>
       <div id="errorMessage"></div>
 
       <div className="container" id="userFormContainer">
+        {/* Left Side */}
         <div className="left">
           <h1>Welcome to Milan ❤️</h1>
           <p className="welcome-text">
             “Love recognizes no barriers. It jumps hurdles, leaps fences,
             penetrates walls to arrive at its destination full of hope.”
           </p>
-          <p style={{ marginTop: 12, fontWeight: "bold", fontSize: "18px" }}>
-            🔞 Milan is strictly for 18+ users.
-          </p>
+          <p className="age-warning">🔞 Milan is strictly for 18+ users.</p>
         </div>
 
+        {/* Right Side */}
         <div className="right">
           <div className="form-container">
-            {!showLogin && !showReset && (
-              <div id="registerForm">
-                <h2>Create Your Account</h2>
+            <h2>Create Your Account</h2>
 
-                <label>Name *</label>
-                <input type="text" id="name" placeholder="Your name or nickname" />
+            <label>Name *</label>
+            <input type="text" id="name" placeholder="Your name or nickname" />
 
-                <label>Gender *</label>
-                <select id="gender">
-                  <option value="">Select Gender</option>
-                  <option value="Male">Male</option>
-                  <option value="Female">Female</option>
-                  <option value="Other">Other</option>
-                </select>
+            <label>Gender *</label>
+            <select id="gender">
+              <option value="">Select Gender</option>
+              <option value="Male">Male</option>
+              <option value="Female">Female</option>
+              <option value="Other">Other</option>
+            </select>
 
-                <label>Email or Mobile *</label>
-                <input type="text" id="contact" placeholder="Email or 10-digit Mobile number" />
+            <label>Email or Mobile *</label>
+            <input type="text" id="contact" placeholder="Email or 10-digit Mobile number" />
 
-                <label>Password *</label>
-                <input type="password" id="password" placeholder="Enter password" />
+            <label>Password *</label>
+            <input type="password" id="password" placeholder="Enter password" />
 
-                <label>Date of Birth *</label>
-                <input type="date" id="dob" max={new Date().toISOString().split("T")[0]} />
+            <label>Date of Birth *</label>
+            <input type="date" id="dob" max={new Date().toISOString().split("T")[0]} />
 
-                <label>City/Country *</label>
-                <input type="text" id="city" placeholder="City / Country" />
+            <label>City/Country *</label>
+            <input type="text" id="city" placeholder="City / Country" />
 
-                <label>Reason for Joining *</label>
-                <select id="reason">
-                  <option value="">Select reason</option>
-                  <option value="Looking for Love">Looking for Love ❤️</option>
-                  <option value="Friendship">Friendship 🤗</option>
-                  <option value="Casual Chat">Casual Chat 🎈</option>
-                  <option value="Exploring">Exploring 🌎</option>
-                  <option value="Other">Other</option>
-                </select>
+            <label>Reason for Joining *</label>
+            <select id="reason">
+              <option value="">Select reason</option>
+              <option value="Looking for Love">Looking for Love ❤️</option>
+              <option value="Friendship">Friendship 🤗</option>
+              <option value="Casual Chat">Casual Chat 🎈</option>
+              <option value="Exploring">Exploring 🌎</option>
+              <option value="Other">Other</option>
+            </select>
 
-                {/* ✅ Checkbox + Text inline fix */}
-                <div className="terms-container">
-                  <input type="checkbox" id="terms" />
-                  <label htmlFor="terms">
-                    I agree to the{" "}
-                    <a href="/terms.html" target="_blank">Terms & Conditions</a>,{" "}
-                    <a href="/privacy.html" target="_blank">Privacy Policy</a> and{" "}
-                    <a href="/guidelines.html" target="_blank">Community Guidelines</a>
-                  </label>
-                </div>
+            {/* ✅ Checkbox + Text inline fix */}
+            <div className="terms-container">
+              <input type="checkbox" id="terms" />
+              <label htmlFor="terms">
+                I agree to the{" "}
+                <a href="/terms.html" target="_blank">Terms & Conditions</a>,{" "}
+                <a href="/privacy.html" target="_blank">Privacy Policy</a> and{" "}
+                <a href="/guidelines.html" target="_blank">Community Guidelines</a>
+              </label>
+            </div>
 
-                <button onClick={handleRegister}>Register & Start</button>
-                <p className="link-text" onClick={() => setShowLogin(true)}>
-                  Already Registered? Login here
-                </p>
-              </div>
-            )}
+            <button onClick={handleRegister}>Register & Start</button>
+            <p className="link-text" onClick={() => setShowLogin(true)}>
+              Already Registered? Login here
+            </p>
           </div>
         </div>
       </div>
 
-      {/* ✅ Footer always visible */}
+      {/* ✅ Footer */}
       <footer className="footer-section">
         <div className="footer-links">
           <a href="/terms.html" target="_blank">Terms & Conditions</a>
@@ -259,6 +209,7 @@ export default function HomePage() {
         </p>
       </footer>
 
+      {/* ✅ Styles */}
       <style jsx global>{`
         :root {
           --bg-color: #1f2937;
@@ -283,33 +234,42 @@ export default function HomePage() {
           position: relative;
           z-index: 1;
           display: flex;
-          align-items: flex-start;
-          justify-content: center;
-          gap: 40px;
-          padding: 40px 20px;
+          align-items: center;
+          justify-content: space-between;
+          padding: 60px 10%;
           flex-wrap: wrap;
+          min-height: calc(100vh - 80px);
+          gap: 40px;
         }
         .left {
           flex: 1;
-          min-width: 250px;
+          min-width: 280px;
         }
         .left h1 {
-          font-size: 28px;
-          margin-bottom: 10px;
+          font-size: 32px;
+          margin-bottom: 12px;
         }
         .welcome-text {
           font-size: 18px;
           margin-bottom: 20px;
         }
+        .age-warning {
+          font-size: 18px;
+          font-weight: bold;
+          margin-top: 12px;
+        }
         .right {
           flex: 1;
           min-width: 320px;
           max-width: 420px;
+          display: flex;
+          justify-content: center;
         }
         .form-container {
           background: rgba(255,255,255,0.1);
-          padding: 25px;
-          border-radius: 10px;
+          padding: 30px;
+          border-radius: 12px;
+          width: 100%;
         }
         .form-container h2 {
           text-align: center;
@@ -344,14 +304,18 @@ export default function HomePage() {
         .terms-container {
           display: flex;
           align-items: center;
+          gap: 10px;
           font-size: 14px;
-          gap: 8px;
-          white-space: nowrap;
-          overflow: hidden;
-          text-overflow: ellipsis;
+          margin: 15px 0;
         }
         .terms-container a {
           color: yellow;
+        }
+        .link-text {
+          text-align: center;
+          cursor: pointer;
+          color: yellow;
+          margin-top: 10px;
         }
         .footer-section {
           position: fixed;
@@ -366,6 +330,7 @@ export default function HomePage() {
           justify-content: center;
           gap: 25px;
           margin-bottom: 6px;
+          flex-wrap: wrap;
         }
         .footer-links a {
           color: yellow;
@@ -380,14 +345,14 @@ export default function HomePage() {
           color: yellow;
           font-weight: bold;
         }
-        @media(max-width: 600px) {
+        @media(max-width: 768px) {
           .container {
             flex-direction: column;
             align-items: center;
+            padding: 30px 20px;
           }
           .left, .right {
             text-align: center;
-            padding: 0;
           }
         }
       `}</style>
