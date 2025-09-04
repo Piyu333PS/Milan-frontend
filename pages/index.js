@@ -386,27 +386,31 @@ export default function HomePage() {
           z-index: 1;
           display: flex;
           align-items: flex-start;
-          justify-content: center;
+          justify-content: space-between;
           height: 100%;
-          padding: 40px 50px;
-          gap: 50px;
+          padding: 60px 80px;
+          gap: 60px;
         }
         .left {
           flex: 1;
           text-align: center;
+          display: flex;
+          flex-direction: column;
+          align-items: center;
+          justify-content: flex-start;
           margin-top: 40px;
         }
         .milan-logo {
-          width: 220px;
-          margin-bottom: 20px;
+          width: 260px;
+          margin-bottom: 25px;
+          display: block;
         }
         .welcome-text {
           margin-bottom: 20px;
         }
         .right {
-          flex: 1;
-          max-width: 420px;
-          margin-right: 40px;
+          flex: 0 0 400px;
+          margin-right: 80px;
         }
         .form-container {
           background: var(--box-bg);
