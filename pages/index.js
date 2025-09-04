@@ -314,6 +314,9 @@ export default function HomePage() {
           For any support, contact us at{" "}
           <a href="mailto:Support@milanlove.in">Support@milanlove.in</a>
         </p>
+        <p className="copyright">
+          © {new Date().getFullYear()} Milan. All rights reserved.
+        </p>
       </footer>
 
       <style jsx global>{`
@@ -445,6 +448,11 @@ export default function HomePage() {
         }
         .support-text a:hover {
           text-decoration: underline;
+        }
+        .copyright {
+          font-size: 13px;
+          color: #aaa;
+          margin-top: 5px;
         }
       `}</style>
     </>
