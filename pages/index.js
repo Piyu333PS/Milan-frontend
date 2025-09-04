@@ -124,80 +124,186 @@ export default function HomePage() {
     }
   }
 
+  async function handleLogin() {
+    const contact = document.getElementById("loginContact").value.trim();
+    const password = document.getElementById("loginPassword").value.trim();
+    if (!contact || !password)
+      return showError("Enter Email/Mobile and Password");
+
+    try {
+      const res = await fetch(`${API_BASE}/login`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ emailOrMobile: contact, password }),
+      });
+      const data = await res.json();
+      if (res.ok) {
+        localStorage.setItem("token", data.token);
+        window.location.href = "/connect";
+      } else {
+        showError(data.error || "Login failed");
+      }
+    } catch {
+      showError("Server error");
+    }
+  }
+
+  async function handleReset() {
+    const contact = document.getElementById("resetContact").value.trim();
+    const newPassword = document.getElementById("newPassword").value.trim();
+    if (!contact || !newPassword) return showError("Fill all fields");
+
+    try {
+      const res = await fetch(`${API_BASE}/reset-password`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ emailOrMobile: contact, password: newPassword }),
+      });
+      const data = await res.json();
+      if (res.ok) {
+        alert("Password reset successful, please login again.");
+        setShowReset(false);
+        setShowLogin(true);
+      } else showError(data.error || "Reset failed");
+    } catch {
+      showError("Server error");
+    }
+  }
+
   return (
     <>
       <canvas id="heartsCanvas"></canvas>
+
       <div id="errorMessage"></div>
 
       <div className="container" id="userFormContainer">
-        {/* Left Side */}
         <div className="left">
           <h1>Welcome to Milan ❤️</h1>
           <p className="welcome-text">
             “Love recognizes no barriers. It jumps hurdles, leaps fences,
             penetrates walls to arrive at its destination full of hope.”
           </p>
-          <p className="age-warning">🔞 Milan is strictly for 18+ users.</p>
+          <p style={{ marginTop: 8, fontWeight: "bold" }}>
+            🔞 Milan is strictly for 18+ users.
+          </p>
         </div>
-
-        {/* Right Side */}
         <div className="right">
           <div className="form-container">
-            <h2>Create Your Account</h2>
+            {!showLogin && !showReset && (
+              <div id="registerForm">
+                <h2>Create Your Account</h2>
 
-            <label>Name *</label>
-            <input type="text" id="name" placeholder="Your name or nickname" />
+                <label>
+                  Name <span className="star">*</span>
+                </label>
+                <input type="text" id="name" placeholder="Your name or nickname" />
 
-            <label>Gender *</label>
-            <select id="gender">
-              <option value="">Select Gender</option>
-              <option value="Male">Male</option>
-              <option value="Female">Female</option>
-              <option value="Other">Other</option>
-            </select>
+                <label>
+                  Gender <span className="star">*</span>
+                </label>
+                <select id="gender">
+                  <option value="">Select Gender</option>
+                  <option value="Male">Male</option>
+                  <option value="Female">Female</option>
+                  <option value="Other">Other</option>
+                </select>
 
-            <label>Email or Mobile *</label>
-            <input type="text" id="contact" placeholder="Email or 10-digit Mobile number" />
+                <label>
+                  Email or Mobile <span className="star">*</span>
+                </label>
+                <input type="text" id="contact" placeholder="Email or 10-digit Mobile number" />
 
-            <label>Password *</label>
-            <input type="password" id="password" placeholder="Enter password" />
+                <label>
+                  Password <span className="star">*</span>
+                </label>
+                <input type="password" id="password" placeholder="Enter password" />
 
-            <label>Date of Birth *</label>
-            <input type="date" id="dob" max={new Date().toISOString().split("T")[0]} />
+                <label>
+                  Date of Birth <span className="star">*</span>
+                </label>
+                <input type="date" id="dob" max={new Date().toISOString().split("T")[0]} />
 
-            <label>City/Country *</label>
-            <input type="text" id="city" placeholder="City / Country" />
+                <label>
+                  City/Country <span className="star">*</span>
+                </label>
+                <input type="text" id="city" placeholder="City / Country" />
 
-            <label>Reason for Joining *</label>
-            <select id="reason">
-              <option value="">Select reason</option>
-              <option value="Looking for Love">Looking for Love ❤️</option>
-              <option value="Friendship">Friendship 🤗</option>
-              <option value="Casual Chat">Casual Chat 🎈</option>
-              <option value="Exploring">Exploring 🌎</option>
-              <option value="Other">Other</option>
-            </select>
+                <label>
+                  Reason for Joining <span className="star">*</span>
+                </label>
+                <select
+                  id="reason"
+                  onChange={(e) =>
+                    (document.getElementById("otherReason").style.display =
+                      e.target.value === "Other" ? "block" : "none")
+                  }
+                >
+                  <option value="">Select reason</option>
+                  <option value="Looking for Love">Looking for Love ❤️</option>
+                  <option value="Friendship">Friendship 🤗</option>
+                  <option value="Casual Chat">Casual Chat 🎈</option>
+                  <option value="Exploring">Exploring 🌎</option>
+                  <option value="Other">Other</option>
+                </select>
+                <textarea
+                  id="otherReason"
+                  placeholder="If other, please describe"
+                  style={{ display: "none" }}
+                />
 
-            {/* ✅ Checkbox + Text inline fix */}
-            <div className="terms-container">
-              <input type="checkbox" id="terms" />
-              <label htmlFor="terms">
-                I agree to the{" "}
-                <a href="/terms.html" target="_blank">Terms & Conditions</a>,{" "}
-                <a href="/privacy.html" target="_blank">Privacy Policy</a> and{" "}
-                <a href="/guidelines.html" target="_blank">Community Guidelines</a>
-              </label>
-            </div>
+                {/* ✅ Terms checkbox inline full-width */}
+                <div className="terms-container">
+                  <input type="checkbox" id="terms" />
+                  <label htmlFor="terms">
+                    I agree to the{" "}
+                    <a href="/terms.html" target="_blank">Terms & Conditions</a>,{" "}
+                    <a href="/privacy.html" target="_blank">Privacy Policy</a> and{" "}
+                    <a href="/guidelines.html" target="_blank">Community Guidelines</a>
+                  </label>
+                </div>
 
-            <button onClick={handleRegister}>Register & Start</button>
-            <p className="link-text" onClick={() => setShowLogin(true)}>
-              Already Registered? Login here
-            </p>
+                <button onClick={handleRegister}>Register & Start</button>
+                <p className="link-text" onClick={() => setShowLogin(true)}>
+                  Already Registered? Login here
+                </p>
+              </div>
+            )}
+
+            {showLogin && !showReset && (
+              <div id="loginForm">
+                <h2>Login to Milan</h2>
+                <label>Email or Mobile</label>
+                <input type="text" id="loginContact" placeholder="Enter Email/Mobile" />
+                <label>Password</label>
+                <input type="password" id="loginPassword" placeholder="Enter password" />
+                <button onClick={handleLogin}>Login</button>
+                <p className="link-text" onClick={() => setShowLogin(false)}>
+                  New User? Register here
+                </p>
+                <p className="reset-link" onClick={() => setShowReset(true)}>
+                  Forgot Password?
+                </p>
+              </div>
+            )}
+
+            {showReset && (
+              <div id="resetForm">
+                <h2>Reset Password</h2>
+                <label>Email or Mobile</label>
+                <input type="text" id="resetContact" placeholder="Enter your Email/Mobile" />
+                <label>New Password</label>
+                <input type="password" id="newPassword" placeholder="Enter new password" />
+                <button onClick={handleReset}>Reset Password</button>
+                <p className="link-text" onClick={() => { setShowReset(false); setShowLogin(true); }}>
+                  Back to Login
+                </p>
+              </div>
+            )}
           </div>
         </div>
       </div>
 
-      {/* ✅ Footer */}
+      {/* ✅ Footer links + Support info */}
       <footer className="footer-section">
         <div className="footer-links">
           <a href="/terms.html" target="_blank">Terms & Conditions</a>
@@ -209,25 +315,31 @@ export default function HomePage() {
         </p>
       </footer>
 
-      {/* ✅ Styles */}
       <style jsx global>{`
         :root {
           --bg-color: #1f2937;
           --text-color: #ffffff;
+          --box-bg: rgba(255, 255, 255, 0.2);
+          --btn-bg: #ffffff;
+          --btn-text: #ec4899;
+          --red-star: #ff4d4f;
         }
         html, body {
           margin: 0;
           padding: 0;
           width: 100%;
           height: 100%;
+          overflow: hidden;
           font-family: "Segoe UI", sans-serif;
           background: var(--bg-color);
           color: var(--text-color);
         }
         #heartsCanvas {
           position: fixed;
-          top: 0; left: 0;
-          width: 100%; height: 100%;
+          top: 0;
+          left: 0;
+          width: 100%;
+          height: 100%;
           z-index: 0;
         }
         .container {
@@ -235,107 +347,91 @@ export default function HomePage() {
           z-index: 1;
           display: flex;
           align-items: center;
-          justify-content: space-between;
-          padding: 60px 10%;
-          flex-wrap: wrap;
-          min-height: calc(100vh - 80px);
-          gap: 40px;
+          justify-content: center;
+          height: 100%;
+          padding: 40px 10px;
         }
         .left {
           flex: 1;
-          min-width: 280px;
-        }
-        .left h1 {
-          font-size: 32px;
-          margin-bottom: 12px;
+          padding-right: 40px;
         }
         .welcome-text {
-          font-size: 18px;
           margin-bottom: 20px;
         }
-        .age-warning {
-          font-size: 18px;
-          font-weight: bold;
-          margin-top: 12px;
-        }
-        .right {
-          flex: 1;
-          min-width: 320px;
-          max-width: 420px;
-          display: flex;
-          justify-content: center;
-        }
         .form-container {
-          background: rgba(255,255,255,0.1);
+          background: var(--box-bg);
           padding: 30px;
           border-radius: 12px;
-          width: 100%;
+          backdrop-filter: blur(8px);
+          max-width: 400px;
+          margin: auto;
         }
         .form-container h2 {
           text-align: center;
           margin-bottom: 20px;
-          font-size: 22px;
         }
-        label {
-          font-size: 15px;
-          font-weight: bold;
-          margin-top: 10px;
-          display: block;
-        }
-        input, select, button {
+        input, select, textarea, button {
           width: 100%;
           padding: 10px;
-          margin-top: 6px;
-          margin-bottom: 12px;
+          margin: 8px 0;
           border: none;
           border-radius: 5px;
-          font-size: 15px;
+          font-size: 14px;
         }
         button {
-          background: #fff;
-          color: #ec4899;
+          background: var(--btn-bg);
+          color: var(--btn-text);
           font-weight: bold;
           cursor: pointer;
         }
         button:hover {
-          background: #ec4899;
-          color: #fff;
+          background: var(--btn-text);
+          color: var(--btn-bg);
         }
         .terms-container {
           display: flex;
           align-items: center;
-          gap: 10px;
           font-size: 14px;
           margin: 15px 0;
         }
+        .terms-container input {
+          margin-right: 8px;
+        }
         .terms-container a {
           color: yellow;
+          text-decoration: none;
+        }
+        .terms-container a:hover {
+          text-decoration: underline;
         }
         .link-text {
           text-align: center;
           cursor: pointer;
           color: yellow;
-          margin-top: 10px;
+        }
+        .reset-link {
+          text-align: center;
+          cursor: pointer;
+          color: #ff4d4f;
         }
         .footer-section {
-          position: fixed;
-          bottom: 10px;
-          left: 0;
-          width: 100%;
           text-align: center;
-          z-index: 5;
+          margin-top: 30px;
+          position: relative;
+          z-index: 2;
         }
         .footer-links {
           display: flex;
           justify-content: center;
-          gap: 25px;
-          margin-bottom: 6px;
-          flex-wrap: wrap;
+          gap: 30px;
+          margin-bottom: 10px;
         }
         .footer-links a {
           color: yellow;
           text-decoration: none;
-          font-size: 15px;
+        }
+        .footer-links a:hover {
+          text-decoration: underline;
         }
         .support-text {
           font-size: 14px;
@@ -344,16 +440,6 @@ export default function HomePage() {
         .support-text span {
           color: yellow;
           font-weight: bold;
-        }
-        @media(max-width: 768px) {
-          .container {
-            flex-direction: column;
-            align-items: center;
-            padding: 30px 20px;
-          }
-          .left, .right {
-            text-align: center;
-          }
         }
       `}</style>
     </>
