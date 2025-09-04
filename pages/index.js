@@ -1,5 +1,6 @@
 "use client";
 import { useEffect, useState } from "react";
+import Image from "next/image"; // ✅ Next.js Image component
 
 export default function HomePage() {
   const API_BASE = "https://milan-j9u9.onrender.com";
@@ -178,7 +179,16 @@ export default function HomePage() {
 
       <div className="container" id="userFormContainer">
         <div className="left">
-          <img src="/logo.png" alt="Milan Logo" className="milan-logo" />
+          {/* ✅ Updated Milan Logo with Next.js Image */}
+          <Image
+            src="/logo.png"
+            alt="Milan Logo"
+            width={260}
+            height={100}
+            className="milan-logo"
+            priority
+          />
+
           <h1>Welcome to Milan ❤️</h1>
           <p className="welcome-text">
             “Love recognizes no barriers. It jumps hurdles, leaps fences,
@@ -386,31 +396,27 @@ export default function HomePage() {
           z-index: 1;
           display: flex;
           align-items: flex-start;
-          justify-content: space-between;
+          justify-content: center;
           height: 100%;
-          padding: 60px 80px;
-          gap: 60px;
+          padding: 40px 50px;
+          gap: 50px;
         }
         .left {
           flex: 1;
           text-align: center;
-          display: flex;
-          flex-direction: column;
-          align-items: center;
-          justify-content: flex-start;
           margin-top: 40px;
         }
         .milan-logo {
-          width: 260px;
-          margin-bottom: 25px;
+          margin-bottom: 20px;
           display: block;
         }
         .welcome-text {
           margin-bottom: 20px;
         }
         .right {
-          flex: 0 0 400px;
-          margin-right: 80px;
+          flex: 1;
+          max-width: 420px;
+          margin-right: 40px;
         }
         .form-container {
           background: var(--box-bg);
