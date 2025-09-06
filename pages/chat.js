@@ -1,250 +1,372 @@
 "use client";
-import { useState, useEffect, useRef } from "react";
-import { io } from "socket.io-client";
+import { useEffect, useState } from "react";
+import io from "socket.io-client";
 
 export default function ChatPage() {
-  const [username, setUsername] = useState(null);
-  const [partner, setPartner] = useState("Partner ❤️");
+  const [partnerData, setPartnerData] = useState(null);
+  const [roomCode, setRoomCode] = useState(null);
   const [messages, setMessages] = useState([]);
-  const [input, setInput] = useState("");
   const [typing, setTyping] = useState(false);
-  const [showReport, setShowReport] = useState(false);
-  const [uploading, setUploading] = useState(null);
 
-  const socketRef = useRef(null);
-  const inputRef = useRef(null);
-
-  // ✅ Load username safely (client-side only)
   useEffect(() => {
-    if (typeof window !== "undefined") {
-      const stored = sessionStorage.getItem("username") || "You";
-      setUsername(stored);
+    if (typeof window === "undefined") return;
+
+    let partner = null;
+    try {
+      partner = JSON.parse(sessionStorage.getItem("partnerData"));
+    } catch {
+      partner = null;
     }
-  }, []);
 
-  // ✅ Setup Socket.IO connection
-  useEffect(() => {
-    if (!username) return;
+    const room = sessionStorage.getItem("roomCode");
+
+    if (!partner || !room) {
+      alert("Partner info missing. Redirecting...");
+      window.location.href = "/";
+      return;
+    }
+
+    setPartnerData(partner);
+    setRoomCode(room);
 
     const socket = io("https://milan-j9u9.onrender.com");
-    socketRef.current = socket;
 
-    socket.emit("join", username);
+    socket.emit("userInfo", { name: partner.name, avatar: partner.avatar });
+    socket.emit("joinRoom", { roomCode: room });
 
-    socket.on("chatMessage", (msg) => {
-      setMessages((prev) => [
-        ...prev,
-        { text: msg, sender: partner, status: "read" }, // partner ka msg hamesha read
-      ]);
-    });
-
-    socket.on("typing", () => {
-      setTyping(true);
-      setTimeout(() => setTyping(false), 1500);
-    });
-
-    return () => {
-      socket.disconnect();
-    };
-  }, [username]);
-
-  // ✅ Send message
-  const sendMessage = () => {
-    if (input.trim() === "") return;
-    const msg = {
-      id: Date.now(),
-      text: input,
-      sender: username,
-      status: "sent",
+    // send message
+    const sendMessage = (text) => {
+      const msg = {
+        id: Date.now(),
+        text,
+        senderId: socket.id,
+        status: "delivered", // ✅ first tick
+      };
+      setMessages((prev) => [...prev, msg]);
+      socket.emit("message", { ...msg, roomCode: room });
     };
 
-    setMessages((prev) => [...prev, msg]);
+    // send file
+    const sendFile = (file) => {
+      const reader = new FileReader();
+      reader.onload = () => {
+        const msg = {
+          id: Date.now(),
+          fileName: file.name,
+          fileType: file.type,
+          fileData: reader.result,
+          senderId: socket.id,
+          status: "delivered",
+        };
+        setMessages((prev) => [...prev, msg]);
+        socket.emit("fileMessage", { ...msg, roomCode: room });
+      };
+      reader.readAsDataURL(file);
+    };
 
-    // Deliver tick
-    setTimeout(() => {
+    // receive text
+    socket.on("message", (msg) => {
       setMessages((prev) =>
         prev.map((m) =>
-          m.id === msg.id ? { ...m, status: "delivered" } : m
+          m.id === msg.id && m.senderId === socket.id
+            ? { ...m, status: "seen" } // ✅✅ seen
+            : m
         )
       );
-    }, 200);
-
-    socketRef.current.emit("chatMessage", input);
-
-    setInput("");
-    inputRef.current.focus();
-  };
-
-  // ✅ Handle typing
-  const handleTyping = (e) => {
-    setInput(e.target.value);
-    socketRef.current.emit("typing");
-  };
-
-  // ✅ File send
-  const handleFile = (e) => {
-    const file = e.target.files[0];
-    if (!file) return;
-
-    const msg = {
-      id: Date.now(),
-      text: `📎 ${file.name}`,
-      sender: username,
-      status: "sent",
-      file,
-      progress: 0,
-    };
-
-    setMessages((prev) => [...prev, msg]);
-    setUploading(msg.id);
-
-    let progress = 0;
-    const interval = setInterval(() => {
-      progress += 20;
-      setMessages((prev) =>
-        prev.map((m) =>
-          m.id === msg.id ? { ...m, progress } : m
-        )
-      );
-      if (progress >= 100) {
-        clearInterval(interval);
-        setUploading(null);
-        setMessages((prev) =>
-          prev.map((m) =>
-            m.id === msg.id ? { ...m, status: "delivered" } : m
-          )
-        );
-        socketRef.current.emit("chatMessage", `Sent a file: ${file.name}`);
+      if (msg.senderId !== socket.id) {
+        setMessages((prev) => [...prev, { ...msg, status: "seen" }]);
       }
-    }, 400);
-  };
+    });
 
-  if (!username) {
-    return <div className="text-white text-center mt-20">Loading chat...</div>;
-  }
+    // receive file
+    socket.on("fileMessage", (msg) => {
+      if (msg.senderId !== socket.id) {
+        setMessages((prev) => [...prev, { ...msg, status: "seen" }]);
+      }
+    });
+
+    // typing
+    socket.on("partnerTyping", () => {
+      setTyping(true);
+      setTimeout(() => setTyping(false), 2000);
+    });
+
+    // partner disconnect
+    socket.on("partnerDisconnected", () => {
+      alert("💔 Partner disconnected.");
+      window.location.href = "/";
+    });
+
+    // attach listeners
+    const input = document.getElementById("msgInput");
+    const fileInput = document.getElementById("fileInput");
+
+    input.addEventListener("keypress", (e) => {
+      if (e.key === "Enter" && input.value.trim()) {
+        sendMessage(input.value.trim());
+        input.value = "";
+      }
+    });
+
+    input.addEventListener("input", () => {
+      socket.emit("typing", { roomCode: room });
+    });
+
+    document.getElementById("sendBtn").addEventListener("click", () => {
+      if (input.value.trim()) {
+        sendMessage(input.value.trim());
+        input.value = "";
+      }
+    });
+
+    document.getElementById("fileBtn").addEventListener("click", () =>
+      fileInput.click()
+    );
+
+    fileInput.addEventListener("change", () => {
+      const file = fileInput.files[0];
+      if (file) sendFile(file);
+    });
+
+    document.getElementById("disconnectBtn").addEventListener("click", () => {
+      socket.emit("disconnectByUser");
+      socket.disconnect();
+      window.location.href = "/";
+    });
+
+    document.getElementById("reportBtn").addEventListener("click", () => {
+      alert("🚩 Partner reported. Thank you for keeping Milan safe!");
+      socket.emit("reportPartner", { roomCode: room });
+    });
+
+    return () => socket.disconnect();
+  }, []);
+
+  if (!partnerData) return <div>Loading chat...</div>;
 
   return (
-    <div className="flex flex-col h-screen bg-gradient-to-br from-pink-200 to-red-300">
-      {/* Header */}
-      <div className="p-4 bg-pink-600 text-white flex justify-between items-center">
-        <h2 className="text-lg font-bold">{partner}</h2>
-        <div className="flex gap-3">
-          <button
-            onClick={() => setShowReport(true)}
-            className="bg-red-500 px-3 py-1 rounded"
-          >
-            Report
-          </button>
-          <button
-            onClick={() => (window.location.href = "/")}
-            className="bg-gray-800 px-3 py-1 rounded"
-          >
-            Disconnect
-          </button>
+    <>
+      <div className="chat-container">
+        {/* Header */}
+        <div className="chat-header">
+          <div className="header-center">
+            <img
+              id="partnerAvatar"
+              src={partnerData.avatar || "partner-avatar.png"}
+              alt="Partner"
+            />
+            <div className="partner-info">
+              <span id="partnerName">{partnerData.name || "Partner"}</span>
+              {typing && (
+                <span className="typing-indicator-header">typing...</span>
+              )}
+            </div>
+          </div>
+          <div>
+            <button id="reportBtn" className="report-btn">
+              Report 🚩
+            </button>
+            <button id="disconnectBtn" className="disconnect-btn">
+              Disconnect
+            </button>
+          </div>
         </div>
-      </div>
 
-      {/* Chat body */}
-      <div className="flex-1 overflow-y-auto p-4 space-y-2">
-        {messages.map((msg) => (
-          <div
-            key={msg.id || Math.random()}
-            className={`flex ${
-              msg.sender === username ? "justify-end" : "justify-start"
-            }`}
-          >
+        {/* Messages */}
+        <div className="chat-messages" id="messages">
+          {messages.map((msg) => (
             <div
-              className={`max-w-xs px-3 py-2 rounded-2xl shadow ${
-                msg.sender === username
-                  ? "bg-pink-500 text-white"
-                  : "bg-white text-black"
+              key={msg.id}
+              className={`message ${
+                msg.senderId === partnerData.id ? "partner" : "self"
               }`}
             >
-              <p>{msg.text}</p>
-              {msg.file && (
-                <div className="mt-1 text-sm italic">
-                  {msg.progress < 100
-                    ? `Uploading... ${msg.progress}%`
-                    : "Upload complete"}
-                </div>
-              )}
-              {/* Delivery ticks */}
-              {msg.sender === username && (
-                <span className="text-xs ml-2">
-                  {msg.status === "sent" && "🕓"}
+              <div className="bubble">
+                {msg.text && <span>{msg.text}</span>}
+                {msg.fileData &&
+                  (msg.fileType?.startsWith("image/") ? (
+                    <a
+                      href={msg.fileData}
+                      target="_blank"
+                      rel="noreferrer"
+                      className="file-link"
+                    >
+                      <img
+                        src={msg.fileData}
+                        alt={msg.fileName}
+                        style={{
+                          maxWidth: "160px",
+                          maxHeight: "100px",
+                          borderRadius: "8px",
+                        }}
+                      />
+                    </a>
+                  ) : (
+                    <a
+                      href={msg.fileData}
+                      download={msg.fileName}
+                      className="file-link"
+                    >
+                      {msg.fileName}
+                    </a>
+                  ))}
+                <div className="timestamp">
+                  {new Date(msg.id).toLocaleTimeString([], {
+                    hour: "2-digit",
+                    minute: "2-digit",
+                  })}{" "}
                   {msg.status === "delivered" && "✅"}
-                  {msg.status === "read" && "✅✅"}
-                </span>
-              )}
+                  {msg.status === "seen" && "✅✅"}
+                </div>
+              </div>
             </div>
-          </div>
-        ))}
-        {typing && (
-          <div className="text-sm text-gray-700 italic">
-            {partner} is typing...
-          </div>
-        )}
-      </div>
-
-      {/* Input */}
-      <div className="p-3 bg-white flex items-center gap-2">
-        <input
-          type="file"
-          onChange={handleFile}
-          className="hidden"
-          id="file-input"
-        />
-        <label
-          htmlFor="file-input"
-          className="cursor-pointer text-pink-600 font-bold"
-        >
-          📎
-        </label>
-        <input
-          ref={inputRef}
-          value={input}
-          onChange={handleTyping}
-          onKeyDown={(e) => e.key === "Enter" && sendMessage()}
-          placeholder="Type a message..."
-          className="flex-1 border rounded-full px-4 py-2"
-        />
-        <button
-          onClick={sendMessage}
-          className="bg-pink-600 text-white px-4 py-2 rounded-full"
-        >
-          Send
-        </button>
-      </div>
-
-      {/* Report Modal */}
-      {showReport && (
-        <div className="absolute inset-0 bg-black bg-opacity-50 flex items-center justify-center">
-          <div className="bg-white p-6 rounded-2xl w-80">
-            <h3 className="text-lg font-bold mb-2">Report {partner}?</h3>
-            <textarea
-              placeholder="Reason..."
-              className="w-full border p-2 rounded"
-            />
-            <div className="mt-3 flex justify-end gap-2">
-              <button
-                onClick={() => setShowReport(false)}
-                className="px-3 py-1 bg-gray-400 rounded"
-              >
-                Cancel
-              </button>
-              <button
-                onClick={() => {
-                  alert("Report submitted!");
-                  setShowReport(false);
-                }}
-                className="px-3 py-1 bg-red-600 text-white rounded"
-              >
-                Submit
-              </button>
-            </div>
-          </div>
+          ))}
         </div>
-      )}
-    </div>
+
+        {/* Input */}
+        <div className="chat-input">
+          <input type="file" id="fileInput" style={{ display: "none" }} />
+          <button id="fileBtn" title="Attach file">
+            📎
+          </button>
+          <input type="text" id="msgInput" placeholder="Type a message..." />
+          <button id="sendBtn" title="Send">
+            ➤
+          </button>
+        </div>
+      </div>
+
+      {/* Styles */}
+      <style jsx global>{`
+        body {
+          margin: 0;
+          font-family: "Poppins", sans-serif;
+          background: linear-gradient(135deg, #ffdde1, #ee9ca7);
+          height: 100vh;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+        }
+        .chat-container {
+          width: 100%;
+          max-width: 500px;
+          height: 90vh;
+          background: rgba(255, 255, 255, 0.9);
+          border-radius: 16px;
+          display: flex;
+          flex-direction: column;
+          box-shadow: 0 6px 20px rgba(0, 0, 0, 0.2);
+          overflow: hidden;
+        }
+        .chat-header {
+          display: flex;
+          justify-content: space-between;
+          align-items: center;
+          background: #ff4e75;
+          color: #fff;
+          padding: 10px 15px;
+        }
+        .chat-header img {
+          width: 40px;
+          height: 40px;
+          border-radius: 50%;
+          margin-right: 8px;
+        }
+        .header-center {
+          display: flex;
+          align-items: center;
+        }
+        .partner-info {
+          display: flex;
+          flex-direction: column;
+          font-size: 14px;
+        }
+        .typing-indicator-header {
+          font-size: 12px;
+          color: #ffe;
+        }
+        .disconnect-btn,
+        .report-btn {
+          background: #fff;
+          color: #ff4e75;
+          border: none;
+          border-radius: 8px;
+          padding: 6px 10px;
+          font-weight: bold;
+          cursor: pointer;
+          margin-left: 6px;
+        }
+        .chat-messages {
+          flex: 1;
+          padding: 10px;
+          overflow-y: auto;
+          background: url("https://i.ibb.co/hMKyQzR/romantic-bg.png") repeat;
+          background-size: contain;
+        }
+        .message {
+          margin: 6px 0;
+          display: flex;
+          flex-direction: column;
+        }
+        .message.self {
+          align-items: flex-end;
+        }
+        .bubble {
+          max-width: 75%;
+          padding: 8px 12px;
+          border-radius: 16px;
+          line-height: 1.4;
+          position: relative;
+        }
+        .message.self .bubble {
+          background: #ff4e75;
+          color: #fff;
+          border-bottom-right-radius: 2px;
+        }
+        .message.partner .bubble {
+          background: #f1f1f1;
+          color: #333;
+          border-bottom-left-radius: 2px;
+        }
+        .timestamp {
+          font-size: 11px;
+          opacity: 0.7;
+          margin-top: 2px;
+          text-align: right;
+        }
+        .chat-input {
+          display: flex;
+          align-items: center;
+          padding: 8px;
+          background: #fff;
+          border-top: 1px solid #ddd;
+        }
+        .chat-input input[type="text"] {
+          flex: 1;
+          padding: 8px 10px;
+          border-radius: 20px;
+          border: 1px solid #ccc;
+          margin: 0 6px;
+          outline: none;
+        }
+        .chat-input button {
+          background: #ff4e75;
+          border: none;
+          border-radius: 50%;
+          width: 40px;
+          height: 40px;
+          color: #fff;
+          font-size: 18px;
+          cursor: pointer;
+        }
+        .file-link {
+          display: inline-block;
+          margin-top: 4px;
+          color: #0077ff;
+          text-decoration: none;
+          font-size: 14px;
+        }
+      `}</style>
+    </>
   );
 }
