@@ -34,6 +34,24 @@ export default function ConnectPage() {
   const [showModeButtons, setShowModeButtons] = useState(true);
 
   // -----------------------------
+  // NEW: Rotating quotes (every 5s)
+  // -----------------------------
+  const QUOTES = [
+    "❤️ जहाँ दिल मिले, वहीं होती है शुरुआत Milan की…",
+    "✨ हर chat के पीछे छुपी है एक नई कहानी…",
+    "💬 शब्द कम हों या ज़्यादा, connection सच्चा होना चाहिए।",
+    "🎥 नज़रें कह देती हैं जो लफ़्ज़ नहीं कह पाते।",
+    "🌸 प्यार मिल जाए, तो सफ़र आसान लगने लगता है।",
+  ];
+  const [quoteIndex, setQuoteIndex] = useState(0);
+  useEffect(() => {
+    const id = setInterval(() => {
+      setQuoteIndex((i) => (i + 1) % QUOTES.length);
+    }, 5000);
+    return () => clearInterval(id);
+  }, []);
+
+  // -----------------------------
   // Sockets
   // -----------------------------
   const socketRef = useRef(null);
@@ -134,7 +152,7 @@ export default function ConnectPage() {
     drawHearts();
 
     return () => {
-      if (rafId) cancelAnimationFrame(rafId);
+      if (rafId) cancelAnimationFrame(drawHearts);
       window.removeEventListener("resize", resizeCanvas);
     };
   }, []);
@@ -495,30 +513,7 @@ export default function ConnectPage() {
                   id="videoBtn"
                   aria-label="Start Video Chat"
                 >
-                  <div className="mode-animation video-animation" aria-hidden>
-                    <svg
-                      viewBox="0 0 64 48"
-                      className="video-svg"
-                      xmlns="http://www.w3.org/2000/svg"
-                    >
-                      <rect
-                        x="2"
-                        y="8"
-                        width="40"
-                        height="32"
-                        rx="6"
-                        fill="#fff"
-                        opacity="0.06"
-                      />
-                      <rect x="6" y="12" width="32" height="24" rx="5" fill="#fff" />
-                      <path
-                        d="M46 14 L62 6 L62 42 L46 34 Z"
-                        fill="#ffd2e0"
-                        opacity="0.9"
-                      />
-                      <circle cx="22" cy="24" r="6" fill="#ec4899" />
-                    </svg>
-                  </div>
+                  {/* removed pictures/illustrations intentionally */}
                   <button className="mode-btn" type="button">
                     Start Video Chat
                   </button>
@@ -540,17 +535,7 @@ export default function ConnectPage() {
                   id="textBtn"
                   aria-label="Start Text Chat"
                 >
-                  <div className="mode-animation text-animation" aria-hidden>
-                    <div className="phone-mock">
-                      <div className="phone-screen">
-                        <div className="typing-dots">
-                          <span className="dot dot1" />
-                          <span className="dot dot2" />
-                          <span className="dot dot3" />
-                        </div>
-                      </div>
-                    </div>
-                  </div>
+                  {/* removed pictures/illustrations intentionally */}
                   <button className="mode-btn disabled" type="button" disabled>
                     Coming Soon
                   </button>
@@ -560,6 +545,21 @@ export default function ConnectPage() {
                   <div className="disabled-note">💌 Text Chat on the way…</div>
                 </div>
               )}
+            </div>
+
+            {/* NEW: Quotes just below buttons */}
+            <div className="quote-box" id="quoteBox">
+              {QUOTES[quoteIndex]}
+              <span
+                style={{
+                  display: "block",
+                  fontSize: 14,
+                  marginTop: 6,
+                  opacity: 0.95,
+                }}
+              >
+                (Where hearts meet, that’s where Milan begins…)
+              </span>
             </div>
 
             {/* Loader (React driven) */}
@@ -582,20 +582,6 @@ export default function ConnectPage() {
                 Stop Searching
               </button>
             )}
-
-            <div className="quote-box" id="quoteBox">
-              {statusMessage}
-              <span
-                style={{
-                  display: "block",
-                  fontSize: 14,
-                  marginTop: 6,
-                  opacity: 0.95,
-                }}
-              >
-                (Where hearts meet, that’s where Milan begins…)
-              </span>
-            </div>
           </div>
         </div>
       </main>
@@ -799,45 +785,39 @@ export default function ConnectPage() {
           z-index: 10;
         }
 
-        /* Glass card */
+        /* Glass card (NOW auto-height & compact width) */
         .glass-card {
-          width: min(100%, 1100px);
-          height: calc(100vh - 24px); /* occupy almost full viewport */
+          width: min(100%, 760px);
           background: rgba(255, 255, 255, 0.14);
           border: 2px solid rgba(255, 255, 255, 0.28);
           border-radius: 20px;
           backdrop-filter: blur(18px);
           box-shadow: 0 10px 40px rgba(0, 0, 0, 0.25),
             inset 0 0 60px rgba(255, 255, 255, 0.06);
-          display: flex;
-          align-items: center;
-          justify-content: center;
+          display: block;           /* was flex-center earlier */
           padding: 18px;
         }
 
-        /* center-box uses full height so we can space items and keep everything visible */
+        /* center-box layout compact */
         .center-box {
           width: 100%;
-          max-width: 900px;
           color: #fff;
           text-align: center;
           z-index: 12;
           display: flex;
           flex-direction: column;
-          justify-content: space-between; /* top = heading, middle = cards, bottom = quote */
-          height: 100%;
+          gap: 14px;                /* natural spacing between blocks */
           box-sizing: border-box;
           padding: 6px 8px;
         }
 
         .center-top {
-          /* top area (heading + small status) */
-          margin-bottom: 6px;
+          margin-bottom: 2px;
         }
 
         .center-box h2 {
           font-size: 36px;
-          margin: 6px 0 8px 0;
+          margin: 6px 0 4px 0;
           font-weight: 700;
           text-shadow: 0 0 10px #ec4899;
         }
@@ -856,7 +836,6 @@ export default function ConnectPage() {
           align-items: stretch;
           flex-wrap: nowrap;
           margin-top: 6px;
-          /* keep cards horizontally on desktop */
         }
 
         .mode-card,
@@ -877,22 +856,11 @@ export default function ConnectPage() {
           box-sizing: border-box;
         }
 
-        .mode-animation {
-          width: 100%;
-          display: flex;
-          align-items: center;
-          justify-content: center;
-          margin-bottom: 6px;
-        }
-
-        .video-svg {
-          width: 120px;
-          height: 80px;
-        }
+        /* Removed .mode-animation blocks (images) */
 
         .mode-btn {
           width: 100%;
-          padding: 10px 12px;
+          padding: 12px 14px;
           border-radius: 10px;
           border: none;
           background: #fff;
@@ -902,65 +870,26 @@ export default function ConnectPage() {
           cursor: pointer;
         }
 
+        .mode-btn.disabled {
+          opacity: 0.6;
+          cursor: not-allowed;
+        }
+
         .mode-desc {
           color: rgba(255, 255, 255, 0.9);
           font-size: 14px;
-          margin-top: 6px;
+          margin-top: 4px;
         }
 
         .disabled-note {
-          margin-top: 6px;
+          margin-top: 4px;
           font-size: 13px;
           color: #ffe4f1;
           font-style: italic;
         }
 
-        .phone-mock {
-          width: 84px;
-          height: 120px;
-          border-radius: 12px;
-          background: linear-gradient(
-            180deg,
-            rgba(255, 255, 255, 0.9),
-            rgba(255, 255, 255, 0.8)
-          );
-          box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.6);
-          display: flex;
-          align-items: center;
-          justify-content: center;
-        }
-
-        .typing-dots .dot {
-          width: 8px;
-          height: 8px;
-          background: #fff;
-          border-radius: 50%;
-          opacity: 0.25;
-          transform: scale(0.8);
-          animation: typing-bounce 1.2s infinite ease-in-out;
-        }
-
-        @keyframes typing-bounce {
-          0% {
-            opacity: 0.25;
-            transform: translateY(0) scale(0.8);
-          }
-          40% {
-            opacity: 1;
-            transform: translateY(-6px) scale(1);
-          }
-          80% {
-            opacity: 0.4;
-            transform: translateY(0) scale(0.9);
-          }
-          100% {
-            opacity: 0.25;
-            transform: translateY(0) scale(0.8);
-          }
-        }
-
         .loader {
-          margin: 10px auto;
+          margin: 6px auto;
         }
         .heart-loader {
           font-size: 30px;
@@ -968,22 +897,13 @@ export default function ConnectPage() {
           animation: blink 1s infinite;
         }
         @keyframes blink {
-          0% {
-            opacity: 0.2;
-            transform: scale(1);
-          }
-          50% {
-            opacity: 1;
-            transform: scale(1.12);
-          }
-          100% {
-            opacity: 0.2;
-            transform: scale(1);
-          }
+          0% { opacity: 0.2; transform: scale(1); }
+          50% { opacity: 1; transform: scale(1.12); }
+          100% { opacity: 0.2; transform: scale(1); }
         }
 
         .stop-btn {
-          margin-top: 10px;
+          margin-top: 6px;
           padding: 10px 16px;
           background: #ff4d4f;
           color: #fff;
@@ -992,6 +912,7 @@ export default function ConnectPage() {
           cursor: pointer;
         }
 
+        /* Quotes just below buttons */
         .quote-box {
           margin-top: 8px;
           font-weight: 600;
@@ -1001,6 +922,11 @@ export default function ConnectPage() {
           border-radius: 10px;
           background: rgba(255, 255, 255, 0.08);
           border: 1px solid rgba(255, 255, 255, 0.12);
+          animation: quoteFade 0.6s ease;
+        }
+        @keyframes quoteFade {
+          from { opacity: 0; transform: translateY(4px); }
+          to { opacity: 1; transform: translateY(0); }
         }
 
         /* Panels */
@@ -1034,23 +960,20 @@ export default function ConnectPage() {
         /* Responsive adjustments */
         @media (max-width: 1024px) {
           .glass-card {
-            height: calc(100vh - 20px);
+            width: min(100%, 780px);
           }
         }
 
         @media (max-width: 768px) {
           /* show hamburger */
-          .hamburger {
-            display: block;
-          }
+          .hamburger { display: block; }
+
           /* collapse sidebar */
           .sidebar {
             transform: translateX(-100%);
             width: 200px;
           }
-          .sidebar.open {
-            transform: translateX(0);
-          }
+          .sidebar.open { transform: translateX(0); }
 
           .content-wrap {
             left: 0;
@@ -1059,18 +982,15 @@ export default function ConnectPage() {
 
           .glass-card {
             width: 100%;
-            height: 100vh; /* make it take viewport fully */
             padding: 12px;
             border-radius: 16px;
           }
 
-          /* heading smaller and moved up so it's visible */
           .center-box h2 {
             font-size: 22px;
             margin: 4px 0 6px 0;
           }
 
-          /* stack cards vertically and reduce their height / padding */
           .mode-options {
             flex-direction: column;
             gap: 10px;
@@ -1081,23 +1001,9 @@ export default function ConnectPage() {
           .disabled-card {
             width: 94%;
             max-width: 94%;
-            padding: 10px;
+            padding: 12px;
             border-radius: 12px;
-            min-height: 98px; /* keep card compact */
-          }
-
-          .mode-animation {
-            margin-bottom: 6px;
-          }
-
-          .video-svg {
-            width: 88px;
-            height: 56px;
-          }
-
-          .phone-mock {
-            width: 64px;
-            height: 98px;
+            min-height: auto; /* compact cards */
           }
 
           .mode-btn {
