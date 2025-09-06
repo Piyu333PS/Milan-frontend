@@ -1,5 +1,6 @@
 "use client";
 import { useEffect, useState } from "react";
+import Image from "next/image"; // ✅ Next.js Image component
 
 export default function HomePage() {
   const API_BASE = "https://milan-j9u9.onrender.com";
@@ -178,7 +179,15 @@ export default function HomePage() {
 
       <div className="container" id="userFormContainer">
         <div className="left">
-          {/* ✅ Logo removed */}
+          <Image
+            src="/logo.png"
+            alt="Milan Logo"
+            width={260}
+            height={100}
+            className="milan-logo"
+            priority
+          />
+
           <h1>Welcome to Milan ❤️</h1>
           <p className="welcome-text">
             “Love recognizes no barriers. It jumps hurdles, leaps fences,
@@ -368,7 +377,6 @@ export default function HomePage() {
           padding: 0;
           width: 100%;
           height: 100%;
-          overflow: hidden;
           font-family: "Segoe UI", sans-serif;
           background: var(--bg-color);
           color: var(--text-color);
@@ -385,16 +393,23 @@ export default function HomePage() {
           position: relative;
           z-index: 1;
           display: flex;
-          align-items: flex-start;
+          align-items: center;
           justify-content: center;
-          height: 100%;
-          padding: 40px 50px;
-          gap: 50px;
+          min-height: 100vh;
+          padding: 20px;
+          gap: 40px;
+          flex-wrap: wrap; /* ✅ allow wrap on small screens */
         }
         .left {
           flex: 1;
           text-align: center;
-          margin-top: 40px;
+          min-width: 280px;
+        }
+        .milan-logo {
+          margin-bottom: 20px;
+          display: block;
+          margin-left: auto;
+          margin-right: auto;
         }
         .welcome-text {
           margin-bottom: 20px;
@@ -402,15 +417,13 @@ export default function HomePage() {
         .right {
           flex: 1;
           max-width: 420px;
-          margin-right: 40px;
+          min-width: 280px;
         }
         .form-container {
           background: var(--box-bg);
           padding: 30px;
           border-radius: 12px;
           backdrop-filter: blur(8px);
-          max-width: 400px;
-          margin: auto;
         }
         .form-container h2 {
           text-align: center;
@@ -466,14 +479,16 @@ export default function HomePage() {
         .footer-section {
           text-align: center;
           margin-top: 30px;
+          padding: 20px;
           position: relative;
           z-index: 2;
         }
         .footer-links {
           display: flex;
           justify-content: center;
-          gap: 30px;
+          gap: 20px;
           margin-bottom: 10px;
+          flex-wrap: wrap;
         }
         .footer-links a {
           color: yellow;
@@ -498,6 +513,18 @@ export default function HomePage() {
           font-size: 13px;
           color: #aaa;
           margin-top: 5px;
+        }
+
+        /* ✅ Mobile Responsive */
+        @media (max-width: 768px) {
+          .container {
+            flex-direction: column;
+            text-align: center;
+          }
+          .right {
+            margin-top: 20px;
+            width: 100%;
+          }
         }
       `}</style>
     </>
