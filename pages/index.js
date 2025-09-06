@@ -1,6 +1,5 @@
 "use client";
 import { useEffect, useState } from "react";
-import Image from "next/image"; // ✅ Next.js Image component
 
 export default function HomePage() {
   const API_BASE = "https://milan-j9u9.onrender.com";
@@ -174,21 +173,11 @@ export default function HomePage() {
   return (
     <>
       <canvas id="heartsCanvas"></canvas>
-
       <div id="errorMessage"></div>
 
       <div className="container" id="userFormContainer">
         <div className="left">
-          <Image
-            src="/logo.png"
-            alt="Milan Logo"
-            width={260}
-            height={100}
-            className="milan-logo"
-            priority
-          />
-
-          <h1>Welcome to Milan ❤️</h1>
+          <h1 className="welcome-title">Welcome to Milan ❤️</h1>
           <p className="welcome-text">
             “Love recognizes no barriers. It jumps hurdles, leaps fences,
             penetrates walls to arrive at its destination full of hope.”
@@ -197,6 +186,7 @@ export default function HomePage() {
             🔞 Milan is strictly for 18+ users.
           </p>
         </div>
+
         <div className="right">
           <div className="form-container">
             {!showLogin && !showReset && (
@@ -397,27 +387,42 @@ export default function HomePage() {
           justify-content: center;
           min-height: 100vh;
           padding: 20px;
-          gap: 40px;
-          flex-wrap: wrap; /* ✅ allow wrap on small screens */
+          gap: 60px; /* ✅ ज्यादा gap */
+          flex-wrap: wrap;
         }
         .left {
           flex: 1;
           text-align: center;
           min-width: 280px;
         }
-        .milan-logo {
+        .welcome-title {
+          font-size: 42px; /* ✅ बड़ा font */
+          font-weight: bold;
           margin-bottom: 20px;
-          display: block;
-          margin-left: auto;
-          margin-right: auto;
+          animation: pulse 2s infinite;
+        }
+        @keyframes pulse {
+          0% {
+            text-shadow: 0 0 5px #ff4d6d, 0 0 10px #ff1c68;
+          }
+          50% {
+            text-shadow: 0 0 15px #ff6b81, 0 0 25px #e6005c;
+          }
+          100% {
+            text-shadow: 0 0 5px #ff4d6d, 0 0 10px #ff1c68;
+          }
         }
         .welcome-text {
           margin-bottom: 20px;
+          font-size: 20px; /* ✅ बड़ा font */
+          font-style: italic;
+          line-height: 1.6;
         }
         .right {
           flex: 1;
           max-width: 420px;
           min-width: 280px;
+          margin-right: 40px; /* ✅ किनारे से हटाया */
         }
         .form-container {
           background: var(--box-bg);
@@ -520,9 +525,10 @@ export default function HomePage() {
           .container {
             flex-direction: column;
             text-align: center;
+            gap: 30px;
           }
           .right {
-            margin-top: 20px;
+            margin: 0;
             width: 100%;
           }
         }
