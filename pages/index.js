@@ -1,6 +1,5 @@
 "use client";
 import { useEffect, useState } from "react";
-import Image from "next/image"; // ✅ Next.js Image component
 
 export default function HomePage() {
   const API_BASE = "https://milan-j9u9.onrender.com";
@@ -179,16 +178,7 @@ export default function HomePage() {
 
       <div className="container" id="userFormContainer">
         <div className="left">
-          {/* ✅ Updated Milan Logo with Next.js Image */}
-          <Image
-            src="/logo.png"
-            alt="Milan Logo"
-            width={260}
-            height={100}
-            className="milan-logo"
-            priority
-          />
-
+          {/* ✅ Logo removed */}
           <h1>Welcome to Milan ❤️</h1>
           <p className="welcome-text">
             “Love recognizes no barriers. It jumps hurdles, leaps fences,
@@ -405,10 +395,6 @@ export default function HomePage() {
           flex: 1;
           text-align: center;
           margin-top: 40px;
-        }
-        .milan-logo {
-          margin-bottom: 20px;
-          display: block;
         }
         .welcome-text {
           margin-bottom: 20px;
