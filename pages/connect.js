@@ -20,7 +20,7 @@ export default function ConnectPage() {
 
   // Security (frontend-only demo)
   const [currentPasswordInput, setCurrentPasswordInput] = useState("");
-  the const [newPasswordInput, setNewPasswordInput] = useState("");
+  const [newPasswordInput, setNewPasswordInput] = useState("");
 
   // Search / status
   const [statusMessage, setStatusMessage] = useState(
