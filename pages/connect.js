@@ -30,7 +30,7 @@ export default function ConnectPage() {
   const [isSearching, setIsSearching] = useState(false);
   const [showLoader, setShowLoader] = useState(false);
 
-  // Primary CTA visibility
+  // Control primary CTA visibility with state (no DOM poking)
   const [showModeButtons, setShowModeButtons] = useState(true);
 
   // -----------------------------
@@ -40,15 +40,14 @@ export default function ConnectPage() {
   const partnerRef = useRef(null);
   const connectingRef = useRef(false);
 
-  const backendUrl = useMemo(
-    () =>
-      (typeof window !== "undefined" && process.env.NEXT_PUBLIC_BACKEND_URL) ||
-      "https://milan-j9u9.onrender.com",
-    []
-  );
+  // Resolve backend URL once (safe SSR-friendly)
+  const backendUrl = useMemo(() => {
+    // NEXT_PUBLIC_* variables are available on client when defined in env.
+    return process.env.NEXT_PUBLIC_BACKEND_URL || "https://milan-j9u9.onrender.com";
+  }, []);
 
   // -----------------------------
-  // Load profile
+  // Load profile from localStorage
   // -----------------------------
   useEffect(() => {
     if (typeof window === "undefined") return;
@@ -59,7 +58,11 @@ export default function ConnectPage() {
       } else {
         const registeredName = localStorage.getItem("registered_name") || "";
         const registeredContact = localStorage.getItem("registered_contact") || "";
-        setProfile((p) => ({ ...p, name: registeredName, contact: registeredContact }));
+        setProfile((p) => ({
+          ...p,
+          name: registeredName,
+          contact: registeredContact,
+        }));
       }
     } catch (e) {
       console.warn("Error reading profile from localStorage", e);
@@ -67,13 +70,15 @@ export default function ConnectPage() {
   }, []);
 
   // -----------------------------
-  // Hearts background
+  // Hearts background (canvas)
   // -----------------------------
   useEffect(() => {
     if (typeof window === "undefined") return;
     const canvas = document.getElementById("heartCanvas");
     if (!canvas) return;
     const ctx = canvas.getContext("2d");
+    if (!ctx) return;
+
     let hearts = [];
     let rafId = null;
 
@@ -97,6 +102,7 @@ export default function ConnectPage() {
     }
 
     function drawHearts() {
+      if (!ctx) return;
       ctx.clearRect(0, 0, canvas.width, canvas.height);
       hearts.forEach((h) => {
         ctx.fillStyle = h.color;
@@ -140,21 +146,29 @@ export default function ConnectPage() {
     return () => {
       if (socketRef.current) {
         try {
-          socketRef.current.disconnect();
-        } catch {}
+          // remove all listeners safely
+          socketRef.current.removeAllListeners && socketRef.current.removeAllListeners();
+          socketRef.current.disconnect && socketRef.current.disconnect();
+        } catch (e) {
+          // ignore
+        }
         socketRef.current = null;
       }
     };
   }, []);
 
-  // Disconnect if tab hidden while searching
+  // Disconnect socket when user hides tab for long (optional UX)
   useEffect(() => {
     if (typeof document === "undefined") return;
     const onVisibility = () => {
-      if (document.visibilityState === "hidden" && socketRef.current && isSearching) {
+      if (
+        document.visibilityState === "hidden" &&
+        socketRef.current &&
+        isSearching
+      ) {
         try {
-          socketRef.current.emit("disconnectByUser");
-          socketRef.current.disconnect();
+          socketRef.current.emit && socketRef.current.emit("disconnectByUser");
+          socketRef.current.disconnect && socketRef.current.disconnect();
         } catch {}
         socketRef.current = null;
         setIsSearching(false);
@@ -165,11 +179,12 @@ export default function ConnectPage() {
       }
     };
     document.addEventListener("visibilitychange", onVisibility);
-    return () => document.removeEventListener("visibilitychange", onVisibility);
+    return () =>
+      document.removeEventListener("visibilitychange", onVisibility);
   }, [isSearching]);
 
   // -----------------------------
-  // Sidebar actions
+  // UI Actions
   // -----------------------------
   function openProfilePanel() {
     setShowProfile(true);
@@ -187,7 +202,7 @@ export default function ConnectPage() {
     setShowSecurity(false);
   }
 
-  // Save profile
+  // Save profile to localStorage
   function saveProfile(updated) {
     const newProfile = { ...profile, ...updated };
     setProfile(newProfile);
@@ -197,7 +212,7 @@ export default function ConnectPage() {
     setShowProfile(false);
   }
 
-  // Photo upload
+  // Photo upload -> data URL
   function handlePhotoChange(e) {
     const file = e.target.files && e.target.files[0];
     if (!file) return;
@@ -209,7 +224,7 @@ export default function ConnectPage() {
     reader.readAsDataURL(file);
   }
 
-  // Security (demo)
+  // Security (frontend-only)
   function saveNewPassword() {
     if (typeof window === "undefined") return;
     const savedPwd = localStorage.getItem("milan_password") || "";
@@ -253,44 +268,58 @@ export default function ConnectPage() {
         : "💬 Searching for a Text Chat partner..."
     );
 
+    // Ensure socket
     try {
       if (!socketRef.current || !socketRef.current.connected) {
+        // Create socket and set options
         socketRef.current = io(backendUrl, {
           transports: ["websocket", "polling"],
           reconnection: true,
-          reconnectionAttempts: 5,
+          reconnectionAttempts: 10,
           reconnectionDelay: 800,
         });
       }
 
       const token =
-        (typeof window !== "undefined" && localStorage.getItem("token")) || "";
+        (typeof window !== "undefined" &&
+          localStorage.getItem("token")) ||
+        "";
 
-      socketRef.current.off("partnerFound");
-      socketRef.current.off("partnerDisconnected");
-      socketRef.current.off("connect_error");
+      // Remove previous listeners to avoid duplicates
+      socketRef.current.off && socketRef.current.off("partnerFound");
+      socketRef.current.off && socketRef.current.off("partnerDisconnected");
+      socketRef.current.off && socketRef.current.off("connect_error");
 
+      // Emit lookingForPartner
       socketRef.current.emit("lookingForPartner", { type, token });
 
+      // partnerFound
       socketRef.current.on("partnerFound", (data) => {
         partnerRef.current = data?.partner || {};
         if (typeof window !== "undefined") {
-          sessionStorage.setItem("partnerData", JSON.stringify(partnerRef.current));
+          sessionStorage.setItem(
+            "partnerData",
+            JSON.stringify(partnerRef.current)
+          );
           sessionStorage.setItem("roomCode", data?.roomCode || "");
         }
         setStatusMessage("💖 Milan Successful!");
+        // small delay for UX, but ensure we still have valid socket/session
         setTimeout(() => {
           if (typeof window !== "undefined") {
+            // navigate to respective route (video/chat)
             window.location.href = type === "video" ? "/video" : "/chat";
           }
         }, 900);
       });
 
+      // partnerDisconnected
       socketRef.current.on("partnerDisconnected", () => {
         alert("Partner disconnected.");
         stopSearch();
       });
 
+      // basic connect error handling
       socketRef.current.on("connect_error", (err) => {
         console.warn("Socket connect_error:", err?.message || err);
         alert("Connection error. Please try again.");
@@ -301,6 +330,7 @@ export default function ConnectPage() {
       alert("Something went wrong starting the search.");
       stopSearch();
     } finally {
+      // Allow re-click after initial setup
       setTimeout(() => {
         connectingRef.current = false;
       }, 300);
@@ -310,8 +340,12 @@ export default function ConnectPage() {
   function stopSearch() {
     if (socketRef.current) {
       try {
-        socketRef.current.emit("disconnectByUser");
-        socketRef.current.disconnect();
+        socketRef.current.emit && socketRef.current.emit("disconnectByUser");
+        socketRef.current.disconnect && socketRef.current.disconnect();
+      } catch {}
+      // remove listeners to be safe
+      try {
+        socketRef.current.removeAllListeners && socketRef.current.removeAllListeners();
       } catch {}
       socketRef.current = null;
     }
@@ -323,7 +357,7 @@ export default function ConnectPage() {
   }
 
   // -----------------------------
-  // Avatar
+  // Avatar helper
   // -----------------------------
   function Avatar() {
     if (profile.photoDataUrl) {
@@ -395,7 +429,10 @@ export default function ConnectPage() {
       </button>
 
       {/* Sidebar */}
-      <aside className={`sidebar ${sidebarOpen ? "open" : ""}`} aria-hidden={false}>
+      <aside
+        className={`sidebar ${sidebarOpen ? "open" : ""}`}
+        aria-hidden={false}
+      >
         <div className="sidebar-top">
           <div className="profile-pic-wrapper">
             <Avatar />
@@ -432,7 +469,7 @@ export default function ConnectPage() {
         </ul>
       </aside>
 
-      {/* Main content */}
+      {/* Main content area */}
       <main className="content-wrap" role="main">
         <div className="glass-card">
           <div className="center-box">
@@ -445,50 +482,87 @@ export default function ConnectPage() {
 
             {/* Mode options */}
             <div className="mode-options" aria-live="polite">
-              {/* Video card (no images) */}
+              {/* Video card */}
               {showModeButtons && (
                 <div
                   className="mode-card"
                   role="button"
                   tabIndex={0}
                   onClick={() => startSearch("video")}
-                  onKeyDown={(e) => e.key === "Enter" && startSearch("video")}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter") startSearch("video");
+                  }}
                   id="videoBtn"
                   aria-label="Start Video Chat"
                 >
-                  <div className="mode-title">🎥 Video Chat</div>
+                  <div className="mode-animation video-animation" aria-hidden>
+                    <svg
+                      viewBox="0 0 64 48"
+                      className="video-svg"
+                      xmlns="http://www.w3.org/2000/svg"
+                    >
+                      <rect
+                        x="2"
+                        y="8"
+                        width="40"
+                        height="32"
+                        rx="6"
+                        fill="#fff"
+                        opacity="0.06"
+                      />
+                      <rect x="6" y="12" width="32" height="24" rx="5" fill="#fff" />
+                      <path
+                        d="M46 14 L62 6 L62 42 L46 34 Z"
+                        fill="#ffd2e0"
+                        opacity="0.9"
+                      />
+                      <circle cx="22" cy="24" r="6" fill="#ec4899" />
+                    </svg>
+                  </div>
+                  <button className="mode-btn" type="button">
+                    Start Video Chat
+                  </button>
                   <p className="mode-desc">
                     Meet face-to-face instantly in Milan’s romantic video room.
                   </p>
-                  <button className="mode-btn" type="button">
-                    Start Video Chat ❤️
-                  </button>
                 </div>
               )}
 
-              {/* Text card (no images) */}
+              {/* Text card */}
               {showModeButtons && (
                 <div
                   className="mode-card disabled-card"
                   role="button"
                   tabIndex={0}
-                  onKeyDown={(e) => e.key === "Enter" && null}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter") e.preventDefault();
+                  }}
                   id="textBtn"
                   aria-label="Start Text Chat"
                 >
-                  <div className="mode-title">💌 Text Chat</div>
-                  <p className="mode-desc">
-                    Express your feelings through sweet and romantic messages.
-                  </p>
+                  <div className="mode-animation text-animation" aria-hidden>
+                    <div className="phone-mock">
+                      <div className="phone-screen">
+                        <div className="typing-dots">
+                          <span className="dot dot1" />
+                          <span className="dot dot2" />
+                          <span className="dot dot3" />
+                        </div>
+                      </div>
+                    </div>
+                  </div>
                   <button className="mode-btn disabled" type="button" disabled>
                     Coming Soon
                   </button>
-                  <div className="disabled-note">Text Chat on the way…</div>
+                  <p className="mode-desc">
+                    Express your feelings through sweet and romantic messages.
+                  </p>
+                  <div className="disabled-note">💌 Text Chat on the way…</div>
                 </div>
               )}
             </div>
 
-            {/* Loader */}
+            {/* Loader (React driven) */}
             {showLoader && (
               <div id="loader" className="loader" aria-live="assertive">
                 <div id="statusMessage" className="heart-loader">
@@ -499,7 +573,12 @@ export default function ConnectPage() {
 
             {/* Stop searching */}
             {isSearching && (
-              <button id="stopBtn" className="stop-btn" onClick={stopSearch} type="button">
+              <button
+                id="stopBtn"
+                className="stop-btn"
+                onClick={stopSearch}
+                type="button"
+              >
                 Stop Searching
               </button>
             )}
@@ -607,16 +686,15 @@ export default function ConnectPage() {
       )}
 
       <style jsx global>{`
-        /* Base */
+        /* Basic page setup */
         html,
         body {
           margin: 0;
           padding: 0;
           height: 100%;
           font-family: "Poppins", sans-serif;
-          background: radial-gradient(1200px 800px at 70% 10%, #ff7ab3 0%, transparent 60%),
-            linear-gradient(135deg, #8b5cf6, #ec4899);
-          overflow: hidden;
+          background: linear-gradient(135deg, #8b5cf6, #ec4899);
+          overflow: hidden; /* we intentionally keep it hidden so everything fits on one screen */
         }
         canvas {
           position: fixed;
@@ -628,7 +706,7 @@ export default function ConnectPage() {
           z-index: 0;
         }
 
-        /* Hamburger (mobile) */
+        /* Hamburger for mobile */
         .hamburger {
           display: none;
           position: fixed;
@@ -721,154 +799,206 @@ export default function ConnectPage() {
           z-index: 10;
         }
 
-        /* Glass card (auto height/width) */
+        /* Glass card */
         .glass-card {
-          width: min(100%, 980px);
-          max-height: calc(100vh - 48px);
+          width: min(100%, 1100px);
+          height: calc(100vh - 24px); /* occupy almost full viewport */
           background: rgba(255, 255, 255, 0.14);
-          border: 1.5px solid rgba(255, 255, 255, 0.28);
+          border: 2px solid rgba(255, 255, 255, 0.28);
           border-radius: 20px;
           backdrop-filter: blur(18px);
           box-shadow: 0 10px 40px rgba(0, 0, 0, 0.25),
             inset 0 0 60px rgba(255, 255, 255, 0.06);
-          padding: 22px;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          padding: 18px;
         }
 
+        /* center-box uses full height so we can space items and keep everything visible */
         .center-box {
           width: 100%;
+          max-width: 900px;
           color: #fff;
           text-align: center;
           z-index: 12;
           display: flex;
           flex-direction: column;
-          align-items: center;
-          gap: 18px;
+          justify-content: space-between; /* top = heading, middle = cards, bottom = quote */
+          height: 100%;
+          box-sizing: border-box;
+          padding: 6px 8px;
+        }
+
+        .center-top {
+          /* top area (heading + small status) */
+          margin-bottom: 6px;
         }
 
         .center-box h2 {
-          font-size: 34px;
-          margin: 0;
+          font-size: 36px;
+          margin: 6px 0 8px 0;
           font-weight: 700;
-          letter-spacing: 0.3px;
           text-shadow: 0 0 10px #ec4899;
         }
+
         .mode-text {
           color: #ffe4f1;
           font-weight: 600;
+          margin-bottom: 6px;
           min-height: 22px;
-          margin-top: 6px;
         }
 
         .mode-options {
-          width: 100%;
           display: flex;
           justify-content: center;
+          gap: 16px;
           align-items: stretch;
-          gap: 18px;
           flex-wrap: nowrap;
+          margin-top: 6px;
+          /* keep cards horizontally on desktop */
         }
 
-        .mode-card {
-          flex: 1 1 320px;
-          max-width: 440px;
+        .mode-card,
+        .disabled-card {
+          flex: 1 1 300px;
+          max-width: 420px;
           background: rgba(255, 255, 255, 0.08);
-          border: 1px solid rgba(255, 255, 255, 0.14);
-          border-radius: 16px;
-          padding: 18px;
+          border: 1px solid rgba(255, 255, 255, 0.12);
+          border-radius: 14px;
+          padding: 16px;
           display: flex;
           flex-direction: column;
           align-items: center;
           gap: 10px;
           box-shadow: 0 8px 24px rgba(0, 0, 0, 0.18);
-          transition: transform 0.22s ease, box-shadow 0.22s ease, border 0.22s ease;
+          transition: transform 0.22s ease, box-shadow 0.22s ease;
           outline: none;
           box-sizing: border-box;
         }
-        .mode-card:hover {
-          transform: translateY(-3px) scale(1.01);
-          box-shadow: 0 14px 36px rgba(236, 72, 153, 0.35);
-          border-color: rgba(255, 255, 255, 0.28);
+
+        .mode-animation {
+          width: 100%;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          margin-bottom: 6px;
         }
 
-        .mode-title {
-          font-size: 18px;
-          font-weight: 700;
-          letter-spacing: 0.2px;
-        }
-
-        .mode-desc {
-          color: rgba(255, 255, 255, 0.92);
-          font-size: 14px;
-          margin: 2px 0 6px 0;
+        .video-svg {
+          width: 120px;
+          height: 80px;
         }
 
         .mode-btn {
           width: 100%;
-          padding: 12px;
-          border-radius: 12px;
+          padding: 10px 12px;
+          border-radius: 10px;
           border: none;
-          background: linear-gradient(135deg, #ffffff, #ffe6f2);
+          background: #fff;
           color: #ec4899;
           font-size: 16px;
-          font-weight: 800;
+          font-weight: 700;
           cursor: pointer;
-          box-shadow: 0 6px 18px rgba(236, 72, 153, 0.35);
-          transition: transform 0.18s ease, box-shadow 0.18s ease;
-          animation: softPulse 2.6s infinite ease-in-out;
-        }
-        .mode-btn:hover {
-          transform: translateY(-2px);
-          box-shadow: 0 10px 22px rgba(236, 72, 153, 0.45);
-        }
-        .mode-btn.disabled {
-          cursor: not-allowed;
-          opacity: 0.7;
-          box-shadow: none;
-          animation: none;
         }
 
-        @keyframes softPulse {
-          0% { box-shadow: 0 6px 18px rgba(236, 72, 153, 0.28); }
-          50% { box-shadow: 0 10px 26px rgba(236, 72, 153, 0.48); }
-          100% { box-shadow: 0 6px 18px rgba(236, 72, 153, 0.28); }
+        .mode-desc {
+          color: rgba(255, 255, 255, 0.9);
+          font-size: 14px;
+          margin-top: 6px;
         }
 
         .disabled-note {
-          margin-top: 4px;
+          margin-top: 6px;
           font-size: 13px;
           color: #ffe4f1;
           font-style: italic;
         }
 
-        .loader { margin: 8px auto; }
+        .phone-mock {
+          width: 84px;
+          height: 120px;
+          border-radius: 12px;
+          background: linear-gradient(
+            180deg,
+            rgba(255, 255, 255, 0.9),
+            rgba(255, 255, 255, 0.8)
+          );
+          box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.6);
+          display: flex;
+          align-items: center;
+          justify-content: center;
+        }
+
+        .typing-dots .dot {
+          width: 8px;
+          height: 8px;
+          background: #fff;
+          border-radius: 50%;
+          opacity: 0.25;
+          transform: scale(0.8);
+          animation: typing-bounce 1.2s infinite ease-in-out;
+        }
+
+        @keyframes typing-bounce {
+          0% {
+            opacity: 0.25;
+            transform: translateY(0) scale(0.8);
+          }
+          40% {
+            opacity: 1;
+            transform: translateY(-6px) scale(1);
+          }
+          80% {
+            opacity: 0.4;
+            transform: translateY(0) scale(0.9);
+          }
+          100% {
+            opacity: 0.25;
+            transform: translateY(0) scale(0.8);
+          }
+        }
+
+        .loader {
+          margin: 10px auto;
+        }
         .heart-loader {
-          font-size: 28px;
+          font-size: 30px;
           color: #fff;
           animation: blink 1s infinite;
         }
         @keyframes blink {
-          0%   { opacity: 0.25; transform: scale(1); }
-          50%  { opacity: 1;    transform: scale(1.1); }
-          100% { opacity: 0.25; transform: scale(1); }
+          0% {
+            opacity: 0.2;
+            transform: scale(1);
+          }
+          50% {
+            opacity: 1;
+            transform: scale(1.12);
+          }
+          100% {
+            opacity: 0.2;
+            transform: scale(1);
+          }
         }
 
         .stop-btn {
-          margin-top: 6px;
+          margin-top: 10px;
           padding: 10px 16px;
           background: #ff4d4f;
           color: #fff;
           border: none;
-          border-radius: 12px;
+          border-radius: 10px;
           cursor: pointer;
-          font-weight: 700;
         }
 
         .quote-box {
+          margin-top: 8px;
           font-weight: 600;
           color: #ffeff7;
           text-shadow: 0 0 5px #ff88aa;
           padding: 10px 12px;
-          border-radius: 12px;
+          border-radius: 10px;
           background: rgba(255, 255, 255, 0.08);
           border: 1px solid rgba(255, 255, 255, 0.12);
         }
@@ -889,6 +1019,7 @@ export default function ConnectPage() {
           flex-direction: column;
           gap: 10px;
         }
+
         .save-btn,
         .cancel-btn {
           padding: 10px 12px;
@@ -900,32 +1031,89 @@ export default function ConnectPage() {
         .save-btn { background: #ec4899; color: #fff; }
         .cancel-btn { background: #eee; }
 
-        /* Responsive */
+        /* Responsive adjustments */
         @media (max-width: 1024px) {
-          .glass-card { padding: 18px; }
+          .glass-card {
+            height: calc(100vh - 20px);
+          }
         }
+
         @media (max-width: 768px) {
-          .hamburger { display: block; }
-          .sidebar { transform: translateX(-100%); width: 200px; }
-          .sidebar.open { transform: translateX(0); }
+          /* show hamburger */
+          .hamburger {
+            display: block;
+          }
+          /* collapse sidebar */
+          .sidebar {
+            transform: translateX(-100%);
+            width: 200px;
+          }
+          .sidebar.open {
+            transform: translateX(0);
+          }
 
-          .content-wrap { left: 0; padding: 10px; }
-          .glass-card { width: 100%; border-radius: 16px; }
+          .content-wrap {
+            left: 0;
+            padding: 10px;
+          }
 
-          .center-box { gap: 14px; }
-          .center-box h2 { font-size: 24px; }
+          .glass-card {
+            width: 100%;
+            height: 100vh; /* make it take viewport fully */
+            padding: 12px;
+            border-radius: 16px;
+          }
 
+          /* heading smaller and moved up so it's visible */
+          .center-box h2 {
+            font-size: 22px;
+            margin: 4px 0 6px 0;
+          }
+
+          /* stack cards vertically and reduce their height / padding */
           .mode-options {
             flex-direction: column;
-            gap: 12px;
+            gap: 10px;
+            margin-top: 6px;
+            align-items: center;
           }
-          .mode-card {
-            width: 100%;
-            max-width: 100%;
-            padding: 14px;
+          .mode-card,
+          .disabled-card {
+            width: 94%;
+            max-width: 94%;
+            padding: 10px;
+            border-radius: 12px;
+            min-height: 98px; /* keep card compact */
           }
-          .mode-btn { font-size: 15px; padding: 11px; }
-          .quote-box { font-size: 13px; padding: 9px 10px; }
+
+          .mode-animation {
+            margin-bottom: 6px;
+          }
+
+          .video-svg {
+            width: 88px;
+            height: 56px;
+          }
+
+          .phone-mock {
+            width: 64px;
+            height: 98px;
+          }
+
+          .mode-btn {
+            font-size: 15px;
+            padding: 10px;
+          }
+
+          .mode-desc {
+            font-size: 13px;
+          }
+
+          .quote-box {
+            font-size: 13px;
+            padding: 10px;
+            margin-bottom: 4px;
+          }
         }
       `}</style>
     </>
