@@ -10,15 +10,17 @@ export default function ConnectPage() {
   const [showProfile, setShowProfile] = useState(false);
   const [showSecurity, setShowSecurity] = useState(false);
   const [showLogoutConfirm, setShowLogoutConfirm] = useState(false);
-  const [showDeactivateConfirm, setShowDeactivateConfirm] = useState(false);
 
   // Profile (localStorage)
   const [profile, setProfile] = useState({
     name: "",
     contact: "",
-    photoDataUrl: "",
-    interests: "",
-    deactivationRequestedAt: null,
+    photoDataUrls: [], // up to 3
+    interests: [], // array of strings
+    age: "",
+    city: "",
+    language: "",
+    bio: "",
   });
 
   // Security (frontend-only demo)
@@ -62,25 +64,22 @@ export default function ConnectPage() {
     return process.env.NEXT_PUBLIC_BACKEND_URL || "https://milan-j9u9.onrender.com";
   }, []);
 
-  // Load profile from localStorage
+  // Load profile from localStorage on mount
   useEffect(() => {
     if (typeof window === "undefined") return;
     try {
       const saved = localStorage.getItem("milan_profile");
       if (saved) {
         const parsed = JSON.parse(saved);
-        // normalize
+        // ensure arrays exist
+        parsed.photoDataUrls = Array.isArray(parsed.photoDataUrls) ? parsed.photoDataUrls : [];
+        parsed.interests = Array.isArray(parsed.interests) ? parsed.interests : [];
         setProfile((p) => ({ ...p, ...parsed }));
       } else {
+        // fallback to registration values if present
         const registeredName = localStorage.getItem("registered_name") || "";
         const registeredContact = localStorage.getItem("registered_contact") || "";
-        const deactivateAt = localStorage.getItem("milan_deactivate_requested_at") || null;
-        setProfile((p) => ({
-          ...p,
-          name: registeredName,
-          contact: registeredContact,
-          deactivationRequestedAt: deactivateAt ? Number(deactivateAt) : null,
-        }));
+        setProfile((p) => ({ ...p, name: registeredName, contact: registeredContact }));
       }
     } catch (e) {
       console.warn("Error reading profile from localStorage", e);
@@ -89,7 +88,6 @@ export default function ConnectPage() {
 
   // ---------------------------
   // Hearts background (canvas)
-  // Robust, devicePixelRatio-safe, avoid bottom artifacts
   // ---------------------------
   useEffect(() => {
     if (typeof window === "undefined") return;
@@ -98,7 +96,6 @@ export default function ConnectPage() {
     const ctx = canvas.getContext("2d");
     if (!ctx) return;
 
-    // We'll keep hearts coordinates in CSS pixels (layout space).
     let hearts = [];
     let rafId = null;
     let cssW = window.innerWidth;
@@ -223,19 +220,16 @@ export default function ConnectPage() {
     setShowProfile(true);
     setShowSecurity(false);
     setShowLogoutConfirm(false);
-    setShowDeactivateConfirm(false);
   }
   function openSecurityPanel() {
     setShowSecurity(true);
     setShowProfile(false);
     setShowLogoutConfirm(false);
-    setShowDeactivateConfirm(false);
   }
   function openLogoutConfirm() {
     setShowLogoutConfirm(true);
     setShowProfile(false);
     setShowSecurity(false);
-    setShowDeactivateConfirm(false);
   }
 
   // Save profile to localStorage (centralized)
@@ -244,28 +238,38 @@ export default function ConnectPage() {
     setProfile(newProfile);
     if (typeof window !== "undefined") {
       localStorage.setItem("milan_profile", JSON.stringify(newProfile));
-      // keep separate deactivation timestamp for quick access
-      if (newProfile.deactivationRequestedAt) {
-        localStorage.setItem("milan_deactivate_requested_at", String(newProfile.deactivationRequestedAt));
-      } else {
-        localStorage.removeItem("milan_deactivate_requested_at");
-      }
     }
     setShowProfile(false);
   }
 
-  // Photo upload -> data URL
-  function handlePhotoChange(e) {
+  // Photo upload -> data URL (allow up to 3)
+  async function handleAddPhoto(e) {
     const file = e.target.files && e.target.files[0];
     if (!file) return;
+    if (!file.type.startsWith("image/")) {
+      alert("Please select an image file.");
+      return;
+    }
     const reader = new FileReader();
     reader.onload = function (ev) {
       const dataUrl = ev.target.result;
-      saveProfile({ photoDataUrl: dataUrl });
-      // quick visual feedback
-      alert("Profile photo updated.");
+      const next = [...(profile.photoDataUrls || [])];
+      if (next.length >= 3) {
+        alert("Maximum 3 photos allowed. Remove one to add a new.");
+        return;
+      }
+      next.push(dataUrl);
+      saveProfile({ photoDataUrls: next });
     };
     reader.readAsDataURL(file);
+    // reset input
+    e.target.value = "";
+  }
+
+  function removePhoto(index) {
+    const next = [...(profile.photoDataUrls || [])];
+    next.splice(index, 1);
+    saveProfile({ photoDataUrls: next });
   }
 
   // Security (frontend-only)
@@ -294,23 +298,6 @@ export default function ConnectPage() {
     localStorage.clear();
     sessionStorage.clear();
     window.location.href = "/";
-  }
-
-  // Deactivate request: user schedules deactivation (frontend-simulated)
-  function requestDeactivate() {
-    // ask for confirmation modal
-    setShowDeactivateConfirm(true);
-    setShowProfile(false);
-  }
-  function confirmDeactivate() {
-    const ts = Date.now();
-    saveProfile({ deactivationRequestedAt: ts });
-    setShowDeactivateConfirm(false);
-    alert("Deactivation requested. If you do not log in for 30 days, account will be deactivated.");
-  }
-  function cancelDeactivate() {
-    saveProfile({ deactivationRequestedAt: null });
-    alert("Deactivation request cancelled.");
   }
 
   // Start / Stop Search
@@ -405,10 +392,10 @@ export default function ConnectPage() {
 
   // Avatar helper (keeps same)
   function Avatar() {
-    if (profile.photoDataUrl) {
+    if (profile.photoDataUrls && profile.photoDataUrls.length) {
       return (
         <img
-          src={profile.photoDataUrl}
+          src={profile.photoDataUrls[0]}
           alt="avatar"
           style={{
             width: 70,
@@ -442,29 +429,61 @@ export default function ConnectPage() {
     );
   }
 
-  // Save personal info (profile modal)
-  function handleSavePersonal(e) {
+  // Save personal info from overlay form
+  function handleSaveProfileForm(e) {
     e.preventDefault();
     const f = e.currentTarget;
     const name = f.fullname.value.trim();
     const contact = f.contact.value.trim();
-    const interests = f.interests ? f.interests.value.trim() : "";
+    const age = f.age.value.trim();
+    const city = f.city.value.trim();
+    const language = f.language.value;
+    const bio = f.bio.value.trim();
+    // interests are managed via state, so we take from profile.interests
     if (!name) {
       alert("Please enter name.");
       return;
     }
-    saveProfile({ name, contact, interests });
+    saveProfile({ name, contact, age, city, language, bio });
     alert("Profile saved.");
   }
 
-  // helper to format deactivation date
-  function formatDeactivation(ts) {
-    if (!ts) return null;
-    const d = new Date(Number(ts));
-    // One month from request:
-    const monthLater = new Date(d.getTime() + 30 * 24 * 60 * 60 * 1000);
-    return monthLater.toLocaleDateString();
+  // Interests: add via input (Enter or comma) and show chips
+  const [interestInput, setInterestInput] = useState("");
+  function handleAddInterestFromInput(e) {
+    const raw = interestInput.trim();
+    if (!raw) return setInterestInput("");
+    const parts = raw.split(",").map((p) => p.trim()).filter(Boolean);
+    if (!parts.length) return setInterestInput("");
+    const next = Array.from(new Set([...(profile.interests || []), ...parts])).slice(0, 12);
+    saveProfile({ interests: next });
+    setInterestInput("");
   }
+  function removeInterest(idx) {
+    const next = [...(profile.interests || [])];
+    next.splice(idx, 1);
+    saveProfile({ interests: next });
+  }
+
+  // Profile completeness calculation (weights)
+  function calcCompleteness(p = profile) {
+    let score = 0;
+    // weights (sum to 100)
+    // name: 18, contact: 12, age: 10, city: 10, language: 10, bio: 15, interests: 15, photos: 10
+    if (p.name && p.name.trim()) score += 18;
+    if (p.contact && p.contact.trim()) score += 12;
+    if (p.age && String(p.age).trim()) score += 10;
+    if (p.city && p.city.trim()) score += 10;
+    if (p.language && p.language.trim()) score += 10;
+    if (p.bio && p.bio.trim()) score += 15;
+    if (Array.isArray(p.interests) && p.interests.length) score += 15;
+    if (Array.isArray(p.photoDataUrls) && p.photoDataUrls.length) {
+      score += Math.min(10, p.photoDataUrls.length * Math.ceil(10 / 3)); // up to 10
+    }
+    return Math.min(100, Math.round(score));
+  }
+
+  const completeness = calcCompleteness();
 
   return (
     <>
@@ -492,35 +511,35 @@ export default function ConnectPage() {
           </div>
           <div className="username">{profile.name || "My Name"}</div>
 
+          {/* profile completeness mini */}
+          <div className="completeness-mini" title={`${completeness}% complete`} style={{ marginTop: 8 }}>
+            <div style={{ fontSize: 12, color: "rgba(255,255,255,0.95)", fontWeight: 700 }}>
+              Profile: {completeness}%
+            </div>
+            <div className="mini-progress" aria-hidden>
+              <div className="mini-progress-bar" style={{ width: `${completeness}%` }} />
+            </div>
+          </div>
+
           {/* small preview of interests */}
-          {profile.interests ? (
-            <div className="interests-preview" title={profile.interests} style={{ marginTop: 6, fontSize: 12, color: "rgba(255,255,255,0.9)", textAlign: "center", maxWidth: 200 }}>
-              {profile.interests.length > 36 ? profile.interests.slice(0, 36) + "…" : profile.interests}
+          {profile.interests && profile.interests.length ? (
+            <div className="interests-preview" title={profile.interests.join(", ")} style={{ marginTop: 8, fontSize: 12, color: "rgba(255,255,255,0.9)", textAlign: "center", maxWidth: 200 }}>
+              {profile.interests.slice(0, 4).join(", ")}{profile.interests.length > 4 ? "…" : ""}
             </div>
           ) : null}
 
           <div style={{ marginTop: 8 }}>
-            <label htmlFor="photoInput" className="photo-label">
+            <label htmlFor="photoInput" className="photo-label" style={{ cursor: "pointer" }}>
               Change / Add Photo
             </label>
             <input
               id="photoInput"
               type="file"
               accept="image/*"
-              onChange={handlePhotoChange}
+              onChange={handleAddPhoto}
               style={{ display: "none" }}
             />
           </div>
-
-          {/* show deactivation status */}
-          {profile.deactivationRequestedAt ? (
-            <div style={{ marginTop: 8, fontSize: 12, color: "#ffdede", textAlign: "center" }}>
-              Deactivation scheduled: {formatDeactivation(profile.deactivationRequestedAt)}
-              <div style={{ marginTop: 6 }}>
-                <button className="btn-cancel-deact" onClick={cancelDeactivate}>Cancel Deactivation</button>
-              </div>
-            </div>
-          ) : null}
         </div>
 
         <ul className="sidebar-list">
@@ -636,32 +655,149 @@ export default function ConnectPage() {
         </div>
       </main>
 
-      {/* Profile Modal */}
+      {/* PROFILE OVERLAY (transparent glass page) */}
       {showProfile && (
-        <div className="modal-back" role="dialog" aria-modal="true" onClick={(e)=>{ if(e.target.classList.contains('modal-back')) setShowProfile(false); }}>
-          <div className="modal-card">
-            <header className="modal-head">
-              <h3>Personal Info</h3>
+        <div
+          className="profile-overlay"
+          role="dialog"
+          aria-modal="true"
+          onClick={(e) => {
+            // close when clicking the overlay background
+            if (e.target && e.target.classList && e.target.classList.contains("profile-overlay")) {
+              setShowProfile(false);
+            }
+          }}
+        >
+          <div className="profile-card" role="region" aria-label="Edit Profile">
+            <header className="profile-head">
+              <h3>Edit Your Profile</h3>
               <button className="close" onClick={() => setShowProfile(false)} aria-label="Close">✕</button>
             </header>
-            <form className="modal-body" onSubmit={handleSavePersonal}>
-              <label>Full Name</label>
-              <input name="fullname" placeholder="Full Name" defaultValue={profile.name} />
 
-              <label>Contact (Email or Mobile)</label>
-              <input name="contact" placeholder="Email or Mobile" defaultValue={profile.contact} />
+            <form className="profile-body" onSubmit={handleSaveProfileForm}>
+              <div className="row">
+                <label>Full Name</label>
+                <input name="fullname" placeholder="Full Name" defaultValue={profile.name} />
+              </div>
 
-              <label>Interests / Hobbies</label>
-              <textarea name="interests" placeholder="e.g. Music, Movies, Travelling" defaultValue={profile.interests} style={{ minHeight: 80, marginTop: 8 }} />
+              <div className="row two-col">
+                <label>Contact (Email or Mobile)</label>
+                <input name="contact" placeholder="Email or Mobile" defaultValue={profile.contact} />
+              </div>
 
-              <div style={{ display: "flex", gap: 8, marginTop: 12, justifyContent: "flex-end" }}>
-                {!profile.deactivationRequestedAt ? (
-                  <button type="button" className="btn-ghost" onClick={requestDeactivate} title="Request account deactivation">Request Deactivate</button>
-                ) : (
-                  <button type="button" className="btn-ghost" onClick={cancelDeactivate} title="Cancel scheduled deactivation">Cancel Deactivation</button>
-                )}
-                <button type="submit" className="btn-primary">Save</button>
-                <button type="button" className="btn-ghost" onClick={() => setShowProfile(false)}>Cancel</button>
+              <div className="row three-col">
+                <div>
+                  <label>Age</label>
+                  <input name="age" type="number" min="13" placeholder="Age" defaultValue={profile.age} />
+                </div>
+                <div>
+                  <label>City</label>
+                  <input name="city" placeholder="City" defaultValue={profile.city} />
+                </div>
+                <div>
+                  <label>Language</label>
+                  <select name="language" defaultValue={profile.language || ""}>
+                    <option value="">Select</option>
+                    <option value="English">English</option>
+                    <option value="Hindi">Hindi</option>
+                    <option value="Hinglish">Hinglish</option>
+                    <option value="Other">Other</option>
+                  </select>
+                </div>
+              </div>
+
+              <div className="row">
+                <label>Short Bio (max 150 chars)</label>
+                <textarea name="bio" maxLength={150} placeholder="A short intro about you..." defaultValue={profile.bio} />
+                <div className="char-note">{(profile.bio || "").length}/150</div>
+              </div>
+
+              <div className="row">
+                <label>Interests / Hobbies</label>
+                <div className="interests-input">
+                  <input
+                    value={interestInput}
+                    onChange={(e) => setInterestInput(e.target.value)}
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter") {
+                        e.preventDefault();
+                        handleAddInterestFromInput();
+                      } else if (e.key === ",") {
+                        e.preventDefault();
+                        handleAddInterestFromInput();
+                      }
+                    }}
+                    placeholder="Type and press Enter or comma (e.g. Music, Movies)"
+                  />
+                  <button type="button" className="btn-small" onClick={handleAddInterestFromInput}>Add</button>
+                </div>
+                <div className="chips">
+                  {(profile.interests || []).map((it, idx) => (
+                    <div className="chip" key={idx}>
+                      {it}
+                      <button type="button" aria-label={`Remove ${it}`} onClick={() => removeInterest(idx)}>✕</button>
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              <div className="row">
+                <label>Photos (1–3)</label>
+                <div className="photo-row">
+                  {(profile.photoDataUrls || []).map((p, i) => (
+                    <div className="photo-thumb" key={i}>
+                      <img src={p} alt={`photo-${i}`} />
+                      <button type="button" className="remove-photo" onClick={() => removePhoto(i)}>Remove</button>
+                    </div>
+                  ))}
+
+                  {(profile.photoDataUrls || []).length < 3 && (
+                    <div className="photo-add">
+                      <label className="photo-add-label">
+                        + Add Photo
+                        <input type="file" accept="image/*" onChange={handleAddPhoto} style={{ display: "none" }} />
+                      </label>
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              <div className="row">
+                <label>Profile Completeness</label>
+                <div className="progress-wrap" aria-hidden>
+                  <div className="progress-bar" style={{ width: `${completeness}%` }} />
+                </div>
+                <div style={{ marginTop: 6, fontSize: 13, color: "#333" }}>{completeness}% complete</div>
+              </div>
+
+              <div className="row actions">
+                <div style={{ display: "flex", gap: 8 }}>
+                  <button type="submit" className="btn-primary">Save Profile</button>
+                  <button type="button" className="btn-ghost" onClick={() => setShowProfile(false)}>Cancel</button>
+                </div>
+                <div>
+                  <button
+                    type="button"
+                    className="btn-ghost"
+                    onClick={() => {
+                      // quick export
+                      try {
+                        const data = JSON.stringify(profile, null, 2);
+                        const blob = new Blob([data], { type: "application/json" });
+                        const url = URL.createObjectURL(blob);
+                        const a = document.createElement("a");
+                        a.href = url;
+                        a.download = "milan_profile.json";
+                        a.click();
+                        URL.revokeObjectURL(url);
+                      } catch (e) {
+                        alert("Export failed");
+                      }
+                    }}
+                  >
+                    Export
+                  </button>
+                </div>
               </div>
             </form>
           </div>
@@ -703,30 +839,6 @@ export default function ConnectPage() {
               <div className="modal-actions" style={{marginTop:12}}>
                 <button className="btn-primary" onClick={handleLogoutConfirmYes}>Yes</button>
                 <button className="btn-ghost" onClick={() => setShowLogoutConfirm(false)}>No</button>
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* Deactivate Confirm Modal */}
-      {showDeactivateConfirm && (
-        <div className="modal-back" role="dialog" aria-modal="true" onClick={(e)=>{ if(e.target.classList.contains('modal-back')) setShowDeactivateConfirm(false); }}>
-          <div className="modal-card small">
-            <header className="modal-head">
-              <h3>Confirm Deactivation Request</h3>
-              <button className="close" onClick={() => setShowDeactivateConfirm(false)} aria-label="Close">✕</button>
-            </header>
-            <div className="modal-body">
-              <p style={{margin:0, color:'#333'}}>
-                Are you sure you want to request account deactivation?
-              </p>
-              <p style={{ marginTop: 8, color: "#334" }}>
-                Note: If you do not use the account for <strong>30 days</strong> after this request, your account will be deactivated. You can cancel this request anytime before that.
-              </p>
-              <div className="modal-actions" style={{marginTop:12}}>
-                <button className="btn-primary" onClick={confirmDeactivate}>Yes, Request Deactivate</button>
-                <button className="btn-ghost" onClick={() => setShowDeactivateConfirm(false)}>Cancel</button>
               </div>
             </div>
           </div>
@@ -986,7 +1098,74 @@ export default function ConnectPage() {
           to { opacity: 1; transform: translateY(0); }
         }
 
-        /* CLASSY MODAL STYLES */
+        /* PROFILE OVERLAY (glass) */
+        .profile-overlay {
+          position: fixed;
+          inset: 0;
+          background: rgba(2,6,23,0.45);
+          z-index: 120;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          padding: 18px;
+        }
+        .profile-card {
+          width: min(920px, 96%);
+          max-width: 920px;
+          background: linear-gradient(180deg, rgba(255,255,255,0.95), rgba(255,255,255,0.92));
+          border-radius: 12px;
+          box-shadow: 0 18px 60px rgba(0,0,0,0.35);
+          overflow: hidden;
+          display: flex;
+          flex-direction: column;
+          gap: 8px;
+        }
+        .profile-head {
+          display:flex;
+          align-items:center;
+          justify-content:space-between;
+          padding: 14px 18px;
+          background: linear-gradient(90deg, rgba(255,236,245,0.95), rgba(255,255,255,0.95));
+          border-bottom: 1px solid rgba(0,0,0,0.04);
+        }
+        .profile-head h3 { margin:0; font-size:20px; color:#0b1220; font-weight:900; }
+        .profile-head .close { background:transparent;border:0;font-size:18px;cursor:pointer;color:#666; }
+
+        .profile-body { padding: 14px 18px 20px 18px; display:flex; flex-direction:column; gap:12px; color:#222; }
+        .profile-body label { display:block; font-weight:700; color:#334; margin-bottom:6px; }
+        .profile-body input, .profile-body select, .profile-body textarea { width:100%; padding:10px 12px; border-radius:8px; border:1px solid #e6e6e9; box-sizing:border-box; font-size:14px; }
+        .profile-body textarea { min-height:80px; resize:vertical; }
+
+        .row { width:100%; }
+        .two-col { display:flex; gap:10px; }
+        .three-col { display:flex; gap:10px; }
+        .three-col > div { flex:1; }
+
+        .interests-input { display:flex; gap:8px; align-items:center; }
+        .interests-input input { flex:1; }
+        .btn-small { background: linear-gradient(90deg,#ff6b81,#ff9fb0); color:#08121a; padding:8px 10px; border-radius:8px; border:none; font-weight:700; cursor:pointer; }
+
+        .chips { display:flex; gap:8px; flex-wrap:wrap; margin-top:8px; }
+        .chip { background:#fff; padding:6px 10px; border-radius:20px; display:flex; gap:8px; align-items:center; font-weight:700; box-shadow: 0 6px 18px rgba(0,0,0,0.06); }
+        .chip button { background:transparent; border:0; cursor:pointer; color:#c33; font-weight:800; }
+
+        .photo-row { display:flex; gap:10px; align-items:center; flex-wrap:wrap; }
+        .photo-thumb { position:relative; width:84px; height:84px; border-radius:8px; overflow:hidden; background:#f3f3f3; display:flex; align-items:center; justify-content:center; box-shadow: 0 6px 18px rgba(0,0,0,0.06); }
+        .photo-thumb img { width:100%; height:100%; object-fit:cover; }
+        .photo-thumb .remove-photo { position:absolute; top:6px; right:6px; background: rgba(0,0,0,0.36); color:#fff; border:0; padding:6px 8px; border-radius:6px; cursor:pointer; }
+
+        .photo-add { width:84px; height:84px; border-radius:8px; background:linear-gradient(90deg,#fff,#fff); display:flex; align-items:center; justify-content:center; box-shadow: 0 6px 18px rgba(0,0,0,0.04); }
+        .photo-add-label { display:block; cursor:pointer; color:#ec4899; font-weight:800; }
+
+        .progress-wrap { width:100%; height:12px; background: #f1f1f1; border-radius:8px; overflow:hidden; margin-top:6px; }
+        .progress-bar { height:100%; background: linear-gradient(90deg,#ff6b81,#ff9fb0); width:0%; transition: width 260ms ease; }
+
+        .actions { display:flex; align-items:center; justify-content:space-between; gap:12px; }
+
+        /* Buttons used in overlays/modals */
+        .btn-primary { background: linear-gradient(90deg,#ff6b81,#ff9fb0); color:#08121a; padding:10px 14px; border-radius:8px; border:none; font-weight:800; cursor:pointer; }
+        .btn-ghost { background:#f3f4f6; color:#333; padding:10px 12px; border-radius:8px; border:none; cursor:pointer; }
+
         .modal-back {
           position: fixed;
           inset: 0;
@@ -1012,11 +1191,12 @@ export default function ConnectPage() {
 
         .modal-body { padding:14px 16px 18px 16px; color:#08121a; }
         .modal-body label { display:block; font-weight:700; color:#334; margin-top:8px; }
-        .modal-body input, .modal-body textarea { width:100%; padding:10px 12px; margin-top:8px; border-radius:8px; border:1px solid #e6e6e9; box-sizing:border-box; }
+        .modal-body input { width:100%; padding:10px 12px; margin-top:8px; border-radius:8px; border:1px solid #e6e6e9; box-sizing:border-box; }
 
         .modal-actions { display:flex; gap:10px; justify-content:flex-end; margin-top:12px; }
-        .btn-primary { background: linear-gradient(90deg,#ff6b81,#ff9fb0); color:#08121a; padding:10px 14px; border-radius:8px; border:none; font-weight:800; cursor:pointer; }
-        .btn-ghost { background:#f3f4f6; color:#333; padding:10px 12px; border-radius:8px; border:none; cursor:pointer; }
+
+        .mini-progress { width:140px; height:8px; background: rgba(255,255,255,0.08); border-radius:8px; margin-top:6px; overflow:hidden; }
+        .mini-progress-bar { height:100%; background: linear-gradient(90deg,#ff6b81,#ff9fb0); width:0%; transition: width 280ms ease; }
 
         /* Responsive adjustments */
         @media (max-width: 1024px) {
@@ -1054,6 +1234,11 @@ export default function ConnectPage() {
           .mode-btn { font-size: 15px; padding: 10px; }
           .mode-desc { font-size: 13px; margin-bottom: 6px; } /* ensure less extra space */
           .quote-box { font-size: 13px; padding: 8px; margin-bottom: 4px; }
+
+          /* overlay card should be smaller on mobile */
+          .profile-card { width: 96%; max-width: 680px; padding: 8px; }
+          .three-col { flex-direction: column; }
+          .two-col { flex-direction: column; }
         }
       `}</style>
     </>
