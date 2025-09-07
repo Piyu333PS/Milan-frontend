@@ -33,11 +33,6 @@ export default function ConnectPage() {
   // Control primary CTA visibility with state (no DOM poking)
   const [showModeButtons, setShowModeButtons] = useState(true);
 
-  // If partner disconnected, show reconnect option instead of auto redirect
-  const [showReconnectOptions, setShowReconnectOptions] = useState(false);
-  const [requeueNotice, setRequeueNotice] = useState(""); // message when server requeues
-  const [lastMode, setLastMode] = useState(null); // remembers last requested mode ("video"|"text")
-
   // -----------------------------
   // NEW: Rotating quotes (every 5s)
   // -----------------------------
@@ -199,7 +194,6 @@ export default function ConnectPage() {
         setShowModeButtons(true);
         setModeText("");
         setStatusMessage("❤️ जहाँ दिल मिले, वहीं होती है शुरुआत Milan की…");
-        setShowReconnectOptions(false);
       }
     };
     document.addEventListener("visibilitychange", onVisibility);
@@ -279,16 +273,6 @@ export default function ConnectPage() {
   // Start / Stop Search
   // -----------------------------
   function startSearch(type) {
-    // safety guard: text chat disabled
-    if (type === "text") {
-      // prevent accidental calls
-      try {
-        alert("Text Chat is coming soon — stay tuned!");
-      } catch (e) {}
-      connectingRef.current = false;
-      return;
-    }
-
     if (isSearching || connectingRef.current) return;
     connectingRef.current = true;
 
@@ -301,9 +285,6 @@ export default function ConnectPage() {
         ? "🎥 Searching for a Video Chat partner..."
         : "💬 Searching for a Text Chat partner..."
     );
-    setShowReconnectOptions(false);
-    setRequeueNotice("");
-    setLastMode(type);
 
     // Ensure socket
     try {
@@ -326,8 +307,6 @@ export default function ConnectPage() {
       socketRef.current.off && socketRef.current.off("partnerFound");
       socketRef.current.off && socketRef.current.off("partnerDisconnected");
       socketRef.current.off && socketRef.current.off("connect_error");
-      socketRef.current.off && socketRef.current.off("requeued");
-      socketRef.current.off && socketRef.current.off("matchReady");
 
       // Emit lookingForPartner
       socketRef.current.emit("lookingForPartner", { type, token });
@@ -343,14 +322,6 @@ export default function ConnectPage() {
           sessionStorage.setItem("roomCode", data?.roomCode || "");
         }
         setStatusMessage("💖 Milan Successful!");
-        setShowLoader(false);
-        setIsSearching(false);
-        setShowModeButtons(false); // will navigate away shortly
-
-        // Clear reconnect option if any
-        setShowReconnectOptions(false);
-        setRequeueNotice("");
-
         // small delay for UX, but ensure we still have valid socket/session
         setTimeout(() => {
           if (typeof window !== "undefined") {
@@ -360,36 +331,10 @@ export default function ConnectPage() {
         }, 900);
       });
 
-      // partnerDisconnected — PATCHED: don't auto stop / redirect
+      // partnerDisconnected
       socketRef.current.on("partnerDisconnected", () => {
-        // Show a friendly message and offer manual reconnect
-        setStatusMessage("⚠️ Your partner has left the chat.");
-        setShowLoader(false);
-        setIsSearching(false);
-        setShowModeButtons(true);
-        setModeText("");
-        setShowReconnectOptions(true);
-
-        // Keep socket connection alive (do NOT call stopSearch automatically).
-        // Server may requeue the surviving partner; show notice if it does.
-        alert("Your partner disconnected. You can start a new chat when you're ready.");
-      });
-
-      // server told us it requeued a surviving partner (informative)
-      socketRef.current.on("requeued", ({ mode }) => {
-        const msg = `You were requeued for ${mode || "chat"}. Finding a new partner...`;
-        setRequeueNotice(msg);
-        setStatusMessage(msg);
-        setShowLoader(true);
-        setIsSearching(true);
-        setShowModeButtons(false);
-        setShowReconnectOptions(false);
-      });
-
-      // matchReady (optional — client-side video page will also receive this if needed)
-      socketRef.current.on("matchReady", ({ roomCode, mode, initiator }) => {
-        // Provide a subtle status update (but navigation happens on partnerFound)
-        setStatusMessage(`Match ready (${mode}).`);
+        alert("Partner disconnected.");
+        stopSearch();
       });
 
       // basic connect error handling
@@ -427,9 +372,6 @@ export default function ConnectPage() {
     setShowModeButtons(true);
     setModeText("");
     setStatusMessage("❤️ जहाँ दिल मिले, वहीं होती है शुरुआत Milan की…");
-    setShowReconnectOptions(false);
-    setRequeueNotice("");
-    setLastMode(null);
   }
 
   // -----------------------------
@@ -581,21 +523,26 @@ export default function ConnectPage() {
                 </div>
               )}
 
-              {/* Text card - DISABLED with Coming soon */}
+              {/* Text card */}
               {showModeButtons && (
                 <div
                   className="mode-card disabled-card"
-                  tabIndex={-1}
-                  role="group"
-                  aria-label="Text Chat (Coming soon)"
+                  role="button"
+                  tabIndex={0}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter") e.preventDefault();
+                  }}
+                  id="textBtn"
+                  aria-label="Start Text Chat"
                 >
+                  {/* removed pictures/illustrations intentionally */}
                   <button className="mode-btn disabled" type="button" disabled>
-                    Start Text Chat
+                    Coming Soon
                   </button>
                   <p className="mode-desc">
                     Express your feelings through sweet and romantic messages.
                   </p>
-                  <p className="disabled-note">(Coming soon)</p>
+                  <div className="disabled-note">💌 Text Chat on the way…</div>
                 </div>
               )}
             </div>
@@ -621,42 +568,6 @@ export default function ConnectPage() {
                 <div id="statusMessage" className="heart-loader">
                   {statusMessage}
                 </div>
-              </div>
-            )}
-
-            {/* Requeue notice */}
-            {requeueNotice && (
-              <div style={{ marginTop: 8, color: "#fff", fontWeight: 600 }}>
-                {requeueNotice}
-              </div>
-            )}
-
-            {/* If partner disconnected, show reconnect options */}
-            {showReconnectOptions && (
-              <div style={{ marginTop: 12, display: "flex", gap: 8, justifyContent: "center" }}>
-                <button
-                  className="mode-btn"
-                  type="button"
-                  onClick={() => {
-                    // start same mode again (fallback to text)
-                    const mode = lastMode || "text";
-                    startSearch(mode);
-                  }}
-                >
-                  Find New Partner
-                </button>
-                <button
-                  className="cancel-btn"
-                  type="button"
-                  onClick={() => {
-                    // dismiss options, keep on page
-                    setShowReconnectOptions(false);
-                    setStatusMessage("You can start a new chat anytime.");
-                  }}
-                  style={{ background: "#fff", color: "#ec4899" }}
-                >
-                  Dismiss
-                </button>
               </div>
             )}
 
