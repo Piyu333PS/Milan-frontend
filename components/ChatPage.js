@@ -2,7 +2,7 @@
 import { useEffect, useRef, useState } from "react";
 import io from "socket.io-client";
 
-const BACKEND_URL = "https://milan-j9u9.onrender.com"; // 🔑 apna backend URL
+const BACKEND_URL = "https://milan-j9u9.onrender.com"; // apna backend URL
 
 export default function ChatPage() {
   const [socket, setSocket] = useState(null);
@@ -10,8 +10,9 @@ export default function ChatPage() {
   const [input, setInput] = useState("");
   const messagesEndRef = useRef(null);
 
-  // Partner info sessionStorage se lo
   const [partner, setPartner] = useState(null);
+
+  // sessionStorage ko sirf client par read karo
   useEffect(() => {
     if (typeof window !== "undefined") {
       const stored = sessionStorage.getItem("partnerData");
@@ -19,15 +20,15 @@ export default function ChatPage() {
     }
   }, []);
 
-  // Socket connect
+  // socket connect
   useEffect(() => {
     if (!partner) return;
+
     const s = io(BACKEND_URL, { query: { userId: partner.selfId } });
     setSocket(s);
 
     s.on("receive-message", (msg) => {
       setMessages((prev) => [...prev, msg]);
-      // auto send "seen" ack
       s.emit("message-seen", { messageId: msg.id, userId: partner.selfId });
     });
 
@@ -42,14 +43,14 @@ export default function ChatPage() {
     };
   }, [partner]);
 
-  // Auto scroll
+  // auto scroll
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages]);
 
-  // Send message
   const sendMessage = () => {
-    if (!input.trim()) return;
+    if (!input.trim() || !socket) return;
+
     const msg = {
       id: Date.now(),
       text: input,
@@ -57,16 +58,25 @@ export default function ChatPage() {
       receiver: partner.partnerId,
       status: "sent",
     };
+
     setMessages((prev) => [...prev, msg]);
     socket.emit("send-message", msg);
     setInput("");
   };
 
+  if (!partner) {
+    return (
+      <div className="flex items-center justify-center h-screen text-lg">
+        Loading chat...
+      </div>
+    );
+  }
+
   return (
     <div className="flex flex-col h-screen bg-pink-100">
       {/* Header */}
       <div className="bg-pink-500 text-white p-3 text-lg font-bold">
-        💖 Chat with {partner?.partnerName || "Partner"}
+        💖 Chat with {partner.partnerName || "Partner"}
       </div>
 
       {/* Messages */}
@@ -75,13 +85,13 @@ export default function ChatPage() {
           <div
             key={msg.id}
             className={`p-2 rounded-lg max-w-xs ${
-              msg.sender === partner?.selfId
+              msg.sender === partner.selfId
                 ? "ml-auto bg-pink-400 text-white"
                 : "mr-auto bg-gray-200 text-black"
             }`}
           >
             <div>{msg.text}</div>
-            {msg.sender === partner?.selfId && (
+            {msg.sender === partner.selfId && (
               <div className="text-xs mt-1 text-right">
                 {msg.status === "sent" && "✓"}
                 {msg.status === "delivered" && "✓✓"}
