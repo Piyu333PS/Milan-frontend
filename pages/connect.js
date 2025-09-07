@@ -1,3 +1,4 @@
+
 "use client";
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import io from "socket.io-client";
@@ -34,7 +35,7 @@ export default function ConnectPage() {
   const [showModeButtons, setShowModeButtons] = useState(true);
 
   // -----------------------------
-  // NEW: Rotating quotes (every 5s)
+  // Rotating quotes (every 5s)
   // -----------------------------
   const QUOTES = [
     "❤️ जहाँ दिल मिले, वहीं होती है शुरुआत Milan की…",
@@ -60,7 +61,6 @@ export default function ConnectPage() {
 
   // Resolve backend URL once (safe SSR-friendly)
   const backendUrl = useMemo(() => {
-    // NEXT_PUBLIC_* variables are available on client when defined in env.
     return process.env.NEXT_PUBLIC_BACKEND_URL || "https://milan-j9u9.onrender.com";
   }, []);
 
@@ -88,7 +88,7 @@ export default function ConnectPage() {
   }, []);
 
   // -----------------------------
-  // Hearts background (canvas)
+  // Hearts background (canvas) - lightweight and mobile-friendly
   // -----------------------------
   useEffect(() => {
     if (typeof window === "undefined") return;
@@ -107,15 +107,19 @@ export default function ConnectPage() {
     window.addEventListener("resize", resizeCanvas);
     resizeCanvas();
 
+    const smallMode = window.innerWidth < 760;
     function createHeart() {
+      const size = smallMode ? Math.random() * 16 + 8 : Math.random() * 20 + 10;
       return {
         x: Math.random() * canvas.width,
-        y: canvas.height + 50,
-        size: Math.random() * 20 + 10,
-        speed: Math.random() * 1.5 + 0.5,
-        color: ["#ff4d6d", "#ff1c68", "#ff6b81", "#e6005c"][
-          Math.floor(Math.random() * 4)
-        ],
+        y: canvas.height + (smallMode ? 30 : 50),
+        size,
+        speed: smallMode ? Math.random() * 0.9 + 0.4 : Math.random() * 1.5 + 0.5,
+        color: smallMode
+          ? ["#ff7a9a", "#ff6b81", "#ff9fb0"][Math.floor(Math.random() * 3)]
+          : ["#ff4d6d", "#ff1c68", "#ff6b81", "#e6005c"][
+              Math.floor(Math.random() * 4)
+            ],
       };
     }
 
@@ -143,16 +147,22 @@ export default function ConnectPage() {
           h.y
         );
         ctx.fill();
+        // floating drift
+        h.x += Math.sin(h.y / 40) * 0.6;
         h.y -= h.speed;
       });
-      hearts = hearts.filter((h) => h.y + h.size > 0);
-      if (Math.random() < 0.1) hearts.push(createHeart());
+      hearts = hearts.filter((h) => h.y + h.size > -20);
+      const spawn = smallMode ? 0.06 : 0.10; // fewer on mobile
+      if (Math.random() < spawn) hearts.push(createHeart());
+      // limit
+      if (smallMode && hearts.length > 80) hearts = hearts.slice(-80);
+      if (!smallMode && hearts.length > 220) hearts = hearts.slice(-220);
       rafId = requestAnimationFrame(drawHearts);
     }
     drawHearts();
 
     return () => {
-      if (rafId) cancelAnimationFrame(drawHearts);
+      if (rafId) cancelAnimationFrame(rafId);
       window.removeEventListener("resize", resizeCanvas);
     };
   }, []);
@@ -164,12 +174,9 @@ export default function ConnectPage() {
     return () => {
       if (socketRef.current) {
         try {
-          // remove all listeners safely
           socketRef.current.removeAllListeners && socketRef.current.removeAllListeners();
           socketRef.current.disconnect && socketRef.current.disconnect();
-        } catch (e) {
-          // ignore
-        }
+        } catch (e) {}
         socketRef.current = null;
       }
     };
@@ -197,8 +204,7 @@ export default function ConnectPage() {
       }
     };
     document.addEventListener("visibilitychange", onVisibility);
-    return () =>
-      document.removeEventListener("visibilitychange", onVisibility);
+    return () => document.removeEventListener("visibilitychange", onVisibility);
   }, [isSearching]);
 
   // -----------------------------
@@ -289,7 +295,6 @@ export default function ConnectPage() {
     // Ensure socket
     try {
       if (!socketRef.current || !socketRef.current.connected) {
-        // Create socket and set options
         socketRef.current = io(backendUrl, {
           transports: ["websocket", "polling"],
           reconnection: true,
@@ -303,41 +308,31 @@ export default function ConnectPage() {
           localStorage.getItem("token")) ||
         "";
 
-      // Remove previous listeners to avoid duplicates
       socketRef.current.off && socketRef.current.off("partnerFound");
       socketRef.current.off && socketRef.current.off("partnerDisconnected");
       socketRef.current.off && socketRef.current.off("connect_error");
 
-      // Emit lookingForPartner
       socketRef.current.emit("lookingForPartner", { type, token });
 
-      // partnerFound
       socketRef.current.on("partnerFound", (data) => {
         partnerRef.current = data?.partner || {};
         if (typeof window !== "undefined") {
-          sessionStorage.setItem(
-            "partnerData",
-            JSON.stringify(partnerRef.current)
-          );
+          sessionStorage.setItem("partnerData", JSON.stringify(partnerRef.current));
           sessionStorage.setItem("roomCode", data?.roomCode || "");
         }
         setStatusMessage("💖 Milan Successful!");
-        // small delay for UX, but ensure we still have valid socket/session
         setTimeout(() => {
           if (typeof window !== "undefined") {
-            // navigate to respective route (video/chat)
             window.location.href = type === "video" ? "/video" : "/chat";
           }
         }, 900);
       });
 
-      // partnerDisconnected
       socketRef.current.on("partnerDisconnected", () => {
         alert("Partner disconnected.");
         stopSearch();
       });
 
-      // basic connect error handling
       socketRef.current.on("connect_error", (err) => {
         console.warn("Socket connect_error:", err?.message || err);
         alert("Connection error. Please try again.");
@@ -348,7 +343,6 @@ export default function ConnectPage() {
       alert("Something went wrong starting the search.");
       stopSearch();
     } finally {
-      // Allow re-click after initial setup
       setTimeout(() => {
         connectingRef.current = false;
       }, 300);
@@ -361,7 +355,6 @@ export default function ConnectPage() {
         socketRef.current.emit && socketRef.current.emit("disconnectByUser");
         socketRef.current.disconnect && socketRef.current.disconnect();
       } catch {}
-      // remove listeners to be safe
       try {
         socketRef.current.removeAllListeners && socketRef.current.removeAllListeners();
       } catch {}
@@ -375,7 +368,7 @@ export default function ConnectPage() {
   }
 
   // -----------------------------
-  // Avatar helper
+  // Avatar helper (keeps same)
   // -----------------------------
   function Avatar() {
     if (profile.photoDataUrl) {
@@ -472,17 +465,17 @@ export default function ConnectPage() {
         </div>
 
         <ul className="sidebar-list">
-          <li role="button" onClick={openProfilePanel}>
-            <span>👤</span>
-            <span>Profile Info</span>
+          <li role="button" onClick={openProfilePanel} className="sidebar-item">
+            <span className="sidebar-ic">👤</span>
+            <span className="sidebar-txt">Profile Info</span>
           </li>
-          <li role="button" onClick={openSecurityPanel}>
-            <span>🔒</span>
-            <span>Security</span>
+          <li role="button" onClick={openSecurityPanel} className="sidebar-item">
+            <span className="sidebar-ic">🔒</span>
+            <span className="sidebar-txt">Security</span>
           </li>
-          <li role="button" onClick={openLogoutConfirm}>
-            <span>🚪</span>
-            <span>Logout</span>
+          <li role="button" onClick={openLogoutConfirm} className="sidebar-item">
+            <span className="sidebar-ic">🚪</span>
+            <span className="sidebar-txt">Logout</span>
           </li>
         </ul>
       </aside>
@@ -513,7 +506,6 @@ export default function ConnectPage() {
                   id="videoBtn"
                   aria-label="Start Video Chat"
                 >
-                  {/* removed pictures/illustrations intentionally */}
                   <button className="mode-btn" type="button">
                     Start Video Chat
                   </button>
@@ -535,7 +527,6 @@ export default function ConnectPage() {
                   id="textBtn"
                   aria-label="Start Text Chat"
                 >
-                  {/* removed pictures/illustrations intentionally */}
                   <button className="mode-btn disabled" type="button" disabled>
                     Coming Soon
                   </button>
@@ -547,7 +538,7 @@ export default function ConnectPage() {
               )}
             </div>
 
-            {/* NEW: Quotes just below buttons */}
+            {/* Quotes just below buttons */}
             <div className="quote-box" id="quoteBox">
               {QUOTES[quoteIndex]}
               <span
@@ -586,101 +577,79 @@ export default function ConnectPage() {
         </div>
       </main>
 
-      {/* Panels */}
+      {/* CLASSY MODALS / PANELS (replacing the old plain panels) */}
+      {/* Profile Modal */}
       {showProfile && (
-        <div className="panel" role="dialog" aria-modal="true">
-          <h3>Personal Info</h3>
-          <form onSubmit={handleSavePersonal}>
-            <input
-              name="fullname"
-              placeholder="Full Name"
-              defaultValue={profile.name}
-              aria-label="Full Name"
-            />
-            <input
-              name="contact"
-              placeholder="Email or Mobile"
-              defaultValue={profile.contact}
-              aria-label="Contact"
-            />
-            <div style={{ display: "flex", gap: 8 }}>
-              <button type="submit" className="save-btn">
-                Save
-              </button>
-              <button
-                type="button"
-                className="cancel-btn"
-                onClick={() => setShowProfile(false)}
-              >
-                Cancel
-              </button>
-            </div>
-          </form>
-        </div>
-      )}
-
-      {showSecurity && (
-        <div className="panel" role="dialog" aria-modal="true">
-          <h3>Security</h3>
-          <input
-            type="password"
-            placeholder="Current Password"
-            value={currentPasswordInput}
-            onChange={(e) => setCurrentPasswordInput(e.target.value)}
-            aria-label="Current Password"
-          />
-          <input
-            type="password"
-            placeholder="New Password"
-            value={newPasswordInput}
-            onChange={(e) => setNewPasswordInput(e.target.value)}
-            aria-label="New Password"
-          />
-          <div style={{ display: "flex", gap: 8 }}>
-            <button className="save-btn" onClick={saveNewPassword} type="button">
-              Save
-            </button>
-            <button
-              className="cancel-btn"
-              onClick={() => setShowSecurity(false)}
-              type="button"
-            >
-              Cancel
-            </button>
+        <div className="modal-back" role="dialog" aria-modal="true" onClick={(e)=>{ if(e.target.classList.contains('modal-back')) setShowProfile(false); }}>
+          <div className="modal-card">
+            <header className="modal-head">
+              <h3>Personal Info</h3>
+              <button className="close" onClick={() => setShowProfile(false)} aria-label="Close">✕</button>
+            </header>
+            <form className="modal-body" onSubmit={handleSavePersonal}>
+              <label>Full Name</label>
+              <input name="fullname" placeholder="Full Name" defaultValue={profile.name} />
+              <label>Contact (Email or Mobile)</label>
+              <input name="contact" placeholder="Email or Mobile" defaultValue={profile.contact} />
+              <div className="modal-actions">
+                <button type="submit" className="btn-primary">Save</button>
+                <button type="button" className="btn-ghost" onClick={() => setShowProfile(false)}>Cancel</button>
+              </div>
+            </form>
           </div>
         </div>
       )}
 
+      {/* Security Modal */}
+      {showSecurity && (
+        <div className="modal-back" role="dialog" aria-modal="true" onClick={(e)=>{ if(e.target.classList.contains('modal-back')) setShowSecurity(false); }}>
+          <div className="modal-card">
+            <header className="modal-head">
+              <h3>Security</h3>
+              <button className="close" onClick={() => setShowSecurity(false)} aria-label="Close">✕</button>
+            </header>
+            <div className="modal-body">
+              <label>Current Password</label>
+              <input type="password" value={currentPasswordInput} onChange={(e)=>setCurrentPasswordInput(e.target.value)} />
+              <label>New Password</label>
+              <input type="password" value={newPasswordInput} onChange={(e)=>setNewPasswordInput(e.target.value)} />
+              <div className="modal-actions">
+                <button className="btn-primary" onClick={saveNewPassword}>Save</button>
+                <button className="btn-ghost" onClick={() => setShowSecurity(false)}>Cancel</button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Logout Confirm Modal */}
       {showLogoutConfirm && (
-        <div className="panel" role="dialog" aria-modal="true">
-          <p style={{ marginBottom: 12 }}>Do you want to Logout?</p>
-          <div style={{ display: "flex", gap: 12 }}>
-            <label className="radio-label">
-              <input type="radio" name="logout" onClick={handleLogoutConfirmYes} />{" "}
-              Yes
-            </label>
-            <label className="radio-label">
-              <input
-                type="radio"
-                name="logout"
-                onClick={() => setShowLogoutConfirm(false)}
-              />{" "}
-              No
-            </label>
+        <div className="modal-back" role="dialog" aria-modal="true" onClick={(e)=>{ if(e.target.classList.contains('modal-back')) setShowLogoutConfirm(false); }}>
+          <div className="modal-card small">
+            <header className="modal-head">
+              <h3>Confirm Logout</h3>
+              <button className="close" onClick={() => setShowLogoutConfirm(false)} aria-label="Close">✕</button>
+            </header>
+            <div className="modal-body">
+              <p style={{margin:0, color:'#333'}}>Are you sure you want to logout?</p>
+              <div className="modal-actions" style={{marginTop:12}}>
+                <button className="btn-primary" onClick={handleLogoutConfirmYes}>Yes</button>
+                <button className="btn-ghost" onClick={() => setShowLogoutConfirm(false)}>No</button>
+              </div>
+            </div>
           </div>
         </div>
       )}
 
       <style jsx global>{`
         /* Basic page setup */
-        html,
-        body {
+        html, body {
           margin: 0;
           padding: 0;
           height: 100%;
           font-family: "Poppins", sans-serif;
           background: linear-gradient(135deg, #8b5cf6, #ec4899);
-          overflow: hidden; /* we intentionally keep it hidden so everything fits on one screen */
+          overflow: hidden; /* keep it fit - existing app requirement */
         }
         canvas {
           position: fixed;
@@ -714,69 +683,66 @@ export default function ConnectPage() {
           position: fixed;
           top: 0;
           left: 0;
-          width: 220px;
+          width: 240px; /* slightly wider for better spacing */
           height: 100%;
-          background: rgba(255, 255, 255, 0.08);
-          backdrop-filter: blur(12px);
+          background: rgba(255, 255, 255, 0.06);
+          backdrop-filter: blur(10px);
           display: flex;
           flex-direction: column;
           align-items: center;
-          padding-top: 36px;
+          padding-top: 38px;
           z-index: 40;
           color: white;
           transition: transform 0.28s ease;
         }
-        .sidebar.open {
-          transform: translateX(0);
-        }
-        .profile-pic-wrapper {
-          width: 70px;
-          height: 70px;
-          border-radius: 50%;
-          overflow: hidden;
-        }
+        .sidebar.open { transform: translateX(0); }
+        .profile-pic-wrapper { width: 78px; height: 78px; border-radius: 50%; overflow: hidden; box-shadow: 0 6px 18px rgba(0,0,0,0.25); }
         .username {
-          margin-top: 6px;
-          font-size: 16px;
-          font-weight: 600;
+          margin-top: 8px;
+          font-size: 18px; /* bigger & attractive */
+          font-weight: 800;
           color: #fff;
           text-align: center;
-          padding: 6px 10px;
+          padding: 6px 12px;
+          letter-spacing: 0.2px;
         }
         .photo-label {
           font-size: 13px;
           color: #fff;
-          background: rgba(0, 0, 0, 0.18);
-          padding: 6px 10px;
-          border-radius: 8px;
+          background: linear-gradient(90deg, rgba(255,107,129,0.12), rgba(255,159,176,0.08));
+          padding: 6px 12px;
+          border-radius: 10px;
           cursor: pointer;
           display: inline-block;
-          margin-top: 6px;
+          margin-top: 8px;
         }
 
-        .sidebar-list {
-          list-style: none;
-          padding: 0;
-          margin-top: 26px;
-          width: 100%;
-        }
+        .sidebar-list { list-style: none; padding: 0; margin-top: 26px; width: 100%; }
         .sidebar-list li {
           display: flex;
           align-items: center;
           gap: 12px;
           justify-content: flex-start;
-          padding: 12px 18px;
-          margin: 8px 12px;
-          background: rgba(255, 255, 255, 0.06);
-          border-radius: 10px;
+          padding: 14px 18px;
+          margin: 8px 14px;
+          background: linear-gradient(90deg, rgba(255,255,255,0.02), rgba(255,255,255,0.01));
+          border-radius: 12px;
           cursor: pointer;
+          transition: transform 0.12s ease, box-shadow 0.12s ease, background 0.12s ease;
         }
+        .sidebar-item:hover {
+          transform: translateX(6px);
+          box-shadow: 0 10px 28px rgba(0,0,0,0.22);
+          background: linear-gradient(90deg, rgba(255,107,129,0.04), rgba(255,159,176,0.02));
+        }
+        .sidebar-ic { font-size: 18px; display:inline-block; width:22px; text-align:center; }
+        .sidebar-txt { font-size: 16px; font-weight:800; color:#fff; }
 
         /* Content area */
         .content-wrap {
           position: fixed;
           top: 0;
-          left: 220px;
+          left: 240px;
           right: 0;
           bottom: 0;
           display: grid;
@@ -787,14 +753,14 @@ export default function ConnectPage() {
 
         /* Glass card (NOW auto-height & compact width) */
         .glass-card {
-          width: min(100%, 760px);
+          width: min(100%, 820px);
           background: rgba(255, 255, 255, 0.14);
           border: 2px solid rgba(255, 255, 255, 0.28);
-          border-radius: 20px;
+          border-radius: 22px;
           backdrop-filter: blur(18px);
           box-shadow: 0 10px 40px rgba(0, 0, 0, 0.25),
             inset 0 0 60px rgba(255, 255, 255, 0.06);
-          display: block;           /* was flex-center earlier */
+          display: block;
           padding: 18px;
         }
 
@@ -806,25 +772,22 @@ export default function ConnectPage() {
           z-index: 12;
           display: flex;
           flex-direction: column;
-          gap: 14px;                /* natural spacing between blocks */
+          gap: 12px;
           box-sizing: border-box;
           padding: 6px 8px;
         }
 
-        .center-top {
-          margin-bottom: 2px;
-        }
-
+        .center-top { margin-bottom: 2px; }
         .center-box h2 {
           font-size: 36px;
           margin: 6px 0 4px 0;
-          font-weight: 700;
-          text-shadow: 0 0 10px #ec4899;
+          font-weight: 800;
+          text-shadow: 0 0 12px rgba(236,72,153,0.18);
         }
 
         .mode-text {
           color: #ffe4f1;
-          font-weight: 600;
+          font-weight: 700;
           margin-bottom: 6px;
           min-height: 22px;
         }
@@ -832,7 +795,7 @@ export default function ConnectPage() {
         .mode-options {
           display: flex;
           justify-content: center;
-          gap: 16px;
+          gap: 14px;
           align-items: stretch;
           flex-wrap: nowrap;
           margin-top: 6px;
@@ -842,21 +805,21 @@ export default function ConnectPage() {
         .disabled-card {
           flex: 1 1 300px;
           max-width: 420px;
-          background: rgba(255, 255, 255, 0.08);
+          background: rgba(255, 255, 255, 0.06);
           border: 1px solid rgba(255, 255, 255, 0.12);
           border-radius: 14px;
-          padding: 16px;
+          padding: 14px;
           display: flex;
           flex-direction: column;
           align-items: center;
-          gap: 10px;
+          gap: 8px;
           box-shadow: 0 8px 24px rgba(0, 0, 0, 0.18);
           transition: transform 0.22s ease, box-shadow 0.22s ease;
           outline: none;
           box-sizing: border-box;
         }
-
-        /* Removed .mode-animation blocks (images) */
+        .mode-card:active { transform: translateY(1px); }
+        .mode-card:hover { transform: translateY(-4px); box-shadow: 0 18px 40px rgba(0,0,0,0.26); }
 
         .mode-btn {
           width: 100%;
@@ -866,8 +829,9 @@ export default function ConnectPage() {
           background: #fff;
           color: #ec4899;
           font-size: 16px;
-          font-weight: 700;
+          font-weight: 800;
           cursor: pointer;
+          box-shadow: 0 8px 24px rgba(236,72,153,0.08);
         }
 
         .mode-btn.disabled {
@@ -876,7 +840,7 @@ export default function ConnectPage() {
         }
 
         .mode-desc {
-          color: rgba(255, 255, 255, 0.9);
+          color: rgba(255, 255, 255, 0.92);
           font-size: 14px;
           margin-top: 4px;
         }
@@ -888,9 +852,7 @@ export default function ConnectPage() {
           font-style: italic;
         }
 
-        .loader {
-          margin: 6px auto;
-        }
+        .loader { margin: 6px auto; }
         .heart-loader {
           font-size: 30px;
           color: #fff;
@@ -914,54 +876,56 @@ export default function ConnectPage() {
 
         /* Quotes just below buttons */
         .quote-box {
-          margin-top: 8px;
-          font-weight: 600;
+          margin-top: 6px;
+          font-weight: 700;
           color: #ffeff7;
-          text-shadow: 0 0 5px #ff88aa;
+          text-shadow: 0 0 6px rgba(255,136,170,0.12);
           padding: 10px 12px;
           border-radius: 10px;
-          background: rgba(255, 255, 255, 0.08);
-          border: 1px solid rgba(255, 255, 255, 0.12);
-          animation: quoteFade 0.6s ease;
+          background: rgba(255, 255, 255, 0.06);
+          border: 1px solid rgba(255, 255, 255, 0.08);
+          animation: quoteFade 0.45s ease;
         }
         @keyframes quoteFade {
           from { opacity: 0; transform: translateY(4px); }
           to { opacity: 1; transform: translateY(0); }
         }
 
-        /* Panels */
-        .panel {
+        /* CLASSY MODAL STYLES */
+        .modal-back {
           position: fixed;
-          top: 50%;
-          left: 50%;
-          transform: translate(-50%, -50%);
-          background: rgba(255, 255, 255, 0.98);
-          padding: 18px;
-          border-radius: 12px;
-          z-index: 60;
-          box-shadow: 0 12px 40px rgba(0, 0, 0, 0.25);
-          width: 320px;
+          inset: 0;
           display: flex;
-          flex-direction: column;
-          gap: 10px;
+          align-items: center;
+          justify-content: center;
+          background: rgba(2,6,23,0.45);
+          z-index: 80;
+          padding: 12px;
         }
+        .modal-card {
+          width: 96%;
+          max-width: 520px;
+          background: #fff;
+          border-radius: 12px;
+          box-shadow: 0 18px 60px rgba(0,0,0,0.35);
+          overflow: hidden;
+        }
+        .modal-card.small { max-width: 420px; }
+        .modal-head { display:flex; align-items:center; justify-content:space-between; padding:14px 16px; background: linear-gradient(90deg,#ffeef5,#fff); }
+        .modal-head h3 { margin:0; font-size:18px; color:#08121a; font-weight:800; }
+        .modal-head .close { background:transparent;border:0;font-size:18px;cursor:pointer;color:#666; }
 
-        .save-btn,
-        .cancel-btn {
-          padding: 10px 12px;
-          border-radius: 10px;
-          border: 0;
-          font-weight: 700;
-          cursor: pointer;
-        }
-        .save-btn { background: #ec4899; color: #fff; }
-        .cancel-btn { background: #eee; }
+        .modal-body { padding:14px 16px 18px 16px; color:#08121a; }
+        .modal-body label { display:block; font-weight:700; color:#334; margin-top:8px; }
+        .modal-body input { width:100%; padding:10px 12px; margin-top:8px; border-radius:8px; border:1px solid #e6e6e9; box-sizing:border-box; }
+
+        .modal-actions { display:flex; gap:10px; justify-content:flex-end; margin-top:12px; }
+        .btn-primary { background: linear-gradient(90deg,#ff6b81,#ff9fb0); color:#08121a; padding:10px 14px; border-radius:8px; border:none; font-weight:800; cursor:pointer; }
+        .btn-ghost { background:#f3f4f6; color:#333; padding:10px 12px; border-radius:8px; border:none; cursor:pointer; }
 
         /* Responsive adjustments */
         @media (max-width: 1024px) {
-          .glass-card {
-            width: min(100%, 780px);
-          }
+          .glass-card { width: min(100%, 780px); }
         }
 
         @media (max-width: 768px) {
@@ -969,57 +933,32 @@ export default function ConnectPage() {
           .hamburger { display: block; }
 
           /* collapse sidebar */
-          .sidebar {
-            transform: translateX(-100%);
-            width: 200px;
-          }
+          .sidebar { transform: translateX(-100%); width: 200px; }
           .sidebar.open { transform: translateX(0); }
 
-          .content-wrap {
-            left: 0;
-            padding: 10px;
-          }
+          .content-wrap { left: 0; padding: 10px; }
 
-          .glass-card {
-            width: 100%;
-            padding: 12px;
-            border-radius: 16px;
-          }
+          .glass-card { width: 100%; padding: 12px; border-radius: 16px; }
 
-          .center-box h2 {
-            font-size: 22px;
-            margin: 4px 0 6px 0;
-          }
+          .center-box h2 { font-size: 22px; margin: 4px 0 6px 0; }
 
           .mode-options {
             flex-direction: column;
-            gap: 10px;
+            gap: 6px; /* reduced gap to tighten vertical spacing for mobile */
             margin-top: 6px;
             align-items: center;
           }
-          .mode-card,
-          .disabled-card {
-            width: 94%;
-            max-width: 94%;
-            padding: 12px;
+          .mode-card, .disabled-card {
+            width: 96%;
+            max-width: 96%;
+            padding: 10px; /* smaller padding for compact cards on mobile */
             border-radius: 12px;
-            min-height: auto; /* compact cards */
+            min-height: auto;
           }
 
-          .mode-btn {
-            font-size: 15px;
-            padding: 10px;
-          }
-
-          .mode-desc {
-            font-size: 13px;
-          }
-
-          .quote-box {
-            font-size: 13px;
-            padding: 10px;
-            margin-bottom: 4px;
-          }
+          .mode-btn { font-size: 15px; padding: 10px; }
+          .mode-desc { font-size: 13px; margin-bottom: 6px; } /* ensure less extra space */
+          .quote-box { font-size: 13px; padding: 8px; margin-bottom: 4px; }
         }
       `}</style>
     </>
