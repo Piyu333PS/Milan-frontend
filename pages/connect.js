@@ -279,6 +279,16 @@ export default function ConnectPage() {
   // Start / Stop Search
   // -----------------------------
   function startSearch(type) {
+    // safety guard: text chat disabled
+    if (type === "text") {
+      // prevent accidental calls
+      try {
+        alert("Text Chat is coming soon — stay tuned!");
+      } catch (e) {}
+      connectingRef.current = false;
+      return;
+    }
+
     if (isSearching || connectingRef.current) return;
     connectingRef.current = true;
 
@@ -571,25 +581,21 @@ export default function ConnectPage() {
                 </div>
               )}
 
-              {/* Text card */}
+              {/* Text card - DISABLED with Coming soon */}
               {showModeButtons && (
                 <div
-                  className="mode-card"
-                  role="button"
-                  tabIndex={0}
-                  onClick={() => startSearch("text")}
-                  onKeyDown={(e) => {
-                    if (e.key === "Enter") startSearch("text");
-                  }}
-                  id="textBtn"
-                  aria-label="Start Text Chat"
+                  className="mode-card disabled-card"
+                  tabIndex={-1}
+                  role="group"
+                  aria-label="Text Chat (Coming soon)"
                 >
-                  <button className="mode-btn" type="button">
+                  <button className="mode-btn disabled" type="button" disabled>
                     Start Text Chat
                   </button>
                   <p className="mode-desc">
                     Express your feelings through sweet and romantic messages.
                   </p>
+                  <p className="disabled-note">(Coming soon)</p>
                 </div>
               )}
             </div>
