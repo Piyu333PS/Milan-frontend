@@ -2,9 +2,11 @@
 import { useEffect, useState, useRef } from "react";
 
 /**
- * pages/index.js
- * - Adds ripple buttons, consent modal, lazy hearts on mobile, loaders, and "Why Milan?" cards.
- * - Replace your existing pages/index.js with this file.
+ * pages/index.js (updated)
+ * - Mobile hearts enabled in lightweight mode (smaller, fewer, slower) for performance.
+ * - Other existing functionality preserved (register/login, modal, ripple, styles).
+ *
+ * Replace your existing pages/index.js with this file (keep a backup first).
  */
 
 export default function HomePage() {
@@ -22,19 +24,28 @@ export default function HomePage() {
 
   // hearts control for lazy-load
   const [enableHearts, setEnableHearts] = useState(true);
-  const heartsRef = useRef({ raf: null });
+  // heartsRef stores RAF id and smallMode flag
+  const heartsRef = useRef({ raf: null, smallMode: false });
 
   useEffect(() => {
-    // Decide hearts behavior based on viewport width & device capability
-    const smallScreen = window.innerWidth < 760 || window.devicePixelRatio > 1.5 && window.innerWidth < 980;
-    setEnableHearts(!smallScreen); // disable heavy hearts on small screens
+    // Decide small/large hearts behavior based on viewport width & device capability
+    const smallScreen =
+      window.innerWidth < 760 ||
+      (window.devicePixelRatio > 1.5 && window.innerWidth < 980);
 
-    if (!smallScreen) startHearts();
+    // store smallMode flag for startHearts to use
+    heartsRef.current.smallMode = smallScreen ? true : false;
+
+    // keep enableHearts true so canvas exists — but startHearts will adapt to smallMode
+    setEnableHearts(true);
+
+    // start hearts always, but inside startHearts we will limit spawn in smallMode
+    startHearts();
     return () => stopHearts();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // HEARTS: lightweight canvas heart animation (disabled on mobile)
+  // HEARTS: lightweight canvas heart animation (adapts to smallMode)
   function startHearts() {
     const canvas = document.getElementById("heartsCanvas");
     if (!canvas) return;
@@ -49,22 +60,28 @@ export default function HomePage() {
     resizeCanvas();
 
     function createHeart() {
+      const small = heartsRef.current.smallMode;
       return {
         x: Math.random() * canvas.width,
-        y: canvas.height + 50,
-        size: Math.random() * 28 + 12,
-        speed: Math.random() * 1.6 + 0.6,
-        color: ["#ff4d6d", "#ff1c68", "#ff6b81", "#e6005c"][
-          Math.floor(Math.random() * 4)
-        ],
+        y: canvas.height + (small ? 30 : 50),
+        size: small ? Math.random() * 18 + 6 : Math.random() * 28 + 12,
+        speed: small ? Math.random() * 0.9 + 0.3 : Math.random() * 1.6 + 0.6,
+        color: small
+          ? ["#ff7a9a", "#ff6b81", "#ff9fb0"][Math.floor(Math.random() * 3)]
+          : ["#ff4d6d", "#ff1c68", "#ff6b81", "#e6005c"][
+              Math.floor(Math.random() * 4)
+            ],
+        alpha: small ? 0.75 : 0.95,
         rot: Math.random() * Math.PI * 2,
       };
     }
 
     function drawHearts() {
       ctx.clearRect(0, 0, canvas.width, canvas.height);
+
       hearts.forEach((h) => {
         ctx.save();
+        ctx.globalAlpha = h.alpha;
         ctx.translate(h.x, h.y);
         ctx.rotate(Math.sin(h.y / 50) * 0.03);
         ctx.fillStyle = h.color;
@@ -77,10 +94,21 @@ export default function HomePage() {
         ctx.restore();
         h.y -= h.speed;
       });
-      hearts = hearts.filter((h) => h.y + h.size > -50);
-      if (Math.random() < 0.12) hearts.push(createHeart());
+
+      // remove offscreen hearts
+      hearts = hearts.filter((h) => h.y + h.size > -60);
+
+      // spawn probability smaller on small screens to reduce clutter / CPU usage
+      const spawnProb = heartsRef.current.smallMode ? 0.06 : 0.12;
+      if (Math.random() < spawnProb) hearts.push(createHeart());
+
+      // limit count for performance (smaller limit on mobile)
+      if (heartsRef.current.smallMode && hearts.length > 60) hearts = hearts.slice(-60);
+      if (!heartsRef.current.smallMode && hearts.length > 220) hearts = hearts.slice(-220);
+
       heartsRef.current.raf = requestAnimationFrame(drawHearts);
     }
+
     drawHearts();
 
     heartsRef.current.cleanup = () => {
@@ -506,7 +534,7 @@ export default function HomePage() {
             <a href="mailto:Support@milanlove.in">Support@milanlove.in</a>
           </p>
 
-          <p className="copyright">© {new Date().getFullYear()} Milan. All rights reserved.</p>
+          <p className="copyright">© {new Date().getFullYear()} Milan. All rights reserved</p>
         </footer>
       </div>
 
