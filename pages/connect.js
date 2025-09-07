@@ -1,4 +1,3 @@
-
 "use client";
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import io from "socket.io-client";
@@ -104,7 +103,7 @@ export default function ConnectPage() {
 
     const smallMode = window.innerWidth < 760;
     function createHeart() {
-      const size = smallMode ? Math.random() * 14 + 6 : Math.random() * 20 + 8;
+      const size = smallMode ? Math.random() * 14 + 6 : Math.random() * 20 + 6;
       return {
         x: Math.random() * canvas.width,
         y: canvas.height + (smallMode ? 30 * (window.devicePixelRatio || 1) : 50 * (window.devicePixelRatio || 1)),
@@ -710,17 +709,16 @@ export default function ConnectPage() {
         .sidebar-ic { font-size: 18px; display:inline-block; width:22px; text-align:center; }
         .sidebar-txt { font-size: 17px; font-weight:800; color:#fff; }
 
-        /* Content area */
+        /* Content area - FIXED: center correctly on desktop */
         .content-wrap {
-          position: relative;
-          top: 0;
-          left: 240px;
-          right: 0;
-          bottom: 0;
-          display: grid;
-          place-items: center;
+          margin-left: 240px; /* leave space for sidebar */
+          min-height: 100vh;  /* ensure full viewport height */
+          display: flex;
+          align-items: center;
+          justify-content: center;
           padding: 18px;
           z-index: 10;
+          position: relative;
         }
 
         /* Glass card (NOW auto-height & compact width) */
@@ -907,7 +905,7 @@ export default function ConnectPage() {
           .sidebar { transform: translateX(-100%); width: 200px; }
           .sidebar.open { transform: translateX(0); }
 
-          .content-wrap { left: 0; padding: 10px; }
+          .content-wrap { left: 0; padding: 10px; margin-left: 0; }
 
           .glass-card { width: 98%; padding: 10px; border-radius: 14px; }
 
