@@ -526,23 +526,22 @@ export default function ConnectPage() {
               {/* Text card */}
               {showModeButtons && (
                 <div
-                  className="mode-card disabled-card"
+                  className="mode-card"
                   role="button"
                   tabIndex={0}
+                  onClick={() => startSearch("text")}
                   onKeyDown={(e) => {
-                    if (e.key === "Enter") e.preventDefault();
+                    if (e.key === "Enter") startSearch("text");
                   }}
                   id="textBtn"
                   aria-label="Start Text Chat"
                 >
-                  {/* removed pictures/illustrations intentionally */}
-                  <button className="mode-btn disabled" type="button" disabled>
-                    Coming Soon
+                  <button className="mode-btn" type="button">
+                    Start Text Chat
                   </button>
                   <p className="mode-desc">
                     Express your feelings through sweet and romantic messages.
                   </p>
-                  <div className="disabled-note">💌 Text Chat on the way…</div>
                 </div>
               )}
             </div>
