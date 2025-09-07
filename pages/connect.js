@@ -80,7 +80,10 @@ export default function ConnectPage() {
     }
   }, []);
 
-  // Hearts background (canvas) - lightweight and mobile-friendly
+  // ---------------------------
+  // Hearts background (canvas)
+  // Robust, devicePixelRatio-safe, avoid bottom artifacts
+  // ---------------------------
   useEffect(() => {
     if (typeof window === "undefined") return;
     const canvas = document.getElementById("heartCanvas");
@@ -88,64 +91,105 @@ export default function ConnectPage() {
     const ctx = canvas.getContext("2d");
     if (!ctx) return;
 
+    // We'll keep hearts coordinates in CSS pixels (layout space).
     let hearts = [];
     let rafId = null;
+    let cssW = window.innerWidth;
+    let cssH = window.innerHeight;
+    const dpr = Math.max(1, window.devicePixelRatio || 1);
 
     function resizeCanvas() {
-      canvas.width = window.innerWidth * (window.devicePixelRatio || 1);
-      canvas.height = window.innerHeight * (window.devicePixelRatio || 1);
-      canvas.style.width = `${window.innerWidth}px`;
-      canvas.style.height = `${window.innerHeight}px`;
-      ctx.setTransform(window.devicePixelRatio || 1, 0, 0, window.devicePixelRatio || 1, 0, 0);
-    }
-    window.addEventListener("resize", resizeCanvas);
-    resizeCanvas();
+      // update css sizes
+      cssW = window.innerWidth;
+      cssH = window.innerHeight;
 
-    const smallMode = window.innerWidth < 760;
+      // set canvas internal pixel size for crispness
+      canvas.width = Math.round(cssW * dpr);
+      canvas.height = Math.round(cssH * dpr);
+
+      // set canvas CSS size to viewport size
+      canvas.style.width = cssW + "px";
+      canvas.style.height = cssH + "px";
+
+      // Reset transform and clear thoroughly (avoid leftover stripes)
+      ctx.setTransform(1, 0, 0, 1, 0, 0);
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+      // Scale drawing so 1 CSS pixel equals devicePixelRatio device pixels
+      ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    }
+
+    // create heart using CSS-coordinate space
     function createHeart() {
-      const size = smallMode ? Math.random() * 14 + 6 : Math.random() * 20 + 6;
+      const smallMode = cssW < 760;
+      const size = smallMode ? Math.random() * 14 + 6 : Math.random() * 18 + 8;
       return {
-        x: Math.random() * canvas.width,
-        y: canvas.height + (smallMode ? 30 * (window.devicePixelRatio || 1) : 50 * (window.devicePixelRatio || 1)),
+        x: Math.random() * cssW,
+        y: cssH + (smallMode ? 30 : 50),
         size,
-        speed: smallMode ? Math.random() * 0.8 + 0.3 : Math.random() * 1.4 + 0.4,
+        speed: smallMode ? Math.random() * 0.9 + 0.3 : Math.random() * 1.4 + 0.4,
         color: smallMode
           ? ["#ff7a9a", "#ff6b81", "#ff9fb0"][Math.floor(Math.random() * 3)]
           : ["#ff4d6d", "#ff1c68", "#ff6b81", "#e6005c"][Math.floor(Math.random() * 4)],
+        rot: Math.random() * Math.PI * 2,
       };
     }
 
     function drawHearts() {
-      if (!ctx) return;
+      // Clear whole canvas in device pixels to remove any edge artifacts
+      ctx.setTransform(1, 0, 0, 1, 0, 0);
       ctx.clearRect(0, 0, canvas.width, canvas.height);
+      // restore CSS->devicePixel scaling
+      ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+
+      // draw each heart (coordinates are CSS pixels)
       hearts.forEach((h) => {
+        ctx.save();
+        ctx.translate(h.x, h.y);
+        ctx.rotate(Math.sin(h.y / 50) * 0.03);
         ctx.fillStyle = h.color;
         ctx.beginPath();
-        // draw heart using relative coords scaled by size
         const s = h.size;
-        const cx = h.x;
-        const cy = h.y;
-        ctx.moveTo(cx, cy);
-        ctx.bezierCurveTo(cx + s / 2, cy - s, cx + s * 1.2, cy + s / 3, cx, cy + s);
-        ctx.bezierCurveTo(cx - s * 1.2, cy + s / 3, cx - s / 2, cy - s, cx, cy);
+        ctx.moveTo(0, 0);
+        ctx.bezierCurveTo(s / 2, -s, s * 1.5, s / 3, 0, s);
+        ctx.bezierCurveTo(-s * 1.5, s / 3, -s / 2, -s, 0, 0);
         ctx.fill();
-        // subtle float
+        ctx.restore();
+
+        // update in CSS pixels
         h.x += Math.sin(h.y / 40) * 0.5;
         h.y -= h.speed;
       });
 
+      // remove hearts that moved off top
       hearts = hearts.filter((h) => h.y + h.size > -20);
-      const spawn = smallMode ? 0.05 : 0.10; // fewer on mobile
-      if (Math.random() < spawn) hearts.push(createHeart());
+
+      // spawn probability tuned to device size (fewer on mobile)
+      const smallMode = cssW < 760;
+      const spawnProb = smallMode ? 0.045 : 0.09;
+      if (Math.random() < spawnProb) hearts.push(createHeart());
+
+      // limits to avoid heavy accumulation (prevent bottom stripe)
       if (smallMode && hearts.length > 70) hearts = hearts.slice(-70);
-      if (!smallMode && hearts.length > 200) hearts = hearts.slice(-200);
+      if (!smallMode && hearts.length > 220) hearts = hearts.slice(-220);
+
       rafId = requestAnimationFrame(drawHearts);
     }
+
+    // initial
+    resizeCanvas();
+    window.addEventListener("resize", resizeCanvas);
     drawHearts();
 
+    // cleanup
     return () => {
       if (rafId) cancelAnimationFrame(rafId);
       window.removeEventListener("resize", resizeCanvas);
+      // final clear to ensure nothing left behind
+      try {
+        ctx.setTransform(1, 0, 0, 1, 0, 0);
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
+      } catch (e) {}
     };
   }, []);
 
@@ -498,7 +542,7 @@ export default function ConnectPage() {
                   id="textBtn"
                   aria-label="Start Text Chat"
                 >
-                  <button className="mode-btn disabled" type="button" disabled>
+                  <button className="mode-btn.disabled mode-btn" type="button" disabled>
                     Coming Soon
                   </button>
                   <p className="mode-desc">
@@ -630,6 +674,8 @@ export default function ConnectPage() {
           height: 100%;
           pointer-events: none;
           z-index: 0;
+          /* keep crisp rendering on high-DPR screens */
+          image-rendering: -webkit-optimize-contrast;
         }
 
         /* Hamburger for mobile */
