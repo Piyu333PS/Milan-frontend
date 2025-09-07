@@ -23,41 +23,33 @@ export default function HomePage() {
       return {
         x: Math.random() * canvas.width,
         y: canvas.height + 50,
-        size: Math.random() * 30 + 15,
-        speed: Math.random() * 1.5 + 0.5,
+        size: Math.random() * 32 + 14,
+        speed: Math.random() * 1.6 + 0.6,
         color: ["#ff4d6d", "#ff1c68", "#ff6b81", "#e6005c"][
           Math.floor(Math.random() * 4)
         ],
+        rot: Math.random() * Math.PI * 2,
       };
     }
 
     function drawHearts() {
       ctx.clearRect(0, 0, canvas.width, canvas.height);
       hearts.forEach((h) => {
+        ctx.save();
+        ctx.translate(h.x, h.y);
+        ctx.rotate((Math.sin(h.y / 50) * Math.PI) / 180);
         ctx.fillStyle = h.color;
         ctx.beginPath();
-        // simple heart-like bezier
-        ctx.moveTo(h.x, h.y);
-        ctx.bezierCurveTo(
-          h.x + h.size / 2,
-          h.y - h.size,
-          h.x + h.size * 1.5,
-          h.y + h.size / 3,
-          h.x,
-          h.y + h.size
-        );
-        ctx.bezierCurveTo(
-          h.x - h.size * 1.5,
-          h.y + h.size / 3,
-          h.x - h.size / 2,
-          h.y - h.size,
-          h.x,
-          h.y
-        );
+        // heart shape (path relative)
+        const s = h.size;
+        ctx.moveTo(0, 0);
+        ctx.bezierCurveTo(s / 2, -s, s * 1.5, s / 3, 0, s);
+        ctx.bezierCurveTo(-s * 1.5, s / 3, -s / 2, -s, 0, 0);
         ctx.fill();
+        ctx.restore();
         h.y -= h.speed;
       });
-      hearts = hearts.filter((h) => h.y + h.size > 0);
+      hearts = hearts.filter((h) => h.y + h.size > -50);
       if (Math.random() < 0.12) hearts.push(createHeart());
       requestAnimationFrame(drawHearts);
     }
@@ -185,17 +177,22 @@ export default function HomePage() {
       <div className="page-wrap">
         <div className="container">
           <div className="left">
-            {/* Logo removed as requested */}
-            <h1 className="welcome-title">Welcome to Milan ❤️</h1>
-            <p className="welcome-text">
-              “Love recognizes no barriers. It jumps hurdles, leaps fences,
-              penetrates walls to arrive at its destination full of hope.”
-            </p>
-            <p className="age-note">🔞 Milan is strictly for 18+ users.</p>
+            <div className="welcome-box">
+              <div className="welcome-row">
+                <h1 className="welcome-title">Welcome to Milan</h1>
+                <span className="pulse-heart" aria-hidden="true">❤</span>
+              </div>
+
+              <p className="welcome-text">
+                “Love recognizes no barriers. It jumps hurdles, leaps fences,
+                penetrates walls to arrive at its destination full of hope.”
+              </p>
+              <p className="age-note">🔞 Milan is strictly for 18+ users.</p>
+            </div>
           </div>
 
           <div className="right">
-            <div className="form-container">
+            <div className="form-container" role="region" aria-label="Signup form">
               {!showLogin && !showReset && (
                 <div id="registerForm">
                   <h2>Create Your Account</h2>
@@ -350,24 +347,25 @@ export default function HomePage() {
               Community Guidelines
             </a>
           </div>
+
           <p className="support-text">
             For any support, contact us at{" "}
             <a href="mailto:Support@milanlove.in">Support@milanlove.in</a>
           </p>
-          <p className="copyright">
-            © {new Date().getFullYear()} Milan. All rights reserved.
-          </p>
+
+          <p className="copyright">© {new Date().getFullYear()} Milan. All rights reserved.</p>
         </footer>
       </div>
 
       <style jsx global>{`
         :root {
-          --bg-color: #0b1220;
-          --panel-bg: rgba(255, 255, 255, 0.04);
-          --card-bg: rgba(255, 255, 255, 0.06);
+          --bg-color-1: #0b1220;
+          --bg-color-2: #0f2030;
+          --card-bg: rgba(255, 255, 255, 0.04);
+          --panel-bg: rgba(12, 16, 23, 0.55);
           --accent1: #ff6b81;
           --accent2: #ff9fb0;
-          --text-color: #f8f8fb;
+          --text: #f3f7fb;
         }
         html,
         body {
@@ -376,11 +374,12 @@ export default function HomePage() {
           width: 100%;
           height: 100%;
           font-family: "Segoe UI", Roboto, "Poppins", sans-serif;
-          background: linear-gradient(180deg, #0b1220 0%, #10202b 100%);
-          color: var(--text-color);
+          background: linear-gradient(180deg, var(--bg-color-1) 0%, var(--bg-color-2) 100%);
+          color: var(--text);
+          -webkit-font-smoothing: antialiased;
         }
 
-        /* hearts canvas */
+        /* Hearts canvas */
         #heartsCanvas {
           position: fixed;
           top: 0;
@@ -390,65 +389,16 @@ export default function HomePage() {
           z-index: 0;
         }
 
-        /* page wrapper to center main content with max width */
+        /* page wrapper */
         .page-wrap {
           position: relative;
-          z-index: 1;
-        }
-
-        .container {
-          max-width: 1100px; /* center the whole layout */
-          margin: 0 auto;
-          display: flex;
-          align-items: center;
-          justify-content: space-between; /* left & right balanced */
-          min-height: calc(100vh - 140px);
-          padding: 40px 20px;
-          gap: 30px;
-          flex-wrap: wrap;
-        }
-
-        .left {
-          flex: 1 1 480px;
-          min-width: 320px;
-          text-align: center;
+          z-index: 5;
+          min-height: 100vh;
           display: flex;
           flex-direction: column;
-          align-items: center;
-          justify-content: center;
-          padding: 20px;
+          justify-content: space-between;
         }
 
-        /* NEW: Welcome title styling (bigger + highlighted) */
-        .welcome-title {
-          font-size: 44px;
-          line-height: 1.02;
-          margin: 6px 0 12px 0;
-          font-weight: 800;
-          background: linear-gradient(90deg, var(--accent1), var(--accent2));
-          -webkit-background-clip: text;
-          -webkit-text-fill-color: transparent;
-          text-shadow: 0 6px 22px rgba(255, 107, 129, 0.12);
-          letter-spacing: 0.5px;
-        }
-
-        .welcome-text {
-          max-width: 760px;
-          font-size: 18px;
-          color: #e8eef6;
-          margin: 0 auto;
-          line-height: 1.6;
-          text-align: center;
-          font-weight: 500;
-        }
-
-        .age-note {
-          margin-top: 12px;
-          font-weight: 700;
-          color: #ffd7e0;
-        }
-
-        /* error message popup */
         #errorMessage {
           position: fixed;
           top: 18px;
@@ -460,9 +410,93 @@ export default function HomePage() {
           border-radius: 10px;
           display: none;
           z-index: 9999;
+          font-weight: 600;
         }
 
-        /* right form */
+        .container {
+          max-width: 1200px;
+          margin: 32px auto 20px;
+          display: flex;
+          align-items: flex-start;
+          justify-content: space-between;
+          gap: 36px;
+          padding: 20px;
+          flex-wrap: wrap;
+        }
+
+        .left {
+          flex: 1 1 560px;
+          min-width: 320px;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+        }
+
+        /* Welcome box */
+        .welcome-box {
+          background: rgba(10, 14, 20, 0.55);
+          border-radius: 12px;
+          padding: 28px 34px;
+          box-shadow: 0 10px 40px rgba(2, 6, 23, 0.6);
+          max-width: 760px;
+          text-align: center;
+          border: 1px solid rgba(255, 107, 129, 0.06);
+          animation: fadeInUp 700ms ease both;
+        }
+
+        .welcome-row {
+          display: flex;
+          align-items: center;
+          gap: 14px;
+          justify-content: center;
+        }
+
+        .welcome-title {
+          font-size: 48px;
+          line-height: 1;
+          margin: 0;
+          font-weight: 900;
+          color: var(--text);
+          /* highlighted text with subtle gradient stroke */
+          background: linear-gradient(90deg, var(--accent1), var(--accent2));
+          -webkit-background-clip: text;
+          -webkit-text-fill-color: transparent;
+          text-shadow: 0 10px 30px rgba(0, 0, 0, 0.45);
+        }
+
+        /* pulsing heart */
+        .pulse-heart {
+          display: inline-block;
+          font-size: 34px;
+          color: #ff465e;
+          transform-origin: center;
+          animation: heartBeat 1s ease-in-out infinite;
+          text-shadow: 0 6px 18px rgba(255, 70, 94, 0.15);
+        }
+
+        @keyframes heartBeat {
+          0% { transform: scale(1); opacity: 0.95; }
+          25% { transform: scale(1.25); opacity: 1; }
+          45% { transform: scale(1); opacity: 0.95; }
+          100% { transform: scale(1); opacity: 0.95; }
+        }
+
+        .welcome-text {
+          max-width: 720px;
+          font-size: 20px;
+          color: #eaf1fb;
+          margin: 14px auto 0;
+          line-height: 1.6;
+          font-weight: 600;
+        }
+
+        .age-note {
+          margin-top: 14px;
+          font-weight: 700;
+          color: #ffd7e0;
+        }
+
+        /* right / form */
         .right {
           flex: 0 0 420px;
           min-width: 300px;
@@ -473,49 +507,68 @@ export default function HomePage() {
 
         .form-container {
           width: 100%;
-          background: var(--card-bg);
-          padding: 28px;
+          background: linear-gradient(180deg, rgba(255,255,255,0.03), rgba(255,255,255,0.02));
+          padding: 26px;
           border-radius: 14px;
           backdrop-filter: blur(8px);
-          box-shadow: 0 10px 40px rgba(2, 6, 23, 0.6);
+          box-shadow: 0 14px 50px rgba(2, 6, 23, 0.6);
+          border: 1px solid rgba(255,255,255,0.03);
+          animation: fadeIn 600ms ease both;
         }
 
         .form-container h2 {
           text-align: center;
-          margin-bottom: 18px;
+          margin-bottom: 10px;
           font-size: 20px;
+        }
+
+        label {
+          display: block;
+          margin-top: 10px;
+          font-size: 15px;
+          font-weight: 700;
+          color: #f3f7fb;
         }
 
         input,
         select,
-        textarea,
-        button {
+        textarea {
           width: 100%;
-          padding: 10px 12px;
-          margin: 8px 0;
+          padding: 12px 14px;
+          margin-top: 6px;
           border: none;
           border-radius: 8px;
-          font-size: 14px;
+          font-size: 15px;
+          background: rgba(0,0,0,0.35);
+          color: #fff;
+          outline: 2px solid transparent;
+          transition: outline 120ms ease, transform 120ms ease;
         }
 
-        textarea {
-          min-height: 80px;
-          resize: vertical;
+        input:focus,
+        select:focus,
+        textarea:focus {
+          outline: 2px solid rgba(255, 107, 129, 0.2);
+          transform: translateY(-2px);
         }
+
+        textarea { min-height: 84px; resize: vertical; }
 
         button {
           background: linear-gradient(90deg, var(--accent1), var(--accent2));
           color: #0b1220;
-          font-weight: 700;
+          font-weight: 800;
           cursor: pointer;
           padding: 12px;
           border-radius: 10px;
           border: none;
+          margin-top: 12px;
+          font-size: 15px;
         }
 
         button:hover {
-          transform: translateY(-1px);
-          box-shadow: 0 8px 28px rgba(255, 107, 129, 0.12);
+          transform: translateY(-2px);
+          box-shadow: 0 10px 36px rgba(255, 107, 129, 0.12);
         }
 
         .terms-container {
@@ -524,97 +577,80 @@ export default function HomePage() {
           font-size: 13px;
           margin: 12px 0;
         }
-        .terms-container input {
-          margin-right: 8px;
-        }
-        .terms-container a {
-          color: #ffd54d;
-          text-decoration: none;
-        }
+        .terms-container input { margin-right: 8px; }
+        .terms-container a { color: #ffd54d; text-decoration: none; font-weight: 700; }
 
         .link-text {
           text-align: center;
           cursor: pointer;
           color: #ffd54d;
           margin-top: 10px;
+          font-weight: 700;
         }
-        .reset-link {
-          text-align: center;
-          cursor: pointer;
-          color: #ff7a8a;
-        }
+        .reset-link { text-align: center; cursor: pointer; color: #ff7a8a; font-weight: 700; }
 
-        /* footer */
+        /* footer (not a heavy bar) */
         .footer-section {
           text-align: center;
-          margin-top: 30px;
-          padding: 20px;
+          margin: 40px auto 26px;
+          padding: 0 20px;
           position: relative;
-          z-index: 2;
+          z-index: 5;
+          color: #dcdfea;
         }
         .footer-links {
           display: flex;
           justify-content: center;
-          gap: 20px;
-          margin-bottom: 10px;
+          gap: 18px;
+          margin-bottom: 8px;
           flex-wrap: wrap;
         }
         .footer-links a {
           color: #ffd54d;
           text-decoration: none;
+          font-weight: 600;
         }
-        .support-text {
-          font-size: 14px;
-          color: #ddd;
+        .footer-links a:hover { text-decoration: underline; }
+        .support-text { font-size: 14px; color: #cdd6e6; margin: 6px 0; }
+        .support-text a { color: #ff9fb0; font-weight: 700; text-decoration: none; }
+        .support-text a:hover { text-decoration: underline; }
+        .copyright { font-size: 13px; color: #9fa8c3; margin-top: 8px; }
+
+        /* animations */
+        @keyframes fadeInUp {
+          from { transform: translateY(8px); opacity: 0; }
+          to { transform: translateY(0); opacity: 1; }
         }
-        .copyright {
-          font-size: 13px;
-          color: #aaa;
-          margin-top: 5px;
+        @keyframes fadeIn {
+          from { opacity: 0; transform: translateY(6px); }
+          to { opacity: 1; transform: translateY(0); }
         }
 
-        /* Responsive adjustments */
+        /* Responsive */
         @media (max-width: 1024px) {
-          .welcome-title {
-            font-size: 36px;
-          }
-          .container {
-            padding: 28px 18px;
-          }
-          .right {
-            flex-basis: 420px;
-          }
+          .welcome-title { font-size: 42px; }
+          .welcome-text { font-size: 18px; }
+          .container { gap: 24px; padding: 18px; }
         }
 
         @media (max-width: 768px) {
           .container {
-            display: flex;
             flex-direction: column;
             align-items: center;
             justify-content: flex-start;
-            padding: 22px 12px;
-            min-height: auto;
+            padding: 14px;
+            gap: 18px;
+            margin-top: 14px;
           }
-          .left {
-            padding: 8px 6px;
-          }
-          .welcome-title {
-            font-size: 28px;
-          }
-          .welcome-text {
-            font-size: 15px;
-            padding: 0 8px;
-          }
-          .right {
-            width: 100%;
-            margin-top: 18px;
-            display: flex;
-            justify-content: center;
-          }
-          .form-container {
-            width: 92%;
-            padding: 20px;
-          }
+          .welcome-box { padding: 18px 16px; max-width: 100%; }
+          .welcome-title { font-size: 28px; }
+          .pulse-heart { font-size: 26px; }
+          .welcome-text { font-size: 15px; }
+          .right { width: 100%; margin-top: 6px; display: flex; justify-content: center; }
+          .form-container { width: 94%; padding: 18px; }
+          label { font-size: 14px; }
+          input, select, textarea { font-size: 14px; padding: 10px 12px; }
+          button { font-size: 15px; padding: 12px; }
         }
       `}</style>
     </>
