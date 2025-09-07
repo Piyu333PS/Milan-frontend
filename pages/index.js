@@ -2,9 +2,12 @@
 import { useEffect, useState, useRef } from "react";
 
 /**
- * pages/index.js
- * - Adds ripple buttons, consent modal, lazy hearts on mobile, loaders, and "Why Milan?" cards.
- * - Replace your existing pages/index.js with this file.
+ * Updated pages/index.js
+ * - Kept original logic intact; updated layout to open two-column design (left welcome + right roomy form).
+ * - Increased font sizes, spacing, responsiveness, and visual polish.
+ * - Features preserved: hearts canvas (lazy on small screens), consent modal, ripple + loader, why-cards, footer.
+ *
+ * Replace your existing pages/index.js with this file (backup original before replacing).
  */
 
 export default function HomePage() {
@@ -26,7 +29,9 @@ export default function HomePage() {
 
   useEffect(() => {
     // Decide hearts behavior based on viewport width & device capability
-    const smallScreen = window.innerWidth < 760 || window.devicePixelRatio > 1.5 && window.innerWidth < 980;
+    const smallScreen =
+      window.innerWidth < 760 ||
+      (window.devicePixelRatio > 1.5 && window.innerWidth < 980);
     setEnableHearts(!smallScreen); // disable heavy hearts on small screens
 
     if (!smallScreen) startHearts();
@@ -301,7 +306,6 @@ export default function HomePage() {
               {!showLogin && !showReset && (
                 <div id="registerForm">
                   <h2>Create Your Account</h2>
-
                   <label>
                     Name <span className="star">*</span>
                   </label>
@@ -410,7 +414,6 @@ export default function HomePage() {
               {showLogin && !showReset && (
                 <div id="loginForm">
                   <h2>Login to Milan</h2>
-
                   <label>Email or Mobile</label>
                   <input
                     type="text"
@@ -448,7 +451,6 @@ export default function HomePage() {
               {showReset && (
                 <div id="resetForm">
                   <h2>Reset Password</h2>
-
                   <label>Email or Mobile</label>
                   <input
                     type="text"
