@@ -23,6 +23,9 @@ export default function ConnectPage() {
     bio: "",
   });
 
+  // Temporary editable profile used inside overlay form
+  const [editProfile, setEditProfile] = useState(null);
+
   // Security (frontend-only demo)
   const [currentPasswordInput, setCurrentPasswordInput] = useState("");
   const [newPasswordInput, setNewPasswordInput] = useState("");
@@ -217,6 +220,8 @@ export default function ConnectPage() {
 
   // UI Actions
   function openProfilePanel() {
+    // create editable copy so changes don't persist until Save
+    setEditProfile({ ...profile, interests: [...(profile.interests || [])], photoDataUrls: [...(profile.photoDataUrls || [])] });
     setShowProfile(true);
     setShowSecurity(false);
     setShowLogoutConfirm(false);
@@ -239,11 +244,12 @@ export default function ConnectPage() {
     if (typeof window !== "undefined") {
       localStorage.setItem("milan_profile", JSON.stringify(newProfile));
     }
-    setShowProfile(false);
+    // keep overlay open/close decisions outside this helper
   }
 
   // Photo upload -> data URL (allow up to 3)
-  async function handleAddPhoto(e) {
+  // Note: when overlay open we update editProfile, otherwise we persist immediately
+  async function handleAddPhoto(e, options = { overlayMode: false }) {
     const file = e.target.files && e.target.files[0];
     if (!file) return;
     if (!file.type.startsWith("image/")) {
@@ -253,23 +259,40 @@ export default function ConnectPage() {
     const reader = new FileReader();
     reader.onload = function (ev) {
       const dataUrl = ev.target.result;
-      const next = [...(profile.photoDataUrls || [])];
-      if (next.length >= 3) {
-        alert("Maximum 3 photos allowed. Remove one to add a new.");
-        return;
+      if (options.overlayMode && editProfile) {
+        const next = [...(editProfile.photoDataUrls || [])];
+        if (next.length >= 3) {
+          alert("Maximum 3 photos allowed. Remove one to add a new.");
+          return;
+        }
+        next.push(dataUrl);
+        setEditProfile({ ...editProfile, photoDataUrls: next });
+      } else {
+        // immediate save (e.g., when user uses sidebar quick-add)
+        const next = [...(profile.photoDataUrls || [])];
+        if (next.length >= 3) {
+          alert("Maximum 3 photos allowed. Remove one to add a new.");
+          return;
+        }
+        next.push(dataUrl);
+        saveProfile({ photoDataUrls: next });
       }
-      next.push(dataUrl);
-      saveProfile({ photoDataUrls: next });
     };
     reader.readAsDataURL(file);
     // reset input
     e.target.value = "";
   }
 
-  function removePhoto(index) {
-    const next = [...(profile.photoDataUrls || [])];
-    next.splice(index, 1);
-    saveProfile({ photoDataUrls: next });
+  function removePhoto(index, options = { overlayMode: false }) {
+    if (options.overlayMode && editProfile) {
+      const next = [...(editProfile.photoDataUrls || [])];
+      next.splice(index, 1);
+      setEditProfile({ ...editProfile, photoDataUrls: next });
+    } else {
+      const next = [...(profile.photoDataUrls || [])];
+      next.splice(index, 1);
+      saveProfile({ photoDataUrls: next });
+    }
   }
 
   // Security (frontend-only)
@@ -432,37 +455,47 @@ export default function ConnectPage() {
   // Save personal info from overlay form
   function handleSaveProfileForm(e) {
     e.preventDefault();
-    const f = e.currentTarget;
-    const name = f.fullname.value.trim();
-    const contact = f.contact.value.trim();
-    const age = f.age.value.trim();
-    const city = f.city.value.trim();
-    const language = f.language.value;
-    const bio = f.bio.value.trim();
-    // interests are managed via state, so we take from profile.interests
+    // use editProfile if present
+    const p = editProfile || profile;
+    const name = (p.name || "").trim();
     if (!name) {
       alert("Please enter name.");
       return;
     }
-    saveProfile({ name, contact, age, city, language, bio });
+    // persist
+    saveProfile(p);
+    // close overlay
+    setShowProfile(false);
+    setEditProfile(null);
     alert("Profile saved.");
   }
 
   // Interests: add via input (Enter or comma) and show chips
   const [interestInput, setInterestInput] = useState("");
-  function handleAddInterestFromInput(e) {
-    const raw = interestInput.trim();
+  function handleAddInterestFromInput() {
+    const raw = (interestInput || "").trim();
     if (!raw) return setInterestInput("");
     const parts = raw.split(",").map((p) => p.trim()).filter(Boolean);
     if (!parts.length) return setInterestInput("");
-    const next = Array.from(new Set([...(profile.interests || []), ...parts])).slice(0, 12);
-    saveProfile({ interests: next });
+    if (editProfile) {
+      const next = Array.from(new Set([...(editProfile.interests || []), ...parts])).slice(0, 12);
+      setEditProfile({ ...editProfile, interests: next });
+    } else {
+      const next = Array.from(new Set([...(profile.interests || []), ...parts])).slice(0, 12);
+      saveProfile({ interests: next });
+    }
     setInterestInput("");
   }
-  function removeInterest(idx) {
-    const next = [...(profile.interests || [])];
-    next.splice(idx, 1);
-    saveProfile({ interests: next });
+  function removeInterest(idx, options = { overlayMode: false }) {
+    if (options.overlayMode && editProfile) {
+      const next = [...(editProfile.interests || [])];
+      next.splice(idx, 1);
+      setEditProfile({ ...editProfile, interests: next });
+    } else {
+      const next = [...(profile.interests || [])];
+      next.splice(idx, 1);
+      saveProfile({ interests: next });
+    }
   }
 
   // Profile completeness calculation (weights)
@@ -483,7 +516,8 @@ export default function ConnectPage() {
     return Math.min(100, Math.round(score));
   }
 
-  const completeness = calcCompleteness();
+  const completeness = calcCompleteness(profile);
+  const editCompleteness = editProfile ? calcCompleteness(editProfile) : completeness;
 
   return (
     <>
@@ -536,7 +570,7 @@ export default function ConnectPage() {
               id="photoInput"
               type="file"
               accept="image/*"
-              onChange={handleAddPhoto}
+              onChange={(e) => handleAddPhoto(e, { overlayMode: false })}
               style={{ display: "none" }}
             />
           </div>
@@ -665,141 +699,184 @@ export default function ConnectPage() {
             // close when clicking the overlay background
             if (e.target && e.target.classList && e.target.classList.contains("profile-overlay")) {
               setShowProfile(false);
+              setEditProfile(null);
             }
           }}
         >
           <div className="profile-card" role="region" aria-label="Edit Profile">
             <header className="profile-head">
               <h3>Edit Your Profile</h3>
-              <button className="close" onClick={() => setShowProfile(false)} aria-label="Close">✕</button>
+              <button className="close" onClick={() => { setShowProfile(false); setEditProfile(null); }} aria-label="Close">✕</button>
             </header>
 
-            <form className="profile-body" onSubmit={handleSaveProfileForm}>
-              <div className="row">
-                <label>Full Name</label>
-                <input name="fullname" placeholder="Full Name" defaultValue={profile.name} />
-              </div>
-
-              <div className="row two-col">
-                <label>Contact (Email or Mobile)</label>
-                <input name="contact" placeholder="Email or Mobile" defaultValue={profile.contact} />
-              </div>
-
-              <div className="row three-col">
-                <div>
-                  <label>Age</label>
-                  <input name="age" type="number" min="13" placeholder="Age" defaultValue={profile.age} />
-                </div>
-                <div>
-                  <label>City</label>
-                  <input name="city" placeholder="City" defaultValue={profile.city} />
-                </div>
-                <div>
-                  <label>Language</label>
-                  <select name="language" defaultValue={profile.language || ""}>
-                    <option value="">Select</option>
-                    <option value="English">English</option>
-                    <option value="Hindi">Hindi</option>
-                    <option value="Hinglish">Hinglish</option>
-                    <option value="Other">Other</option>
-                  </select>
-                </div>
-              </div>
-
-              <div className="row">
-                <label>Short Bio (max 150 chars)</label>
-                <textarea name="bio" maxLength={150} placeholder="A short intro about you..." defaultValue={profile.bio} />
-                <div className="char-note">{(profile.bio || "").length}/150</div>
-              </div>
-
-              <div className="row">
-                <label>Interests / Hobbies</label>
-                <div className="interests-input">
+            {/* If editProfile is null briefly, show loader (shouldn't happen but guard) */}
+            {editProfile ? (
+              <form className="profile-body" onSubmit={handleSaveProfileForm}>
+                <div className="row">
+                  <label>Full Name</label>
                   <input
-                    value={interestInput}
-                    onChange={(e) => setInterestInput(e.target.value)}
-                    onKeyDown={(e) => {
-                      if (e.key === "Enter") {
-                        e.preventDefault();
-                        handleAddInterestFromInput();
-                      } else if (e.key === ",") {
-                        e.preventDefault();
-                        handleAddInterestFromInput();
-                      }
-                    }}
-                    placeholder="Type and press Enter or comma (e.g. Music, Movies)"
+                    name="fullname"
+                    placeholder="Full Name"
+                    value={editProfile.name || ""}
+                    onChange={(e) => setEditProfile({ ...editProfile, name: e.target.value })}
                   />
-                  <button type="button" className="btn-small" onClick={handleAddInterestFromInput}>Add</button>
                 </div>
-                <div className="chips">
-                  {(profile.interests || []).map((it, idx) => (
-                    <div className="chip" key={idx}>
-                      {it}
-                      <button type="button" aria-label={`Remove ${it}`} onClick={() => removeInterest(idx)}>✕</button>
-                    </div>
-                  ))}
-                </div>
-              </div>
 
-              <div className="row">
-                <label>Photos (1–3)</label>
-                <div className="photo-row">
-                  {(profile.photoDataUrls || []).map((p, i) => (
-                    <div className="photo-thumb" key={i}>
-                      <img src={p} alt={`photo-${i}`} />
-                      <button type="button" className="remove-photo" onClick={() => removePhoto(i)}>Remove</button>
-                    </div>
-                  ))}
+                <div className="row two-col">
+                  <label>Contact (Email or Mobile)</label>
+                  <input
+                    name="contact"
+                    placeholder="Email or Mobile"
+                    value={editProfile.contact || ""}
+                    onChange={(e) => setEditProfile({ ...editProfile, contact: e.target.value })}
+                  />
+                </div>
 
-                  {(profile.photoDataUrls || []).length < 3 && (
-                    <div className="photo-add">
-                      <label className="photo-add-label">
-                        + Add Photo
-                        <input type="file" accept="image/*" onChange={handleAddPhoto} style={{ display: "none" }} />
-                      </label>
-                    </div>
-                  )}
+                <div className="row three-col">
+                  <div>
+                    <label>Age</label>
+                    <input
+                      name="age"
+                      type="number"
+                      min="13"
+                      placeholder="Age"
+                      value={editProfile.age || ""}
+                      onChange={(e) => setEditProfile({ ...editProfile, age: e.target.value })}
+                    />
+                  </div>
+                  <div>
+                    <label>City</label>
+                    <input
+                      name="city"
+                      placeholder="City"
+                      value={editProfile.city || ""}
+                      onChange={(e) => setEditProfile({ ...editProfile, city: e.target.value })}
+                    />
+                  </div>
+                  <div>
+                    <label>Language</label>
+                    <select
+                      name="language"
+                      value={editProfile.language || ""}
+                      onChange={(e) => setEditProfile({ ...editProfile, language: e.target.value })}
+                    >
+                      <option value="">Select</option>
+                      <option value="English">English</option>
+                      <option value="Hindi">Hindi</option>
+                      <option value="Hinglish">Hinglish</option>
+                      <option value="Other">Other</option>
+                    </select>
+                  </div>
                 </div>
-              </div>
 
-              <div className="row">
-                <label>Profile Completeness</label>
-                <div className="progress-wrap" aria-hidden>
-                  <div className="progress-bar" style={{ width: `${completeness}%` }} />
+                <div className="row">
+                  <label>Short Bio (max 150 chars)</label>
+                  <textarea
+                    name="bio"
+                    maxLength={150}
+                    placeholder="A short intro about you..."
+                    value={editProfile.bio || ""}
+                    onChange={(e) => setEditProfile({ ...editProfile, bio: e.target.value })}
+                  />
+                  <div className="char-note">{(editProfile.bio || "").length}/150</div>
                 </div>
-                <div style={{ marginTop: 6, fontSize: 13, color: "#333" }}>{completeness}% complete</div>
-              </div>
 
-              <div className="row actions">
-                <div style={{ display: "flex", gap: 8 }}>
-                  <button type="submit" className="btn-primary">Save Profile</button>
-                  <button type="button" className="btn-ghost" onClick={() => setShowProfile(false)}>Cancel</button>
+                <div className="row">
+                  <label>Interests / Hobbies</label>
+                  <div className="interests-input">
+                    <input
+                      value={interestInput}
+                      onChange={(e) => setInterestInput(e.target.value)}
+                      onKeyDown={(e) => {
+                        if (e.key === "Enter") {
+                          e.preventDefault();
+                          handleAddInterestFromInput();
+                        } else if (e.key === ",") {
+                          e.preventDefault();
+                          handleAddInterestFromInput();
+                        }
+                      }}
+                      placeholder="Type and press Enter or comma (e.g. Music, Movies)"
+                    />
+                    <button type="button" className="btn-small" onClick={handleAddInterestFromInput}>Add</button>
+                  </div>
+                  <div className="chips">
+                    {(editProfile.interests || []).map((it, idx) => (
+                      <div className="chip" key={idx}>
+                        {it}
+                        <button type="button" aria-label={`Remove ${it}`} onClick={() => removeInterest(idx, { overlayMode: true })}>✕</button>
+                      </div>
+                    ))}
+                  </div>
                 </div>
-                <div>
-                  <button
-                    type="button"
-                    className="btn-ghost"
-                    onClick={() => {
-                      // quick export
-                      try {
-                        const data = JSON.stringify(profile, null, 2);
-                        const blob = new Blob([data], { type: "application/json" });
-                        const url = URL.createObjectURL(blob);
-                        const a = document.createElement("a");
-                        a.href = url;
-                        a.download = "milan_profile.json";
-                        a.click();
-                        URL.revokeObjectURL(url);
-                      } catch (e) {
-                        alert("Export failed");
-                      }
-                    }}
-                  >
-                    Export
-                  </button>
+
+                <div className="row">
+                  <label>Photos (1–3)</label>
+                  <div className="photo-row">
+                    {(editProfile.photoDataUrls || []).map((p, i) => (
+                      <div className="photo-thumb" key={i}>
+                        <img src={p} alt={`photo-${i}`} />
+                        <button type="button" className="remove-photo" onClick={() => removePhoto(i, { overlayMode: true })}>Remove</button>
+                      </div>
+                    ))}
+
+                    {(editProfile.photoDataUrls || []).length < 3 && (
+                      <div className="photo-add">
+                        <label className="photo-add-label">
+                          + Add Photo
+                          <input
+                            type="file"
+                            accept="image/*"
+                            onChange={(e) => handleAddPhoto(e, { overlayMode: true })}
+                            style={{ display: "none" }}
+                          />
+                        </label>
+                      </div>
+                    )}
+                  </div>
                 </div>
-              </div>
-            </form>
+
+                <div className="row">
+                  <label>Profile Completeness</label>
+                  <div className="progress-wrap" aria-hidden>
+                    <div className="progress-bar" style={{ width: `${editCompleteness}%` }} />
+                  </div>
+                  <div style={{ marginTop: 6, fontSize: 13, color: "#333" }}>{editCompleteness}% complete</div>
+                </div>
+
+                <div className="row actions">
+                  <div style={{ display: "flex", gap: 8 }}>
+                    <button type="submit" className="btn-primary">Save Profile</button>
+                    <button type="button" className="btn-ghost" onClick={() => { setShowProfile(false); setEditProfile(null); }}>Cancel</button>
+                  </div>
+                  <div>
+                    <button
+                      type="button"
+                      className="btn-ghost"
+                      onClick={() => {
+                        // quick export
+                        try {
+                          const data = JSON.stringify(editProfile || profile, null, 2);
+                          const blob = new Blob([data], { type: "application/json" });
+                          const url = URL.createObjectURL(blob);
+                          const a = document.createElement("a");
+                          a.href = url;
+                          a.download = "milan_profile.json";
+                          a.click();
+                          URL.revokeObjectURL(url);
+                        } catch (e) {
+                          alert("Export failed");
+                        }
+                      }}
+                    >
+                      Export
+                    </button>
+                  </div>
+                </div>
+              </form>
+            ) : (
+              <div style={{ padding: 24, textAlign: "center" }}>Loading…</div>
+            )}
           </div>
         </div>
       )}
@@ -1239,6 +1316,11 @@ export default function ConnectPage() {
           .profile-card { width: 96%; max-width: 680px; padding: 8px; }
           .three-col { flex-direction: column; }
           .two-col { flex-direction: column; }
+
+          /* reduce huge vertical gaps: make profile overlay content fit better */
+          .profile-body { padding: 12px; gap:10px; }
+          .photo-thumb { width: 64px; height: 64px; }
+          .photo-add { width:64px; height:64px; }
         }
       `}</style>
     </>
