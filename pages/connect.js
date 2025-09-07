@@ -34,9 +34,7 @@ export default function ConnectPage() {
   // Control primary CTA visibility with state (no DOM poking)
   const [showModeButtons, setShowModeButtons] = useState(true);
 
-  // -----------------------------
   // Rotating quotes (every 5s)
-  // -----------------------------
   const QUOTES = [
     "❤️ जहाँ दिल मिले, वहीं होती है शुरुआत Milan की…",
     "✨ हर chat के पीछे छुपी है एक नई कहानी…",
@@ -52,9 +50,7 @@ export default function ConnectPage() {
     return () => clearInterval(id);
   }, []);
 
-  // -----------------------------
   // Sockets
-  // -----------------------------
   const socketRef = useRef(null);
   const partnerRef = useRef(null);
   const connectingRef = useRef(false);
@@ -64,9 +60,7 @@ export default function ConnectPage() {
     return process.env.NEXT_PUBLIC_BACKEND_URL || "https://milan-j9u9.onrender.com";
   }, []);
 
-  // -----------------------------
   // Load profile from localStorage
-  // -----------------------------
   useEffect(() => {
     if (typeof window === "undefined") return;
     try {
@@ -87,9 +81,7 @@ export default function ConnectPage() {
     }
   }, []);
 
-  // -----------------------------
   // Hearts background (canvas) - lightweight and mobile-friendly
-  // -----------------------------
   useEffect(() => {
     if (typeof window === "undefined") return;
     const canvas = document.getElementById("heartCanvas");
@@ -101,25 +93,26 @@ export default function ConnectPage() {
     let rafId = null;
 
     function resizeCanvas() {
-      canvas.width = window.innerWidth;
-      canvas.height = window.innerHeight;
+      canvas.width = window.innerWidth * (window.devicePixelRatio || 1);
+      canvas.height = window.innerHeight * (window.devicePixelRatio || 1);
+      canvas.style.width = `${window.innerWidth}px`;
+      canvas.style.height = `${window.innerHeight}px`;
+      ctx.setTransform(window.devicePixelRatio || 1, 0, 0, window.devicePixelRatio || 1, 0, 0);
     }
     window.addEventListener("resize", resizeCanvas);
     resizeCanvas();
 
     const smallMode = window.innerWidth < 760;
     function createHeart() {
-      const size = smallMode ? Math.random() * 16 + 8 : Math.random() * 20 + 10;
+      const size = smallMode ? Math.random() * 14 + 6 : Math.random() * 20 + 8;
       return {
         x: Math.random() * canvas.width,
-        y: canvas.height + (smallMode ? 30 : 50),
+        y: canvas.height + (smallMode ? 30 * (window.devicePixelRatio || 1) : 50 * (window.devicePixelRatio || 1)),
         size,
-        speed: smallMode ? Math.random() * 0.9 + 0.4 : Math.random() * 1.5 + 0.5,
+        speed: smallMode ? Math.random() * 0.8 + 0.3 : Math.random() * 1.4 + 0.4,
         color: smallMode
           ? ["#ff7a9a", "#ff6b81", "#ff9fb0"][Math.floor(Math.random() * 3)]
-          : ["#ff4d6d", "#ff1c68", "#ff6b81", "#e6005c"][
-              Math.floor(Math.random() * 4)
-            ],
+          : ["#ff4d6d", "#ff1c68", "#ff6b81", "#e6005c"][Math.floor(Math.random() * 4)],
       };
     }
 
@@ -129,34 +122,24 @@ export default function ConnectPage() {
       hearts.forEach((h) => {
         ctx.fillStyle = h.color;
         ctx.beginPath();
-        ctx.moveTo(h.x, h.y);
-        ctx.bezierCurveTo(
-          h.x + h.size / 2,
-          h.y - h.size,
-          h.x + h.size * 1.5,
-          h.y + h.size / 3,
-          h.x,
-          h.y + h.size
-        );
-        ctx.bezierCurveTo(
-          h.x - h.size * 1.5,
-          h.y + h.size / 3,
-          h.x - h.size / 2,
-          h.y - h.size,
-          h.x,
-          h.y
-        );
+        // draw heart using relative coords scaled by size
+        const s = h.size;
+        const cx = h.x;
+        const cy = h.y;
+        ctx.moveTo(cx, cy);
+        ctx.bezierCurveTo(cx + s / 2, cy - s, cx + s * 1.2, cy + s / 3, cx, cy + s);
+        ctx.bezierCurveTo(cx - s * 1.2, cy + s / 3, cx - s / 2, cy - s, cx, cy);
         ctx.fill();
-        // floating drift
-        h.x += Math.sin(h.y / 40) * 0.6;
+        // subtle float
+        h.x += Math.sin(h.y / 40) * 0.5;
         h.y -= h.speed;
       });
+
       hearts = hearts.filter((h) => h.y + h.size > -20);
-      const spawn = smallMode ? 0.06 : 0.10; // fewer on mobile
+      const spawn = smallMode ? 0.05 : 0.10; // fewer on mobile
       if (Math.random() < spawn) hearts.push(createHeart());
-      // limit
-      if (smallMode && hearts.length > 80) hearts = hearts.slice(-80);
-      if (!smallMode && hearts.length > 220) hearts = hearts.slice(-220);
+      if (smallMode && hearts.length > 70) hearts = hearts.slice(-70);
+      if (!smallMode && hearts.length > 200) hearts = hearts.slice(-200);
       rafId = requestAnimationFrame(drawHearts);
     }
     drawHearts();
@@ -167,9 +150,7 @@ export default function ConnectPage() {
     };
   }, []);
 
-  // -----------------------------
   // Cleanup socket on unmount
-  // -----------------------------
   useEffect(() => {
     return () => {
       if (socketRef.current) {
@@ -207,9 +188,7 @@ export default function ConnectPage() {
     return () => document.removeEventListener("visibilitychange", onVisibility);
   }, [isSearching]);
 
-  // -----------------------------
   // UI Actions
-  // -----------------------------
   function openProfilePanel() {
     setShowProfile(true);
     setShowSecurity(false);
@@ -275,9 +254,7 @@ export default function ConnectPage() {
     window.location.href = "/";
   }
 
-  // -----------------------------
   // Start / Stop Search
-  // -----------------------------
   function startSearch(type) {
     if (isSearching || connectingRef.current) return;
     connectingRef.current = true;
@@ -367,9 +344,7 @@ export default function ConnectPage() {
     setStatusMessage("❤️ जहाँ दिल मिले, वहीं होती है शुरुआत Milan की…");
   }
 
-  // -----------------------------
   // Avatar helper (keeps same)
-  // -----------------------------
   function Avatar() {
     if (profile.photoDataUrl) {
       return (
@@ -421,9 +396,6 @@ export default function ConnectPage() {
     saveProfile({ name, contact });
   }
 
-  // -----------------------------
-  // Render
-  // -----------------------------
   return (
     <>
       {/* canvas hearts */}
@@ -649,7 +621,7 @@ export default function ConnectPage() {
           height: 100%;
           font-family: "Poppins", sans-serif;
           background: linear-gradient(135deg, #8b5cf6, #ec4899);
-          overflow: hidden; /* keep it fit - existing app requirement */
+          overflow: auto; /* allow background show & natural scrolling */
         }
         canvas {
           position: fixed;
@@ -683,7 +655,7 @@ export default function ConnectPage() {
           position: fixed;
           top: 0;
           left: 0;
-          width: 240px; /* slightly wider for better spacing */
+          width: 240px;
           height: 100%;
           background: rgba(255, 255, 255, 0.06);
           backdrop-filter: blur(10px);
@@ -723,8 +695,8 @@ export default function ConnectPage() {
           align-items: center;
           gap: 12px;
           justify-content: flex-start;
-          padding: 14px 18px;
-          margin: 8px 14px;
+          padding: 12px 16px;
+          margin: 8px 12px;
           background: linear-gradient(90deg, rgba(255,255,255,0.02), rgba(255,255,255,0.01));
           border-radius: 12px;
           cursor: pointer;
@@ -736,32 +708,30 @@ export default function ConnectPage() {
           background: linear-gradient(90deg, rgba(255,107,129,0.04), rgba(255,159,176,0.02));
         }
         .sidebar-ic { font-size: 18px; display:inline-block; width:22px; text-align:center; }
-        .sidebar-txt { font-size: 16px; font-weight:800; color:#fff; }
+        .sidebar-txt { font-size: 17px; font-weight:800; color:#fff; }
 
         /* Content area */
         .content-wrap {
-          position: fixed;
+          position: relative;
           top: 0;
           left: 240px;
           right: 0;
           bottom: 0;
           display: grid;
           place-items: center;
-          padding: 12px;
+          padding: 18px;
           z-index: 10;
         }
 
         /* Glass card (NOW auto-height & compact width) */
         .glass-card {
           width: min(100%, 820px);
-          background: rgba(255, 255, 255, 0.14);
-          border: 2px solid rgba(255, 255, 255, 0.28);
-          border-radius: 22px;
-          backdrop-filter: blur(18px);
-          box-shadow: 0 10px 40px rgba(0, 0, 0, 0.25),
-            inset 0 0 60px rgba(255, 255, 255, 0.06);
+          background: rgba(255, 255, 255, 0.06); /* more transparent to reveal hearts */
+          border-radius: 18px;
+          backdrop-filter: blur(10px);
+          box-shadow: 0 10px 40px rgba(0, 0, 0, 0.20);
           display: block;
-          padding: 18px;
+          padding: 12px;
         }
 
         /* center-box layout compact */
@@ -772,30 +742,30 @@ export default function ConnectPage() {
           z-index: 12;
           display: flex;
           flex-direction: column;
-          gap: 12px;
+          gap: 8px;
           box-sizing: border-box;
-          padding: 6px 8px;
+          padding: 6px 6px;
         }
 
         .center-top { margin-bottom: 2px; }
         .center-box h2 {
-          font-size: 36px;
+          font-size: 34px;
           margin: 6px 0 4px 0;
           font-weight: 800;
-          text-shadow: 0 0 12px rgba(236,72,153,0.18);
+          text-shadow: 0 0 12px rgba(236,72,153,0.16);
         }
 
         .mode-text {
           color: #ffe4f1;
           font-weight: 700;
           margin-bottom: 6px;
-          min-height: 22px;
+          min-height: 20px;
         }
 
         .mode-options {
           display: flex;
           justify-content: center;
-          gap: 14px;
+          gap: 10px;
           align-items: stretch;
           flex-wrap: nowrap;
           margin-top: 6px;
@@ -803,35 +773,35 @@ export default function ConnectPage() {
 
         .mode-card,
         .disabled-card {
-          flex: 1 1 300px;
+          flex: 1 1 260px;
           max-width: 420px;
-          background: rgba(255, 255, 255, 0.06);
-          border: 1px solid rgba(255, 255, 255, 0.12);
-          border-radius: 14px;
-          padding: 14px;
+          background: rgba(255, 255, 255, 0.04);
+          border-radius: 12px;
+          padding: 10px;
           display: flex;
           flex-direction: column;
           align-items: center;
           gap: 8px;
-          box-shadow: 0 8px 24px rgba(0, 0, 0, 0.18);
-          transition: transform 0.22s ease, box-shadow 0.22s ease;
+          box-shadow: 0 8px 24px rgba(0, 0, 0, 0.12);
+          transition: transform 0.18s ease, box-shadow 0.18s ease;
           outline: none;
           box-sizing: border-box;
+          min-height: 120px; /* smaller min-height so card doesn't appear too tall */
         }
         .mode-card:active { transform: translateY(1px); }
-        .mode-card:hover { transform: translateY(-4px); box-shadow: 0 18px 40px rgba(0,0,0,0.26); }
+        .mode-card:hover { transform: translateY(-3px); box-shadow: 0 14px 36px rgba(0,0,0,0.18); }
 
         .mode-btn {
-          width: 100%;
-          padding: 12px 14px;
+          width: 92%;
+          padding: 10px 12px;
           border-radius: 10px;
           border: none;
           background: #fff;
           color: #ec4899;
-          font-size: 16px;
+          font-size: 15px;
           font-weight: 800;
           cursor: pointer;
-          box-shadow: 0 8px 24px rgba(236,72,153,0.08);
+          box-shadow: 0 8px 20px rgba(236,72,153,0.06);
         }
 
         .mode-btn.disabled {
@@ -841,8 +811,9 @@ export default function ConnectPage() {
 
         .mode-desc {
           color: rgba(255, 255, 255, 0.92);
-          font-size: 14px;
+          font-size: 13px;
           margin-top: 4px;
+          margin-bottom: 4px; /* reduce bottom gap */
         }
 
         .disabled-note {
@@ -854,13 +825,13 @@ export default function ConnectPage() {
 
         .loader { margin: 6px auto; }
         .heart-loader {
-          font-size: 30px;
+          font-size: 26px;
           color: #fff;
           animation: blink 1s infinite;
         }
         @keyframes blink {
           0% { opacity: 0.2; transform: scale(1); }
-          50% { opacity: 1; transform: scale(1.12); }
+          50% { opacity: 1; transform: scale(1.08); }
           100% { opacity: 0.2; transform: scale(1); }
         }
 
@@ -880,11 +851,11 @@ export default function ConnectPage() {
           font-weight: 700;
           color: #ffeff7;
           text-shadow: 0 0 6px rgba(255,136,170,0.12);
-          padding: 10px 12px;
+          padding: 8px 10px;
           border-radius: 10px;
-          background: rgba(255, 255, 255, 0.06);
-          border: 1px solid rgba(255, 255, 255, 0.08);
-          animation: quoteFade 0.45s ease;
+          background: rgba(255, 255, 255, 0.04);
+          border: 1px solid rgba(255, 255, 255, 0.06);
+          animation: quoteFade 0.35s ease;
         }
         @keyframes quoteFade {
           from { opacity: 0; transform: translateY(4px); }
@@ -925,7 +896,7 @@ export default function ConnectPage() {
 
         /* Responsive adjustments */
         @media (max-width: 1024px) {
-          .glass-card { width: min(100%, 780px); }
+          .glass-card { width: min(100%, 760px); }
         }
 
         @media (max-width: 768px) {
@@ -938,22 +909,22 @@ export default function ConnectPage() {
 
           .content-wrap { left: 0; padding: 10px; }
 
-          .glass-card { width: 100%; padding: 12px; border-radius: 16px; }
+          .glass-card { width: 98%; padding: 10px; border-radius: 14px; }
 
           .center-box h2 { font-size: 22px; margin: 4px 0 6px 0; }
 
           .mode-options {
             flex-direction: column;
-            gap: 6px; /* reduced gap to tighten vertical spacing for mobile */
+            gap: 8px; /* reduced gap to tighten vertical spacing for mobile */
             margin-top: 6px;
             align-items: center;
           }
           .mode-card, .disabled-card {
             width: 96%;
             max-width: 96%;
-            padding: 10px; /* smaller padding for compact cards on mobile */
+            padding: 10px; /* compact padding for mobile */
             border-radius: 12px;
-            min-height: auto;
+            min-height: 100px; /* even smaller mobile min-height */
           }
 
           .mode-btn { font-size: 15px; padding: 10px; }
