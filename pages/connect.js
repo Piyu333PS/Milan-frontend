@@ -23,25 +23,19 @@ export default function ConnectPage() {
     bio: "",
   });
 
-  // Temporary editable profile used inside overlay form
   const [editProfile, setEditProfile] = useState(null);
 
-  // Security (frontend-only demo)
   const [currentPasswordInput, setCurrentPasswordInput] = useState("");
   const [newPasswordInput, setNewPasswordInput] = useState("");
 
-  // Search / status
   const [statusMessage, setStatusMessage] = useState(
     "❤️ जहाँ दिल मिले, वहीं होती है शुरुआत Milan की…"
   );
   const [modeText, setModeText] = useState("");
   const [isSearching, setIsSearching] = useState(false);
   const [showLoader, setShowLoader] = useState(false);
-
-  // Control primary CTA visibility with state (no DOM poking)
   const [showModeButtons, setShowModeButtons] = useState(true);
 
-  // Rotating quotes (every 5s)
   const QUOTES = [
     "❤️ जहाँ दिल मिले, वहीं होती है शुरुआत Milan की…",
     "✨ हर chat के पीछे छुपी है एक नई कहानी…",
@@ -57,29 +51,24 @@ export default function ConnectPage() {
     return () => clearInterval(id);
   }, []);
 
-  // Sockets
   const socketRef = useRef(null);
   const partnerRef = useRef(null);
   const connectingRef = useRef(false);
 
-  // Resolve backend URL once (safe SSR-friendly)
   const backendUrl = useMemo(() => {
     return process.env.NEXT_PUBLIC_BACKEND_URL || "https://milan-j9u9.onrender.com";
   }, []);
 
-  // Load profile from localStorage on mount
   useEffect(() => {
     if (typeof window === "undefined") return;
     try {
       const saved = localStorage.getItem("milan_profile");
       if (saved) {
         const parsed = JSON.parse(saved);
-        // ensure arrays exist
         parsed.photoDataUrls = Array.isArray(parsed.photoDataUrls) ? parsed.photoDataUrls : [];
         parsed.interests = Array.isArray(parsed.interests) ? parsed.interests : [];
         setProfile((p) => ({ ...p, ...parsed }));
       } else {
-        // fallback to registration values if present
         const registeredName = localStorage.getItem("registered_name") || "";
         const registeredContact = localStorage.getItem("registered_contact") || "";
         setProfile((p) => ({ ...p, name: registeredName, contact: registeredContact }));
@@ -89,9 +78,7 @@ export default function ConnectPage() {
     }
   }, []);
 
-  // ---------------------------
-  // Hearts background (canvas)
-  // ---------------------------
+  // hearts canvas unchanged
   useEffect(() => {
     if (typeof window === "undefined") return;
     const canvas = document.getElementById("heartCanvas");
@@ -180,7 +167,6 @@ export default function ConnectPage() {
     };
   }, []);
 
-  // Cleanup socket on unmount
   useEffect(() => {
     return () => {
       if (socketRef.current) {
@@ -193,7 +179,6 @@ export default function ConnectPage() {
     };
   }, []);
 
-  // Disconnect socket when user hides tab for long (optional UX)
   useEffect(() => {
     if (typeof document === "undefined") return;
     const onVisibility = () => {
@@ -218,9 +203,7 @@ export default function ConnectPage() {
     return () => document.removeEventListener("visibilitychange", onVisibility);
   }, [isSearching]);
 
-  // UI Actions
   function openProfilePanel() {
-    // create editable copy so changes don't persist until Save
     setEditProfile({ ...profile, interests: [...(profile.interests || [])], photoDataUrls: [...(profile.photoDataUrls || [])] });
     setShowProfile(true);
     setShowSecurity(false);
@@ -237,18 +220,14 @@ export default function ConnectPage() {
     setShowSecurity(false);
   }
 
-  // Save profile to localStorage (centralized)
   function saveProfile(updated) {
     const newProfile = { ...profile, ...updated };
     setProfile(newProfile);
     if (typeof window !== "undefined") {
       localStorage.setItem("milan_profile", JSON.stringify(newProfile));
     }
-    // keep overlay open/close decisions outside this helper
   }
 
-  // Photo upload -> data URL (allow up to 3)
-  // Note: when overlay open we update editProfile, otherwise we persist immediately
   async function handleAddPhoto(e, options = { overlayMode: false }) {
     const file = e.target.files && e.target.files[0];
     if (!file) return;
@@ -268,7 +247,6 @@ export default function ConnectPage() {
         next.push(dataUrl);
         setEditProfile({ ...editProfile, photoDataUrls: next });
       } else {
-        // immediate save (e.g., when user uses sidebar quick-add)
         const next = [...(profile.photoDataUrls || [])];
         if (next.length >= 3) {
           alert("Maximum 3 photos allowed. Remove one to add a new.");
@@ -279,7 +257,6 @@ export default function ConnectPage() {
       }
     };
     reader.readAsDataURL(file);
-    // reset input
     e.target.value = "";
   }
 
@@ -295,7 +272,6 @@ export default function ConnectPage() {
     }
   }
 
-  // Security (frontend-only)
   function saveNewPassword(e) {
     e && e.preventDefault && e.preventDefault();
     if (typeof window === "undefined") return;
@@ -315,7 +291,6 @@ export default function ConnectPage() {
     alert("Password updated (frontend only).");
   }
 
-  // Logout
   function handleLogoutConfirmYes() {
     if (typeof window === "undefined") return;
     localStorage.clear();
@@ -323,7 +298,6 @@ export default function ConnectPage() {
     window.location.href = "/";
   }
 
-  // Start / Stop Search
   function startSearch(type) {
     if (isSearching || connectingRef.current) return;
     connectingRef.current = true;
@@ -338,7 +312,6 @@ export default function ConnectPage() {
         : "💬 Searching for a Text Chat partner..."
     );
 
-    // Ensure socket
     try {
       if (!socketRef.current || !socketRef.current.connected) {
         socketRef.current = io(backendUrl, {
@@ -413,7 +386,6 @@ export default function ConnectPage() {
     setStatusMessage("❤️ जहाँ दिल मिले, वहीं होती है शुरुआत Milan की…");
   }
 
-  // Avatar helper (keeps same)
   function Avatar() {
     if (profile.photoDataUrls && profile.photoDataUrls.length) {
       return (
@@ -452,25 +424,20 @@ export default function ConnectPage() {
     );
   }
 
-  // Save personal info from overlay form
   function handleSaveProfileForm(e) {
     e.preventDefault();
-    // use editProfile if present
     const p = editProfile || profile;
     const name = (p.name || "").trim();
     if (!name) {
       alert("Please enter name.");
       return;
     }
-    // persist
     saveProfile(p);
-    // close overlay
     setShowProfile(false);
     setEditProfile(null);
     alert("Profile saved.");
   }
 
-  // Interests: add via input (Enter or comma) and show chips
   const [interestInput, setInterestInput] = useState("");
   function handleAddInterestFromInput() {
     const raw = (interestInput || "").trim();
@@ -498,11 +465,8 @@ export default function ConnectPage() {
     }
   }
 
-  // Profile completeness calculation (weights)
   function calcCompleteness(p = profile) {
     let score = 0;
-    // weights (sum to 100)
-    // name: 18, contact: 12, age: 10, city: 10, language: 10, bio: 15, interests: 15, photos: 10
     if (p.name && p.name.trim()) score += 18;
     if (p.contact && p.contact.trim()) score += 12;
     if (p.age && String(p.age).trim()) score += 10;
@@ -511,7 +475,7 @@ export default function ConnectPage() {
     if (p.bio && p.bio.trim()) score += 15;
     if (Array.isArray(p.interests) && p.interests.length) score += 15;
     if (Array.isArray(p.photoDataUrls) && p.photoDataUrls.length) {
-      score += Math.min(10, p.photoDataUrls.length * Math.ceil(10 / 3)); // up to 10
+      score += Math.min(10, p.photoDataUrls.length * Math.ceil(10 / 3));
     }
     return Math.min(100, Math.round(score));
   }
@@ -521,10 +485,8 @@ export default function ConnectPage() {
 
   return (
     <>
-      {/* canvas hearts */}
       <canvas id="heartCanvas" aria-hidden />
 
-      {/* hamburger for mobile */}
       <button
         type="button"
         className="hamburger"
@@ -534,7 +496,6 @@ export default function ConnectPage() {
         ☰
       </button>
 
-      {/* Sidebar */}
       <aside
         className={`sidebar ${sidebarOpen ? "open" : ""}`}
         aria-hidden={false}
@@ -545,7 +506,6 @@ export default function ConnectPage() {
           </div>
           <div className="username">{profile.name || "My Name"}</div>
 
-          {/* profile completeness mini */}
           <div className="completeness-mini" title={`${completeness}% complete`} style={{ marginTop: 8 }}>
             <div style={{ fontSize: 12, color: "rgba(255,255,255,0.95)", fontWeight: 700 }}>
               Profile: {completeness}%
@@ -555,7 +515,6 @@ export default function ConnectPage() {
             </div>
           </div>
 
-          {/* small preview of interests */}
           {profile.interests && profile.interests.length ? (
             <div className="interests-preview" title={profile.interests.join(", ")} style={{ marginTop: 8, fontSize: 12, color: "rgba(255,255,255,0.9)", textAlign: "center", maxWidth: 200 }}>
               {profile.interests.slice(0, 4).join(", ")}{profile.interests.length > 4 ? "…" : ""}
@@ -592,7 +551,6 @@ export default function ConnectPage() {
         </ul>
       </aside>
 
-      {/* Main content area */}
       <main className="content-wrap" role="main">
         <div className="glass-card">
           <div className="center-box">
@@ -603,9 +561,7 @@ export default function ConnectPage() {
               </div>
             </div>
 
-            {/* Mode options */}
             <div className="mode-options" aria-live="polite">
-              {/* Video card */}
               {showModeButtons && (
                 <div
                   className="mode-card"
@@ -627,7 +583,6 @@ export default function ConnectPage() {
                 </div>
               )}
 
-              {/* Text card */}
               {showModeButtons && (
                 <div
                   className="mode-card disabled-card"
@@ -650,7 +605,6 @@ export default function ConnectPage() {
               )}
             </div>
 
-            {/* Quotes just below buttons */}
             <div className="quote-box" id="quoteBox">
               {QUOTES[quoteIndex]}
               <span
@@ -665,7 +619,6 @@ export default function ConnectPage() {
               </span>
             </div>
 
-            {/* Loader (React driven) */}
             {showLoader && (
               <div id="loader" className="loader" aria-live="assertive">
                 <div id="statusMessage" className="heart-loader">
@@ -674,7 +627,6 @@ export default function ConnectPage() {
               </div>
             )}
 
-            {/* Stop searching */}
             {isSearching && (
               <button
                 id="stopBtn"
@@ -689,14 +641,12 @@ export default function ConnectPage() {
         </div>
       </main>
 
-      {/* PROFILE OVERLAY (transparent glass page) */}
       {showProfile && (
         <div
           className="profile-overlay"
           role="dialog"
           aria-modal="true"
           onClick={(e) => {
-            // close when clicking the overlay background
             if (e.target && e.target.classList && e.target.classList.contains("profile-overlay")) {
               setShowProfile(false);
               setEditProfile(null);
@@ -709,7 +659,6 @@ export default function ConnectPage() {
               <button className="close" onClick={() => { setShowProfile(false); setEditProfile(null); }} aria-label="Close">✕</button>
             </header>
 
-            {/* If editProfile is null briefly, show loader (shouldn't happen but guard) */}
             {editProfile ? (
               <form className="profile-body" onSubmit={handleSaveProfileForm}>
                 <div className="row">
@@ -723,13 +672,16 @@ export default function ConnectPage() {
                 </div>
 
                 <div className="row two-col">
-                  <label>Contact (Email or Mobile)</label>
-                  <input
-                    name="contact"
-                    placeholder="Email or Mobile"
-                    value={editProfile.contact || ""}
-                    onChange={(e) => setEditProfile({ ...editProfile, contact: e.target.value })}
-                  />
+                  <div style={{ flex: 1 }}>
+                    <label>Contact (Email or Mobile)</label>
+                    <input
+                      name="contact"
+                      placeholder="Email or Mobile"
+                      value={editProfile.contact || ""}
+                      onChange={(e) => setEditProfile({ ...editProfile, contact: e.target.value })}
+                      className="contact-input"
+                    />
+                  </div>
                 </div>
 
                 <div className="row three-col">
@@ -852,9 +804,8 @@ export default function ConnectPage() {
                   <div>
                     <button
                       type="button"
-                      className="btn-ghost"
+                      className="btn-ghost export-btn"
                       onClick={() => {
-                        // quick export
                         try {
                           const data = JSON.stringify(editProfile || profile, null, 2);
                           const blob = new Blob([data], { type: "application/json" });
@@ -881,7 +832,6 @@ export default function ConnectPage() {
         </div>
       )}
 
-      {/* Security Modal */}
       {showSecurity && (
         <div className="modal-back" role="dialog" aria-modal="true" onClick={(e)=>{ if(e.target.classList.contains('modal-back')) setShowSecurity(false); }}>
           <div className="modal-card">
@@ -903,7 +853,6 @@ export default function ConnectPage() {
         </div>
       )}
 
-      {/* Logout Confirm Modal */}
       {showLogoutConfirm && (
         <div className="modal-back" role="dialog" aria-modal="true" onClick={(e)=>{ if(e.target.classList.contains('modal-back')) setShowLogoutConfirm(false); }}>
           <div className="modal-card small">
@@ -923,14 +872,13 @@ export default function ConnectPage() {
       )}
 
       <style jsx global>{`
-        /* Basic page setup */
         html, body {
           margin: 0;
           padding: 0;
           height: 100%;
           font-family: "Poppins", sans-serif;
           background: linear-gradient(135deg, #8b5cf6, #ec4899);
-          overflow: auto; /* allow background show & natural scrolling */
+          overflow: auto;
         }
         canvas {
           position: fixed;
@@ -943,7 +891,6 @@ export default function ConnectPage() {
           image-rendering: -webkit-optimize-contrast;
         }
 
-        /* Hamburger for mobile */
         .hamburger {
           display: none;
           position: fixed;
@@ -960,7 +907,6 @@ export default function ConnectPage() {
           border: 0;
         }
 
-        /* Sidebar */
         .sidebar {
           position: fixed;
           top: 0;
@@ -981,7 +927,7 @@ export default function ConnectPage() {
         .profile-pic-wrapper { width: 78px; height: 78px; border-radius: 50%; overflow: hidden; box-shadow: 0 6px 18px rgba(0,0,0,0.25); }
         .username {
           margin-top: 8px;
-          font-size: 18px; /* bigger & attractive */
+          font-size: 18px;
           font-weight: 800;
           color: #fff;
           text-align: center;
@@ -999,15 +945,13 @@ export default function ConnectPage() {
           margin-top: 8px;
         }
 
-        .interests-preview { opacity: 0.95; }
-
         .sidebar-list { list-style: none; padding: 0; margin-top: 26px; width: 100%; }
         .sidebar-list li {
           display: flex;
           align-items: center;
           gap: 12px;
           justify-content: flex-start;
-          padding: 12px 16px;
+          padding: 10px 14px;
           margin: 8px 12px;
           background: linear-gradient(90deg, rgba(255,255,255,0.02), rgba(255,255,255,0.01));
           border-radius: 12px;
@@ -1022,12 +966,9 @@ export default function ConnectPage() {
         .sidebar-ic { font-size: 18px; display:inline-block; width:22px; text-align:center; }
         .sidebar-txt { font-size: 17px; font-weight:800; color:#fff; }
 
-        .btn-cancel-deact { background: transparent; border: 1px solid rgba(255,255,255,0.12); color: #fff; border-radius: 8px; padding: 6px 8px; cursor: pointer; font-weight:700; font-size:12px; }
-
-        /* Content area - FIXED: center correctly on desktop */
         .content-wrap {
-          margin-left: 240px; /* leave space for sidebar */
-          min-height: 100vh;  /* ensure full viewport height */
+          margin-left: 240px;
+          min-height: 100vh;
           display: flex;
           align-items: center;
           justify-content: center;
@@ -1036,10 +977,9 @@ export default function ConnectPage() {
           position: relative;
         }
 
-        /* Glass card (NOW auto-height & compact width) */
         .glass-card {
           width: min(100%, 820px);
-          background: rgba(255, 255, 255, 0.06); /* more transparent to reveal hearts */
+          background: rgba(255, 255, 255, 0.06);
           border-radius: 18px;
           backdrop-filter: blur(10px);
           box-shadow: 0 10px 40px rgba(0, 0, 0, 0.20);
@@ -1047,7 +987,6 @@ export default function ConnectPage() {
           padding: 12px;
         }
 
-        /* center-box layout compact */
         .center-box {
           width: 100%;
           color: #fff;
@@ -1099,7 +1038,7 @@ export default function ConnectPage() {
           transition: transform 0.18s ease, box-shadow 0.18s ease;
           outline: none;
           box-sizing: border-box;
-          min-height: 120px; /* smaller min-height so card doesn't appear too tall */
+          min-height: 120px;
         }
         .mode-card:active { transform: translateY(1px); }
         .mode-card:hover { transform: translateY(-3px); box-shadow: 0 14px 36px rgba(0,0,0,0.18); }
@@ -1126,7 +1065,7 @@ export default function ConnectPage() {
           color: rgba(255, 255, 255, 0.92);
           font-size: 13px;
           margin-top: 4px;
-          margin-bottom: 4px; /* reduce bottom gap */
+          margin-bottom: 4px;
         }
 
         .disabled-note {
@@ -1158,7 +1097,6 @@ export default function ConnectPage() {
           cursor: pointer;
         }
 
-        /* Quotes just below buttons */
         .quote-box {
           margin-top: 6px;
           font-weight: 700;
@@ -1175,11 +1113,11 @@ export default function ConnectPage() {
           to { opacity: 1; transform: translateY(0); }
         }
 
-        /* PROFILE OVERLAY (glass) */
+        /* PROFILE OVERLAY (glass) - improved for small screens */
         .profile-overlay {
           position: fixed;
           inset: 0;
-          background: rgba(2,6,23,0.45);
+          background: rgba(2,6,23,0.55);
           z-index: 120;
           display: flex;
           align-items: center;
@@ -1187,61 +1125,68 @@ export default function ConnectPage() {
           padding: 18px;
         }
         .profile-card {
-          width: min(920px, 96%);
-          max-width: 920px;
-          background: linear-gradient(180deg, rgba(255,255,255,0.95), rgba(255,255,255,0.92));
+          width: min(880px, 96%);
+          max-width: 880px;
+          background: linear-gradient(180deg, rgba(255,255,255,0.98), rgba(255,255,255,0.95));
           border-radius: 12px;
           box-shadow: 0 18px 60px rgba(0,0,0,0.35);
           overflow: hidden;
           display: flex;
           flex-direction: column;
           gap: 8px;
+          max-height: calc(100vh - 80px);
         }
         .profile-head {
           display:flex;
           align-items:center;
           justify-content:space-between;
-          padding: 14px 18px;
+          padding: 12px 16px;
           background: linear-gradient(90deg, rgba(255,236,245,0.95), rgba(255,255,255,0.95));
           border-bottom: 1px solid rgba(0,0,0,0.04);
         }
-        .profile-head h3 { margin:0; font-size:20px; color:#0b1220; font-weight:900; }
+        .profile-head h3 { margin:0; font-size:18px; color:#0b1220; font-weight:900; }
         .profile-head .close { background:transparent;border:0;font-size:18px;cursor:pointer;color:#666; }
 
-        .profile-body { padding: 14px 18px 20px 18px; display:flex; flex-direction:column; gap:12px; color:#222; }
-        .profile-body label { display:block; font-weight:700; color:#334; margin-bottom:6px; }
-        .profile-body input, .profile-body select, .profile-body textarea { width:100%; padding:10px 12px; border-radius:8px; border:1px solid #e6e6e9; box-sizing:border-box; font-size:14px; }
-        .profile-body textarea { min-height:80px; resize:vertical; }
+        .profile-body {
+          padding: 12px 16px 12px 16px;
+          display:flex;
+          flex-direction:column;
+          gap:10px;
+          color:#222;
+          overflow: auto; /* allow scrolling inside overlay */
+        }
+        .profile-body label { display:block; font-weight:700; color:#334; margin-bottom:6px; font-size:13px; }
+        .profile-body input, .profile-body select, .profile-body textarea { width:100%; padding:8px 10px; border-radius:8px; border:1px solid #e6e6e9; box-sizing:border-box; font-size:14px; height: 38px; }
+        .profile-body textarea { min-height:70px; resize:vertical; padding-top:8px; padding-bottom:8px; }
 
         .row { width:100%; }
-        .two-col { display:flex; gap:10px; }
-        .three-col { display:flex; gap:10px; }
+        .two-col { display:flex; gap:8px; }
+        .three-col { display:flex; gap:8px; }
         .three-col > div { flex:1; }
 
         .interests-input { display:flex; gap:8px; align-items:center; }
-        .interests-input input { flex:1; }
-        .btn-small { background: linear-gradient(90deg,#ff6b81,#ff9fb0); color:#08121a; padding:8px 10px; border-radius:8px; border:none; font-weight:700; cursor:pointer; }
+        .interests-input input { flex:1; height:36px; }
+        .btn-small { background: linear-gradient(90deg,#ff6b81,#ff9fb0); color:#08121a; padding:8px 10px; border-radius:8px; border:none; font-weight:700; cursor:pointer; height:36px; }
 
         .chips { display:flex; gap:8px; flex-wrap:wrap; margin-top:8px; }
-        .chip { background:#fff; padding:6px 10px; border-radius:20px; display:flex; gap:8px; align-items:center; font-weight:700; box-shadow: 0 6px 18px rgba(0,0,0,0.06); }
+        .chip { background:#fff; padding:6px 10px; border-radius:18px; display:flex; gap:8px; align-items:center; font-weight:700; box-shadow: 0 6px 18px rgba(0,0,0,0.06); font-size:13px; }
         .chip button { background:transparent; border:0; cursor:pointer; color:#c33; font-weight:800; }
 
         .photo-row { display:flex; gap:10px; align-items:center; flex-wrap:wrap; }
-        .photo-thumb { position:relative; width:84px; height:84px; border-radius:8px; overflow:hidden; background:#f3f3f3; display:flex; align-items:center; justify-content:center; box-shadow: 0 6px 18px rgba(0,0,0,0.06); }
+        .photo-thumb { position:relative; width:72px; height:72px; border-radius:8px; overflow:hidden; background:#f3f3f3; display:flex; align-items:center; justify-content:center; box-shadow: 0 6px 18px rgba(0,0,0,0.06); }
         .photo-thumb img { width:100%; height:100%; object-fit:cover; }
-        .photo-thumb .remove-photo { position:absolute; top:6px; right:6px; background: rgba(0,0,0,0.36); color:#fff; border:0; padding:6px 8px; border-radius:6px; cursor:pointer; }
+        .photo-thumb .remove-photo { position:absolute; top:6px; right:6px; background: rgba(0,0,0,0.36); color:#fff; border:0; padding:6px 8px; border-radius:6px; cursor:pointer; font-size:12px; }
 
-        .photo-add { width:84px; height:84px; border-radius:8px; background:linear-gradient(90deg,#fff,#fff); display:flex; align-items:center; justify-content:center; box-shadow: 0 6px 18px rgba(0,0,0,0.04); }
+        .photo-add { width:72px; height:72px; border-radius:8px; background:linear-gradient(90deg,#fff,#fff); display:flex; align-items:center; justify-content:center; box-shadow: 0 6px 18px rgba(0,0,0,0.04); }
         .photo-add-label { display:block; cursor:pointer; color:#ec4899; font-weight:800; }
 
-        .progress-wrap { width:100%; height:12px; background: #f1f1f1; border-radius:8px; overflow:hidden; margin-top:6px; }
+        .progress-wrap { width:100%; height:10px; background: #f1f1f1; border-radius:8px; overflow:hidden; margin-top:6px; }
         .progress-bar { height:100%; background: linear-gradient(90deg,#ff6b81,#ff9fb0); width:0%; transition: width 260ms ease; }
 
         .actions { display:flex; align-items:center; justify-content:space-between; gap:12px; }
 
-        /* Buttons used in overlays/modals */
-        .btn-primary { background: linear-gradient(90deg,#ff6b81,#ff9fb0); color:#08121a; padding:10px 14px; border-radius:8px; border:none; font-weight:800; cursor:pointer; }
-        .btn-ghost { background:#f3f4f6; color:#333; padding:10px 12px; border-radius:8px; border:none; cursor:pointer; }
+        .btn-primary { background: linear-gradient(90deg,#ff6b81,#ff9fb0); color:#08121a; padding:8px 12px; border-radius:8px; border:none; font-weight:800; cursor:pointer; height:38px; }
+        .btn-ghost { background:#f3f4f6; color:#333; padding:8px 10px; border-radius:8px; border:none; cursor:pointer; height:38px; }
 
         .modal-back {
           position: fixed;
@@ -1253,6 +1198,7 @@ export default function ConnectPage() {
           z-index: 80;
           padding: 12px;
         }
+
         .modal-card {
           width: 96%;
           max-width: 520px;
@@ -1261,6 +1207,7 @@ export default function ConnectPage() {
           box-shadow: 0 18px 60px rgba(0,0,0,0.35);
           overflow: hidden;
         }
+
         .modal-card.small { max-width: 420px; }
         .modal-head { display:flex; align-items:center; justify-content:space-between; padding:14px 16px; background: linear-gradient(90deg,#ffeef5,#fff); }
         .modal-head h3 { margin:0; font-size:18px; color:#08121a; font-weight:800; }
@@ -1275,16 +1222,24 @@ export default function ConnectPage() {
         .mini-progress { width:140px; height:8px; background: rgba(255,255,255,0.08); border-radius:8px; margin-top:6px; overflow:hidden; }
         .mini-progress-bar { height:100%; background: linear-gradient(90deg,#ff6b81,#ff9fb0); width:0%; transition: width 280ms ease; }
 
-        /* Responsive adjustments */
+        /* Contact input minor visual tweak */
+        .contact-input {
+          border: 1px solid #e6e6e9;
+          box-shadow: none;
+          background: #fff;
+          border-radius: 8px;
+        }
+
+        /* Hide export on small screens (users complained it's useless on mobile) */
+        .export-btn { border: 1px solid #e6e6e9; padding:8px 10px; background:#fff; border-radius:8px; }
+
         @media (max-width: 1024px) {
           .glass-card { width: min(100%, 760px); }
         }
 
         @media (max-width: 768px) {
-          /* show hamburger */
           .hamburger { display: block; }
 
-          /* collapse sidebar */
           .sidebar { transform: translateX(-100%); width: 200px; }
           .sidebar.open { transform: translateX(0); }
 
@@ -1296,31 +1251,41 @@ export default function ConnectPage() {
 
           .mode-options {
             flex-direction: column;
-            gap: 8px; /* reduced gap to tighten vertical spacing for mobile */
+            gap: 8px;
             margin-top: 6px;
             align-items: center;
           }
           .mode-card, .disabled-card {
             width: 96%;
             max-width: 96%;
-            padding: 10px; /* compact padding for mobile */
+            padding: 10px;
             border-radius: 12px;
-            min-height: 100px; /* even smaller mobile min-height */
+            min-height: 100px;
           }
 
           .mode-btn { font-size: 15px; padding: 10px; }
-          .mode-desc { font-size: 13px; margin-bottom: 6px; } /* ensure less extra space */
+          .mode-desc { font-size: 13px; margin-bottom: 6px; }
           .quote-box { font-size: 13px; padding: 8px; margin-bottom: 4px; }
 
-          /* overlay card should be smaller on mobile */
-          .profile-card { width: 96%; max-width: 680px; padding: 8px; }
+          .profile-card { width: 96%; max-width: 680px; padding: 0; max-height: calc(100vh - 48px); }
           .three-col { flex-direction: column; }
           .two-col { flex-direction: column; }
 
-          /* reduce huge vertical gaps: make profile overlay content fit better */
-          .profile-body { padding: 12px; gap:10px; }
-          .photo-thumb { width: 64px; height: 64px; }
-          .photo-add { width:64px; height:64px; }
+          .profile-body { padding: 10px; gap:8px; }
+
+          .photo-thumb { width: 56px; height: 56px; }
+          .photo-add { width:56px; height:56px; }
+          .btn-primary { padding:8px 10px; height:36px; }
+          .btn-ghost { padding:8px 10px; height:36px; }
+
+          /* ensure save visible on mobile (no hidden buttons) */
+          .actions { gap: 8px; }
+          .export-btn { display: none; } /* hide export on small screens */
+        }
+
+        @media (max-width: 480px) {
+          .sidebar { width: 180px; }
+          .profile-card { max-width: 100%; }
         }
       `}</style>
     </>
