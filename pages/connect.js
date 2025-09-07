@@ -10,12 +10,15 @@ export default function ConnectPage() {
   const [showProfile, setShowProfile] = useState(false);
   const [showSecurity, setShowSecurity] = useState(false);
   const [showLogoutConfirm, setShowLogoutConfirm] = useState(false);
+  const [showDeactivateConfirm, setShowDeactivateConfirm] = useState(false);
 
   // Profile (localStorage)
   const [profile, setProfile] = useState({
     name: "",
     contact: "",
     photoDataUrl: "",
+    interests: "",
+    deactivationRequestedAt: null,
   });
 
   // Security (frontend-only demo)
@@ -65,14 +68,18 @@ export default function ConnectPage() {
     try {
       const saved = localStorage.getItem("milan_profile");
       if (saved) {
-        setProfile(JSON.parse(saved));
+        const parsed = JSON.parse(saved);
+        // normalize
+        setProfile((p) => ({ ...p, ...parsed }));
       } else {
         const registeredName = localStorage.getItem("registered_name") || "";
         const registeredContact = localStorage.getItem("registered_contact") || "";
+        const deactivateAt = localStorage.getItem("milan_deactivate_requested_at") || null;
         setProfile((p) => ({
           ...p,
           name: registeredName,
           contact: registeredContact,
+          deactivationRequestedAt: deactivateAt ? Number(deactivateAt) : null,
         }));
       }
     } catch (e) {
@@ -99,27 +106,17 @@ export default function ConnectPage() {
     const dpr = Math.max(1, window.devicePixelRatio || 1);
 
     function resizeCanvas() {
-      // update css sizes
       cssW = window.innerWidth;
       cssH = window.innerHeight;
-
-      // set canvas internal pixel size for crispness
       canvas.width = Math.round(cssW * dpr);
       canvas.height = Math.round(cssH * dpr);
-
-      // set canvas CSS size to viewport size
       canvas.style.width = cssW + "px";
       canvas.style.height = cssH + "px";
-
-      // Reset transform and clear thoroughly (avoid leftover stripes)
       ctx.setTransform(1, 0, 0, 1, 0, 0);
       ctx.clearRect(0, 0, canvas.width, canvas.height);
-
-      // Scale drawing so 1 CSS pixel equals devicePixelRatio device pixels
       ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
     }
 
-    // create heart using CSS-coordinate space
     function createHeart() {
       const smallMode = cssW < 760;
       const size = smallMode ? Math.random() * 14 + 6 : Math.random() * 18 + 8;
@@ -136,13 +133,10 @@ export default function ConnectPage() {
     }
 
     function drawHearts() {
-      // Clear whole canvas in device pixels to remove any edge artifacts
       ctx.setTransform(1, 0, 0, 1, 0, 0);
       ctx.clearRect(0, 0, canvas.width, canvas.height);
-      // restore CSS->devicePixel scaling
       ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
 
-      // draw each heart (coordinates are CSS pixels)
       hearts.forEach((h) => {
         ctx.save();
         ctx.translate(h.x, h.y);
@@ -156,36 +150,29 @@ export default function ConnectPage() {
         ctx.fill();
         ctx.restore();
 
-        // update in CSS pixels
         h.x += Math.sin(h.y / 40) * 0.5;
         h.y -= h.speed;
       });
 
-      // remove hearts that moved off top
       hearts = hearts.filter((h) => h.y + h.size > -20);
 
-      // spawn probability tuned to device size (fewer on mobile)
       const smallMode = cssW < 760;
       const spawnProb = smallMode ? 0.045 : 0.09;
       if (Math.random() < spawnProb) hearts.push(createHeart());
 
-      // limits to avoid heavy accumulation (prevent bottom stripe)
       if (smallMode && hearts.length > 70) hearts = hearts.slice(-70);
       if (!smallMode && hearts.length > 220) hearts = hearts.slice(-220);
 
       rafId = requestAnimationFrame(drawHearts);
     }
 
-    // initial
     resizeCanvas();
     window.addEventListener("resize", resizeCanvas);
     drawHearts();
 
-    // cleanup
     return () => {
       if (rafId) cancelAnimationFrame(rafId);
       window.removeEventListener("resize", resizeCanvas);
-      // final clear to ensure nothing left behind
       try {
         ctx.setTransform(1, 0, 0, 1, 0, 0);
         ctx.clearRect(0, 0, canvas.width, canvas.height);
@@ -236,24 +223,33 @@ export default function ConnectPage() {
     setShowProfile(true);
     setShowSecurity(false);
     setShowLogoutConfirm(false);
+    setShowDeactivateConfirm(false);
   }
   function openSecurityPanel() {
     setShowSecurity(true);
     setShowProfile(false);
     setShowLogoutConfirm(false);
+    setShowDeactivateConfirm(false);
   }
   function openLogoutConfirm() {
     setShowLogoutConfirm(true);
     setShowProfile(false);
     setShowSecurity(false);
+    setShowDeactivateConfirm(false);
   }
 
-  // Save profile to localStorage
+  // Save profile to localStorage (centralized)
   function saveProfile(updated) {
     const newProfile = { ...profile, ...updated };
     setProfile(newProfile);
     if (typeof window !== "undefined") {
       localStorage.setItem("milan_profile", JSON.stringify(newProfile));
+      // keep separate deactivation timestamp for quick access
+      if (newProfile.deactivationRequestedAt) {
+        localStorage.setItem("milan_deactivate_requested_at", String(newProfile.deactivationRequestedAt));
+      } else {
+        localStorage.removeItem("milan_deactivate_requested_at");
+      }
     }
     setShowProfile(false);
   }
@@ -266,12 +262,15 @@ export default function ConnectPage() {
     reader.onload = function (ev) {
       const dataUrl = ev.target.result;
       saveProfile({ photoDataUrl: dataUrl });
+      // quick visual feedback
+      alert("Profile photo updated.");
     };
     reader.readAsDataURL(file);
   }
 
   // Security (frontend-only)
-  function saveNewPassword() {
+  function saveNewPassword(e) {
+    e && e.preventDefault && e.preventDefault();
     if (typeof window === "undefined") return;
     const savedPwd = localStorage.getItem("milan_password") || "";
     if (savedPwd && savedPwd !== currentPasswordInput) {
@@ -295,6 +294,23 @@ export default function ConnectPage() {
     localStorage.clear();
     sessionStorage.clear();
     window.location.href = "/";
+  }
+
+  // Deactivate request: user schedules deactivation (frontend-simulated)
+  function requestDeactivate() {
+    // ask for confirmation modal
+    setShowDeactivateConfirm(true);
+    setShowProfile(false);
+  }
+  function confirmDeactivate() {
+    const ts = Date.now();
+    saveProfile({ deactivationRequestedAt: ts });
+    setShowDeactivateConfirm(false);
+    alert("Deactivation requested. If you do not log in for 30 days, account will be deactivated.");
+  }
+  function cancelDeactivate() {
+    saveProfile({ deactivationRequestedAt: null });
+    alert("Deactivation request cancelled.");
   }
 
   // Start / Stop Search
@@ -426,17 +442,28 @@ export default function ConnectPage() {
     );
   }
 
-  // Save personal info
+  // Save personal info (profile modal)
   function handleSavePersonal(e) {
     e.preventDefault();
     const f = e.currentTarget;
     const name = f.fullname.value.trim();
     const contact = f.contact.value.trim();
+    const interests = f.interests ? f.interests.value.trim() : "";
     if (!name) {
       alert("Please enter name.");
       return;
     }
-    saveProfile({ name, contact });
+    saveProfile({ name, contact, interests });
+    alert("Profile saved.");
+  }
+
+  // helper to format deactivation date
+  function formatDeactivation(ts) {
+    if (!ts) return null;
+    const d = new Date(Number(ts));
+    // One month from request:
+    const monthLater = new Date(d.getTime() + 30 * 24 * 60 * 60 * 1000);
+    return monthLater.toLocaleDateString();
   }
 
   return (
@@ -465,6 +492,13 @@ export default function ConnectPage() {
           </div>
           <div className="username">{profile.name || "My Name"}</div>
 
+          {/* small preview of interests */}
+          {profile.interests ? (
+            <div className="interests-preview" title={profile.interests} style={{ marginTop: 6, fontSize: 12, color: "rgba(255,255,255,0.9)", textAlign: "center", maxWidth: 200 }}>
+              {profile.interests.length > 36 ? profile.interests.slice(0, 36) + "…" : profile.interests}
+            </div>
+          ) : null}
+
           <div style={{ marginTop: 8 }}>
             <label htmlFor="photoInput" className="photo-label">
               Change / Add Photo
@@ -477,6 +511,16 @@ export default function ConnectPage() {
               style={{ display: "none" }}
             />
           </div>
+
+          {/* show deactivation status */}
+          {profile.deactivationRequestedAt ? (
+            <div style={{ marginTop: 8, fontSize: 12, color: "#ffdede", textAlign: "center" }}>
+              Deactivation scheduled: {formatDeactivation(profile.deactivationRequestedAt)}
+              <div style={{ marginTop: 6 }}>
+                <button className="btn-cancel-deact" onClick={cancelDeactivate}>Cancel Deactivation</button>
+              </div>
+            </div>
+          ) : null}
         </div>
 
         <ul className="sidebar-list">
@@ -542,7 +586,7 @@ export default function ConnectPage() {
                   id="textBtn"
                   aria-label="Start Text Chat"
                 >
-                  <button className="mode-btn.disabled mode-btn" type="button" disabled>
+                  <button className="mode-btn disabled" type="button" disabled>
                     Coming Soon
                   </button>
                   <p className="mode-desc">
@@ -592,7 +636,6 @@ export default function ConnectPage() {
         </div>
       </main>
 
-      {/* CLASSY MODALS / PANELS (replacing the old plain panels) */}
       {/* Profile Modal */}
       {showProfile && (
         <div className="modal-back" role="dialog" aria-modal="true" onClick={(e)=>{ if(e.target.classList.contains('modal-back')) setShowProfile(false); }}>
@@ -604,9 +647,19 @@ export default function ConnectPage() {
             <form className="modal-body" onSubmit={handleSavePersonal}>
               <label>Full Name</label>
               <input name="fullname" placeholder="Full Name" defaultValue={profile.name} />
+
               <label>Contact (Email or Mobile)</label>
               <input name="contact" placeholder="Email or Mobile" defaultValue={profile.contact} />
-              <div className="modal-actions">
+
+              <label>Interests / Hobbies</label>
+              <textarea name="interests" placeholder="e.g. Music, Movies, Travelling" defaultValue={profile.interests} style={{ minHeight: 80, marginTop: 8 }} />
+
+              <div style={{ display: "flex", gap: 8, marginTop: 12, justifyContent: "flex-end" }}>
+                {!profile.deactivationRequestedAt ? (
+                  <button type="button" className="btn-ghost" onClick={requestDeactivate} title="Request account deactivation">Request Deactivate</button>
+                ) : (
+                  <button type="button" className="btn-ghost" onClick={cancelDeactivate} title="Cancel scheduled deactivation">Cancel Deactivation</button>
+                )}
                 <button type="submit" className="btn-primary">Save</button>
                 <button type="button" className="btn-ghost" onClick={() => setShowProfile(false)}>Cancel</button>
               </div>
@@ -656,6 +709,30 @@ export default function ConnectPage() {
         </div>
       )}
 
+      {/* Deactivate Confirm Modal */}
+      {showDeactivateConfirm && (
+        <div className="modal-back" role="dialog" aria-modal="true" onClick={(e)=>{ if(e.target.classList.contains('modal-back')) setShowDeactivateConfirm(false); }}>
+          <div className="modal-card small">
+            <header className="modal-head">
+              <h3>Confirm Deactivation Request</h3>
+              <button className="close" onClick={() => setShowDeactivateConfirm(false)} aria-label="Close">✕</button>
+            </header>
+            <div className="modal-body">
+              <p style={{margin:0, color:'#333'}}>
+                Are you sure you want to request account deactivation?
+              </p>
+              <p style={{ marginTop: 8, color: "#334" }}>
+                Note: If you do not use the account for <strong>30 days</strong> after this request, your account will be deactivated. You can cancel this request anytime before that.
+              </p>
+              <div className="modal-actions" style={{marginTop:12}}>
+                <button className="btn-primary" onClick={confirmDeactivate}>Yes, Request Deactivate</button>
+                <button className="btn-ghost" onClick={() => setShowDeactivateConfirm(false)}>Cancel</button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
       <style jsx global>{`
         /* Basic page setup */
         html, body {
@@ -674,7 +751,6 @@ export default function ConnectPage() {
           height: 100%;
           pointer-events: none;
           z-index: 0;
-          /* keep crisp rendering on high-DPR screens */
           image-rendering: -webkit-optimize-contrast;
         }
 
@@ -734,6 +810,8 @@ export default function ConnectPage() {
           margin-top: 8px;
         }
 
+        .interests-preview { opacity: 0.95; }
+
         .sidebar-list { list-style: none; padding: 0; margin-top: 26px; width: 100%; }
         .sidebar-list li {
           display: flex;
@@ -754,6 +832,8 @@ export default function ConnectPage() {
         }
         .sidebar-ic { font-size: 18px; display:inline-block; width:22px; text-align:center; }
         .sidebar-txt { font-size: 17px; font-weight:800; color:#fff; }
+
+        .btn-cancel-deact { background: transparent; border: 1px solid rgba(255,255,255,0.12); color: #fff; border-radius: 8px; padding: 6px 8px; cursor: pointer; font-weight:700; font-size:12px; }
 
         /* Content area - FIXED: center correctly on desktop */
         .content-wrap {
@@ -932,7 +1012,7 @@ export default function ConnectPage() {
 
         .modal-body { padding:14px 16px 18px 16px; color:#08121a; }
         .modal-body label { display:block; font-weight:700; color:#334; margin-top:8px; }
-        .modal-body input { width:100%; padding:10px 12px; margin-top:8px; border-radius:8px; border:1px solid #e6e6e9; box-sizing:border-box; }
+        .modal-body input, .modal-body textarea { width:100%; padding:10px 12px; margin-top:8px; border-radius:8px; border:1px solid #e6e6e9; box-sizing:border-box; }
 
         .modal-actions { display:flex; gap:10px; justify-content:flex-end; margin-top:12px; }
         .btn-primary { background: linear-gradient(90deg,#ff6b81,#ff9fb0); color:#08121a; padding:10px 14px; border-radius:8px; border:none; font-weight:800; cursor:pointer; }
