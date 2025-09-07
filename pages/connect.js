@@ -305,10 +305,14 @@ export default function ConnectPage() {
     setIsSearching(true);
     setShowLoader(true);
     setShowModeButtons(false);
-    setModeText(type === "video" ? "Video Chat" : "Text Chat");
+    setModeText(
+      type === "video" ? "Video Chat" : type === "game" ? "Play & Chat" : "Text Chat"
+    );
     setStatusMessage(
       type === "video"
         ? "🎥 Searching for a Video Chat partner..."
+        : type === "game"
+        ? "🎮 Finding a playful partner for Tic-Tac-Toe..."
         : "💬 Searching for a Text Chat partner..."
     );
 
@@ -342,7 +346,9 @@ export default function ConnectPage() {
         setStatusMessage("💖 Milan Successful!");
         setTimeout(() => {
           if (typeof window !== "undefined") {
-            window.location.href = type === "video" ? "/video" : "/chat";
+            if (type === "video") window.location.href = "/video";
+            else if (type === "game") window.location.href = "/game";
+            else window.location.href = "/chat";
           }
         }, 900);
       });
@@ -579,6 +585,27 @@ export default function ConnectPage() {
                   </button>
                   <p className="mode-desc">
                     Meet face-to-face instantly in Milan’s romantic video room.
+                  </p>
+                </div>
+              )}
+
+              {showModeButtons && (
+                <div
+                  className="mode-card"
+                  role="button"
+                  tabIndex={0}
+                  onClick={() => startSearch("game")}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter") startSearch("game");
+                  }}
+                  id="gameBtn"
+                  aria-label="Start Play & Chat"
+                >
+                  <button className="mode-btn" type="button">
+                    Play & Chat
+                  </button>
+                  <p className="mode-desc">
+                    Play a quick game (Tic-Tac-Toe) while you chat — perfect ice-breaker!
                   </p>
                 </div>
               )}
