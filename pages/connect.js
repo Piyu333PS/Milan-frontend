@@ -337,21 +337,64 @@ export default function ConnectPage() {
 
       socketRef.current.emit("lookingForPartner", { type, token });
 
+      // ---------- PATCHED partnerFound handler (safe handoff & redirect) ----------
       socketRef.current.on("partnerFound", (data) => {
-        partnerRef.current = data?.partner || {};
-        if (typeof window !== "undefined") {
-          sessionStorage.setItem("partnerData", JSON.stringify(partnerRef.current));
-          sessionStorage.setItem("roomCode", data?.roomCode || "");
-        }
-        setStatusMessage("💖 Milan Successful!");
-        setTimeout(() => {
-          if (typeof window !== "undefined") {
-            if (type === "video") window.location.href = "/video";
-            else if (type === "game") window.location.href = "/game";
-            else window.location.href = "/chat";
+        try {
+          partnerRef.current = data?.partner || {};
+          const roomCode = (data && data.roomCode) || "";
+
+          console.log("[connect] partnerFound payload:", data);
+
+          // Defensive: if no roomCode, show message and abort
+          if (!roomCode) {
+            console.warn("[connect] partnerFound but no roomCode received", data);
+            setStatusMessage("Partner found but room creation failed. Trying again shortly...");
+            // stop search to avoid stuck state, and optionally requeue after a small delay
+            setTimeout(() => stopSearch(), 800);
+            return;
           }
-        }, 900);
+
+          // store into sessionStorage and localStorage as fallback
+          if (typeof window !== "undefined") {
+            try {
+              sessionStorage.setItem("partnerData", JSON.stringify(partnerRef.current));
+              sessionStorage.setItem("roomCode", roomCode);
+              localStorage.setItem("lastRoomCode", roomCode);
+            } catch (e) {
+              console.warn("[connect] storage write failed", e);
+            }
+          }
+
+          setStatusMessage("💖 Milan Successful!");
+
+          // small delay so server room mapping settles; then redirect with query param for reliability
+          setTimeout(() => {
+            try {
+              const safePath =
+                type === "video"
+                  ? "/video"
+                  : type === "game"
+                  ? `/game?room=${encodeURIComponent(roomCode)}`
+                  : "/chat";
+
+              // Use replace to avoid extra history entries if desired: window.location.replace(safePath)
+              if (typeof window !== "undefined") {
+                window.location.href = safePath;
+              }
+            } catch (e) {
+              console.error("[connect] redirect failed", e);
+              // fallback: plain session storage redirect
+              if (typeof window !== "undefined") {
+                window.location.href = type === "game" ? "/game" : type === "video" ? "/video" : "/chat";
+              }
+            }
+          }, 120);
+        } catch (e) {
+          console.error("[connect] partnerFound handler error", e);
+          setTimeout(() => stopSearch(), 500);
+        }
       });
+      // ---------------------------------------------------------------------------
 
       socketRef.current.on("partnerDisconnected", () => {
         alert("Partner disconnected.");
