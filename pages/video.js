@@ -171,89 +171,111 @@ export default function VideoPage() {
       });
     })();
 
-    // Mic / Cam / Screen / Disconnect buttons
     const micBtn = get("micBtn");
-    micBtn.onclick = () => {
-      const t = localStream?.getAudioTracks()[0];
-      if (!t) return;
-      t.enabled = !t.enabled;
-      micBtn.classList.toggle("inactive", !t.enabled);
-      const i = micBtn.querySelector("i");
-      if (i) i.className = t.enabled ? "fas fa-microphone" : "fas fa-microphone-slash";
-      showToast(t.enabled ? "Mic On" : "Mic Off");
-    };
+    if (micBtn) {
+      micBtn.onclick = () => {
+        const t = localStream?.getAudioTracks()[0];
+        if (!t) return;
+        t.enabled = !t.enabled;
+        micBtn.classList.toggle("inactive", !t.enabled);
+        const i = micBtn.querySelector("i");
+        if (i) i.className = t.enabled ? "fas fa-microphone" : "fas fa-microphone-slash";
+        showToast(t.enabled ? "Mic On" : "Mic Off");
+      };
+    }
 
     const camBtn = get("camBtn");
-    camBtn.onclick = () => {
-      const t = localStream?.getVideoTracks()[0];
-      if (!t) return;
-      t.enabled = !t.enabled;
-      camBtn.classList.toggle("inactive", !t.enabled);
-      const i = camBtn.querySelector("i");
-      if (i) i.className = t.enabled ? "fas fa-video" : "fas fa-video-slash";
-      showToast(t.enabled ? "Camera On" : "Camera Off");
-    };
+    if (camBtn) {
+      camBtn.onclick = () => {
+        const t = localStream?.getVideoTracks()[0];
+        if (!t) return;
+        t.enabled = !t.enabled;
+        camBtn.classList.toggle("inactive", !t.enabled);
+        const i = camBtn.querySelector("i");
+        if (i) i.className = t.enabled ? "fas fa-video" : "fas fa-video-slash";
+        showToast(t.enabled ? "Camera On" : "Camera Off");
+      };
+    }
 
     const screenBtn = get("screenShareBtn");
-    screenBtn.onclick = async () => {
-      if (!pc) return showToast("No connection");
-      try {
-        const screen = await navigator.mediaDevices.getDisplayMedia({ video: true });
-        const screenTrack = screen.getVideoTracks()[0];
-        const sender = pc.getSenders().find((s) => s.track && s.track.kind === "video");
-        if (!sender) { screenTrack.stop(); return showToast("No video sender found"); }
-        cameraTrackSaved = localStream?.getVideoTracks()?.[0] || cameraTrackSaved;
-        await sender.replaceTrack(screenTrack);
-        screenBtn.classList.add("active");
-        showToast("Screen sharing");
-        screenTrack.onended = async () => {
-          try {
-            let cam = cameraTrackSaved;
-            if (!cam || cam.readyState === "ended") {
-              const fresh = await navigator.mediaDevices.getUserMedia({ video: true });
-              cam = fresh.getVideoTracks()[0];
-              if (localStream) {
-                const prev = localStream.getVideoTracks()[0];
-                prev && prev.stop();
-                localStream.removeTrack(prev);
-                localStream.addTrack(cam);
-                const lv = get("localVideo");
-                if (lv) lv.srcObject = localStream;
+    if (screenBtn) {
+      screenBtn.onclick = async () => {
+        if (!pc) return showToast("No connection");
+        try {
+          const screen = await navigator.mediaDevices.getDisplayMedia({ video: true });
+          const screenTrack = screen.getVideoTracks()[0];
+          const sender = pc.getSenders().find((s) => s.track && s.track.kind === "video");
+          if (!sender) { screenTrack.stop(); return showToast("No video sender found"); }
+          cameraTrackSaved = localStream?.getVideoTracks()?.[0] || cameraTrackSaved;
+          await sender.replaceTrack(screenTrack);
+          screenBtn.classList.add("active");
+          showToast("Screen sharing");
+          screenTrack.onended = async () => {
+            try {
+              let cam = cameraTrackSaved;
+              if (!cam || cam.readyState === "ended") {
+                const fresh = await navigator.mediaDevices.getUserMedia({ video: true });
+                cam = fresh.getVideoTracks()[0];
+                if (localStream) {
+                  const prev = localStream.getVideoTracks()[0];
+                  prev && prev.stop();
+                  localStream.removeTrack(prev);
+                  localStream.addTrack(cam);
+                  const lv = get("localVideo");
+                  if (lv) lv.srcObject = localStream;
+                }
+                cameraTrackSaved = cam;
               }
-              cameraTrackSaved = cam;
-            }
-            if (sender && cam) await sender.replaceTrack(cam);
-            showToast("Screen sharing stopped — camera restored");
-          } catch { showToast("Stopped screen sharing"); }
-          finally { screenBtn.classList.remove("active"); }
-        };
-      } catch { showToast("Screen share cancelled"); }
-    };
+              if (sender && cam) await sender.replaceTrack(cam);
+              showToast("Screen sharing stopped — camera restored");
+            } catch { showToast("Stopped screen sharing"); }
+            finally { screenBtn.classList.remove("active"); }
+          };
+        } catch { showToast("Screen share cancelled"); }
+      };
+    }
 
     const disconnectBtn = get("disconnectBtn");
-    disconnectBtn.onclick = () => {
-      try { socket?.emit("partnerLeft"); } catch {}
-      cleanup();
-      showRating();
-    };
+    if (disconnectBtn) {
+      disconnectBtn.onclick = () => {
+        try { socket?.emit("partnerLeft"); } catch {}
+        cleanup();
+        showRating();
+      };
+    }
 
-    get("quitBtn").onclick = () => { cleanup(); window.location.href = "/"; };
-    get("newPartnerBtn").onclick = () => { cleanup(); window.location.href = "/connect"; };
+    const quitBtn = get("quitBtn");
+    if (quitBtn) {
+      quitBtn.onclick = () => {
+        cleanup();
+        window.location.href = "/";
+      };
+    }
+
+    const newPartnerBtn = get("newPartnerBtn");
+    if (newPartnerBtn) {
+      newPartnerBtn.onclick = () => {
+        cleanup();
+        window.location.href = "/connect";
+      };
+    }
 
     const hearts = document.querySelectorAll("#ratingOverlay .hearts i");
-    hearts.forEach((h) => {
-      h.addEventListener("click", () => {
-        const val = parseInt(h.getAttribute("data-value"));
-        hearts.forEach((el) => el.classList.remove("selected"));
-        for (let i = 0; i < val; i++) hearts[i].classList.add("selected");
-        triggerRatingAnimation(val);
+    if (hearts.length) {
+      hearts.forEach((h) => {
+        h.addEventListener("click", () => {
+          const val = parseInt(h.getAttribute("data-value"));
+          hearts.forEach((el) => el.classList.remove("selected"));
+          for (let i = 0; i < val; i++) hearts[i].classList.add("selected");
+          triggerRatingAnimation(val);
+        });
       });
-    });
+    }
 
     return () => cleanup();
   }, []);
 
   return (<>
-    {/* Frontend JSX + CSS (remains the same as original) */}
+    {/* React JSX rendering — make sure elements like micBtn, camBtn, etc. exist in DOM */}
   </>);
 }
