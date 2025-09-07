@@ -78,7 +78,7 @@ export default function ConnectPage() {
     }
   }, []);
 
-  // hearts canvas unchanged
+  // hearts canvas
   useEffect(() => {
     if (typeof window === "undefined") return;
     const canvas = document.getElementById("heartCanvas");
@@ -632,45 +632,33 @@ export default function ConnectPage() {
                 </div>
               )}
 
-              {showModeButtons && (
-                <div
-                  className="mode-card"
-                  role="button"
-                  tabIndex={0}
-                  onClick={() => startSearch("game")}
-                  onKeyDown={(e) => {
-                    if (e.key === "Enter") startSearch("game");
-                  }}
-                  id="gameBtn"
-                  aria-label="Start Play & Chat"
-                >
-                  <button className="mode-btn" type="button">
-                    Play & Chat
-                  </button>
-                  <p className="mode-desc">
-                    Play a quick game (Tic-Tac-Toe) while you chat — perfect ice-breaker!
-                  </p>
-                </div>
-              )}
-
+              {/* Play & Chat - disabled with "Coming Soon" */}
               {showModeButtons && (
                 <div
                   className="mode-card disabled-card"
-                  role="button"
-                  tabIndex={0}
-                  onKeyDown={(e) => {
-                    if (e.key === "Enter") e.preventDefault();
-                  }}
-                  id="textBtn"
-                  aria-label="Start Text Chat"
+                  id="gameBtn"
+                  aria-label="Play & Chat Coming Soon"
                 >
                   <button className="mode-btn disabled" type="button" disabled>
-                    Coming Soon
+                    Play & Chat
                   </button>
-                  <p className="mode-desc">
-                    Express your feelings through sweet and romantic messages.
-                  </p>
-                  <div className="disabled-note">💌 Text Chat on the way…</div>
+                  <p className="mode-desc">Tic-Tac-Toe while you chat.</p>
+                  <div className="disabled-note">🚧 Coming Soon</div>
+                </div>
+              )}
+
+              {/* Text Chat - disabled with "Coming Soon" */}
+              {showModeButtons && (
+                <div
+                  className="mode-card disabled-card"
+                  id="textBtn"
+                  aria-label="Text Chat Coming Soon"
+                >
+                  <button className="mode-btn disabled" type="button" disabled>
+                    Text Chat
+                  </button>
+                  <p className="mode-desc">Express your feelings with messages.</p>
+                  <div className="disabled-note">💌 Coming Soon</div>
                 </div>
               )}
             </div>
