@@ -18,7 +18,7 @@ export default function VideoPage() {
     // negotiation flags (Perfect Negotiation pattern)
     let makingOffer = false;
     let ignoreOffer = false;
-    const polite = true; // keep one peer 'polite' to resolve simultaneous-offer races
+    let polite = false; // server will tell us who is polite — default false until 'ready' arrives
 
     const get = function (id) { return document.getElementById(id); };
     const showToast = function (msg, ms) {
@@ -397,6 +397,19 @@ export default function VideoPage() {
       // signaling handlers
       socket.on("ready", async function (data) {
         log("socket: ready", data);
+
+        // read polite flag from server if provided
+        try {
+          if (data && typeof data.polite !== "undefined") {
+            polite = !!data.polite;
+            log("polite flag set by server:", polite);
+          } else {
+            log("no polite flag from server - polite remains:", polite);
+          }
+        } catch (e) {
+          log("setting polite flag err", e);
+        }
+
         createPC();
         try {
           if (!hasOffered && pc && pc.signalingState === "stable" && !makingOffer) {
