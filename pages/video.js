@@ -8,6 +8,7 @@ export default function VideoPage() {
     const ICE_CONFIG = { iceServers: [{ urls: "stun:stun.l.google.com:19302" }] };
 
     let socket = null;
+    let socketConnected = false;
     let pc = null;
     let localStream = null;
     let hasOffered = false;
@@ -19,80 +20,77 @@ export default function VideoPage() {
     let ignoreOffer = false;
     const polite = true; // keep one peer 'polite' to resolve simultaneous-offer races
 
-    const get = (id) => document.getElementById(id);
-    const showToast = (msg, ms = 2000) => {
-      const t = get("toast");
+    const get = function (id) { return document.getElementById(id); };
+    const showToast = function (msg, ms) {
+      var t = get("toast");
       if (!t) return;
       t.textContent = msg;
       t.style.display = "block";
-      setTimeout(() => (t.style.display = "none"), ms);
+      setTimeout(function () { t.style.display = "none"; }, ms || 2000);
     };
 
-    const showRating = () => {
-      const r = get("ratingOverlay");
+    const showRating = function () {
+      var r = get("ratingOverlay");
       if (r) r.style.display = "flex";
     };
 
-    const log = (...args) => {
-      try { console.log("[video]", ...args); } catch {}
+    const log = function () {
+      try { console.log.apply(console, ["[video]"].concat(Array.prototype.slice.call(arguments))); } catch (e) {}
     };
 
-    // Emoji animation (kept as original)
-    const triggerRatingAnimation = (rating) => {
-      const container = document.querySelector("#ratingOverlay .emoji-container");
+    // Emoji animation (kept)
+    const triggerRatingAnimation = function (rating) {
+      var container = document.querySelector("#ratingOverlay .emoji-container");
       if (!container) return;
 
-      const emojiMap = {
+      var emojiMap = {
         1: ["😐"],
         2: ["🙂"],
         3: ["😊"],
         4: ["😍"],
-        5: ["😍", "🥰", "❤️"],
+        5: ["😍", "🥰", "❤️"]
       };
 
-      const emojis = emojiMap[rating] || ["❤️"];
-      const count = rating === 5 ? 28 : 18;
+      var emojis = emojiMap[rating] || ["❤️"];
+      var count = rating === 5 ? 28 : 18;
+      var containerRect = container.getBoundingClientRect();
 
-      const containerRect = container.getBoundingClientRect();
-      for (let i = 0; i < count; i++) {
-        const e = document.createElement("div");
+      for (var i = 0; i < count; i++) {
+        var e = document.createElement("div");
         e.className = "floating-emoji";
         e.textContent = emojis[Math.floor(Math.random() * emojis.length)];
-
-        const x = Math.random() * containerRect.width;
-        const y = Math.random() * containerRect.height;
-
-        e.style.left = `${x}px`;
-        e.style.top = `${y}px`;
-        e.style.fontSize = 24 + Math.random() * 26 + "px";
+        var x = Math.random() * containerRect.width;
+        var y = Math.random() * containerRect.height;
+        e.style.left = x + "px";
+        e.style.top = y + "px";
+        e.style.fontSize = (24 + Math.random() * 26) + "px";
         container.appendChild(e);
 
         if (rating === 1 || rating === 2) {
-          e.style.animation = `fallLocal ${2 + Math.random() * 1.8}s linear`;
+          e.style.animation = "fallLocal " + (2 + Math.random() * 1.8) + "s linear";
         } else if (rating === 3) {
-          const r = 80 + Math.random() * 120;
-          const dir = Math.random() > 0.5 ? "orbitCW" : "orbitCCW";
-          e.style.setProperty("--r", `${r}px`);
-          e.style.animation = `${dir} ${3 + Math.random() * 2}s linear`;
+          var rsize = 80 + Math.random() * 120;
+          var dir = Math.random() > 0.5 ? "orbitCW" : "orbitCCW";
+          e.style.setProperty("--r", rsize + "px");
+          e.style.animation = dir + " " + (3 + Math.random() * 2) + "s linear";
         } else if (rating === 4) {
-          e.style.animation = `flyUpLocal ${3 + Math.random() * 2}s ease-out`;
+          e.style.animation = "flyUpLocal " + (3 + Math.random() * 2) + "s ease-out";
         } else if (rating === 5) {
-          e.style.animation = `burstLocal ${3 + Math.random() * 2}s ease-in-out`;
+          e.style.animation = "burstLocal " + (3 + Math.random() * 2) + "s ease-in-out";
         }
 
-        setTimeout(() => e.remove(), 4200);
+        (function (elem) { setTimeout(function () { try { elem.remove(); } catch (e) {} }, 4200); })(e);
       }
     };
 
-    // cleanup - robust
-    const cleanup = (opts = {}) => {
+    // cleanup
+    var cleanup = function (opts) {
+      opts = opts || {};
       if (isCleaning) return;
       isCleaning = true;
       try {
         if (socket) {
-          try {
-            socket.removeAllListeners && socket.removeAllListeners();
-          } catch (e) { /* ignore */ }
+          try { socket.removeAllListeners && socket.removeAllListeners(); } catch (e) {}
           try { socket.disconnect && socket.disconnect(); } catch (e) {}
           socket = null;
         }
@@ -101,9 +99,8 @@ export default function VideoPage() {
       try {
         if (pc) {
           try {
-            pc.getSenders && pc.getSenders().forEach((s) => {
-              try { s.track && s.track.stop(); } catch (e) {}
-            });
+            var senders = pc.getSenders ? pc.getSenders() : [];
+            senders.forEach(function (s) { try { s.track && s.track.stop(); } catch (e) {} });
             pc.close && pc.close();
           } catch (e) {}
           pc = null;
@@ -112,18 +109,16 @@ export default function VideoPage() {
 
       try {
         if (localStream) {
-          localStream.getTracks().forEach((t) => {
-            try { t.stop(); } catch (e) {}
-          });
+          localStream.getTracks().forEach(function (t) { try { t.stop(); } catch (e) {} });
         }
-      } catch (e) { /* ignore */ }
+      } catch (e) {}
 
       localStream = null;
       hasOffered = false;
       cameraTrackSaved = null;
       makingOffer = false;
       ignoreOffer = false;
-      setTimeout(() => { isCleaning = false; }, 300);
+      setTimeout(function () { isCleaning = false; }, 300);
       if (opts.goToConnect) window.location.href = "/connect";
     };
 
@@ -131,22 +126,19 @@ export default function VideoPage() {
     (async function start() {
       log("start video page");
       try {
-        // getUserMedia
         localStream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
-        // save a reference to camera track for screen-share restoration
-        cameraTrackSaved = localStream && localStream.getVideoTracks && localStream.getVideoTracks()[0] || null;
+        var vtracks = (localStream && typeof localStream.getVideoTracks === "function") ? localStream.getVideoTracks() : [];
+        cameraTrackSaved = (vtracks && vtracks.length) ? vtracks[0] : null;
 
-        const lv = get("localVideo");
+        var lv = get("localVideo");
         if (lv) {
           try {
-            lv.muted = true; // important for autoplay
+            lv.muted = true;
             lv.playsInline = true;
             lv.autoplay = true;
             lv.srcObject = localStream;
-            await lv.play().catch((e) => log("Local video play warning:", e));
-          } catch (e) {
-            log("attach local video error", e);
-          }
+            await (lv.play && lv.play().catch(function (e) { log("Local video play warning:", e); }));
+          } catch (e) { log("attach local video error", e); }
         } else {
           log("localVideo element not found");
         }
@@ -156,21 +148,20 @@ export default function VideoPage() {
         return;
       }
 
-      // create socket with websocket + polling fallback
       socket = io(BACKEND_URL, {
         transports: ["websocket", "polling"],
         reconnection: true,
         reconnectionAttempts: 10,
         reconnectionDelay: 800,
-        path: "/socket.io",
+        path: "/socket.io"
       });
 
-      socket.on("connect", () => {
+      socket.on("connect", function () {
         log("socket connected", socket.id);
-        // determine roomCode: URL -> sessionStorage -> localStorage
-        let roomCode = null;
+        socketConnected = true;
+        var roomCode = null;
         try {
-          const q = new URLSearchParams(window.location.search);
+          var q = new URLSearchParams(window.location.search);
           roomCode = q.get("room") || sessionStorage.getItem("roomCode") || localStorage.getItem("lastRoomCode");
         } catch (e) {
           roomCode = sessionStorage.getItem("roomCode") || localStorage.getItem("lastRoomCode");
@@ -181,49 +172,33 @@ export default function VideoPage() {
           cleanup({ goToConnect: true });
           return;
         }
-
-        try {
-          // store roomCode again to sessionStorage for reliability
-          sessionStorage.setItem("roomCode", roomCode);
-          localStorage.setItem("lastRoomCode", roomCode);
-        } catch (e) { /* ignore */ }
-
-        const token = localStorage.getItem("token") || null;
-        // FIXED: don't use conditional expression as object member without name
-        log("emitting joinVideo", { roomCode, hasToken: !!token });
-        socket.emit("joinVideo", { roomCode, token });
+        try { sessionStorage.setItem("roomCode", roomCode); localStorage.setItem("lastRoomCode", roomCode); } catch (e) {}
+        var token = localStorage.getItem("token") || null;
+        log("emitting joinVideo", { roomCode: roomCode, hasToken: !!token });
+        socket.emit("joinVideo", { roomCode: roomCode, token: token });
       });
 
-      socket.on("connect_error", (err) => {
-        console.warn("socket connect_error:", err);
-        showToast("Socket connect error");
-      });
-
-      socket.on("disconnect", (reason) => {
+      socket.on("disconnect", function (reason) {
         log("socket disconnected:", reason);
+        socketConnected = false;
       });
 
-      // create peer connection lazily - STABLE transceivers + robust replaceTrack handling
-      const createPC = () => {
+      socket.on("connect_error", function (err) { console.warn("socket connect_error:", err); showToast("Socket connect error"); });
+      socket.on("connect_timeout", function () { socketConnected = false; log("socket connect_timeout"); });
+
+      // create peer connection - stable transceivers + robust replaceTrack handling
+      var createPC = function () {
         if (pc) return;
         log("creating RTCPeerConnection (stable transceivers)");
         pc = new RTCPeerConnection(ICE_CONFIG);
 
-        // 1) Create stable transceivers in deterministic order (audio then video)
-        //    This ensures m-line ordering is consistent across peers.
         try {
-          // create sendrecv transceivers so m-line order is predictable
           if (typeof pc.addTransceiver === "function") {
             pc.addTransceiver("audio", { direction: "sendrecv" });
             pc.addTransceiver("video", { direction: "sendrecv" });
           }
-        } catch (e) {
-          // addTransceiver may not be supported in some older browsers, ignore
-          log("addTransceiver not available or failed:", e);
-        }
+        } catch (e) { log("addTransceiver failed", e); }
 
-        // 2) Attach local tracks by replacing the transceiver sender track if available,
-        //    otherwise fall back to addTrack (compatibility).
         try {
           var localVideoTrack = null;
           var localAudioTrack = null;
@@ -236,7 +211,6 @@ export default function VideoPage() {
             if (ats && ats.length) localAudioTrack = ats[0];
           }
 
-          // find a video sender (transceiver.sender) or fallback to pc.getSenders()
           var videoSender = null;
           if (typeof pc.getTransceivers === "function") {
             var tlist = pc.getTransceivers();
@@ -256,10 +230,9 @@ export default function VideoPage() {
             }
           }
 
-          // prefer using transceiver.sender.replaceTrack() when possible
           if (localVideoTrack) {
             if (videoSender && typeof videoSender.replaceTrack === "function") {
-              try { videoSender.replaceTrack(localVideoTrack).catch((e) => log("replaceTrack(video) failed:", e)); } catch (e) { log("videoSender.replaceTrack threw:", e); }
+              try { videoSender.replaceTrack(localVideoTrack).catch(function (e) { log("replaceTrack(video) failed:", e); }); } catch (e) { log("videoSender.replaceTrack threw", e); }
             } else {
               var sList2 = typeof pc.getSenders === "function" ? pc.getSenders() : [];
               var hasVideoSender = false;
@@ -269,13 +242,11 @@ export default function VideoPage() {
               }
               if (!hasVideoSender) {
                 try { pc.addTrack(localVideoTrack, localStream); } catch (e) { log("addTrack(video) failed:", e); }
-              } else {
-                log("video sender exists but replaceTrack not available");
-              }
+              } else { log("video sender exists but replaceTrack not available"); }
             }
           }
 
-          // audio sender
+          // audio sender logic
           var audioSender = null;
           if (typeof pc.getTransceivers === "function") {
             var tlist2 = pc.getTransceivers();
@@ -297,7 +268,7 @@ export default function VideoPage() {
 
           if (localAudioTrack) {
             if (audioSender && typeof audioSender.replaceTrack === "function") {
-              try { audioSender.replaceTrack(localAudioTrack).catch((e) => log("replaceTrack(audio) failed:", e)); } catch (e) { log("audioSender.replaceTrack threw:", e); }
+              try { audioSender.replaceTrack(localAudioTrack).catch(function (e) { log("replaceTrack(audio) failed:", e); }); } catch (e) { log("audioSender.replaceTrack threw", e); }
             } else {
               var sList4 = typeof pc.getSenders === "function" ? pc.getSenders() : [];
               var hasAudioSender = false;
@@ -307,66 +278,45 @@ export default function VideoPage() {
               }
               if (!hasAudioSender) {
                 try { pc.addTrack(localAudioTrack, localStream); } catch (e) { log("addTrack(audio) failed:", e); }
-              } else {
-                log("audio sender exists but replaceTrack not available");
-              }
+              } else { log("audio sender exists but replaceTrack not available"); }
             }
           }
-        } catch (e) {
-          log("attach local tracks error:", e);
-        }
+        } catch (e) { log("attach local tracks error:", e); }
 
-        // ontrack: attach remote stream only if new and avoid repeated play calls
-        pc.ontrack = (e) => {
+        pc.ontrack = function (e) {
           try {
             log("pc.ontrack event", e);
-            const rv = get("remoteVideo");
-            const stream = (e.streams && e.streams[0]) || new MediaStream([e.track]);
+            var rv = get("remoteVideo");
+            var stream = (e && e.streams && e.streams[0]) ? e.streams[0] : new MediaStream([e.track]);
             if (rv) {
-              rv.playsInline = true;
-              rv.autoplay = true;
-              rv.muted = false;
+              rv.playsInline = true; rv.autoplay = true; rv.muted = false;
               if (rv.srcObject !== stream) {
                 rv.srcObject = stream;
-                rv.play().catch((err) => {
-                  log("remoteVideo.play() rejected:", err);
-                });
-                log("attached remote stream to remoteVideo", stream);
-              } else {
-                log("remote stream already set, skipping reattach");
-              }
-            } else {
-              log("remoteVideo element missing");
-            }
+                try { rv.play && rv.play().catch(function (err) { log("remoteVideo.play() rejected:", err); }); } catch (err) { log("remoteVideo.play error", err); }
+                log("attached remote stream to remoteVideo");
+              } else { log("remote stream already set, skipping reattach"); }
+            } else { log("remoteVideo element missing"); }
 
-            // safe listeners
             try {
-              const remoteTracks = stream.getVideoTracks();
+              var remoteTracks = stream && typeof stream.getVideoTracks === "function" ? stream.getVideoTracks() : [];
               if (remoteTracks && remoteTracks.length) {
-                remoteTracks.forEach((vt) => {
-                  vt.onended = () => {
-                    showToast("Partner stopped video");
-                  };
-                });
+                remoteTracks.forEach(function (vt) { vt.onended = function () { showToast("Partner stopped video"); }; });
               }
-            } catch (err) { /* ignore */ }
-          } catch (err) {
-            console.error("ontrack handler error", err);
-          }
+            } catch (err) {}
+          } catch (err) { console.error("ontrack handler error", err); }
         };
 
-        pc.onicecandidate = (e) => {
-          if (e.candidate) {
+        pc.onicecandidate = function (e) {
+          if (e && e.candidate) {
             try {
               log("pc.onicecandidate -> sending candidate");
-              socket.emit("candidate", e.candidate);
-            } catch (ex) {
-              log("emit candidate err", ex);
-            }
+              if (socket && socketConnected) socket.emit("candidate", e.candidate);
+              else log("socket not connected - skipping candidate emit");
+            } catch (ex) { log("emit candidate err", ex); }
           }
         };
 
-        pc.onconnectionstatechange = () => {
+        pc.onconnectionstatechange = function () {
           log("pc.connectionState:", pc.connectionState);
           if (pc.connectionState === "disconnected" || pc.connectionState === "failed") {
             showToast("Partner disconnected");
@@ -374,101 +324,106 @@ export default function VideoPage() {
           }
         };
 
-        // negotiationneeded: guard with makingOffer to prevent concurrent offers
-        pc.onnegotiationneeded = async () => {
+        // negotiationneeded guarded
+        pc.onnegotiationneeded = async function () {
+          if (!socketConnected) {
+            log("onnegotiationneeded: socket not connected, skipping");
+            return;
+          }
+          if (makingOffer) {
+            log("onnegotiationneeded: already making offer, skipping");
+            return;
+          }
           try {
             makingOffer = true;
-            const offer = await pc.createOffer();
+            var offer = await pc.createOffer();
             await pc.setLocalDescription(offer);
-            socket.emit("offer", pc.localDescription);
-            log("offer emitted (negotiationneeded)");
+            if (socket && socketConnected) {
+              socket.emit("offer", pc.localDescription);
+              log("offer emitted (negotiationneeded)");
+            } else {
+              log("socket not connected - not emitting offer");
+            }
           } catch (err) {
             log("negotiation error", err);
-            // Defensive: if it's m-line ordering error, try a soft recovery:
             try {
-              const name = err && err.name ? err.name : "";
-              const msg = String(err || "");
+              var name = err && err.name ? err.name : "";
+              var msg = String(err || "");
               if (name === "InvalidAccessError" || /order of m-lines/i.test(msg)) {
-                log("Negotiation error looks like m-line/order issue. Attempting gentle recovery: recreate PC & retry.");
+                log("m-line order error detected — attempting gentle recovery");
                 try { pc.close(); } catch (e) {}
                 pc = null;
-                // recreate and retry
                 createPC();
                 try {
                   makingOffer = true;
-                  const offer2 = await pc.createOffer();
+                  var offer2 = await pc.createOffer();
                   await pc.setLocalDescription(offer2);
-                  socket.emit("offer", pc.localDescription);
-                  log("offer emitted (retry)");
-                } catch (e2) {
-                  log("retry offer also failed:", e2);
-                  showToast("Connection hiccup. Please try reconnecting.");
-                } finally { makingOffer = false; }
+                  if (socket && socketConnected) socket.emit("offer", pc.localDescription);
+                } catch (e2) { log("retry offer failed:", e2); showToast("Connection hiccup. Please try reconnecting."); } finally { makingOffer = false; }
               }
-            } catch (recErr) {
-              log("recovery failed:", recErr);
-            }
-          } finally {
-            makingOffer = false;
-          }
+            } catch (recErr) { log("recovery attempt failed:", recErr); }
+          } finally { makingOffer = false; }
         };
       };
 
-      // Debug: log incoming signaling events
-      socket.on("ready", async (data) => {
+      // signaling handlers
+      socket.on("ready", async function (data) {
         log("socket: ready", data);
         createPC();
         try {
-          // Use makingOffer + signalingState guard instead of naive hasOffered
           if (!hasOffered && pc && pc.signalingState === "stable" && !makingOffer) {
             log("creating offer (ready)");
             try {
               makingOffer = true;
-              const offer = await pc.createOffer();
-              await pc.setLocalDescription(offer);
-              socket.emit("offer", pc.localDescription);
+              var off = await pc.createOffer();
+              await pc.setLocalDescription(off);
+              if (socket && socketConnected) socket.emit("offer", pc.localDescription);
               hasOffered = true;
               log("offer emitted");
-            } catch (e) {
-              log("ready-offer error", e);
-            } finally {
-              makingOffer = false;
-            }
+            } catch (e) { log("ready-offer error", e); } finally { makingOffer = false; }
           } else {
-            log("skipped offer: hasOffered or signalingState != stable", { hasOffered, signalingState: pc ? pc.signalingState : null, makingOffer });
+            log("skipped offer: hasOffered or signalingState != stable", { hasOffered: hasOffered, signalingState: pc ? pc.signalingState : null, makingOffer: makingOffer });
           }
-        } catch (err) {
-          console.error("Offer error:", err);
-        }
+        } catch (err) { console.error("Offer error:", err); }
       });
 
-      // OFFER handler (polite pattern)
-      socket.on("offer", async (offer) => {
+      // OFFER handler with polite + rollback handling
+      socket.on("offer", async function (offer) {
         log("socket: offer received", offer && offer.type);
         createPC();
         try {
-          const offerDesc = new RTCSessionDescription(offer);
+          var offerDesc = new RTCSessionDescription(offer);
 
-          const readyForOffer =
-            !makingOffer && (pc.signalingState === "stable" || pc.signalingState === "have-local-offer");
+          var readyForOffer = !makingOffer && (pc.signalingState === "stable" || pc.signalingState === "have-local-offer");
           ignoreOffer = !readyForOffer && !polite;
           if (ignoreOffer) {
             log("Ignoring offer because not ready and not polite");
             return;
           }
 
+          // If we are in a state that prevents setRemoteDescription, attempt rollback first (polite side)
+          if (pc.signalingState !== "stable") {
+            try {
+              log("signalingState not stable, attempting rollback to accept incoming offer");
+              await pc.setLocalDescription({ type: "rollback" });
+              log("rollback succeeded");
+            } catch (e) {
+              log("rollback failed (may not be supported)", e);
+            }
+          }
+
           await pc.setRemoteDescription(offerDesc);
-          const answer = await pc.createAnswer();
+          var answer = await pc.createAnswer();
           await pc.setLocalDescription(answer);
-          socket.emit("answer", pc.localDescription);
+          if (socket && socketConnected) socket.emit("answer", pc.localDescription);
           log("answer created & emitted");
         } catch (err) {
-          console.error("Handling offer error:", err);
+          log("Handling offer error:", err);
         }
       });
 
-      // ANSWER handler - only set when we are have-local-offer
-      socket.on("answer", async (answer) => {
+      // ANSWER handler - only set when we have-local-offer (guarded)
+      socket.on("answer", async function (answer) {
         log("socket: answer received", answer && answer.type);
         try {
           if (!pc) createPC();
@@ -478,204 +433,132 @@ export default function VideoPage() {
           } else {
             log("Skipping setRemoteDescription for answer - wrong state:", pc.signalingState);
           }
-        } catch (err) {
-          console.error("Setting remote answer failed:", err);
-        }
+        } catch (err) { console.error("Setting remote answer failed:", err); }
       });
 
-      socket.on("candidate", async (candidate) => {
+      socket.on("candidate", async function (candidate) {
         log("socket: candidate received");
         try {
           if (!pc) createPC();
-          // Defensive: candidate might be null or malformed
           if (candidate) {
-            await pc.addIceCandidate(new RTCIceCandidate(candidate));
-            log("candidate added");
-          } else {
-            log("received null candidate");
-          }
-        } catch (err) {
-          console.error("addIceCandidate error:", err);
-        }
+            try {
+              await pc.addIceCandidate(new RTCIceCandidate(candidate));
+              log("candidate added");
+            } catch (errCandidate) {
+              log("addIceCandidate failed:", errCandidate);
+            }
+          } else { log("received null candidate"); }
+        } catch (err) { console.error("addIceCandidate error:", err); }
       });
 
-      socket.on("waitingForPeer", (d) => {
-        log("waitingForPeer", d);
-        showToast("Waiting for partner...");
-      });
-
-      socket.on("partnerDisconnected", () => {
-        log("socket: partnerDisconnected");
-        showToast("Partner disconnected");
-        showRating();
-        const rv = get("remoteVideo");
-        if (rv) rv.srcObject = null;
-        // keep local available so user can click New Partner
-      });
-
-      socket.on("partnerLeft", () => {
-        log("socket: partnerLeft");
-        showToast("Partner left");
-        showRating();
-        const rv = get("remoteVideo");
-        if (rv) rv.srcObject = null;
-      });
-
-      socket.on("errorMessage", (e) => {
-        console.warn("server errorMessage:", e);
-      });
-
-      socket.on("connect_error", (err) => {
-        console.warn("socket connect_error event:", err);
-      });
+      socket.on("waitingForPeer", function (d) { log("waitingForPeer", d); showToast("Waiting for partner..."); });
+      socket.on("partnerDisconnected", function () { log("socket: partnerDisconnected"); showToast("Partner disconnected"); showRating(); var rv = get("remoteVideo"); if (rv) rv.srcObject = null; });
+      socket.on("partnerLeft", function () { log("socket: partnerLeft"); showToast("Partner left"); showRating(); var rv2 = get("remoteVideo"); if (rv2) rv2.srcObject = null; });
+      socket.on("errorMessage", function (e) { console.warn("server errorMessage:", e); });
+      socket.on("connect_error", function (err) { console.warn("socket connect_error event:", err); });
     })();
 
-    // Controls handlers (same UX)
-    const micBtn = get("micBtn");
+    // Controls (unchanged)
+    var micBtn = get("micBtn");
     if (micBtn) {
-      micBtn.onclick = () => {
-        const t = localStream && localStream.getAudioTracks && localStream.getAudioTracks()[0];
+      micBtn.onclick = function () {
+        var t = localStream && localStream.getAudioTracks ? localStream.getAudioTracks()[0] : null;
         if (!t) return;
         t.enabled = !t.enabled;
         micBtn.classList.toggle("inactive", !t.enabled);
-        const i = micBtn.querySelector("i");
+        var i = micBtn.querySelector("i");
         if (i) i.className = t.enabled ? "fas fa-microphone" : "fas fa-microphone-slash";
         showToast(t.enabled ? "Mic On" : "Mic Off");
       };
     }
 
-    const camBtn = get("camBtn");
+    var camBtn = get("camBtn");
     if (camBtn) {
-      camBtn.onclick = () => {
-        const t = localStream && localStream.getVideoTracks && localStream.getVideoTracks()[0];
+      camBtn.onclick = function () {
+        var t = localStream && localStream.getVideoTracks ? localStream.getVideoTracks()[0] : null;
         if (!t) return;
         t.enabled = !t.enabled;
         camBtn.classList.toggle("inactive", !t.enabled);
-        const i = camBtn.querySelector("i");
-        if (i) i.className = t.enabled ? "fas fa-video" : "fas fa-video-slash";
+        var ii = camBtn.querySelector("i");
+        if (ii) ii.className = t.enabled ? "fas fa-video" : "fas fa-video-slash";
         showToast(t.enabled ? "Camera On" : "Camera Off");
       };
     }
 
-    const screenBtn = get("screenShareBtn");
+    var screenBtn = get("screenShareBtn");
     if (screenBtn) {
-      screenBtn.onclick = async () => {
+      screenBtn.onclick = async function () {
         if (!pc) return showToast("No connection");
         try {
-          const screen = await navigator.mediaDevices.getDisplayMedia({ video: true });
-          const screenTrack = screen.getVideoTracks()[0];
-          const senders = pc.getSenders ? pc.getSenders() : [];
-          const sender = senders.find((s) => s && s.track && s.track.kind === "video");
-          if (!sender) {
-            showToast("No video sender found");
-            screenTrack.stop();
-            return;
-          }
+          var screen = await navigator.mediaDevices.getDisplayMedia({ video: true });
+          var screenTrack = screen && screen.getVideoTracks ? screen.getVideoTracks()[0] : null;
+          var sender = pc.getSenders ? pc.getSenders().find(function (s) { return s && s.track && s.track.kind === "video"; }) : null;
+          if (!sender) { showToast("No video sender found"); screenTrack && screenTrack.stop && screenTrack.stop(); return; }
 
-          cameraTrackSaved = localStream && localStream.getVideoTracks && localStream.getVideoTracks()[0] || cameraTrackSaved;
-          try {
-            await sender.replaceTrack(screenTrack);
-          } catch (e) {
-            // fallback: remove existing and add screen track
-            try {
-              pc.addTrack(screenTrack, screen);
-            } catch (e2) {
-              log("replace/add screen track failed", e2);
-            }
-          }
+          var saved = localStream && localStream.getVideoTracks && localStream.getVideoTracks()[0];
+          cameraTrackSaved = saved || cameraTrackSaved;
+          try { await sender.replaceTrack(screenTrack); } catch (e) { try { pc.addTrack(screenTrack, screen); } catch (e2) { log("replace/add screen track failed", e2); } }
           screenBtn.classList.add("active");
           showToast("Screen sharing");
 
-          screenTrack.onended = async () => {
+          screenTrack.onended = async function () {
             try {
-              let cam = cameraTrackSaved;
+              var cam = cameraTrackSaved;
               if (!cam || cam.readyState === "ended") {
                 try {
-                  const fresh = await navigator.mediaDevices.getUserMedia({ video: true });
+                  var fresh = await navigator.mediaDevices.getUserMedia({ video: true });
                   cam = fresh.getVideoTracks()[0];
                   if (localStream) {
-                    const prev = localStream.getVideoTracks()[0];
-                    try { prev && prev.stop(); } catch {}
-                    try { localStream.removeTrack && localStream.removeTrack(prev); } catch {}
-                    try { localStream.addTrack && localStream.addTrack(cam); } catch {}
-                    const lv = get("localVideo");
+                    var prev = localStream.getVideoTracks()[0];
+                    try { prev && prev.stop(); } catch (e) {}
+                    try { localStream.removeTrack && localStream.removeTrack(prev); } catch (e) {}
+                    try { localStream.addTrack && localStream.addTrack(cam); } catch (e) {}
+                    var lv = get("localVideo");
                     if (lv) lv.srcObject = localStream;
                   }
                   cameraTrackSaved = cam;
-                } catch (err) {
-                  console.warn("Couldn't reacquire camera after screen share ended", err);
-                }
+                } catch (err) { console.warn("Couldn't reacquire camera after screen share ended", err); }
               }
-              if (sender && cam) {
-                try { await sender.replaceTrack(cam); } catch (err) { log("restore camera via replaceTrack failed", err); }
-                showToast("Screen sharing stopped — camera restored");
-              } else {
-                showToast("Screen sharing stopped");
-              }
-            } catch (err) {
-              console.error("Error restoring camera after screen end", err);
-              showToast("Stopped screen sharing");
-            } finally {
-              screenBtn.classList.remove("active");
-            }
+              if (sender && cam) { try { await sender.replaceTrack(cam); } catch (err) { log("restore camera via replaceTrack failed", err); } showToast("Screen sharing stopped — camera restored"); }
+              else { showToast("Screen sharing stopped"); }
+            } catch (err) { console.error("Error restoring camera after screen end", err); showToast("Stopped screen sharing"); }
+            finally { screenBtn.classList.remove("active"); }
           };
-        } catch (e) {
-          console.warn("Screen share cancelled / error", e);
-          showToast("Screen share cancelled");
-        }
+        } catch (e) { console.warn("Screen share cancelled / error", e); showToast("Screen share cancelled"); }
       };
     }
 
-    const disconnectBtn = get("disconnectBtn");
+    var disconnectBtn = get("disconnectBtn");
     if (disconnectBtn) {
-      disconnectBtn.onclick = () => {
-        try { socket && socket.emit && socket.emit("partnerLeft"); } catch {}
-        cleanup();
-        showRating();
-      };
+      disconnectBtn.onclick = function () { try { socket && socket.emit && socket.emit("partnerLeft"); } catch (e) {} ; cleanup(); showRating(); };
     }
 
-    const quitBtn = get("quitBtn");
-    if (quitBtn) {
-      quitBtn.onclick = () => {
-        cleanup();
-        window.location.href = "/";
-      };
+    var quitBtn = get("quitBtn");
+    if (quitBtn) quitBtn.onclick = function () { cleanup(); window.location.href = "/"; };
+
+    var newPartnerBtn = get("newPartnerBtn");
+    if (newPartnerBtn) newPartnerBtn.onclick = function () { cleanup(); window.location.href = "/connect"; };
+
+    // hearts binding
+    var hearts = document.querySelectorAll("#ratingOverlay .hearts i");
+    for (var hi = 0; hi < hearts.length; hi++) {
+      (function (h) {
+        h.addEventListener("click", function () {
+          var val = parseInt(h.getAttribute("data-value"));
+          for (var q = 0; q < hearts.length; q++) hearts[q].classList.remove("selected");
+          for (var r = 0; r < val; r++) hearts[r].classList.add("selected");
+          triggerRatingAnimation(val);
+        });
+      })(hearts[hi]);
     }
 
-    const newPartnerBtn = get("newPartnerBtn");
-    if (newPartnerBtn) {
-      newPartnerBtn.onclick = () => {
-        cleanup();
-        window.location.href = "/connect";
-      };
-    }
-
-    // Rating hearts binding
-    const hearts = document.querySelectorAll("#ratingOverlay .hearts i");
-    hearts.forEach((h) => {
-      h.addEventListener("click", () => {
-        const val = parseInt(h.getAttribute("data-value"));
-        hearts.forEach((el) => el.classList.remove("selected"));
-        for (let i = 0; i < val; i++) hearts[i].classList.add("selected");
-        triggerRatingAnimation(val);
-      });
-    });
-
-    // cleanup on unmount
-    return () => cleanup();
+    return function () { cleanup(); };
   }, []);
 
   return (
     <>
-      {/* Font Awesome */}
-      <link
-        rel="stylesheet"
-        href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css"
-        referrerPolicy="no-referrer"
-      />
+      <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css" referrerPolicy="no-referrer" />
 
-      {/* ======= Omegle-style Layout (kept same) ======= */}
       <div className="video-stage">
         <div className="video-panes">
           <div className="video-box">
@@ -691,28 +574,22 @@ export default function VideoPage() {
 
       <div className="control-bar">
         <button id="micBtn" className="control-btn" aria-label="Toggle Mic">
-          <i className="fas fa-microphone"></i>
-          <span>Mic</span>
+          <i className="fas fa-microphone"></i><span>Mic</span>
         </button>
         <button id="camBtn" className="control-btn" aria-label="Toggle Camera">
-          <i className="fas fa-video"></i>
-          <span>Camera</span>
+          <i className="fas fa-video"></i><span>Camera</span>
         </button>
         <button id="screenShareBtn" className="control-btn" aria-label="Share Screen">
-          <i className="fas fa-desktop"></i>
-          <span>Share</span>
+          <i className="fas fa-desktop"></i><span>Share</span>
         </button>
         <button id="disconnectBtn" className="control-btn danger" aria-label="End Call">
-          <i className="fas fa-phone-slash"></i>
-          <span>End</span>
+          <i className="fas fa-phone-slash"></i><span>End</span>
         </button>
       </div>
 
-      {/* Rating overlay */}
       <div id="ratingOverlay">
         <div className="rating-content">
           <h2>Rate your partner ❤️</h2>
-
           <div className="hearts">
             <i className="far fa-heart" data-value="1" aria-label="1 star"></i>
             <i className="far fa-heart" data-value="2" aria-label="2 stars"></i>
@@ -720,12 +597,10 @@ export default function VideoPage() {
             <i className="far fa-heart" data-value="4" aria-label="4 stars"></i>
             <i className="far fa-heart" data-value="5" aria-label="5 stars"></i>
           </div>
-
           <div className="rating-buttons">
             <button id="quitBtn">Quit</button>
             <button id="newPartnerBtn">Search New Partner</button>
           </div>
-
           <div className="emoji-container" aria-hidden="true"></div>
         </div>
       </div>
@@ -735,84 +610,24 @@ export default function VideoPage() {
       <style jsx global>{`
         *{margin:0;padding:0;box-sizing:border-box}
         html,body{height:100%;background:#000;font-family:'Segoe UI',sans-serif;overflow:hidden}
-
-        .video-stage{
-          position:relative;
-          width:100%;
-          height:100vh;
-          padding-bottom:110px;
-          background:#000;
-        }
-        .video-panes{
-          position:absolute;
-          left:0; right:0; top:0; bottom:110px;
-          display:flex;
-          gap:12px;
-          padding:12px;
-        }
-        .video-box{
-          position:relative;
-          flex:1 1 50%;
-          border-radius:14px;
-          overflow:hidden;
-          background:#111;
-          border:1px solid rgba(255,255,255,.08);
-        }
-        .video-box video{
-          width:100%;
-          height:100%;
-          object-fit:cover;
-          background:#000;
-        }
+        .video-stage{position:relative;width:100%;height:100vh;padding-bottom:110px;background:#000;}
+        .video-panes{position:absolute;left:0;right:0;top:0;bottom:110px;display:flex;gap:12px;padding:12px;}
+        .video-box{position:relative;flex:1 1 50%;border-radius:14px;overflow:hidden;background:#111;border:1px solid rgba(255,255,255,.08);}
+        .video-box video{width:100%;height:100%;object-fit:cover;background:#000;}
         #localVideo{ transform: scaleX(-1); }
-        .label{
-          position:absolute;
-          left:10px; bottom:10px;
-          padding:6px 10px;
-          font-size:12px;
-          color:#fff;
-          background:rgba(0,0,0,.5);
-          border:1px solid rgba(255,255,255,.15);
-          border-radius:10px;
-          pointer-events:none;
-        }
-        .control-bar{
-          position:fixed;bottom:18px;left:50%;transform:translateX(-50%);
-          display:flex;gap:18px;padding:12px 16px;background:rgba(0,0,0,.6);
-          border-radius:16px;z-index:3000;backdrop-filter: blur(8px);
-        }
-        .control-btn{
-          display:flex;flex-direction:column;align-items:center;justify-content:center;
-          background:#18181b;color:#fff;border-radius:14px;width:68px;height:68px;cursor:pointer;
-        }
-        .control-btn.inactive{opacity:0.5}
-        .control-btn.active{box-shadow:0 6px 18px rgba(255,77,141,0.18);transform:translateY(-2px)}
-        .control-btn.danger{background:#9b1c2a}
-        #ratingOverlay{
-          position:fixed;inset:0;display:none;align-items:center;justify-content:center;
-          background:rgba(0,0,0,.9);color:#fff;z-index:4000;padding:40px
-        }
-        .rating-content{
-          position:relative;min-width: min(720px, 92vw);
-          padding:48px 56px;border-radius:24px;text-align:center;
-          background:rgba(255,255,255,.10);
-          border:1px solid rgba(255,255,255,.18);
-          box-shadow:0 20px 60px rgba(0,0,0,.55);
-          z-index:1
-        }
+        .label{position:absolute;left:10px;bottom:10px;padding:6px 10px;font-size:12px;color:#fff;background:rgba(0,0,0,.5);border:1px solid rgba(255,255,255,.15);border-radius:10px;pointer-events:none;}
+        .control-bar{position:fixed;bottom:18px;left:50%;transform:translateX(-50%);display:flex;gap:18px;padding:12px 16px;background:rgba(0,0,0,.6);border-radius:16px;z-index:3000;backdrop-filter: blur(8px);}
+        .control-btn{display:flex;flex-direction:column;align-items:center;justify-content:center;background:#18181b;color:#fff;border-radius:14px;width:68px;height:68px;cursor:pointer;}
+        .control-btn.inactive{opacity:0.5}.control-btn.active{box-shadow:0 6px 18px rgba(255,77,141,0.18);transform:translateY(-2px)}.control-btn.danger{background:#9b1c2a}
+        #ratingOverlay{position:fixed;inset:0;display:none;align-items:center;justify-content:center;background:rgba(0,0,0,.9);color:#fff;z-index:4000;padding:40px}
+        .rating-content{position:relative;min-width: min(720px, 92vw);padding:48px 56px;border-radius:24px;text-align:center;background:rgba(255,255,255,.10);border:1px solid rgba(255,255,255,.18);box-shadow:0 20px 60px rgba(0,0,0,.55);z-index:1}
         .rating-content h2{ font-size:32px;margin-bottom:18px;letter-spacing:.3px }
         .hearts{ display:flex;gap:30px;font-size:70px;margin:26px 0 8px 0;justify-content:center;z-index:2;position:relative }
         .hearts i{ color:#777;cursor:pointer;transition:transform .18s,color .18s }
         .hearts i:hover{ transform:scale(1.2);color:#ff6fa3 }
         .hearts i.selected{ color:#ff1744 }
         .rating-buttons{ display:flex;gap:26px;margin-top:32px;justify-content:center;position:relative;z-index:2 }
-        .rating-buttons button{
-          padding:18px 32px;font-size:20px;border-radius:16px;border:none;color:#fff;cursor:pointer;
-          background:linear-gradient(135deg,#ff4d8d,#6a5acd);
-          box-shadow:0 10px 28px rgba(0,0,0,.45);
-          backdrop-filter: blur(14px);
-          transition:transform .2s ease,opacity .2s ease
-        }
+        .rating-buttons button{ padding:18px 32px;font-size:20px;border-radius:16px;border:none;color:#fff;cursor:pointer;background:linear-gradient(135deg,#ff4d8d,#6a5acd);box-shadow:0 10px 28px rgba(0,0,0,.45);backdrop-filter: blur(14px);transition:transform .2s ease,opacity .2s ease }
         .rating-buttons button:hover{ transform:scale(1.06);opacity:.92 }
         .emoji-container{ position:absolute;inset:-16px; pointer-events:none;z-index:0;overflow:visible }
         .floating-emoji{ position:absolute;user-select:none }
@@ -821,24 +636,9 @@ export default function VideoPage() {
         @keyframes orbitCW{ from{transform:rotate(0deg) translateX(var(--r)) rotate(0deg)} to{transform:rotate(360deg) translateX(var(--r)) rotate(-360deg)} }
         @keyframes orbitCCW{ from{transform:rotate(360deg) translateX(var(--r)) rotate(-360deg)} to{transform:rotate(0deg) translateX(var(--r)) rotate(360deg)} }
         @keyframes burstLocal{ 0%{transform:scale(.6) translateY(0);opacity:1} 60%{transform:scale(1.4) translateY(-80px)} 100%{transform:scale(1) translateY(-320px);opacity:0} }
-        #toast{
-          position:fixed;left:50%;bottom:110px;transform:translateX(-50%);
-          background:#111;color:#fff;padding:10px 14px;border-radius:8px;display:none;z-index:5000;
-          border:1px solid rgba(255,255,255,.12)
-        }
-        @media(max-width: 900px){
-          .video-panes{ flex-direction:column; }
-          .video-box{ flex:1 1 50%; min-height: 0; }
-        }
-        @media(max-width:480px){
-          .video-panes{ gap:8px; padding:8px; bottom:108px; }
-          .label{ font-size:11px; padding:5px 8px; }
-          .control-btn{ width:62px; height:62px; }
-          .rating-content{min-width:92vw;padding:30px 20px}
-          .hearts{font-size:46px;gap:18px}
-          .rating-buttons{gap:16px}
-          .rating-buttons button{padding:14px 18px;font-size:16px;border-radius:14px}
-        }
+        #toast{position:fixed;left:50%;bottom:110px;transform:translateX(-50%);background:#111;color:#fff;padding:10px 14px;border-radius:8px;display:none;z-index:5000;border:1px solid rgba(255,255,255,.12)}
+        @media(max-width: 900px){.video-panes{ flex-direction:column; } .video-box{ flex:1 1 50%; min-height: 0; }}
+        @media(max-width:480px){ .video-panes{ gap:8px; padding:8px; bottom:108px; } .label{ font-size:11px; padding:5px 8px; } .control-btn{ width:62px; height:62px; } .rating-content{min-width:92vw;padding:30px 20px} .hearts{font-size:46px;gap:18px} .rating-buttons{gap:16px} .rating-buttons button{padding:14px 18px;font-size:16px;border-radius:14px} }
       `}</style>
     </>
   );
