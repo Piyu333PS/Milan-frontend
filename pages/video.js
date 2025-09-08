@@ -219,19 +219,35 @@ export default function VideoPage() {
         // 2) Attach local tracks by replacing transceiver sender track if available,
         // otherwise fallback to addTrack
         try {
-          const localVideoTrack = localStream?.getVideoTracks()?.[0];
-          const localAudioTrack = localStream?.getAudioTracks()?.[0];
+          const localVideoTrack = localStream && localStream.getVideoTracks && localStream.getVideoTracks()[0];
+          const localAudioTrack = localStream && localStream.getAudioTracks && localStream.getAudioTracks()[0];
 
-          // prefer using transceiver.sender.replaceTrack() when possible
+          // find a video sender (try transceivers first, then senders)
+          let videoSender = null;
+          if (typeof pc.getTransceivers === "function") {
+            const tList = pc.getTransceivers();
+            for (let i = 0; i < tList.length; i++) {
+              const t = tList[i];
+              try {
+                if (t && t.sender && t.sender.track && t.sender.track.kind === "video") { videoSender = t.sender; break; }
+                if (t && t.receiver && t.receiver.track && t.receiver.track.kind === "video") { videoSender = t.sender; break; }
+              } catch (e) { /* ignore */ }
+            }
+          }
+          if (!videoSender) {
+            const sList = pc.getSenders ? pc.getSenders() : [];
+            for (let i = 0; i < sList.length; i++) {
+              const s = sList[i];
+              if (s && s.track && s.track.kind === "video") { videoSender = s; break; }
+            }
+          }
+
           if (localVideoTrack) {
-            const videoSender =
-              (pc.getTransceivers ? pc.getTransceivers().find(t => t.sender && (t.sender.track?.kind === 'video' || t.receiver?.track?.kind === 'video'))?.sender)
-              || pc.getSenders().find(s => s.track && s.track.kind === 'video');
-
             if (videoSender && typeof videoSender.replaceTrack === "function") {
               videoSender.replaceTrack(localVideoTrack).catch((e) => log("replaceTrack(video) failed:", e));
             } else {
-              const hasVideoSender = pc.getSenders().some(s => s.track && s.track.kind === "video");
+              const sList = pc.getSenders ? pc.getSenders() : [];
+              const hasVideoSender = sList.some((s) => s && s.track && s.track.kind === "video");
               if (!hasVideoSender) {
                 try { pc.addTrack(localVideoTrack, localStream); } catch (e) { log("addTrack(video) failed:", e); }
               } else {
@@ -240,15 +256,32 @@ export default function VideoPage() {
             }
           }
 
-          if (localAudioTrack) {
-            const audioSender =
-              (pc.getTransceivers ? pc.getTransceivers().find(t => t.sender && (t.sender.track?.kind === 'audio' || t.receiver?.track?.kind === 'audio'))?.sender)
-              || pc.getSenders().find(s => s.track && s.track.kind === 'audio');
+          // find an audio sender (transceivers first, then senders)
+          let audioSender = null;
+          if (typeof pc.getTransceivers === "function") {
+            const tList2 = pc.getTransceivers();
+            for (let i = 0; i < tList2.length; i++) {
+              const t = tList2[i];
+              try {
+                if (t && t.sender && t.sender.track && t.sender.track.kind === "audio") { audioSender = t.sender; break; }
+                if (t && t.receiver && t.receiver.track && t.receiver.track.kind === "audio") { audioSender = t.sender; break; }
+              } catch (e) { /* ignore */ }
+            }
+          }
+          if (!audioSender) {
+            const sList2 = pc.getSenders ? pc.getSenders() : [];
+            for (let i = 0; i < sList2.length; i++) {
+              const s = sList2[i];
+              if (s && s.track && s.track.kind === "audio") { audioSender = s; break; }
+            }
+          }
 
+          if (localAudioTrack) {
             if (audioSender && typeof audioSender.replaceTrack === "function") {
               audioSender.replaceTrack(localAudioTrack).catch((e) => log("replaceTrack(audio) failed:", e));
             } else {
-              const hasAudioSender = pc.getSenders().some(s => s.track && s.track.kind === "audio");
+              const sList2 = pc.getSenders ? pc.getSenders() : [];
+              const hasAudioSender = sList2.some((s) => s && s.track && s.track.kind === "audio");
               if (!hasAudioSender) {
                 try { pc.addTrack(localAudioTrack, localStream); } catch (e) { log("addTrack(audio) failed:", e); }
               } else {
