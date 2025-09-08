@@ -38,6 +38,19 @@ export default function VideoPage() {
       try { console.log.apply(console, ["[video]"].concat(Array.prototype.slice.call(arguments))); } catch (e) {}
     };
 
+    // ---- SAFE EMIT helper (prevents emits when socket closing/closed) ----
+    const safeEmit = function (event, data) {
+      try {
+        if (socket && socket.connected) {
+          socket.emit(event, data);
+        } else {
+          log("safeEmit: socket not connected, skipping emit:", event);
+        }
+      } catch (e) {
+        log("safeEmit error emitting", event, e);
+      }
+    };
+
     // Emoji animation (kept)
     const triggerRatingAnimation = function (rating) {
       var container = document.querySelector("#ratingOverlay .emoji-container");
@@ -175,7 +188,7 @@ export default function VideoPage() {
         try { sessionStorage.setItem("roomCode", roomCode); localStorage.setItem("lastRoomCode", roomCode); } catch (e) {}
         var token = localStorage.getItem("token") || null;
         log("emitting joinVideo", { roomCode: roomCode, hasToken: !!token });
-        socket.emit("joinVideo", { roomCode: roomCode, token: token });
+        safeEmit("joinVideo", { roomCode: roomCode, token: token });
       });
 
       socket.on("disconnect", function (reason) {
@@ -289,12 +302,32 @@ export default function VideoPage() {
             var rv = get("remoteVideo");
             var stream = (e && e.streams && e.streams[0]) ? e.streams[0] : new MediaStream([e.track]);
             if (rv) {
-              rv.playsInline = true; rv.autoplay = true; rv.muted = false;
-              if (rv.srcObject !== stream) {
-                rv.srcObject = stream;
-                try { rv.play && rv.play().catch(function (err) { log("remoteVideo.play() rejected:", err); }); } catch (err) { log("remoteVideo.play error", err); }
-                log("attached remote stream to remoteVideo");
-              } else { log("remote stream already set, skipping reattach"); }
+              rv.playsInline = true;
+              rv.autoplay = true;
+              // Temporarily mute to avoid autoplay rejection; unmute after successful play
+              var previouslyMuted = rv.muted;
+              try {
+                rv.muted = true;
+                if (rv.srcObject !== stream) {
+                  rv.srcObject = stream;
+                  rv.play && rv.play().then(function () {
+                    // small delay before unmuting to avoid autoplay policy surprises
+                    setTimeout(function () {
+                      try { rv.muted = previouslyMuted; } catch (e) {}
+                    }, 250);
+                  }).catch(function (err) {
+                    log("remoteVideo.play() rejected:", err);
+                    try { rv.muted = previouslyMuted; } catch (e) {}
+                  });
+                  log("attached remote stream to remoteVideo");
+                } else {
+                  log("remote stream already set, skipping reattach");
+                  try { rv.muted = previouslyMuted; } catch (e) {}
+                }
+              } catch (err) {
+                log("remoteVideo attach/play error", err);
+                try { rv.muted = previouslyMuted; } catch (e) {}
+              }
             } else { log("remoteVideo element missing"); }
 
             try {
@@ -310,8 +343,7 @@ export default function VideoPage() {
           if (e && e.candidate) {
             try {
               log("pc.onicecandidate -> sending candidate");
-              if (socket && socketConnected) socket.emit("candidate", e.candidate);
-              else log("socket not connected - skipping candidate emit");
+              safeEmit("candidate", e.candidate);
             } catch (ex) { log("emit candidate err", ex); }
           }
         };
@@ -338,12 +370,8 @@ export default function VideoPage() {
             makingOffer = true;
             var offer = await pc.createOffer();
             await pc.setLocalDescription(offer);
-            if (socket && socketConnected) {
-              socket.emit("offer", pc.localDescription);
-              log("offer emitted (negotiationneeded)");
-            } else {
-              log("socket not connected - not emitting offer");
-            }
+            safeEmit("offer", pc.localDescription);
+            log("offer emitted (negotiationneeded)");
           } catch (err) {
             log("negotiation error", err);
             try {
@@ -358,7 +386,7 @@ export default function VideoPage() {
                   makingOffer = true;
                   var offer2 = await pc.createOffer();
                   await pc.setLocalDescription(offer2);
-                  if (socket && socketConnected) socket.emit("offer", pc.localDescription);
+                  safeEmit("offer", pc.localDescription);
                 } catch (e2) { log("retry offer failed:", e2); showToast("Connection hiccup. Please try reconnecting."); } finally { makingOffer = false; }
               }
             } catch (recErr) { log("recovery attempt failed:", recErr); }
@@ -377,7 +405,7 @@ export default function VideoPage() {
               makingOffer = true;
               var off = await pc.createOffer();
               await pc.setLocalDescription(off);
-              if (socket && socketConnected) socket.emit("offer", pc.localDescription);
+              safeEmit("offer", pc.localDescription);
               hasOffered = true;
               log("offer emitted");
             } catch (e) { log("ready-offer error", e); } finally { makingOffer = false; }
@@ -415,7 +443,7 @@ export default function VideoPage() {
           await pc.setRemoteDescription(offerDesc);
           var answer = await pc.createAnswer();
           await pc.setLocalDescription(answer);
-          if (socket && socketConnected) socket.emit("answer", pc.localDescription);
+          safeEmit("answer", pc.localDescription);
           log("answer created & emitted");
         } catch (err) {
           log("Handling offer error:", err);
@@ -530,7 +558,7 @@ export default function VideoPage() {
 
     var disconnectBtn = get("disconnectBtn");
     if (disconnectBtn) {
-      disconnectBtn.onclick = function () { try { socket && socket.emit && socket.emit("partnerLeft"); } catch (e) {} ; cleanup(); showRating(); };
+      disconnectBtn.onclick = function () { try { safeEmit("partnerLeft"); } catch (e) {} ; cleanup(); showRating(); };
     }
 
     var quitBtn = get("quitBtn");
