@@ -182,6 +182,12 @@ export default function ConnectPage() {
   useEffect(() => {
     if (typeof document === "undefined") return;
     const onVisibility = () => {
+      // <-- PATCH: suppress disconnect when we intentionally redirect
+      if (typeof window !== "undefined" && window.__milan_redirecting) {
+        // if redirecting, ignore visibilitychange
+        return;
+      }
+
       if (
         document.visibilityState === "hidden" &&
         socketRef.current &&
@@ -367,6 +373,16 @@ export default function ConnectPage() {
 
           setStatusMessage("💖 Milan Successful!");
 
+          // <-- PATCH: set redirect flag to avoid visibility/disconnect race
+          if (typeof window !== "undefined") {
+            try {
+              window.__milan_redirecting = true;
+              setTimeout(() => {
+                try { window.__milan_redirecting = false; } catch {}
+              }, 2000);
+            } catch (e) {}
+          }
+
           // small delay so server room mapping settles; then redirect with query param for reliability
           setTimeout(() => {
             try {
@@ -397,6 +413,11 @@ export default function ConnectPage() {
       // ---------------------------------------------------------------------------
 
       socketRef.current.on("partnerDisconnected", () => {
+        // <-- PATCH: ignore partnerDisconnected if we are redirecting intentionally
+        if (typeof window !== "undefined" && window.__milan_redirecting) {
+          console.log("[connect] ignored partnerDisconnected due to redirect");
+          return;
+        }
         alert("Partner disconnected.");
         stopSearch();
       });
@@ -1238,7 +1259,7 @@ export default function ConnectPage() {
         .photo-add { width:72px; height:72px; border-radius:8px; background:linear-gradient(90deg,#fff,#fff); display:flex; align-items:center; justify-content:center; box-shadow: 0 6px 18px rgba(0,0,0,0.04); }
         .photo-add-label { display:block; cursor:pointer; color:#ec4899; font-weight:800; }
 
-        .progress-wrap { width:100%; height:10px; background: #f1f1f1; border-radius:8px; overflow:hidden; margin-top:6px; }
+        .progress-wrap { width:100%; height:10px; background: #f1f1f1; border-radius:8px; overflow: hidden; margin-top:6px; }
         .progress-bar { height:100%; background: linear-gradient(90deg,#ff6b81,#ff9fb0); width:0%; transition: width 260ms ease; }
 
         .actions { display:flex; align-items:center; justify-content:space-between; gap:12px; }
