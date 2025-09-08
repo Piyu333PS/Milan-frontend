@@ -1,10 +1,11 @@
+// pages/video.js - patched: safer socket options, join-room fallback, proper attach & play of streams
 "use client";
 import { useEffect } from "react";
 import io from "socket.io-client";
 
 export default function VideoPage() {
   useEffect(() => {
-    const BACKEND_URL = "https://milan-j9u9.onrender.com";
+    const BACKEND_URL = process.env.NEXT_PUBLIC_BACKEND_URL || "https://milan-j9u9.onrender.com";
     const ICE_CONFIG = { iceServers: [{ urls: "stun:stun.l.google.com:19302" }] };
 
     let socket = null;
@@ -27,45 +28,17 @@ export default function VideoPage() {
       if (r) r.style.display = "flex";
     };
 
-    const triggerRatingAnimation = (rating) => {
-      const container = document.querySelector("#ratingOverlay .emoji-container");
-      if (!container) return;
-      const emojiMap = { 1: ["😐"], 2: ["🙂"], 3: ["😊"], 4: ["😍"], 5: ["😍", "🥰", "❤️"] };
-      const emojis = emojiMap[rating] || ["❤️"];
-      const count = rating === 5 ? 28 : 18;
-      const containerRect = container.getBoundingClientRect();
-      for (let i = 0; i < count; i++) {
-        const e = document.createElement("div");
-        e.className = "floating-emoji";
-        e.textContent = emojis[Math.floor(Math.random() * emojis.length)];
-        const x = Math.random() * containerRect.width;
-        const y = Math.random() * containerRect.height;
-        e.style.left = `${x}px`;
-        e.style.top = `${y}px`;
-        e.style.fontSize = 24 + Math.random() * 26 + "px";
-        container.appendChild(e);
-        if (rating === 1 || rating === 2) {
-          e.style.animation = `fallLocal ${2 + Math.random() * 1.8}s linear`;
-        } else if (rating === 3) {
-          const r = 80 + Math.random() * 120;
-          const dir = Math.random() > 0.5 ? "orbitCW" : "orbitCCW";
-          e.style.setProperty("--r", `${r}px`);
-          e.style.animation = `${dir} ${3 + Math.random() * 2}s linear`;
-        } else if (rating === 4) {
-          e.style.animation = `flyUpLocal ${3 + Math.random() * 2}s ease-out`;
-        } else if (rating === 5) {
-          e.style.animation = `burstLocal ${3 + Math.random() * 2}s ease-in-out`;
-        }
-        setTimeout(() => e.remove(), 4200);
-      }
+    const log = (...args) => {
+      try { console.log("[video]", ...args); } catch {}
     };
 
     const cleanup = () => {
-      try { socket?.disconnect(); } catch {}
+      try { socket?.removeAllListeners && socket.removeAllListeners(); } catch {}
+      try { socket?.disconnect && socket.disconnect(); } catch {}
       try {
         pc?.getSenders()?.forEach((s) => s.track && s.track.stop());
-        pc?.close();
-      } catch {}
+      } catch (e) { /* ignore */ }
+      try { pc && pc.close(); } catch {}
       pc = null;
       localStream = null;
       hasOffered = false;
@@ -73,13 +46,23 @@ export default function VideoPage() {
 
     (async function start() {
       try {
+        // Request camera & mic (muted local video allows autoplay)
         localStream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
         cameraTrackSaved = localStream?.getVideoTracks()?.[0] || null;
+
         const lv = get("localVideo");
         if (lv) {
-          lv.srcObject = localStream;
-          lv.muted = true;
-          lv.play().catch((e) => console.warn("Local video play error:", e));
+          try {
+            lv.muted = true; // important to allow autoplay
+            lv.playsInline = true;
+            lv.autoplay = true;
+            lv.srcObject = localStream;
+            await lv.play().catch((e) => log("Local video play error (non-fatal):", e));
+          } catch (e) {
+            log("local video attach/play issue:", e);
+          }
+        } else {
+          log("localVideo element not found in DOM");
         }
       } catch (err) {
         console.error("❌ Camera/Mic error:", err);
@@ -87,31 +70,84 @@ export default function VideoPage() {
         return;
       }
 
-      socket = io(BACKEND_URL, { transports: ["websocket"] });
+      // socket: use websocket + polling fallback and reconnection
+      socket = io(BACKEND_URL, {
+        transports: ["websocket", "polling"],
+        reconnection: true,
+        reconnectionAttempts: 10,
+        reconnectionDelay: 800,
+        path: "/socket.io",
+      });
 
       socket.on("connect", () => {
-        const token = localStorage.getItem("token");
-        const roomCode = sessionStorage.getItem("roomCode");
+        log("socket connected", socket.id);
+        // roomCode: try URL param -> sessionStorage -> localStorage
+        let roomCode = null;
+        try {
+          const q = new URLSearchParams(window.location.search);
+          roomCode = q.get("room") || sessionStorage.getItem("roomCode") || localStorage.getItem("lastRoomCode");
+        } catch (e) {
+          roomCode = sessionStorage.getItem("roomCode") || localStorage.getItem("lastRoomCode");
+        }
+        const token = localStorage.getItem("token") || null;
+        if (!roomCode) {
+          log("No roomCode found on video page - redirect to connect");
+          alert("Room not found. Go to Connect and start Play & Chat.");
+          window.location.href = "/connect";
+          return;
+        }
         socket.emit("joinVideo", { token, roomCode });
+        log("joinVideo emitted", { token: !!token, roomCode });
+      });
+
+      socket.on("connect_error", (err) => {
+        console.warn("socket connect_error:", err);
+        showToast("Connection error (socket).");
+      });
+      socket.on("disconnect", (reason) => {
+        log("socket disconnected:", reason);
       });
 
       const createPC = () => {
         if (pc) return;
         pc = new RTCPeerConnection(ICE_CONFIG);
-        localStream?.getTracks().forEach((t) => pc.addTrack(t, localStream));
+        try {
+          localStream?.getTracks().forEach((t) => pc.addTrack(t, localStream));
+        } catch (e) {
+          log("Error adding local tracks to pc:", e);
+        }
 
         pc.ontrack = (e) => {
-          const rv = get("remoteVideo");
-          if (rv && e.streams && e.streams[0]) {
-            rv.srcObject = e.streams[0];
+          try {
+            const rv = get("remoteVideo");
+            if (!rv) {
+              log("remoteVideo element not found");
+              return;
+            }
+            const stream = (e.streams && e.streams[0]) || new MediaStream([e.track]);
+            rv.srcObject = stream;
+            rv.playsInline = true;
+            rv.autoplay = true;
+            rv.muted = false;
+            rv.play().catch((err) => {
+              log("remoteVideo play() rejection (might be autoplay policy):", err);
+            });
+            log("ontrack attached remote stream", stream);
+          } catch (err) {
+            console.error("ontrack attach error", err);
           }
         };
 
         pc.onicecandidate = (e) => {
-          if (e.candidate) socket.emit("candidate", e.candidate);
+          if (e.candidate) {
+            try {
+              socket.emit("candidate", e.candidate);
+            } catch (ex) { log("emit candidate err", ex); }
+          }
         };
 
         pc.onconnectionstatechange = () => {
+          log("pc connectionState:", pc.connectionState);
           if (pc.connectionState === "disconnected" || pc.connectionState === "failed") {
             showToast("Partner disconnected");
             showRating();
@@ -123,38 +159,59 @@ export default function VideoPage() {
       };
 
       socket.on("ready", async () => {
+        log("socket ready -> creating PC and offering");
         createPC();
-        if (!hasOffered && pc.signalingState === "stable") {
-          try {
+        try {
+          if (!hasOffered && pc.signalingState === "stable") {
             const offer = await pc.createOffer();
             await pc.setLocalDescription(offer);
             socket.emit("offer", offer);
             hasOffered = true;
-          } catch (err) { console.error("Offer error:", err); }
+            log("offer sent");
+          } else {
+            log("skipping offer (hasOffered or signalingState not stable)", { hasOffered, signalingState: pc?.signalingState });
+          }
+        } catch (err) {
+          console.error("Offer error:", err);
         }
       });
 
       socket.on("offer", async (offer) => {
+        log("received offer");
         createPC();
-        await pc.setRemoteDescription(new RTCSessionDescription(offer));
-        const answer = await pc.createAnswer();
-        await pc.setLocalDescription(answer);
-        socket.emit("answer", answer);
+        try {
+          await pc.setRemoteDescription(new RTCSessionDescription(offer));
+          const answer = await pc.createAnswer();
+          await pc.setLocalDescription(answer);
+          socket.emit("answer", answer);
+          log("answer sent");
+        } catch (err) {
+          console.error("Handling offer error:", err);
+        }
       });
 
       socket.on("answer", async (answer) => {
-        if (!pc) createPC();
-        await pc.setRemoteDescription(new RTCSessionDescription(answer));
+        log("received answer");
+        try {
+          if (!pc) createPC();
+          await pc.setRemoteDescription(new RTCSessionDescription(answer));
+        } catch (err) {
+          console.error("Setting remote answer failed:", err);
+        }
       });
 
       socket.on("candidate", async (candidate) => {
-        if (!pc) createPC();
-        try { await pc.addIceCandidate(new RTCIceCandidate(candidate)); } catch (err) {
-          console.error("Error adding candidate:", err);
+        log("received candidate");
+        try {
+          if (!pc) createPC();
+          await pc.addIceCandidate(new RTCIceCandidate(candidate));
+        } catch (err) {
+          console.error("addIceCandidate error:", err);
         }
       });
 
       socket.on("partnerDisconnected", () => {
+        log("signal: partnerDisconnected");
         showToast("Partner disconnected");
         showRating();
         const rv = get("remoteVideo");
@@ -163,6 +220,7 @@ export default function VideoPage() {
       });
 
       socket.on("partnerLeft", () => {
+        log("signal: partnerLeft");
         showToast("Partner left");
         showRating();
         const rv = get("remoteVideo");
@@ -171,6 +229,7 @@ export default function VideoPage() {
       });
     })();
 
+    // Mute / cam / screen share / disconnect UI handlers
     const micBtn = get("micBtn");
     if (micBtn) {
       micBtn.onclick = () => {
@@ -219,10 +278,14 @@ export default function VideoPage() {
                 if (localStream) {
                   const prev = localStream.getVideoTracks()[0];
                   prev && prev.stop();
-                  localStream.removeTrack(prev);
-                  localStream.addTrack(cam);
-                  const lv = get("localVideo");
-                  if (lv) lv.srcObject = localStream;
+                  try {
+                    // removeTrack/addTrack not supported everywhere; update local stream object
+                    // simple approach: replace srcObject with new stream
+                    localStream.removeTrack && localStream.removeTrack(prev);
+                    localStream.addTrack && localStream.addTrack(cam);
+                    const lv = get("localVideo");
+                    if (lv) lv.srcObject = localStream;
+                  } catch (e) { log("error swapping camera track", e); }
                 }
                 cameraTrackSaved = cam;
               }
@@ -260,22 +323,36 @@ export default function VideoPage() {
       };
     }
 
-    const hearts = document.querySelectorAll("#ratingOverlay .hearts i");
-    if (hearts.length) {
-      hearts.forEach((h) => {
-        h.addEventListener("click", () => {
-          const val = parseInt(h.getAttribute("data-value"));
-          hearts.forEach((el) => el.classList.remove("selected"));
-          for (let i = 0; i < val; i++) hearts[i].classList.add("selected");
-          triggerRatingAnimation(val);
-        });
-      });
-    }
-
     return () => cleanup();
   }, []);
 
-  return (<>
-    {/* React JSX rendering — make sure elements like micBtn, camBtn, etc. exist in DOM */}
-  </>);
+  return (
+    <>
+      {/* Placeholders — make sure your page HTML has elements with these ids: localVideo, remoteVideo, toast, ratingOverlay etc. */}
+      <div id="videoPage">
+        <div style={{ display: "flex", gap: 12 }}>
+          <video id="remoteVideo" style={{ width: 560, height: 420, background: "#000" }} playsInline autoPlay />
+          <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+            <video id="localVideo" style={{ width: 160, height: 120, background: "#000" }} muted playsInline autoPlay />
+            <div id="controls">
+              <button id="micBtn">Mic</button>
+              <button id="camBtn">Cam</button>
+              <button id="screenShareBtn">Share</button>
+              <button id="disconnectBtn">Disconnect</button>
+              <button id="newPartnerBtn">New Partner</button>
+            </div>
+          </div>
+        </div>
+
+        <div id="toast" style={{ display: "none", position: "fixed", bottom: 18, left: 18, padding: "8px 12px", background: "#fff", color: "#111", borderRadius: 8 }} />
+        <div id="ratingOverlay" style={{ display: "none" }}>
+          <div className="emoji-container" />
+        </div>
+      </div>
+      <style jsx>{`
+        /* minimal styling for placeholders */
+        #controls button { margin-right: 8px; padding: 6px 8px; }
+      `}</style>
+    </>
+  );
 }
