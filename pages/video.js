@@ -202,17 +202,62 @@ export default function VideoPage() {
         log("socket disconnected:", reason);
       });
 
-      // create peer connection lazily
+      // create peer connection lazily - stable transceivers + replaceTrack handling
       const createPC = () => {
         if (pc) return;
-        log("creating RTCPeerConnection");
+        log("creating RTCPeerConnection (stable transceivers)");
         pc = new RTCPeerConnection(ICE_CONFIG);
 
-        // add local tracks
+        // 1) Create stable transceivers in deterministic order (audio then video)
         try {
-          localStream?.getTracks().forEach((t) => pc.addTrack(t, localStream));
+          pc.addTransceiver("audio", { direction: "sendrecv" });
+          pc.addTransceiver("video", { direction: "sendrecv" });
         } catch (e) {
-          log("error adding local tracks", e);
+          log("addTransceiver not available or failed:", e);
+        }
+
+        // 2) Attach local tracks by replacing transceiver sender track if available,
+        // otherwise fallback to addTrack
+        try {
+          const localVideoTrack = localStream?.getVideoTracks()?.[0];
+          const localAudioTrack = localStream?.getAudioTracks()?.[0];
+
+          // prefer using transceiver.sender.replaceTrack() when possible
+          if (localVideoTrack) {
+            const videoSender =
+              (pc.getTransceivers ? pc.getTransceivers().find(t => t.sender && (t.sender.track?.kind === 'video' || t.receiver?.track?.kind === 'video'))?.sender)
+              || pc.getSenders().find(s => s.track && s.track.kind === 'video');
+
+            if (videoSender && typeof videoSender.replaceTrack === "function") {
+              videoSender.replaceTrack(localVideoTrack).catch((e) => log("replaceTrack(video) failed:", e));
+            } else {
+              const hasVideoSender = pc.getSenders().some(s => s.track && s.track.kind === "video");
+              if (!hasVideoSender) {
+                try { pc.addTrack(localVideoTrack, localStream); } catch (e) { log("addTrack(video) failed:", e); }
+              } else {
+                log("video sender exists but replaceTrack not available");
+              }
+            }
+          }
+
+          if (localAudioTrack) {
+            const audioSender =
+              (pc.getTransceivers ? pc.getTransceivers().find(t => t.sender && (t.sender.track?.kind === 'audio' || t.receiver?.track?.kind === 'audio'))?.sender)
+              || pc.getSenders().find(s => s.track && s.track.kind === 'audio');
+
+            if (audioSender && typeof audioSender.replaceTrack === "function") {
+              audioSender.replaceTrack(localAudioTrack).catch((e) => log("replaceTrack(audio) failed:", e));
+            } else {
+              const hasAudioSender = pc.getSenders().some(s => s.track && s.track.kind === "audio");
+              if (!hasAudioSender) {
+                try { pc.addTrack(localAudioTrack, localStream); } catch (e) { log("addTrack(audio) failed:", e); }
+              } else {
+                log("audio sender exists but replaceTrack not available");
+              }
+            }
+          }
+        } catch (e) {
+          log("attach local tracks error:", e);
         }
 
         // ontrack: attach remote stream only if new and avoid repeated play calls
@@ -225,7 +270,6 @@ export default function VideoPage() {
               rv.playsInline = true;
               rv.autoplay = true;
               rv.muted = false;
-              // only replace srcObject if it's different
               if (rv.srcObject !== stream) {
                 rv.srcObject = stream;
                 rv.play().catch((err) => {
@@ -284,6 +328,28 @@ export default function VideoPage() {
             log("offer emitted (negotiationneeded)");
           } catch (err) {
             log("negotiation error", err);
+            // Defensive: if it's an m-line/order error, attempt gentle recovery by recreating PC
+            try {
+              if (err && (err.name === "InvalidAccessError" || /order of m-lines/i.test(String(err)))) {
+                log("m-line order error detected — attempting gentle recovery");
+                try { pc.close(); } catch (e) {}
+                pc = null;
+                // recreate and rely on onnegotiationneeded or call offer manually:
+                createPC();
+                try {
+                  makingOffer = true;
+                  const offer2 = await pc.createOffer();
+                  await pc.setLocalDescription(offer2);
+                  socket.emit("offer", pc.localDescription);
+                  log("offer emitted (retry)");
+                } catch (e2) {
+                  log("retry offer failed:", e2);
+                  showToast("Connection hiccup. Please try reconnecting.");
+                } finally { makingOffer = false; }
+              }
+            } catch (recErr) {
+              log("recovery attempt failed:", recErr);
+            }
           } finally {
             makingOffer = false;
           }
