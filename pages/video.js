@@ -14,6 +14,11 @@ export default function VideoPage() {
     let cameraTrackSaved = null;
     let isCleaning = false;
 
+    // negotiation flags (Perfect Negotiation pattern)
+    let makingOffer = false;
+    let ignoreOffer = false;
+    const polite = true; // keep one peer 'polite' to resolve simultaneous-offer races
+
     const get = (id) => document.getElementById(id);
     const showToast = (msg, ms = 2000) => {
       const t = get("toast");
@@ -32,7 +37,7 @@ export default function VideoPage() {
       try { console.log("[video]", ...args); } catch {}
     };
 
-    // Emoji animation
+    // Emoji animation (kept as original)
     const triggerRatingAnimation = (rating) => {
       const container = document.querySelector("#ratingOverlay .emoji-container");
       if (!container) return;
@@ -116,6 +121,8 @@ export default function VideoPage() {
       localStream = null;
       hasOffered = false;
       cameraTrackSaved = null;
+      makingOffer = false;
+      ignoreOffer = false;
       setTimeout(() => { isCleaning = false; }, 300);
       if (opts.goToConnect) window.location.href = "/connect";
     };
@@ -208,6 +215,7 @@ export default function VideoPage() {
           log("error adding local tracks", e);
         }
 
+        // ontrack: attach remote stream only if new and avoid repeated play calls
         pc.ontrack = (e) => {
           try {
             log("pc.ontrack event", e);
@@ -217,11 +225,16 @@ export default function VideoPage() {
               rv.playsInline = true;
               rv.autoplay = true;
               rv.muted = false;
-              rv.srcObject = stream;
-              rv.play().catch((err) => {
-                log("remoteVideo.play() rejected:", err);
-              });
-              log("attached remote stream to remoteVideo", stream);
+              // only replace srcObject if it's different
+              if (rv.srcObject !== stream) {
+                rv.srcObject = stream;
+                rv.play().catch((err) => {
+                  log("remoteVideo.play() rejected:", err);
+                });
+                log("attached remote stream to remoteVideo", stream);
+              } else {
+                log("remote stream already set, skipping reattach");
+              }
             } else {
               log("remoteVideo element missing");
             }
@@ -260,6 +273,21 @@ export default function VideoPage() {
             showRating();
           }
         };
+
+        // negotiationneeded: guard with makingOffer to prevent concurrent offers
+        pc.onnegotiationneeded = async () => {
+          try {
+            makingOffer = true;
+            const offer = await pc.createOffer();
+            await pc.setLocalDescription(offer);
+            socket.emit("offer", pc.localDescription);
+            log("offer emitted (negotiationneeded)");
+          } catch (err) {
+            log("negotiation error", err);
+          } finally {
+            makingOffer = false;
+          }
+        };
       };
 
       // Debug: log incoming signaling events
@@ -267,41 +295,65 @@ export default function VideoPage() {
         log("socket: ready", data);
         createPC();
         try {
-          if (!hasOffered && pc && pc.signalingState === "stable") {
+          // Use makingOffer + signalingState guard instead of naive hasOffered
+          if (!hasOffered && pc && pc.signalingState === "stable" && !makingOffer) {
             log("creating offer (ready)");
-            const offer = await pc.createOffer();
-            await pc.setLocalDescription(offer);
-            socket.emit("offer", offer);
-            hasOffered = true;
-            log("offer emitted");
+            try {
+              makingOffer = true;
+              const offer = await pc.createOffer();
+              await pc.setLocalDescription(offer);
+              socket.emit("offer", pc.localDescription);
+              hasOffered = true;
+              log("offer emitted");
+            } catch (e) {
+              log("ready-offer error", e);
+            } finally {
+              makingOffer = false;
+            }
           } else {
-            log("skipped offer: hasOffered or signalingState != stable", { hasOffered, signalingState: pc?.signalingState });
+            log("skipped offer: hasOffered or signalingState != stable", { hasOffered, signalingState: pc?.signalingState, makingOffer });
           }
         } catch (err) {
           console.error("Offer error:", err);
         }
       });
 
+      // OFFER handler (polite pattern)
       socket.on("offer", async (offer) => {
         log("socket: offer received", offer && offer.type);
         createPC();
         try {
-          await pc.setRemoteDescription(new RTCSessionDescription(offer));
+          const offerDesc = new RTCSessionDescription(offer);
+
+          const readyForOffer =
+            !makingOffer && (pc.signalingState === "stable" || pc.signalingState === "have-local-offer");
+          ignoreOffer = !readyForOffer && !polite;
+          if (ignoreOffer) {
+            log("Ignoring offer because not ready and not polite");
+            return;
+          }
+
+          await pc.setRemoteDescription(offerDesc);
           const answer = await pc.createAnswer();
           await pc.setLocalDescription(answer);
-          socket.emit("answer", answer);
+          socket.emit("answer", pc.localDescription);
           log("answer created & emitted");
         } catch (err) {
           console.error("Handling offer error:", err);
         }
       });
 
+      // ANSWER handler - only set when we are have-local-offer
       socket.on("answer", async (answer) => {
         log("socket: answer received", answer && answer.type);
         try {
           if (!pc) createPC();
-          await pc.setRemoteDescription(new RTCSessionDescription(answer));
-          log("remoteDescription set (answer)");
+          if (pc.signalingState === "have-local-offer") {
+            await pc.setRemoteDescription(new RTCSessionDescription(answer));
+            log("remoteDescription set (answer)");
+          } else {
+            log("Skipping setRemoteDescription for answer - wrong state:", pc.signalingState);
+          }
         } catch (err) {
           console.error("Setting remote answer failed:", err);
         }
