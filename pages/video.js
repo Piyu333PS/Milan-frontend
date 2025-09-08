@@ -32,7 +32,7 @@ export default function VideoPage() {
       try { console.log("[video]", ...args); } catch {}
     };
 
-    // Emoji animation (unchanged)
+    // Emoji animation
     const triggerRatingAnimation = (rating) => {
       const container = document.querySelector("#ratingOverlay .emoji-container");
       if (!container) return;
@@ -181,7 +181,8 @@ export default function VideoPage() {
         } catch (e) { /* ignore */ }
 
         const token = localStorage.getItem("token") || null;
-        log("emitting joinVideo", { roomCode, token ? true : false });
+        // FIXED: don't use conditional expression as object member without name
+        log("emitting joinVideo", { roomCode, hasToken: !!token });
         socket.emit("joinVideo", { roomCode, token });
       });
 
@@ -464,7 +465,7 @@ export default function VideoPage() {
       };
     }
 
-    // Rating hearts binding (unchanged)
+    // Rating hearts binding
     const hearts = document.querySelectorAll("#ratingOverlay .hearts i");
     hearts.forEach((h) => {
       h.addEventListener("click", () => {
