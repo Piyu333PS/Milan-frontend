@@ -133,7 +133,8 @@ export default function VideoPage() {
       try {
         // getUserMedia
         localStream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
-        cameraTrackSaved = localStream?.getVideoTracks()?.[0] || null;
+        // save a reference to camera track for screen-share restoration
+        cameraTrackSaved = localStream && localStream.getVideoTracks && localStream.getVideoTracks()[0] || null;
 
         const lv = get("localVideo");
         if (lv) {
@@ -202,17 +203,117 @@ export default function VideoPage() {
         log("socket disconnected:", reason);
       });
 
-      // create peer connection lazily
+      // create peer connection lazily - STABLE transceivers + robust replaceTrack handling
       const createPC = () => {
         if (pc) return;
-        log("creating RTCPeerConnection");
+        log("creating RTCPeerConnection (stable transceivers)");
         pc = new RTCPeerConnection(ICE_CONFIG);
 
-        // add local tracks
+        // 1) Create stable transceivers in deterministic order (audio then video)
+        //    This ensures m-line ordering is consistent across peers.
         try {
-          localStream?.getTracks().forEach((t) => pc.addTrack(t, localStream));
+          // create sendrecv transceivers so m-line order is predictable
+          if (typeof pc.addTransceiver === "function") {
+            pc.addTransceiver("audio", { direction: "sendrecv" });
+            pc.addTransceiver("video", { direction: "sendrecv" });
+          }
         } catch (e) {
-          log("error adding local tracks", e);
+          // addTransceiver may not be supported in some older browsers, ignore
+          log("addTransceiver not available or failed:", e);
+        }
+
+        // 2) Attach local tracks by replacing the transceiver sender track if available,
+        //    otherwise fall back to addTrack (compatibility).
+        try {
+          var localVideoTrack = null;
+          var localAudioTrack = null;
+          if (localStream && typeof localStream.getVideoTracks === "function") {
+            var vts = localStream.getVideoTracks();
+            if (vts && vts.length) localVideoTrack = vts[0];
+          }
+          if (localStream && typeof localStream.getAudioTracks === "function") {
+            var ats = localStream.getAudioTracks();
+            if (ats && ats.length) localAudioTrack = ats[0];
+          }
+
+          // find a video sender (transceiver.sender) or fallback to pc.getSenders()
+          var videoSender = null;
+          if (typeof pc.getTransceivers === "function") {
+            var tlist = pc.getTransceivers();
+            for (var i = 0; i < tlist.length; i++) {
+              try {
+                var t = tlist[i];
+                if (t && t.sender && t.sender.track && t.sender.track.kind === "video") { videoSender = t.sender; break; }
+                if (t && t.receiver && t.receiver.track && t.receiver.track.kind === "video") { videoSender = t.sender; break; }
+              } catch (e) {}
+            }
+          }
+          if (!videoSender) {
+            var sList = typeof pc.getSenders === "function" ? pc.getSenders() : [];
+            for (var j = 0; j < sList.length; j++) {
+              var s = sList[j];
+              if (s && s.track && s.track.kind === "video") { videoSender = s; break; }
+            }
+          }
+
+          // prefer using transceiver.sender.replaceTrack() when possible
+          if (localVideoTrack) {
+            if (videoSender && typeof videoSender.replaceTrack === "function") {
+              try { videoSender.replaceTrack(localVideoTrack).catch((e) => log("replaceTrack(video) failed:", e)); } catch (e) { log("videoSender.replaceTrack threw:", e); }
+            } else {
+              var sList2 = typeof pc.getSenders === "function" ? pc.getSenders() : [];
+              var hasVideoSender = false;
+              for (var k = 0; k < sList2.length; k++) {
+                var ss = sList2[k];
+                if (ss && ss.track && ss.track.kind === "video") { hasVideoSender = true; break; }
+              }
+              if (!hasVideoSender) {
+                try { pc.addTrack(localVideoTrack, localStream); } catch (e) { log("addTrack(video) failed:", e); }
+              } else {
+                log("video sender exists but replaceTrack not available");
+              }
+            }
+          }
+
+          // audio sender
+          var audioSender = null;
+          if (typeof pc.getTransceivers === "function") {
+            var tlist2 = pc.getTransceivers();
+            for (var ii = 0; ii < tlist2.length; ii++) {
+              try {
+                var tt = tlist2[ii];
+                if (tt && tt.sender && tt.sender.track && tt.sender.track.kind === "audio") { audioSender = tt.sender; break; }
+                if (tt && tt.receiver && tt.receiver.track && tt.receiver.track.kind === "audio") { audioSender = tt.sender; break; }
+              } catch (e) {}
+            }
+          }
+          if (!audioSender) {
+            var sList3 = typeof pc.getSenders === "function" ? pc.getSenders() : [];
+            for (var jj = 0; jj < sList3.length; jj++) {
+              var s2 = sList3[jj];
+              if (s2 && s2.track && s2.track.kind === "audio") { audioSender = s2; break; }
+            }
+          }
+
+          if (localAudioTrack) {
+            if (audioSender && typeof audioSender.replaceTrack === "function") {
+              try { audioSender.replaceTrack(localAudioTrack).catch((e) => log("replaceTrack(audio) failed:", e)); } catch (e) { log("audioSender.replaceTrack threw:", e); }
+            } else {
+              var sList4 = typeof pc.getSenders === "function" ? pc.getSenders() : [];
+              var hasAudioSender = false;
+              for (var kk = 0; kk < sList4.length; kk++) {
+                var s3 = sList4[kk];
+                if (s3 && s3.track && s3.track.kind === "audio") { hasAudioSender = true; break; }
+              }
+              if (!hasAudioSender) {
+                try { pc.addTrack(localAudioTrack, localStream); } catch (e) { log("addTrack(audio) failed:", e); }
+              } else {
+                log("audio sender exists but replaceTrack not available");
+              }
+            }
+          }
+        } catch (e) {
+          log("attach local tracks error:", e);
         }
 
         // ontrack: attach remote stream only if new and avoid repeated play calls
@@ -225,7 +326,6 @@ export default function VideoPage() {
               rv.playsInline = true;
               rv.autoplay = true;
               rv.muted = false;
-              // only replace srcObject if it's different
               if (rv.srcObject !== stream) {
                 rv.srcObject = stream;
                 rv.play().catch((err) => {
@@ -284,6 +384,30 @@ export default function VideoPage() {
             log("offer emitted (negotiationneeded)");
           } catch (err) {
             log("negotiation error", err);
+            // Defensive: if it's m-line ordering error, try a soft recovery:
+            try {
+              const name = err && err.name ? err.name : "";
+              const msg = String(err || "");
+              if (name === "InvalidAccessError" || /order of m-lines/i.test(msg)) {
+                log("Negotiation error looks like m-line/order issue. Attempting gentle recovery: recreate PC & retry.");
+                try { pc.close(); } catch (e) {}
+                pc = null;
+                // recreate and retry
+                createPC();
+                try {
+                  makingOffer = true;
+                  const offer2 = await pc.createOffer();
+                  await pc.setLocalDescription(offer2);
+                  socket.emit("offer", pc.localDescription);
+                  log("offer emitted (retry)");
+                } catch (e2) {
+                  log("retry offer also failed:", e2);
+                  showToast("Connection hiccup. Please try reconnecting.");
+                } finally { makingOffer = false; }
+              }
+            } catch (recErr) {
+              log("recovery failed:", recErr);
+            }
           } finally {
             makingOffer = false;
           }
@@ -311,7 +435,7 @@ export default function VideoPage() {
               makingOffer = false;
             }
           } else {
-            log("skipped offer: hasOffered or signalingState != stable", { hasOffered, signalingState: pc?.signalingState, makingOffer });
+            log("skipped offer: hasOffered or signalingState != stable", { hasOffered, signalingState: pc ? pc.signalingState : null, makingOffer });
           }
         } catch (err) {
           console.error("Offer error:", err);
@@ -410,7 +534,7 @@ export default function VideoPage() {
     const micBtn = get("micBtn");
     if (micBtn) {
       micBtn.onclick = () => {
-        const t = localStream?.getAudioTracks()[0];
+        const t = localStream && localStream.getAudioTracks && localStream.getAudioTracks()[0];
         if (!t) return;
         t.enabled = !t.enabled;
         micBtn.classList.toggle("inactive", !t.enabled);
@@ -423,7 +547,7 @@ export default function VideoPage() {
     const camBtn = get("camBtn");
     if (camBtn) {
       camBtn.onclick = () => {
-        const t = localStream?.getVideoTracks()[0];
+        const t = localStream && localStream.getVideoTracks && localStream.getVideoTracks()[0];
         if (!t) return;
         t.enabled = !t.enabled;
         camBtn.classList.toggle("inactive", !t.enabled);
@@ -440,15 +564,25 @@ export default function VideoPage() {
         try {
           const screen = await navigator.mediaDevices.getDisplayMedia({ video: true });
           const screenTrack = screen.getVideoTracks()[0];
-          const sender = pc.getSenders().find((s) => s.track && s.track.kind === "video");
+          const senders = pc.getSenders ? pc.getSenders() : [];
+          const sender = senders.find((s) => s && s.track && s.track.kind === "video");
           if (!sender) {
             showToast("No video sender found");
             screenTrack.stop();
             return;
           }
 
-          cameraTrackSaved = localStream?.getVideoTracks()?.[0] || cameraTrackSaved;
-          await sender.replaceTrack(screenTrack);
+          cameraTrackSaved = localStream && localStream.getVideoTracks && localStream.getVideoTracks()[0] || cameraTrackSaved;
+          try {
+            await sender.replaceTrack(screenTrack);
+          } catch (e) {
+            // fallback: remove existing and add screen track
+            try {
+              pc.addTrack(screenTrack, screen);
+            } catch (e2) {
+              log("replace/add screen track failed", e2);
+            }
+          }
           screenBtn.classList.add("active");
           showToast("Screen sharing");
 
@@ -473,7 +607,7 @@ export default function VideoPage() {
                 }
               }
               if (sender && cam) {
-                await sender.replaceTrack(cam);
+                try { await sender.replaceTrack(cam); } catch (err) { log("restore camera via replaceTrack failed", err); }
                 showToast("Screen sharing stopped — camera restored");
               } else {
                 showToast("Screen sharing stopped");
@@ -495,7 +629,7 @@ export default function VideoPage() {
     const disconnectBtn = get("disconnectBtn");
     if (disconnectBtn) {
       disconnectBtn.onclick = () => {
-        try { socket?.emit("partnerLeft"); } catch {}
+        try { socket && socket.emit && socket.emit("partnerLeft"); } catch {}
         cleanup();
         showRating();
       };
