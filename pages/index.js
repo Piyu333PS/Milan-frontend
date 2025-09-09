@@ -316,23 +316,7 @@ export default function HomePage() {
               <p className="age-note">🔞 Milan is strictly for 18+ users.</p>
 
               {/* NEW: Couple Quiz CTA (romantic + playful) */}
-              <div style={{ display: "flex", justifyContent: "center", marginTop: 18 }}>
-                <button
-                  id="coupleQuizBtn"
-                  className="couple-btn"
-                  onClick={startCoupleQuiz}
-                  onMouseDown={(e) => rippleEffect(e)}
-                  aria-label="Start Couple Quiz - Play romantic rapid-fire"
-                >
-                  <span className="cq-left">
-                    <span className="cq-heart" aria-hidden="true">💞</span>
-                  </span>
-                  <span className="cq-right">
-                    <span className="cq-title">Couple Quiz</span>
-                    <span className="cq-sub">Romantic · Fun · Rapid Fire</span>
-                  </span>
-                </button>
-              </div>
+              /* Couple Quiz CTA removed */
 
               {/* WHY MILAN cards */}
               <div className="why-grid" aria-hidden={false}>
@@ -880,7 +864,26 @@ export default function HomePage() {
           .cq-title { font-size:16px; }
           .cq-sub { font-size:12px; }
         }
-      `}</style>
+      `}
+.milan-logo {
+  font-family: 'Poppins', sans-serif;
+  font-size: 2.2rem;
+  font-weight: bold;
+  color: #fff;
+  letter-spacing: 1px;
+  position: relative;
+  display: inline-block;
+}
+.milan-logo::after {
+  content: "♥";
+  color: #ff5fa2;
+  font-size: 1rem;
+  position: absolute;
+  top: -10px;
+  left: 18px;
+}
+
+</style>
     </>
   );
 }
