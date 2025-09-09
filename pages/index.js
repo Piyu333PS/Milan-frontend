@@ -572,7 +572,28 @@ export default function HomePage() {
               <button className="primary-btn" onClick={acceptConsent} onMouseDown={(e)=>rippleEffect(e)}>I Accept & Continue</button>
             </div>
           </div>
-        </div>
+        
+      <style jsx>{`
+        .milan-logo {
+          font-family: 'Poppins', sans-serif;
+          font-size: 2.2rem;
+          font-weight: bold;
+          color: #fff;
+          letter-spacing: 1px;
+          position: relative;
+          display: inline-block;
+        }
+        .milan-logo::after {
+          content: "♥";
+          color: #ff5fa2;
+          font-size: 1rem;
+          position: absolute;
+          top: -10px;
+          left: 18px;
+        }
+      `}</style>
+
+</div>
       )}
 
       <style jsx global>{`
@@ -868,23 +889,3 @@ export default function HomePage() {
     </>
   );
 }
-
-<style jsx>{`
-  .milan-logo {
-    font-family: 'Poppins', sans-serif;
-    font-size: 2.2rem;
-    font-weight: bold;
-    color: #fff;
-    letter-spacing: 1px;
-    position: relative;
-    display: inline-block;
-  }
-  .milan-logo::after {
-    content: "♥";
-    color: #ff5fa2;
-    font-size: 1rem;
-    position: absolute;
-    top: -10px;
-    left: 18px;
-  }
-`}</style>
