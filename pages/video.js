@@ -497,6 +497,72 @@ export default function VideoPage() {
       socket.on("partnerLeft", function () { log("socket: partnerLeft"); showToast("Partner left"); showRating(); var rv2 = get("remoteVideo"); if (rv2) rv2.srcObject = null; });
       socket.on("errorMessage", function (e) { console.warn("server errorMessage:", e); });
       socket.on("connect_error", function (err) { console.warn("socket connect_error event:", err); });
+
+      // ======= QUESTION GAME: handlers inside start() where socket is defined =======
+      socket.on("newQuestion", function ({ question, timeout }) {
+        try {
+          var qOverlay = get("questionOverlay");
+          if (!qOverlay) return;
+          get("qText").textContent = question || "Question";
+          get("qAnswer").value = "";
+          qOverlay.style.display = "flex";
+          // timer
+          var t = typeof timeout === "number" ? timeout : 30;
+          get("qTimer").textContent = t + "s";
+          var intv = setInterval(function () {
+            t--;
+            try { get("qTimer").textContent = t + "s"; } catch (e) {}
+            if (t <= 0) {
+              clearInterval(intv);
+            }
+          }, 1000);
+        } catch (e) { log("newQuestion handler error", e); }
+      });
+
+      socket.on("questionResult", function ({ question, results }) {
+        try {
+          var qOverlay = get("questionOverlay");
+          if (qOverlay) qOverlay.style.display = "none";
+          var res = get("qResults");
+          if (!res) return;
+          var html = "<strong>" + (question || "") + "</strong><br/>";
+          if (Array.isArray(results)) {
+            html += results.map(function (r) { return (r.user || r.username || r.id || "User") + ": " + (r.answer || "(no answer)"); }).join("<br/>");
+          } else {
+            html += JSON.stringify(results);
+          }
+          res.innerHTML = html;
+          res.style.display = "block";
+          setTimeout(function () { try { res.style.display = "none"; } catch (e) {} }, 6000);
+        } catch (e) { log("questionResult error", e); }
+      });
+
+      // attach submit button handler (safe - id exists in DOM)
+      setTimeout(function () {
+        var submitBtn = get("submitQBtn");
+        if (submitBtn) {
+          submitBtn.onclick = function () {
+            try {
+              var ans = get("qAnswer").value || "(no answer)";
+              var roomCode = sessionStorage.getItem("roomCode") || localStorage.getItem("lastRoomCode");
+              safeEmit("submitAnswer", { roomCode: roomCode, answer: ans });
+              var qOverlay2 = get("questionOverlay");
+              if (qOverlay2) qOverlay2.style.display = "none";
+            } catch (e) { log("submitQBtn click err", e); }
+          };
+        }
+        var startBtn = get("startGameBtn");
+        if (startBtn) {
+          startBtn.onclick = function () {
+            try {
+              var roomCode = sessionStorage.getItem("roomCode") || localStorage.getItem("lastRoomCode");
+              safeEmit("startQuestionGame", { roomCode: roomCode });
+              showToast("Question requested...");
+            } catch (e) { log("startGameBtn click err", e); }
+          };
+        }
+      }, 800);
+
     })();
 
     // Controls (unchanged)
@@ -623,6 +689,12 @@ export default function VideoPage() {
         <button id="screenShareBtn" className="control-btn" aria-label="Share Screen">
           <i className="fas fa-desktop"></i><span>Share</span>
         </button>
+
+        {/* NEW: Q&A Start Button */}
+        <button id="startGameBtn" className="control-btn" aria-label="Start Q&A">
+          <i className="fas fa-question-circle"></i><span>Q&A</span>
+        </button>
+
         <button id="disconnectBtn" className="control-btn danger" aria-label="End Call">
           <i className="fas fa-phone-slash"></i><span>End</span>
         </button>
@@ -645,6 +717,21 @@ export default function VideoPage() {
           <div className="emoji-container" aria-hidden="true"></div>
         </div>
       </div>
+
+      {/* QUESTION GAME OVERLAY */}
+      <div id="questionOverlay" style={{ display: "none", position: "fixed", inset: 0, background: "rgba(0,0,0,0.92)", color: "#fff", zIndex: 4500, justifyContent: "center", alignItems: "center", flexDirection: "column", padding: "20px" }}>
+        <div style={{ maxWidth: 820, width: "94%", textAlign: "center" }}>
+          <h2 id="qText" style={{ fontSize: 22, lineHeight: "1.3", marginBottom: 8 }}></h2>
+          <div id="qTimer" style={{ fontWeight: "700", marginBottom: 10 }}>30s</div>
+          <textarea id="qAnswer" rows="4" style={{ width: "100%", borderRadius: 10, padding: 12, fontSize: 15 }} placeholder="Type your answer here..."></textarea>
+          <div style={{ marginTop: 12, display: "flex", justifyContent: "center", gap: 12 }}>
+            <button id="submitQBtn" style={{ padding: "10px 18px", borderRadius: 10, background: "linear-gradient(90deg,#ff6b81,#ff9bb8)", color: "#fff", border: "none", cursor: "pointer" }}>Submit</button>
+            <button onClick={() => { try { document.getElementById("questionOverlay").style.display = "none"; } catch (e) {} }} style={{ padding: "10px 18px", borderRadius: 10, background: "#2f3b4a", color: "#fff", border: "none", cursor: "pointer" }}>Close</button>
+          </div>
+        </div>
+      </div>
+
+      <div id="qResults" style={{ position: "fixed", bottom: "20px", left: "50%", transform: "translateX(-50%)", color: "#fff", background: "rgba(0,0,0,.6)", padding: "10px 14px", borderRadius: "10px", zIndex: 4400, display: "none", maxWidth: "92%", textAlign: "center" }}></div>
 
       <div id="toast"></div>
 
