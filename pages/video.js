@@ -537,6 +537,157 @@ export default function VideoPage() {
         } catch (e) { log("questionResult error", e); }
       });
 
+      // ===== Truth & Dare handlers (UI overlays & socket events) =====
+      socket.on("tdStarted", function ({ sessionId, type, prompt, starter, target, timeout }) {
+        try {
+          var overlay = get("tdOverlay");
+          if (!overlay) return;
+          get("tdTitle").textContent = (type === "dare" ? "Dare" : "Truth");
+          get("tdPrompt").textContent = prompt || "";
+          get("tdAnswer").value = "";
+          overlay.style.display = "flex";
+
+          var t = typeof timeout === "number" ? timeout : (type === "dare" ? 40 : 30);
+          get("tdTimer").textContent = t + "s";
+          var intv = setInterval(function () {
+            t--;
+            get("tdTimer").textContent = t + "s";
+            if (t <= 0) {
+              clearInterval(intv);
+              // auto submit as "(no response)"
+              var roomCode = sessionStorage.getItem("roomCode") || localStorage.getItem("lastRoomCode");
+              safeEmit("submitTD", { roomCode: roomCode, sessionId: sessionId, result: "(no response)", skipped: true });
+              overlay.style.display = "none";
+            }
+          }, 1000);
+
+          // attach buttons (single-use)
+          var submitBtn = get("tdSubmitBtn"), skipBtn = get("tdSkipBtn"), cancelBtn = get("tdCancelBtn");
+          function cleanupTD() { if (submitBtn) submitBtn.onclick = null; if (skipBtn) skipBtn.onclick = null; if (cancelBtn) cancelBtn.onclick = null; clearInterval(intv); }
+
+          if (submitBtn) {
+            submitBtn.onclick = function () {
+              var ans = get("tdAnswer").value.trim() || "(no answer)";
+              var roomCode = sessionStorage.getItem("roomCode") || localStorage.getItem("lastRoomCode");
+              safeEmit("submitTD", { roomCode: roomCode, sessionId: sessionId, result: ans, skipped: false });
+              overlay.style.display = "none";
+              cleanupTD();
+            };
+          }
+          if (skipBtn) {
+            skipBtn.onclick = function () {
+              var roomCode = sessionStorage.getItem("roomCode") || localStorage.getItem("lastRoomCode");
+              safeEmit("submitTD", { roomCode: roomCode, sessionId: sessionId, result: "(skipped)", skipped: true });
+              overlay.style.display = "none";
+              cleanupTD();
+            };
+          }
+          if (cancelBtn) {
+            cancelBtn.onclick = function () {
+              var roomCode = sessionStorage.getItem("roomCode") || localStorage.getItem("lastRoomCode");
+              safeEmit("cancelTD", { roomCode: roomCode, sessionId: sessionId });
+              overlay.style.display = "none";
+              cleanupTD();
+            };
+          }
+        } catch (e) { log("tdStarted handler err", e); }
+      });
+
+      socket.on("tdResult", function ({ sessionId, prompt, type, results }) {
+        try {
+          var res = get("tdResults");
+          if (!res) return;
+          var html = "<div style='font-weight:700;margin-bottom:6px'>" + (type || "").toUpperCase() + ": " + (prompt || "") + "</div>";
+          if (Array.isArray(results)) {
+            html += results.map(function (r) {
+              var who = (r.user === socket.id ? "You" : r.user);
+              return "<div style='text-align:left'><b>" + who + ":</b> " + escapeHtml(r.result || "(no answer)") + "</div>";
+            }).join("");
+          } else {
+            html += JSON.stringify(results || {});
+          }
+          res.innerHTML = html;
+          res.style.display = "block";
+          setTimeout(function () { res.style.display = "none"; }, 8000);
+        } catch (e) { log("tdResult handler err", e); }
+      });
+
+      socket.on("tdCancelled", function ({ sessionId }) {
+        try { var overlay = get("tdOverlay"); if (overlay) overlay.style.display = "none"; } catch (e) {}
+      });
+
+      // ===== Rock-Paper-Scissors handlers (frontend wiring) =====
+      socket.on("rpsRound", function ({ roundId, timeout }) {
+        try {
+          var overlay = get("rpsOverlay");
+          if (!overlay) return;
+          get("rpsTimer").textContent = (typeof timeout === "number" ? timeout : 8) + "s";
+          get("rpsStatus").textContent = "Choose your move";
+          overlay.style.display = "flex";
+          get("rpsResult").style.display = "none";
+
+          var t = typeof timeout === "number" ? timeout : 8;
+          var intv = setInterval(function () {
+            t--;
+            get("rpsTimer").textContent = t + "s";
+            if (t <= 0) {
+              clearInterval(intv);
+              // auto send no_move if not chosen
+              var roomCode = sessionStorage.getItem("roomCode") || localStorage.getItem("lastRoomCode");
+              safeEmit("rpsMove", { roomCode: roomCode, roundId: roundId, move: "no_move" });
+              overlay.style.display = "none";
+            }
+          }, 1000);
+
+          // attach buttons once
+          var rock = get("rpsRock"), paper = get("rpsPaper"), scissors = get("rpsScissors");
+          function disableChoices() { if (rock) rock.disabled = true; if (paper) paper.disabled = true; if (scissors) scissors.disabled = true; }
+          function onChoose(move) {
+            var roomCode = sessionStorage.getItem("roomCode") || localStorage.getItem("lastRoomCode");
+            safeEmit("rpsMove", { roomCode: roomCode, roundId: roundId, move: move });
+            disableChoices();
+            get("rpsStatus").textContent = "Waiting for opponent...";
+            setTimeout(function () { overlay.style.display = "none"; }, 800);
+            clearInterval(intv);
+          }
+          if (rock) rock.onclick = function () { onChoose("rock"); };
+          if (paper) paper.onclick = function () { onChoose("paper"); };
+          if (scissors) scissors.onclick = function () { onChoose("scissors"); };
+        } catch (e) { log("rpsRound handler err", e); }
+      });
+
+      socket.on("rpsResult", function ({ roundId, moves, winner }) {
+        try {
+          var res = get("rpsResult");
+          if (!res) return;
+          // moves: [{ id, move }]
+          var html = "<div style='font-weight:700;margin-bottom:6px'>Round Result</div>";
+          if (Array.isArray(moves)) {
+            html += moves.map(function (m) {
+              var who = (m.id === socket.id ? "You" : m.id);
+              return "<div style='text-align:left'><b>" + who + ":</b> " + (m.move || "(no move)") + "</div>";
+            }).join("");
+          }
+          html += "<div style='margin-top:8px;font-weight:800;color:#ffd54d'>" + (winner ? (winner === socket.id ? "You win!" : "Opponent wins!") : "Tie") + "</div>";
+          res.innerHTML = html;
+          res.style.display = "block";
+          // show small popup
+          setTimeout(function () { res.style.display = "none"; }, 6000);
+        } catch (e) { log("rpsResult handler err", e); }
+      });
+
+      // ===== Love Meter handler (server optional) =====
+      socket.on("loveMeterResult", function ({ score, reason }) {
+        try {
+          var overlay = get("loveMeterOverlay");
+          if (!overlay) return;
+          get("loveMeterPercent").textContent = (typeof score === "number" ? score : Math.floor(Math.random() * 46) + 55) + "%";
+          get("loveMeterReason").textContent = reason || "You have lovely chemistry!";
+          overlay.style.display = "flex";
+          setTimeout(function () { overlay.style.display = "none"; }, 7000);
+        } catch (e) { log("loveMeterResult err", e); }
+      });
+
       // attach submit button handler (safe - id exists in DOM)
       setTimeout(function () {
         var submitBtn = get("submitQBtn");
@@ -561,6 +712,88 @@ export default function VideoPage() {
             } catch (e) { log("startGameBtn click err", e); }
           };
         }
+
+        // === Activities menu wiring ===
+        var activitiesBtn = get("activitiesBtn");
+        var activitiesModal = get("activitiesModal");
+        var activitiesClose = get("activitiesClose");
+        if (activitiesBtn) {
+          activitiesBtn.onclick = function (e) {
+            try { activitiesModal.style.display = "flex"; } catch (err) {}
+          };
+        }
+        if (activitiesClose) activitiesClose.onclick = function () { try { activitiesModal.style.display = "none"; } catch (e) {} };
+
+        // couple quiz option
+        var optCouple = get("optCoupleQuiz");
+        if (optCouple) optCouple.onclick = function () {
+          try {
+            var roomCode = sessionStorage.getItem("roomCode") || localStorage.getItem("lastRoomCode");
+            safeEmit("startQuestionGame", { roomCode: roomCode });
+            activitiesModal.style.display = "none";
+            showToast("Couple Quiz started...");
+          } catch (e) { log("optCouple err", e); }
+        };
+
+        // truth & dare option
+        var optTD = get("optTruthDare");
+        if (optTD) optTD.onclick = function () {
+          try {
+            var roomCode = sessionStorage.getItem("roomCode") || localStorage.getItem("lastRoomCode");
+            safeEmit("startTruthDare", { roomCode: roomCode, mode: "random" });
+            activitiesModal.style.display = "none";
+            showToast("Truth & Dare started...");
+          } catch (e) { log("optTD err", e); }
+        };
+
+        // rock paper scissors option
+        var optRPS = get("optRPS");
+        if (optRPS) optRPS.onclick = function () {
+          try {
+            var roomCode = sessionStorage.getItem("roomCode") || localStorage.getItem("lastRoomCode");
+            // frontend asks server to start an RPS round; server should reply with rpsRound
+            safeEmit("startRPS", { roomCode: roomCode });
+            activitiesModal.style.display = "none";
+            showToast("Rock-Paper-Scissors started...");
+          } catch (e) { log("optRPS err", e); }
+        };
+
+        // love meter option
+        var optLove = get("optLoveMeter");
+        if (optLove) optLove.onclick = function () {
+          try {
+            var roomCode = sessionStorage.getItem("roomCode") || localStorage.getItem("lastRoomCode");
+            // request server if available; otherwise compute client-side fun percent
+            try {
+              safeEmit("startLoveMeter", { roomCode: roomCode });
+              activitiesModal.style.display = "none";
+              showToast("Love Meter calculating...");
+              // if server doesn't respond, fallback client-side after 900ms
+              setTimeout(function () {
+                var overlay = get("loveMeterOverlay");
+                if (!overlay) return;
+                if (overlay.style.display === "none") {
+                  var perc = Math.floor(55 + Math.random() * 40); // 55 - 94
+                  get("loveMeterPercent").textContent = perc + "%";
+                  get("loveMeterReason").textContent = "A sweet connection!";
+                  overlay.style.display = "flex";
+                  setTimeout(function () { overlay.style.display = "none"; }, 7000);
+                }
+              }, 900);
+            } catch (emitErr) {
+              // fallback client-side immediately
+              var perc = Math.floor(55 + Math.random() * 40);
+              var overlay = get("loveMeterOverlay");
+              if (overlay) {
+                get("loveMeterPercent").textContent = perc + "%";
+                get("loveMeterReason").textContent = "A sweet connection!";
+                overlay.style.display = "flex";
+                setTimeout(function () { overlay.style.display = "none"; }, 7000);
+              }
+            }
+          } catch (e) { log("optLove err", e); }
+        };
+
       }, 800);
 
     })();
@@ -662,6 +895,9 @@ export default function VideoPage() {
     return function () { cleanup(); };
   }, []);
 
+  // small utility to escape HTML when showing results
+  function escapeHtml(s){ return String(s).replace(/[&<>"']/g, function(m){ return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":"&#39;"}[m]; }); }
+
   return (
     <>
       <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css" referrerPolicy="no-referrer" />
@@ -690,9 +926,9 @@ export default function VideoPage() {
           <i className="fas fa-desktop"></i><span>Share</span>
         </button>
 
-        {/* NEW: Q&A Start Button */}
-        <button id="startGameBtn" className="control-btn" aria-label="Start Q&A">
-          <i className="fas fa-question-circle"></i><span>Q&A</span>
+        {/* Activities menu button (replaces standalone Q&A) */}
+        <button id="activitiesBtn" className="control-btn" aria-label="Open Fun Activities">
+          <i className="fas fa-gamepad"></i><span>Activities</span>
         </button>
 
         <button id="disconnectBtn" className="control-btn danger" aria-label="End Call">
@@ -733,6 +969,83 @@ export default function VideoPage() {
 
       <div id="qResults" style={{ position: "fixed", bottom: "20px", left: "50%", transform: "translateX(-50%)", color: "#fff", background: "rgba(0,0,0,.6)", padding: "10px 14px", borderRadius: "10px", zIndex: 4400, display: "none", maxWidth: "92%", textAlign: "center" }}></div>
 
+      {/* Activities Modal */}
+      <div id="activitiesModal" style={{ display: "none", position: "fixed", inset: 0, zIndex: 4600, background: "rgba(0,0,0,0.7)", justifyContent: "center", alignItems: "center" }}>
+        <div style={{ width: "94%", maxWidth: 520, background: "linear-gradient(180deg, rgba(255,255,255,0.03), rgba(255,255,255,0.02))", padding: 18, borderRadius: 12, textAlign: "center", color: "#fff" }}>
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+            <h3 style={{ margin: 0 }}>Fun Activities 🎲</h3>
+            <button id="activitiesClose" style={{ background: "transparent", border: "none", color: "#fff", fontSize: 20, cursor: "pointer" }}>✕</button>
+          </div>
+
+          <p style={{ color: "#cfd8ea", marginTop: 8 }}>Choose a quick activity to play with your partner</p>
+
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12, marginTop: 12 }}>
+            <button id="optCoupleQuiz" className="act-card">
+              <div style={{ fontSize: 20 }}>💞 Couple Quiz</div>
+              <small>Romantic Q&A</small>
+            </button>
+            <button id="optTruthDare" className="act-card">
+              <div style={{ fontSize: 20 }}>🎭 Truth & Dare</div>
+              <small>Spicy or sweet prompts</small>
+            </button>
+            <button id="optRPS" className="act-card">
+              <div style={{ fontSize: 20 }}>✊✂️✋ RPS</div>
+              <small>Rock-Paper-Scissors</small>
+            </button>
+            <button id="optLoveMeter" className="act-card">
+              <div style={{ fontSize: 20 }}>💖 Love Meter</div>
+              <small>Compatibility fun %</small>
+            </button>
+          </div>
+
+          <p style={{ marginTop: 10, fontSize: 12, color: "#aab6d6" }}>These are short, light-hearted activities to make the call fun.</p>
+        </div>
+      </div>
+
+      {/* Truth & Dare Overlay */}
+      <div id="tdOverlay" style={{ display: "none", position: "fixed", inset: 0, zIndex: 4700, background: "rgba(0,0,0,0.92)", color:"#fff", justifyContent:"center", alignItems:"center", padding:20 }}>
+        <div style={{ maxWidth:720, width:"94%", textAlign:"center", background:"rgba(255,255,255,0.03)", padding:20, borderRadius:12 }}>
+          <h3 id="tdTitle" style={{ marginBottom:6, fontSize:20 }}>Truth or Dare</h3>
+          <div id="tdPrompt" style={{ fontSize:18, marginBottom:12, color:"#ffd" }}>Prompt will appear here</div>
+          <div id="tdTimer" style={{ fontWeight:700, marginBottom:10 }}>30s</div>
+
+          <textarea id="tdAnswer" placeholder="Type your answer here..." style={{ width:"100%", padding:12, borderRadius:8, marginBottom:10 }}></textarea>
+
+          <div style={{ display:"flex", gap:10, justifyContent:"center" }}>
+            <button id="tdSubmitBtn" className="control-btn small" style={{ padding:"8px 12px" }}>Submit</button>
+            <button id="tdSkipBtn" className="control-btn small" style={{ padding:"8px 12px", background:"#444" }}>Skip</button>
+            <button id="tdCancelBtn" className="control-btn small" style={{ padding:"8px 12px", background:"#6b1c2a" }}>Cancel</button>
+          </div>
+        </div>
+      </div>
+
+      <div id="tdResults" style={{ display:"none", position:"fixed", bottom:20, left:"50%", transform:"translateX(-50%)", zIndex:4600, background:"rgba(0,0,0,0.7)", color:"#fff", padding:12, borderRadius:10 }}></div>
+
+      {/* RPS Overlay */}
+      <div id="rpsOverlay" style={{ display:"none", position:"fixed", inset:0, zIndex:4700, background:"rgba(0,0,0,0.92)", color:"#fff", justifyContent:"center", alignItems:"center" }}>
+        <div style={{ width:"94%", maxWidth:520, textAlign:"center", padding:18, borderRadius:12, background:"rgba(255,255,255,0.03)" }}>
+          <div id="rpsStatus" style={{ fontSize:18, marginBottom:10 }}>Rock-Paper-Scissors</div>
+          <div id="rpsTimer" style={{ fontWeight:700, marginBottom:12 }}>8s</div>
+
+          <div style={{ display:"flex", gap:12, justifyContent:"center", marginBottom:12 }}>
+            <button id="rpsRock" className="act-emoji">🪨<div>Rock</div></button>
+            <button id="rpsPaper" className="act-emoji">📄<div>Paper</div></button>
+            <button id="rpsScissors" className="act-emoji">✂️<div>Scissors</div></button>
+          </div>
+
+          <div id="rpsResult" style={{ display:"none", marginTop:10, color:"#ffd54d" }}></div>
+        </div>
+      </div>
+
+      {/* Love Meter Overlay */}
+      <div id="loveMeterOverlay" style={{ display:"none", position:"fixed", inset:0, zIndex:4700, background:"rgba(0,0,0,0.92)", color:"#fff", justifyContent:"center", alignItems:"center" }}>
+        <div style={{ width:"94%", maxWidth:420, padding:20, borderRadius:14, textAlign:"center", background:"rgba(255,255,255,0.03)" }}>
+          <div style={{ fontSize:22, fontWeight:800, marginBottom:8 }}>Love Meter</div>
+          <div id="loveMeterPercent" style={{ fontSize:48, color:"#ff6b81", fontWeight:900 }}>78%</div>
+          <div id="loveMeterReason" style={{ marginTop:8, color:"#ffd" }}>You're a lovely pair!</div>
+        </div>
+      </div>
+
       <div id="toast"></div>
 
       <style jsx global>{`
@@ -747,6 +1060,7 @@ export default function VideoPage() {
         .control-bar{position:fixed;bottom:18px;left:50%;transform:translateX(-50%);display:flex;gap:18px;padding:12px 16px;background:rgba(0,0,0,.6);border-radius:16px;z-index:3000;backdrop-filter: blur(8px);}
         .control-btn{display:flex;flex-direction:column;align-items:center;justify-content:center;background:#18181b;color:#fff;border-radius:14px;width:68px;height:68px;cursor:pointer;}
         .control-btn.inactive{opacity:0.5}.control-btn.active{box-shadow:0 6px 18px rgba(255,77,141,0.18);transform:translateY(-2px)}.control-btn.danger{background:#9b1c2a}
+        .control-btn.small{width:auto;height:auto;padding:8px 10px;border-radius:8px}
         #ratingOverlay{position:fixed;inset:0;display:none;align-items:center;justify-content:center;background:rgba(0,0,0,.9);color:#fff;z-index:4000;padding:40px}
         .rating-content{position:relative;min-width: min(720px, 92vw);padding:48px 56px;border-radius:24px;text-align:center;background:rgba(255,255,255,.10);border:1px solid rgba(255,255,255,.18);box-shadow:0 20px 60px rgba(0,0,0,.55);z-index:1}
         .rating-content h2{ font-size:32px;margin-bottom:18px;letter-spacing:.3px }
@@ -765,6 +1079,10 @@ export default function VideoPage() {
         @keyframes orbitCCW{ from{transform:rotate(360deg) translateX(var(--r)) rotate(-360deg)} to{transform:rotate(0deg) translateX(var(--r)) rotate(360deg)} }
         @keyframes burstLocal{ 0%{transform:scale(.6) translateY(0);opacity:1} 60%{transform:scale(1.4) translateY(-80px)} 100%{transform:scale(1) translateY(-320px);opacity:0} }
         #toast{position:fixed;left:50%;bottom:110px;transform:translateX(-50%);background:#111;color:#fff;padding:10px 14px;border-radius:8px;display:none;z-index:5000;border:1px solid rgba(255,255,255,.12)}
+        /* activities modal */
+        .act-card{display:flex;flex-direction:column;align-items:center;justify-content:center;padding:12px 10px;border-radius:10px;background:rgba(255,255,255,0.02);color:#fff;border:1px solid rgba(255,255,255,0.04);cursor:pointer}
+        .act-card small{color:#cbd6ef;margin-top:6px;font-size:12px}
+        .act-emoji{display:flex;flex-direction:column;align-items:center;justify-content:center;padding:12px 16px;border-radius:10px;background:rgba(255,255,255,0.02);border:1px solid rgba(255,255,255,0.04);cursor:pointer}
         @media(max-width: 900px){.video-panes{ flex-direction:column; } .video-box{ flex:1 1 50%; min-height: 0; }}
         @media(max-width:480px){ .video-panes{ gap:8px; padding:8px; bottom:108px; } .label{ font-size:11px; padding:5px 8px; } .control-btn{ width:62px; height:62px; } .rating-content{min-width:92vw;padding:30px 20px} .hearts{font-size:46px;gap:18px} .rating-buttons{gap:16px} .rating-buttons button{padding:14px 18px;font-size:16px;border-radius:14px} }
       `}</style>
