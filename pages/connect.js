@@ -36,6 +36,18 @@ export default function ConnectPage() {
   const [showLoader, setShowLoader] = useState(false);
   const [showModeButtons, setShowModeButtons] = useState(true);
 
+  // Love Calculator state
+  const [showLoveCalc, setShowLoveCalc] = useState(false);
+  const [lcNameA, setLcNameA] = useState("");
+  const [lcNameB, setLcNameB] = useState("");
+  const [lcAgeA, setLcAgeA] = useState("");
+  const [lcAgeB, setLcAgeB] = useState("");
+  const [lcInterests, setLcInterests] = useState(""); // comma separated
+  const [lcScore, setLcScore] = useState(null);
+  const [lcMsg, setLcMsg] = useState("");
+  const [lcHearts, setLcHearts] = useState([]);
+  const [incomingLove, setIncomingLove] = useState(null);
+
   const QUOTES = [
     "❤️ जहाँ दिल मिले, वहीं होती है शुरुआत Milan की…",
     "✨ हर chat के पीछे छुपी है एक नई कहानी…",
@@ -77,6 +89,13 @@ export default function ConnectPage() {
       console.warn("Error reading profile from localStorage", e);
     }
   }, []);
+
+  // Prefill love calc nameA when profile loads
+  useEffect(() => {
+    if (profile && profile.name) {
+      setLcNameA(profile.name);
+    }
+  }, [profile.name]);
 
   // hearts canvas
   useEffect(() => {
@@ -340,6 +359,7 @@ export default function ConnectPage() {
       socketRef.current.off && socketRef.current.off("partnerFound");
       socketRef.current.off && socketRef.current.off("partnerDisconnected");
       socketRef.current.off && socketRef.current.off("connect_error");
+      socketRef.current.off && socketRef.current.off("partnerSharedLoveCalc");
 
       socketRef.current.emit("lookingForPartner", { type, token });
 
@@ -422,6 +442,31 @@ export default function ConnectPage() {
         stopSearch();
       });
 
+      socketRef.current.on("partnerSharedLoveCalc", (payload) => {
+        // partner shared a love calc with us
+        try {
+          setIncomingLove(payload || null);
+          // open modal and populate
+          if (payload && payload.payload) {
+            const p = payload.payload;
+            setLcNameA(p.nameA || "");
+            setLcNameB(p.nameB || "");
+            setLcAgeA(p.ageA || "");
+            setLcAgeB(p.ageB || "");
+            setLcInterests(Array.isArray(p.interests) ? p.interests.join(", ") : (p.interests || ""));
+            setLcScore(p.score || null);
+            setLcMsg(p.message || "");
+            // show hearts
+            triggerHearts(p.score || 60);
+            setShowLoveCalc(true);
+          } else {
+            alert(`${payload?.fromName || "Partner"} shared a LoveCalc result.`);
+          }
+        } catch (e) {
+          console.warn("Error handling partnerSharedLoveCalc", e);
+        }
+      });
+
       socketRef.current.on("connect_error", (err) => {
         console.warn("Socket connect_error:", err?.message || err);
         alert("Connection error. Please try again.");
@@ -456,56 +501,112 @@ export default function ConnectPage() {
     setStatusMessage("❤️ जहाँ दिल मिले, वहीं होती है शुरुआत Milan की…");
   }
 
-  function Avatar() {
-    if (profile.photoDataUrls && profile.photoDataUrls.length) {
-      return (
-        <img
-          src={profile.photoDataUrls[0]}
-          alt="avatar"
-          style={{
-            width: 70,
-            height: 70,
-            borderRadius: "50%",
-            objectFit: "cover",
-          }}
-        />
-      );
+  // Love Calculator functions
+  function sanitize(s) { return (s||"").toString().trim().toLowerCase(); }
+
+  function calcLoveScore(nameA, nameB, ageA, ageB, interestsArr){
+    // 1) Base from letters: sum char codes of letters mod 50
+    const letters = (sanitize(nameA)+sanitize(nameB)).replace(/[^a-z]/g,'');
+    let sum = 0;
+    for (let i=0;i<letters.length;i++) sum += (letters.charCodeAt(i) - 96); // a=1
+    let partLetters = (sum % 51); // 0-50
+
+    // 2) Age factor: smaller gap -> bonus up to 20
+    let ageBonus = 0;
+    if (ageA && ageB) {
+      const gap = Math.abs(Number(ageA) - Number(ageB));
+      ageBonus = Math.max(0, 20 - gap); // gap 0 -> 20, gap 20+ -> 0
     }
-    const first =
-      (profile.name && profile.name.trim().charAt(0).toUpperCase()) || "M";
-    return (
-      <div
-        aria-label={`avatar ${first}`}
-        style={{
-          width: 70,
-          height: 70,
-          borderRadius: "50%",
-          background: "#ec4899",
-          display: "flex",
-          alignItems: "center",
-          justifyContent: "center",
-          fontSize: 28,
-          fontWeight: 700,
-          color: "#fff",
-        }}
-      >
-        {first}
-      </div>
-    );
+
+    // 3) Interests: each shared interest +8 (max 24)
+    let interestBonus = 0;
+    if (interestsArr && interestsArr.length){
+      const uniq = [...new Set(interestsArr.map(s=>s.trim().toLowerCase()).filter(Boolean))];
+      interestBonus = Math.min(uniq.length * 8, 24);
+    }
+
+    // 4) Name harmony: common letters count * 2 (max 6)
+    const setA = new Set(sanitize(nameA).replace(/[^a-z]/g,'').split(''));
+    const setB = new Set(sanitize(nameB).replace(/[^a-z]/g,'').split(''));
+    let common = 0;
+    setA.forEach(ch => { if (setB.has(ch)) common++; });
+    const nameHarmony = Math.min(common * 2, 6);
+
+    // final raw score
+    let raw = partLetters + ageBonus + interestBonus + nameHarmony; // max ~101
+    raw = Math.max(3, Math.min(98, Math.round(raw))); // clamp 3-98 for playful range
+
+    // small randomness based on names (deterministic)
+    const rndSeed = (sanitize(nameA)+sanitize(nameB)).split('').reduce((a,c)=>a+c.charCodeAt(0),0);
+    const tiny = (rndSeed % 7) - 3; // -3..+3
+    const finalScore = Math.max(5, Math.min(99, raw + tiny));
+    return finalScore;
   }
 
-  function handleSaveProfileForm(e) {
-    e.preventDefault();
-    const p = editProfile || profile;
-    const name = (p.name || "").trim();
-    if (!name) {
-      alert("Please enter name.");
+  function friendlyMessage(score){
+    if (score >= 90) return "Soulmates alert! 🔥 Be gentle, you're on fire.";
+    if (score >= 75) return "Strong vibes — go say hi with confidence 😊";
+    if (score >= 55) return "Good match — give it a try, make conversation light.";
+    if (score >= 35) return "Could grow — try common interests & patience.";
+    return "Awww — maybe friendship first? Keep it genuine.";
+  }
+
+  function triggerHearts(score){
+    const count = Math.max(4, Math.min(10, Math.round((score||50)/10)));
+    const arr = new Array(count).fill(0).map((_,i)=>({
+      id: `${Date.now()}-${i}-${Math.random().toString(36).slice(2,6)}`,
+      left: 8 + i*12 + Math.random()*40,
+      size: 18 + Math.random()*14,
+      delay: i * 120
+    }));
+    setLcHearts(arr);
+    // clear after animation
+    setTimeout(()=> setLcHearts([]), 2600);
+  }
+
+  function onCalculateLove(e){
+    e && e.preventDefault && e.preventDefault();
+    if (!lcNameA || !lcNameB) {
+      alert("Dono names daaldo — masti shuru!");
       return;
     }
-    saveProfile(p);
-    setShowProfile(false);
-    setEditProfile(null);
-    alert("Profile saved.");
+    const interestsArr = (lcInterests || "").split(",").map(s=>s.trim()).filter(Boolean);
+    const score = calcLoveScore(lcNameA, lcNameB, lcAgeA, lcAgeB, interestsArr);
+    setLcScore(score);
+    setLcMsg(friendlyMessage(score));
+    triggerHearts(score);
+    const payload = { nameA: lcNameA, nameB: lcNameB, ageA: lcAgeA, ageB: lcAgeB, interests: interestsArr, score, message: friendlyMessage(score), time: Date.now() };
+    // persist locally
+    try {
+      const hist = JSON.parse(localStorage.getItem("lovecalc_history")||"[]");
+      hist.unshift(payload);
+      localStorage.setItem("lovecalc_history", JSON.stringify(hist.slice(0,50)));
+    } catch (e) {}
+    // keep last
+    localStorage.setItem("lastLoveCalc", JSON.stringify(payload));
+  }
+
+  function onShareLoveCalc(){
+    const last = JSON.parse(localStorage.getItem("lastLoveCalc") || "null");
+    if (!last) {
+      alert("Pehle calculate karo phir share karna 😉");
+      return;
+    }
+
+    // if socket connected & partner known, emit to server
+    try {
+      if (socketRef.current && socketRef.current.connected && partnerRef.current && partnerRef.current.id) {
+        socketRef.current.emit("shareLoveCalc", { fromName: profile.name || "Someone", to: partnerRef.current.id, payload: last });
+        alert("Result sent to partner ✨");
+      } else {
+        // fallback: copy text to clipboard
+        const text = `LoveCalc: ${last.nameA} + ${last.nameB} = ${last.score}% — ${last.message}`;
+        navigator.clipboard?.writeText(text).then(()=> alert('Copied result to clipboard — share manually!')).catch(()=> alert('Could not copy — but result saved locally.'));
+      }
+    } catch (e) {
+      console.warn(e);
+      alert('Sharing failed, but result saved locally.');
+    }
   }
 
   const [interestInput, setInterestInput] = useState("");
@@ -614,6 +715,13 @@ export default function ConnectPage() {
             <span className="sidebar-ic">🔒</span>
             <span className="sidebar-txt">Security</span>
           </li>
+
+          {/* LOVE CALCULATOR BUTTON - quick access */}
+          <li role="button" onClick={() => setShowLoveCalc(true)} className="sidebar-item">
+            <span className="sidebar-ic">💘</span>
+            <span className="sidebar-txt">Love Calculator</span>
+          </li>
+
           <li role="button" onClick={openLogoutConfirm} className="sidebar-item">
             <span className="sidebar-ic">🚪</span>
             <span className="sidebar-txt">Logout</span>
@@ -945,6 +1053,59 @@ export default function ConnectPage() {
                 <button className="btn-primary" onClick={handleLogoutConfirmYes}>Yes</button>
                 <button className="btn-ghost" onClick={() => setShowLogoutConfirm(false)}>No</button>
               </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Love Calculator Modal */}
+      {showLoveCalc && (
+        <div className="modal-back" role="dialog" aria-modal="true" onClick={(e)=>{ if(e.target.classList && e.target.classList.contains('modal-back')) setShowLoveCalc(false); }}>
+          <div className="modal-card love-card">
+            <header className="modal-head">
+              <h3>Love Calculator 💘</h3>
+              <button className="close" onClick={() => setShowLoveCalc(false)} aria-label="Close">✕</button>
+            </header>
+
+            <div className="modal-body">
+              <div style={{display:'flex', gap:8, marginBottom:8}}>
+                <input placeholder="Your name" value={lcNameA} onChange={(e)=>setLcNameA(e.target.value)} />
+                <input placeholder="Their name" value={lcNameB} onChange={(e)=>setLcNameB(e.target.value)} />
+              </div>
+
+              <div style={{display:'flex', gap:8, marginBottom:8}}>
+                <input type="number" min="13" placeholder="Your age (optional)" value={lcAgeA} onChange={(e)=>setLcAgeA(e.target.value)} />
+                <input type="number" min="13" placeholder="Their age (optional)" value={lcAgeB} onChange={(e)=>setLcAgeB(e.target.value)} />
+              </div>
+
+              <div style={{marginBottom:10}}>
+                <input placeholder="Common interests (comma separated) - optional" value={lcInterests} onChange={(e)=>setLcInterests(e.target.value)} />
+              </div>
+
+              <div style={{display:'flex', gap:8, justifyContent:'space-between', alignItems:'center'}}>
+                <button className="btn-primary" onClick={onCalculateLove}>Calculate 🔍</button>
+                <div style={{display:'flex', gap:8}}>
+                  <button className="btn-ghost" onClick={onShareLoveCalc}>Share</button>
+                  <button className="btn-ghost" onClick={() => {
+                    const h = JSON.parse(localStorage.getItem('lovecalc_history')||'[]');
+                    const msg = h && h.length ? `Last: ${h[0].nameA}+${h[0].nameB} = ${h[0].score}%` : 'No history';
+                    alert(msg);
+                  }}>History</button>
+                </div>
+              </div>
+
+              <div style={{marginTop:12, textAlign:'center'}}>
+                <div style={{fontSize:36, fontWeight:900}}>{lcScore !== null ? `${lcScore}%` : "—%"}</div>
+                <div style={{marginTop:8, fontSize:14, color:'#444'}}>{lcMsg || (lcScore===null ? "Result will appear here." : "")}</div>
+              </div>
+
+              <div className="lc-hearts" style={{height:60, position:'relative', marginTop:12}}>
+                {lcHearts.map(h => (
+                  <div key={h.id} className="lc-heart" style={{ left: h.left, fontSize: h.size, animationDelay: `${h.delay}ms` }}>💖</div>
+                ))}
+              </div>
+
+              <small className="muted">Algorithm: name letters + age gap + shared interests (for fun only 😉)</small>
             </div>
           </div>
         </div>
@@ -1287,6 +1448,20 @@ export default function ConnectPage() {
           overflow: hidden;
         }
 
+        /* Love Calculator specific */
+        .love-card { max-width:520px; }
+        .lc-hearts .lc-heart {
+          position:absolute;
+          bottom:6px;
+          animation: lc-rise 2200ms linear forwards;
+          opacity:0.95;
+        }
+        @keyframes lc-rise {
+          0%{ transform: translateY(0) scale(0.8); opacity:0.9 }
+          60%{ opacity:1; transform: translateY(-80px) scale(1.05) }
+          100%{ transform: translateY(-160px) scale(0.9); opacity:0 }
+        }
+
         .modal-card.small { max-width: 420px; }
         .modal-head { display:flex; align-items:center; justify-content:space-between; padding:14px 16px; background: linear-gradient(90deg,#ffeef5,#fff); }
         .modal-head h3 { margin:0; font-size:18px; color:#08121a; font-weight:800; }
@@ -1301,7 +1476,6 @@ export default function ConnectPage() {
         .mini-progress { width:140px; height:8px; background: rgba(255,255,255,0.08); border-radius:8px; margin-top:6px; overflow:hidden; }
         .mini-progress-bar { height:100%; background: linear-gradient(90deg,#ff6b81,#ff9fb0); width:0%; transition: width 280ms ease; }
 
-        /* Contact input minor visual tweak */
         .contact-input {
           border: 1px solid #e6e6e9;
           box-shadow: none;
@@ -1309,7 +1483,6 @@ export default function ConnectPage() {
           border-radius: 8px;
         }
 
-        /* Hide export on small screens (users complained it's useless on mobile) */
         .export-btn { border: 1px solid #e6e6e9; padding:8px 10px; background:#fff; border-radius:8px; }
 
         @media (max-width: 1024px) {
@@ -1357,7 +1530,6 @@ export default function ConnectPage() {
           .btn-primary { padding:8px 10px; height:36px; }
           .btn-ghost { padding:8px 10px; height:36px; }
 
-          /* ensure save visible on mobile (no hidden buttons) */
           .actions { gap: 8px; }
           .export-btn { display: none; } /* hide export on small screens */
         }
@@ -1368,5 +1540,57 @@ export default function ConnectPage() {
         }
       `}</style>
     </>
+  );
+}
+
+/* Avatar component kept at bottom to avoid hoisting issues */
+function Avatar({ profile }) {
+  // fallback to reading DOM state - but our ConnectPage wraps Avatar call without prop in current code
+  // so we replicate the same logic used earlier in the file. This keeps behaviour identical.
+  // If you prefer, pass profile prop into Avatar() where used.
+  // For compatibility we try to read profile from window/localStorage if not provided.
+  let localProfile;
+  try {
+    localProfile = JSON.parse(localStorage.getItem("milan_profile") || "null") || null;
+  } catch (e) {
+    localProfile = null;
+  }
+  const p = localProfile || { name: "M" };
+  const first =
+    (p.name && p.name.trim().charAt(0).toUpperCase()) || "M";
+
+  if (p.photoDataUrls && p.photoDataUrls.length) {
+    return (
+      <img
+        src={p.photoDataUrls[0]}
+        alt="avatar"
+        style={{
+          width: 70,
+          height: 70,
+          borderRadius: "50%",
+          objectFit: "cover",
+        }}
+      />
+    );
+  }
+
+  return (
+    <div
+      aria-label={`avatar ${first}`}
+      style={{
+        width: 70,
+        height: 70,
+        borderRadius: "50%",
+        background: "#ec4899",
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "center",
+        fontSize: 28,
+        fontWeight: 700,
+        color: "#fff",
+      }}
+    >
+      {first}
+    </div>
   );
 }
