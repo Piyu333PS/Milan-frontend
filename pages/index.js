@@ -315,10 +315,7 @@ export default function HomePage() {
               </p>
               <p className="age-note">🔞 Milan is strictly for 18+ users.</p>
 
-              {/* NEW: Couple Quiz CTA (romantic + playful) */}
-              /* Couple Quiz CTA removed */
-
-              {/* WHY MILAN cards */}
+              {/* NEW: Couple Quiz CTA (romantic + playful) */}{/* WHY MILAN cards */}
               <div className="why-grid" aria-hidden={false}>
                 <div className="why-card">
                   <div className="why-emoji">🔒</div>
