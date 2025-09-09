@@ -4,7 +4,7 @@ import { useEffect, useState, useRef } from "react";
 /**
  * pages/index.js (updated)
  * - Mobile hearts enabled in lightweight mode (smaller, fewer, slower) for performance.
- * - Other existing functionality preserved (register/login, modal, ripple, styles).
+ * - "Couple Quiz" CTA added into welcome box (romantic, attractive, accessible).
  *
  * Replace your existing pages/index.js with this file (keep a backup first).
  */
@@ -281,6 +281,18 @@ export default function HomePage() {
     setShowConsent(false);
   }
 
+  // === NEW: Couple Quiz CTA handler ===
+  function startCoupleQuiz(e) {
+    // fancy ripple
+    if (e) rippleEffect(e);
+    // store a flag to indicate user opted for game-mode (optional)
+    try {
+      sessionStorage.setItem("preferredMode", "game");
+    } catch (err) {}
+    // redirect to connect page with mode param so matchmaking opens in game mode
+    window.location.href = "/connect?mode=game";
+  }
+
   return (
     <>
       <canvas id="heartsCanvas" aria-hidden={!enableHearts}></canvas>
@@ -302,6 +314,25 @@ export default function HomePage() {
                 walls to arrive at its destination full of hope.”
               </p>
               <p className="age-note">🔞 Milan is strictly for 18+ users.</p>
+
+              {/* NEW: Couple Quiz CTA (romantic + playful) */}
+              <div style={{ display: "flex", justifyContent: "center", marginTop: 18 }}>
+                <button
+                  id="coupleQuizBtn"
+                  className="couple-btn"
+                  onClick={startCoupleQuiz}
+                  onMouseDown={(e) => rippleEffect(e)}
+                  aria-label="Start Couple Quiz - Play romantic rapid-fire"
+                >
+                  <span className="cq-left">
+                    <span className="cq-heart" aria-hidden="true">💞</span>
+                  </span>
+                  <span className="cq-right">
+                    <span className="cq-title">Couple Quiz</span>
+                    <span className="cq-sub">Romantic · Fun · Rapid Fire</span>
+                  </span>
+                </button>
+              </div>
 
               {/* WHY MILAN cards */}
               <div className="why-grid" aria-hidden={false}>
@@ -664,6 +695,32 @@ export default function HomePage() {
 
         .age-note { margin-top: 14px; color: #ffd7e0; font-weight:700; }
 
+        /* Couple Quiz CTA */
+        .couple-btn {
+          display:flex;
+          align-items:center;
+          gap:14px;
+          padding: 12px 18px;
+          border-radius: 14px;
+          border: none;
+          cursor: pointer;
+          background: linear-gradient(90deg, #ff6b81 0%, #ff9fb0 50%, #ffd1e0 100%);
+          color: #071320;
+          font-weight: 900;
+          box-shadow: 0 10px 40px rgba(255,107,129,0.12);
+          transform-origin: center;
+          transition: transform .16s ease, box-shadow .18s ease;
+          z-index: 2;
+        }
+        .couple-btn:active { transform: translateY(2px) scale(.998); }
+        .couple-btn:hover { transform: translateY(-4px); box-shadow: 0 16px 56px rgba(255,107,129,0.18); }
+        .couple-btn .cq-left { font-size: 34px; display:flex; align-items:center; justify-content:center; width:48px; height:48px; border-radius:12px; background: rgba(255,255,255,0.9); }
+        .couple-btn .cq-heart { font-size:22px; transform: translateY(-2px); animation: pulseSmall 1100ms ease-in-out infinite; }
+        @keyframes pulseSmall { 0% { transform: scale(1); } 50% { transform: scale(1.08); } 100% { transform: scale(1); } }
+        .cq-right { display:flex; flex-direction:column; align-items:flex-start; text-align:left; }
+        .cq-title { font-size:18px; color:#071320; letter-spacing:0.4px; }
+        .cq-sub { font-size:12px; color:#071320; opacity:0.85; margin-top:3px; font-weight:700; }
+
         /* WHY cards */
         .why-grid { display:flex; gap:14px; margin-top:18px; justify-content:center; flex-wrap:wrap; }
         .why-card {
@@ -818,6 +875,10 @@ export default function HomePage() {
           .why-card { width: 92%; }
           .right { width:100%; margin-top:6px; display:flex; justify-content:center; }
           .form-container { width:94%; padding:16px; }
+          .couple-btn { width: 92%; padding: 14px 16px; gap:12px; }
+          .couple-btn .cq-left { width:44px; height:44px; }
+          .cq-title { font-size:16px; }
+          .cq-sub { font-size:12px; }
         }
       `}</style>
     </>
