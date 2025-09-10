@@ -20,10 +20,6 @@ export default function VideoPage() {
     let ignoreOffer = false;
     let polite = false;
 
-    // pending candidates queue
-    let pendingCandidates = [];
-    let remoteDescReady = false;
-
     const get = (id) => document.getElementById(id);
     const showToast = (msg, ms) => {
       var t = get("toast");
@@ -35,6 +31,7 @@ export default function VideoPage() {
     const showRating = () => { var r = get("ratingOverlay"); if (r) r.style.display = "flex"; };
     const log = (...args) => { try { console.log("[video]", ...args); } catch (e) {} };
 
+    // get stored roomCode helper
     const getRoomCode = () => {
       try {
         var q = new URLSearchParams(window.location.search);
@@ -44,53 +41,29 @@ export default function VideoPage() {
       }
     };
 
-    // SAFE EMIT attaches roomCode automatically and logs
+    // SAFE EMIT attaches roomCode automatically (if present)
     const safeEmit = (event, data = {}) => {
       try {
         if (!socket || !socket.connected) return log("safeEmit: socket not connected, skip", event);
         const roomCode = getRoomCode();
         const payload = (data && typeof data === "object") ? { ...data } : { data };
         if (roomCode && !payload.roomCode) payload.roomCode = roomCode;
-        console.log("[video] emitting ->", event, payload);
         socket.emit(event, payload);
       } catch (e) { log("safeEmit err", e); }
     };
 
-    // drain pending candidates with short retries until remoteDescription is ready
-    async function drainPendingCandidates() {
-      try {
-        if (!pendingCandidates || pendingCandidates.length === 0) return;
-        log("[video] [video] draining", pendingCandidates.length, "pending candidates");
-        // try for a short period to wait for remoteDescription to be present
-        const maxAttempts = 12; // ~12*250ms = 3s
-        let attempts = 0;
-        while (attempts < maxAttempts) {
-          attempts++;
-          if (pc && pc.remoteDescription && pc.remoteDescription.type) {
-            // drain
-            const copy = pendingCandidates.slice();
-            pendingCandidates = [];
-            for (let c of copy) {
-              try {
-                await pc.addIceCandidate(new RTCIceCandidate(c));
-                log("[video] drained candidate success");
-              } catch (err) {
-                console.warn("[video] drained candidate failed", err, c);
-              }
-            }
-            return;
-          } else {
-            // not ready yet -> wait a bit
-            await new Promise(res => setTimeout(res, 250));
-          }
-        }
-        // after retries still not ready: keep them queued but warn
-        log("[video] [video] drain: remoteDescription not ready after retries, leaving candidates queued:", pendingCandidates.length);
-      } catch (e) {
-        console.warn("[video] drainPendingCandidates unexpected error", e);
-      }
-    }
+    // small tolerant parser for incoming candidate payload shapes
+    const extractCandidate = (maybe) => {
+      if (!maybe) return null;
+      if (maybe.candidate || maybe.sdpMid || maybe.sdpMLineIndex !== undefined) return maybe;
+      if (maybe.candidate && typeof maybe.candidate === "object") return maybe.candidate;
+      if (maybe.candidate && typeof maybe.candidate === "string") return maybe;
+      // wrapped: { candidate: {...}, from, roomCode }
+      if (maybe.payload && maybe.payload.candidate) return maybe.payload.candidate;
+      return null;
+    };
 
+    // --- cleanup PC only (keep localStream so user doesn't re-prompt camera)
     function cleanupPeerConnection() {
       try {
         if (pc) {
@@ -105,11 +78,11 @@ export default function VideoPage() {
       hasOffered = false;
       makingOffer = false;
       ignoreOffer = false;
-      remoteDescReady = false;
-      pendingCandidates = [];
+      // remove remote video
       try { var rv = get("remoteVideo"); if (rv) rv.srcObject = null; } catch (e) {}
     }
 
+    // full cleanup (when quitting)
     var cleanup = function (opts) {
       opts = opts || {};
       if (isCleaning) return;
@@ -301,11 +274,10 @@ export default function VideoPage() {
       });
 
       socket.on("offer", async (offer) => {
+        log("socket offer", offer && offer.type);
+        createPC();
         try {
-          log("socket offer (raw payload):", offer);
-          createPC();
           const offerDesc = new RTCSessionDescription(offer);
-          log("offer: local makingOffer?", makingOffer, "pc.signalingState:", pc ? pc.signalingState : null, "polite:", polite);
           const readyForOffer = !makingOffer && (pc.signalingState === "stable" || pc.signalingState === "have-local-offer");
           ignoreOffer = !readyForOffer && !polite;
           if (ignoreOffer) { log("ignoring offer (not ready & not polite)"); return; }
@@ -315,10 +287,6 @@ export default function VideoPage() {
           }
 
           await pc.setRemoteDescription(offerDesc);
-          log("[video] remoteDescription set -> draining candidates (after offer)");
-          remoteDescReady = true;
-          await drainPendingCandidates();
-
           const answer = await pc.createAnswer();
           await pc.setLocalDescription(answer);
           safeEmit("answer", pc.localDescription);
@@ -327,23 +295,88 @@ export default function VideoPage() {
       });
 
       socket.on("answer", async (answer) => {
+        log("socket answer", answer && answer.type);
         try {
-          log("socket answer (raw payload):", answer);
           if (!pc) createPC();
-          log("answer handler - pc.signalingState:", pc.signalingState);
           if (pc.signalingState === "have-local-offer") {
             await pc.setRemoteDescription(new RTCSessionDescription(answer));
             log("answer set as remoteDescription");
-            remoteDescReady = true;
-            log("[video] remoteDescription set -> draining candidates (after answer)");
-            await drainPendingCandidates();
           } else {
             log("skipping answer set - wrong state:", pc.signalingState);
           }
         } catch (err) { log("set remote answer failed", err); }
       });
 
-      // ---- REPLACED ROBUST CANDIDATE HANDLER ----
+      
+      // Robust candidate handler with retry/backoff queueing
+      const pendingCandidates = [];
+      let drainInProgress = false;
+      const addCandidateWithRetry = async (cand) => {
+        try {
+          await pc.addIceCandidate(new RTCIceCandidate(cand));
+          console.log("[video] addIceCandidate success");
+          return true;
+        } catch (err) {
+          // If remoteDescription isn't set yet, we'll queue and retry later.
+          const msg = (err && err.name) ? err.name : String(err);
+          if (msg.includes('InvalidStateError') || /remote description/i.test(String(err))) {
+            console.warn("[video] addIceCandidate failed - remoteDescription not ready, queuing", cand);
+            pendingCandidates.push(cand);
+            scheduleDrain();
+            return false;
+          } else {
+            console.warn("[video] addIceCandidate failed (non-queueable)", err, cand);
+            return false;
+          }
+        }
+      };
+
+      const scheduleDrain = (() => {
+        let timer = null;
+        return () => {
+          if (timer) return;
+          timer = setTimeout(async () => {
+            timer = null;
+            await drainPendingCandidates();
+          }, 250);
+        };
+      })();
+
+      async function drainPendingCandidates() {
+        if (!pc) return;
+        if (drainInProgress) return;
+        drainInProgress = true;
+        try {
+          if (!pendingCandidates || pendingCandidates.length === 0) return;
+          console.log("[video] draining", pendingCandidates.length, "pending candidates");
+          const list = pendingCandidates.splice(0, pendingCandidates.length);
+          for (const cand of list) {
+            try {
+              // if remoteDescription isn't ready yet, re-queue
+              if (!pc.remoteDescription || !pc.remoteDescription.type) {
+                console.log("[video] drain: remoteDescription not ready yet, re-queueing candidate", cand);
+                pendingCandidates.push(cand);
+                continue;
+              }
+              await pc.addIceCandidate(new RTCIceCandidate(cand));
+              console.log("[video] drained candidate success");
+            } catch (e) {
+              console.warn("[video] drained candidate failed", e, cand);
+              // if still invalid state, requeue for later
+              if (e && (e.name === 'InvalidStateError' || /remote description/i.test(String(e)))) {
+                pendingCandidates.push(cand);
+              }
+            }
+          }
+          // if there are still pending candidates, schedule another attempt
+          if (pendingCandidates.length) scheduleDrain();
+        } catch (e) {
+          console.warn("[video] drainPendingCandidates unexpected error", e);
+        } finally {
+          drainInProgress = false;
+        }
+      }
+
       socket.on("candidate", async (payload) => {
         try {
           console.log("[video] socket candidate payload:", payload);
@@ -396,34 +429,26 @@ export default function VideoPage() {
             else { console.warn("[video] createPC not found"); }
           }
 
-          // If remoteDescription not set yet -> queue it and try drain with retries
-          if (!pc || !pc.remoteDescription || !pc.remoteDescription.type) {
-            log("[video] [video] remoteDescription not set yet — queueing candidate");
-            pendingCandidates.push(cand);
-            // try draining in background (non-blocking)
-            drainPendingCandidates().catch(e => log("drain pending after candidate err", e));
-            return;
-          }
-
-          try {
-            await pc.addIceCandidate(new RTCIceCandidate(cand));
-            console.log("[video] addIceCandidate success");
-          } catch (err) {
-            console.warn("[video] addIceCandidate failed", err, cand);
-          }
+          // Try to add immediately; if it fails due to remoteDescription, it will be queued by addCandidateWithRetry
+          await addCandidateWithRetry(cand);
         } catch (err) {
           console.error("[video] candidate handler unexpected error", err);
         }
       });
       // ---- END CANDIDATE HANDLER ----
+});
 
       socket.on("waitingForPeer", (d) => { log("waitingForPeer", d); showToast("Waiting for partner..."); });
       socket.on("partnerDisconnected", () => { log("partnerDisconnected"); showToast("Partner disconnected"); showRating(); cleanupPeerConnection(); });
       socket.on("partnerLeft", () => { log("partnerLeft"); showToast("Partner left"); showRating(); cleanupPeerConnection(); });
       socket.on("errorMessage", (e) => { console.warn("server errorMessage:", e); showToast(e && e.message ? e.message : "Server error"); });
 
-      // UI wiring (same as original)
+      // extras: games/events handlers kept as-is...
+      // (omitted here for brevity but leave your existing handlers for newQuestion, tdStarted, etc.)
+
+      // small delay wire UI controls (existing approach)
       setTimeout(() => {
+        // mic toggle
         var micBtn = get("micBtn");
         if (micBtn) {
           micBtn.onclick = function () {
@@ -437,6 +462,7 @@ export default function VideoPage() {
           };
         }
 
+        // camera toggle
         var camBtn = get("camBtn");
         if (camBtn) {
           camBtn.onclick = function () {
@@ -450,6 +476,7 @@ export default function VideoPage() {
           };
         }
 
+        // screen share
         var screenBtn = get("screenShareBtn");
         if (screenBtn) {
           screenBtn.onclick = async function () {
@@ -493,6 +520,7 @@ export default function VideoPage() {
           };
         }
 
+        // disconnect button — call partnerLeft with roomCode
         var disconnectBtn = get("disconnectBtn");
         if (disconnectBtn) {
           disconnectBtn.onclick = function () {
@@ -508,6 +536,7 @@ export default function VideoPage() {
         var newPartnerBtn = get("newPartnerBtn");
         if (newPartnerBtn) newPartnerBtn.onclick = function () { cleanupPeerConnection(); window.location.href = "/connect"; };
 
+        // hearts rating wiring (keep as-is)
         var hearts = document.querySelectorAll("#ratingOverlay .hearts i");
         for (var hi = 0; hi < hearts.length; hi++) {
           (function (h) {
@@ -515,6 +544,7 @@ export default function VideoPage() {
               var val = parseInt(h.getAttribute("data-value"));
               for (var q = 0; q < hearts.length; q++) hearts[q].classList.remove("selected");
               for (var r = 0; r < val; r++) hearts[r].classList.add("selected");
+              // simple emoji animation
               var container = document.querySelector("#ratingOverlay .emoji-container");
               if (container) {
                 var e = document.createElement("div");
@@ -536,9 +566,18 @@ export default function VideoPage() {
     return function () { cleanup(); };
   }, []);
 
-  // UI (kept same structure) - ensure ids localVideo and remoteVideo exist
+  // escape helper
+  function escapeHtml(s) { return String(s).replace(/[&<>"']/g, (m) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[m]); }
+
+  // UI (same as before) - omitted here for brevity, reuse original JSX from your file
+  // But make sure video id="remoteVideo" and id="localVideo" remain.
+
   return (
     <>
+      {/* copy the same JSX structure & styles from your file unchanged */}
+      {/* For brevity in this message I kept UI identical; paste your original JSX & CSS below this line */}
+      {/* --- START UI (paste from your existing file) --- */}
+
       <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css" referrerPolicy="no-referrer" />
       <div className="video-stage">
         <div className="video-panes">
@@ -571,6 +610,9 @@ export default function VideoPage() {
         </button>
       </div>
 
+      {/* rating overlay, modals, overlays etc. — reuse from your file */}
+      {/* ... paste the rest of your JSX blocks (ratingOverlay, questionOverlay, activitiesModal, tdOverlay, rpsOverlay, loveMeterOverlay, toast, styles) unchanged ... */}
+
       <div id="ratingOverlay">
         <div className="rating-content">
           <h2>Rate your partner ❤️</h2>
@@ -589,9 +631,12 @@ export default function VideoPage() {
         </div>
       </div>
 
+      {/* Keep the rest of your overlays & CSS as in the original file */}
       <div id="toast"></div>
 
       <style jsx global>{`
+        /* paste your existing global styles here (same as original file) */
+        /* ... keep unchanged ... */
         *{margin:0;padding:0;box-sizing:border-box}
         html,body{height:100%;background:#000;font-family:'Segoe UI',sans-serif;overflow:hidden}
         .video-stage{position:relative;width:100%;height:100vh;padding-bottom:110px;background:#000;}
@@ -616,6 +661,15 @@ export default function VideoPage() {
         .rating-buttons button:hover{ transform:scale(1.06);opacity:.92 }
         .emoji-container{ position:absolute;inset:-16px; pointer-events:none;z-index:0;overflow:visible }
         .floating-emoji{ position:absolute;user-select:none }
+        @keyframes fallLocal{ from{transform:translateY(-40px);opacity:1} to{transform:translateY(360px);opacity:0} }
+        @keyframes flyUpLocal{ from{transform:translateY(0);opacity:1} to{transform:translateY(-360px);opacity:0} }
+        @keyframes orbitCW{ from{transform:rotate(0deg) translateX(var(--r)) rotate(0deg)} to{transform:rotate(360deg) translateX(var(--r)) rotate(-360deg)} }
+        @keyframes orbitCCW{ from{transform:rotate(360deg) translateX(var(--r)) rotate(-360deg)} to{transform:rotate(0deg) translateX(var(--r)) rotate(360deg)} }
+        @keyframes burstLocal{ 0%{transform:scale(.6) translateY(0);opacity:1} 60%{transform:scale(1.4) translateY(-80px)} 100%{transform:scale(1) translateY(-320px);opacity:0} }
+        #toast{position:fixed;left:50%;bottom:110px;transform:translateX(-50%);background:#111;color:#fff;padding:10px 14px;border-radius:8px;display:none;z-index:5000;border:1px solid rgba(255,255,255,.12)}
+        .act-card{display:flex;flex-direction:column;align-items:center;justify-content:center;padding:12px 10px;border-radius:10px;background:rgba(255,255,255,0.02);color:#fff;border:1px solid rgba(255,255,255,0.04);cursor:pointer}
+        .act-card small{color:#cbd6ef;margin-top:6px;font-size:12px}
+        .act-emoji{display:flex;flex-direction:column;align-items:center;justify-content:center;padding:12px 16px;border-radius:10px;background:rgba(255,255,255,0.02);border:1px solid rgba(255,255,255,0.04);cursor:pointer}
         @media(max-width: 900px){.video-panes{ flex-direction:column; } .video-box{ flex:1 1 50%; min-height: 0; }}
         @media(max-width:480px){ .video-panes{ gap:8px; padding:8px; bottom:108px; } .label{ font-size:11px; padding:5px 8px; } .control-btn{ width:62px; height:62px; } .rating-content{min-width:92vw;padding:30px 20px} .hearts{font-size:46px;gap:18px} .rating-buttons{gap:16px} .rating-buttons button{padding:14px 18px;font-size:16px;border-radius:14px} }
       `}</style>
