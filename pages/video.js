@@ -307,20 +307,70 @@ export default function VideoPage() {
         } catch (err) { log("set remote answer failed", err); }
       });
 
+      // ---- REPLACED ROBUST CANDIDATE HANDLER ----
       socket.on("candidate", async (payload) => {
-        log("socket candidate");
         try {
-          const candidate = extractCandidate(payload) || (payload && payload.candidate) || payload;
-          if (!candidate) { log("no candidate parsed"); return; }
-          if (!pc) createPC();
-          try {
-            await pc.addIceCandidate(new RTCIceCandidate(candidate));
-            log("candidate added");
-          } catch (errCandidate) {
-            log("addIceCandidate failed", errCandidate);
+          console.log("[video] socket candidate payload:", payload);
+
+          // Normalize different payload shapes
+          const wrapper = (payload && (payload.candidate !== undefined || payload.sdpMid !== undefined || payload.sdpMLineIndex !== undefined))
+                          ? payload
+                          : (payload && payload.payload ? payload.payload : payload);
+
+          let cand = null;
+
+          if (!wrapper) {
+            console.warn("[video] candidate: empty payload");
+            return;
           }
-        } catch (err) { log("candidate handler err", err); }
+
+          // wrapper.candidate is an object (ideal)
+          if (typeof wrapper.candidate === "object" && wrapper.candidate !== null) {
+            cand = wrapper.candidate;
+          } else if (typeof wrapper.candidate === "string") {
+            // wrapper has candidate string
+            cand = { candidate: wrapper.candidate };
+            if (wrapper.sdpMid) cand.sdpMid = wrapper.sdpMid;
+            if (wrapper.sdpMLineIndex !== undefined) cand.sdpMLineIndex = wrapper.sdpMLineIndex;
+          } else if (wrapper.candidate === null) {
+            // explicit null -> ignore (end-of-candidates)
+            console.log("[video] candidate: null (ignored)");
+            return;
+          } else if (typeof wrapper === "string") {
+            // payload itself is raw candidate string
+            cand = { candidate: wrapper };
+          } else if (wrapper.sdpMid === null && wrapper.sdpMLineIndex === null) {
+            // defensive: avoid constructing RTCIceCandidate with both null
+            console.warn("[video] candidate has null sdpMid & sdpMLineIndex — ignoring");
+            return;
+          } else {
+            // fallback: treat wrapper as candidate-like object
+            cand = wrapper;
+          }
+
+          if (!cand) {
+            console.warn("[video] could not parse candidate payload — skipping", payload);
+            return;
+          }
+
+          // ensure RTCPeerConnection exists
+          if (!pc) {
+            console.log("[video] no RTCPeerConnection yet, creating one before adding candidate");
+            if (typeof createPC === "function") createPC();
+            else { console.warn("[video] createPC not found"); }
+          }
+
+          try {
+            await pc.addIceCandidate(new RTCIceCandidate(cand));
+            console.log("[video] addIceCandidate success");
+          } catch (err) {
+            console.warn("[video] addIceCandidate failed", err, cand);
+          }
+        } catch (err) {
+          console.error("[video] candidate handler unexpected error", err);
+        }
       });
+      // ---- END CANDIDATE HANDLER ----
 
       socket.on("waitingForPeer", (d) => { log("waitingForPeer", d); showToast("Waiting for partner..."); });
       socket.on("partnerDisconnected", () => { log("partnerDisconnected"); showToast("Partner disconnected"); showRating(); cleanupPeerConnection(); });
