@@ -23,6 +23,9 @@ export default function VideoPage() {
     let ignoreOffer = false;
     let polite = false;
 
+    // small retry guard to avoid infinite tight-loop retries
+    let drainingRetryPending = false;
+
     const get = (id) => document.getElementById(id);
     const showToast = (msg, ms) => {
       var t = get("toast");
@@ -66,23 +69,53 @@ export default function VideoPage() {
       return null;
     };
 
-    // NEW: drain pending candidates helper
+    // NEW: drain pending candidates helper with retry-on-remote-desc-null
     async function drainPendingCandidates() {
+      if (!pc) {
+        log("[video] drain requested but pc is null");
+        return;
+      }
+      if (!pendingCandidates || pendingCandidates.length === 0) return;
+      if (drainingRetryPending) {
+        // already draining; skip duplicate
+        return;
+      }
+      drainingRetryPending = true;
       try {
-        if (!pendingCandidates || pendingCandidates.length === 0) return;
         log("[video] draining", pendingCandidates.length, "pending candidates");
+        // copy & clear so newly arriving candidates go to new queue
         const toProcess = pendingCandidates.slice();
         pendingCandidates = [];
-        for (const cand of toProcess) {
+
+        for (const rawCand of toProcess) {
           try {
-            await pc.addIceCandidate(new RTCIceCandidate(cand));
+            // build a defensive candidateInit that avoids sdpMid/sdpMLineIndex = null
+            const candidateInit = { candidate: rawCand.candidate || rawCand };
+            if (rawCand.sdpMid !== undefined && rawCand.sdpMid !== null) candidateInit.sdpMid = rawCand.sdpMid;
+            if (rawCand.sdpMLineIndex !== undefined && rawCand.sdpMLineIndex !== null) candidateInit.sdpMLineIndex = rawCand.sdpMLineIndex;
+
+            await pc.addIceCandidate(candidateInit);
             log("[video] drained candidate success");
           } catch (err) {
-            console.warn("[video] drained candidate failed", err, cand);
+            // If remoteDescription still null or wrong state, re-queue for retry
+            const errMsg = (err && err.message) ? err.message.toLowerCase() : "";
+            if (err && (err.name === "InvalidStateError" || errMsg.includes("remote description") || errMsg.includes("remote description was null"))) {
+              // Re-queue and schedule a retry
+              log("[video] drain: remoteDescription not ready yet, re-queueing candidate", rawCand);
+              pendingCandidates.push(rawCand);
+              setTimeout(() => {
+                try { drainPendingCandidates(); } catch (e) { log("[video] retry drain failed", e); }
+              }, 250);
+            } else {
+              // other errors - log and continue
+              console.warn("[video] drained candidate failed (non-retry)", err, rawCand);
+            }
           }
         }
       } catch (err) {
         console.warn("[video] drainPendingCandidates unexpected error", err);
+      } finally {
+        drainingRetryPending = false;
       }
     }
 
@@ -239,6 +272,7 @@ export default function VideoPage() {
         pc.onicecandidate = (e) => {
           if (e && e.candidate) {
             log("pc.onicecandidate -> emit candidate");
+            // send candidate object as-is; server should forward to peer
             safeEmit("candidate", { candidate: e.candidate });
           }
         };
@@ -335,7 +369,7 @@ export default function VideoPage() {
         } catch (err) { log("set remote answer failed", err); }
       });
 
-      // ---- BUFFERED & ROBUST CANDIDATE HANDLER ----
+      // ---- BUFFERED & MORE-DEFENSIVE CANDIDATE HANDLER ----
       socket.on("candidate", async (payload) => {
         try {
           console.log("[video] socket candidate payload:", payload);
@@ -368,9 +402,14 @@ export default function VideoPage() {
             // payload itself is raw candidate string
             cand = { candidate: wrapper };
           } else if (wrapper.sdpMid === null && wrapper.sdpMLineIndex === null) {
-            // defensive: avoid constructing RTCIceCandidate with both null
-            console.warn("[video] candidate has null sdpMid & sdpMLineIndex — ignoring");
-            return;
+            // defensive: if both are explicitly null, remove them
+            // create a candidate with only candidate string if available
+            if (typeof wrapper.candidate === "string") {
+              cand = { candidate: wrapper.candidate };
+            } else {
+              console.warn("[video] candidate has null sdpMid & sdpMLineIndex — ignoring", wrapper);
+              return;
+            }
           } else {
             // fallback: treat wrapper as candidate-like object
             cand = wrapper;
@@ -388,18 +427,33 @@ export default function VideoPage() {
             else { console.warn("[video] createPC not found"); }
           }
 
-          // NEW: if remoteDescription is not set yet, queue candidate
+          // If remoteDescription is not set yet, queue candidate
           if (!pc || !pc.remoteDescription || !pc.remoteDescription.type) {
             log("[video] remoteDescription not set yet — queueing candidate");
             pendingCandidates.push(cand);
+            // schedule a gentle retry drain in case remoteDescription shows up soon
+            setTimeout(() => { try { drainPendingCandidates(); } catch (e) { log("[video] scheduled drain failed", e); } }, 150);
             return;
           }
 
+          // Build a defensive candidateInit to avoid passing explicit nulls
+          const candidateInit = { candidate: cand.candidate || cand };
+          if (cand.sdpMid !== undefined && cand.sdpMid !== null) candidateInit.sdpMid = cand.sdpMid;
+          if (cand.sdpMLineIndex !== undefined && cand.sdpMLineIndex !== null) candidateInit.sdpMLineIndex = cand.sdpMLineIndex;
+
           try {
-            await pc.addIceCandidate(new RTCIceCandidate(cand));
+            await pc.addIceCandidate(candidateInit);
             console.log("[video] addIceCandidate success");
           } catch (err) {
-            console.warn("[video] addIceCandidate failed", err, cand);
+            const errMsg = (err && err.message) ? err.message.toLowerCase() : "";
+            // If remoteDescription null/state issue -> re-queue and retry
+            if (err && (err.name === "InvalidStateError" || errMsg.includes("remote description"))) {
+              log("[video] addIceCandidate failed due to remoteDescription not ready, re-queueing", err, cand);
+              pendingCandidates.push(cand);
+              setTimeout(() => { try { drainPendingCandidates(); } catch (e) { log("[video] retry after addIceCandidate failed", e); } }, 250);
+            } else {
+              console.warn("[video] addIceCandidate failed", err, cand);
+            }
           }
         } catch (err) {
           console.error("[video] candidate handler unexpected error", err);
@@ -544,9 +598,6 @@ export default function VideoPage() {
   return (
     <>
       {/* copy the same JSX structure & styles from your file unchanged */}
-      {/* For brevity in this message I kept UI identical; paste your original JSX & CSS below this line */}
-      {/* --- START UI (paste from your existing file) --- */}
-
       <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css" referrerPolicy="no-referrer" />
       <div className="video-stage">
         <div className="video-panes">
@@ -579,9 +630,6 @@ export default function VideoPage() {
         </button>
       </div>
 
-      {/* rating overlay, modals, overlays etc. — reuse from your file */}
-      {/* ... paste the rest of your JSX blocks (ratingOverlay, questionOverlay, activitiesModal, tdOverlay, rpsOverlay, loveMeterOverlay, toast, styles) unchanged ... */}
-
       <div id="ratingOverlay">
         <div className="rating-content">
           <h2>Rate your partner ❤️</h2>
@@ -600,12 +648,10 @@ export default function VideoPage() {
         </div>
       </div>
 
-      {/* Keep the rest of your overlays & CSS as in the original file */}
       <div id="toast"></div>
 
       <style jsx global>{`
-        /* paste your existing global styles here (same as original file) */
-        /* ... keep unchanged ... */
+        /* keep your existing CSS (unchanged) */
         *{margin:0;padding:0;box-sizing:border-box}
         html,body{height:100%;background:#000;font-family:'Segoe UI',sans-serif;overflow:hidden}
         .video-stage{position:relative;width:100%;height:100vh;padding-bottom:110px;background:#000;}
