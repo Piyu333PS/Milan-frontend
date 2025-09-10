@@ -15,6 +15,9 @@ export default function VideoPage() {
     let cameraTrackSaved = null;
     let isCleaning = false;
 
+    // NEW: pending candidate buffer
+    let pendingCandidates = [];
+
     // negotiation flags (Perfect Negotiation pattern)
     let makingOffer = false;
     let ignoreOffer = false;
@@ -62,6 +65,26 @@ export default function VideoPage() {
       if (maybe.payload && maybe.payload.candidate) return maybe.payload.candidate;
       return null;
     };
+
+    // NEW: drain pending candidates helper
+    async function drainPendingCandidates() {
+      try {
+        if (!pendingCandidates || pendingCandidates.length === 0) return;
+        log("[video] draining", pendingCandidates.length, "pending candidates");
+        const toProcess = pendingCandidates.slice();
+        pendingCandidates = [];
+        for (const cand of toProcess) {
+          try {
+            await pc.addIceCandidate(new RTCIceCandidate(cand));
+            log("[video] drained candidate success");
+          } catch (err) {
+            console.warn("[video] drained candidate failed", err, cand);
+          }
+        }
+      } catch (err) {
+        console.warn("[video] drainPendingCandidates unexpected error", err);
+      }
+    }
 
     // --- cleanup PC only (keep localStream so user doesn't re-prompt camera)
     function cleanupPeerConnection() {
@@ -287,6 +310,9 @@ export default function VideoPage() {
           }
 
           await pc.setRemoteDescription(offerDesc);
+          log("[video] remoteDescription set -> draining candidates");
+          try { await drainPendingCandidates(); } catch (e) { console.warn("[video] drain after offer failed", e); }
+
           const answer = await pc.createAnswer();
           await pc.setLocalDescription(answer);
           safeEmit("answer", pc.localDescription);
@@ -301,13 +327,15 @@ export default function VideoPage() {
           if (pc.signalingState === "have-local-offer") {
             await pc.setRemoteDescription(new RTCSessionDescription(answer));
             log("answer set as remoteDescription");
+            log("[video] remoteDescription set -> draining candidates");
+            try { await drainPendingCandidates(); } catch (e) { console.warn("[video] drain after answer failed", e); }
           } else {
             log("skipping answer set - wrong state:", pc.signalingState);
           }
         } catch (err) { log("set remote answer failed", err); }
       });
 
-      // ---- REPLACED ROBUST CANDIDATE HANDLER ----
+      // ---- BUFFERED & ROBUST CANDIDATE HANDLER ----
       socket.on("candidate", async (payload) => {
         try {
           console.log("[video] socket candidate payload:", payload);
@@ -358,6 +386,13 @@ export default function VideoPage() {
             console.log("[video] no RTCPeerConnection yet, creating one before adding candidate");
             if (typeof createPC === "function") createPC();
             else { console.warn("[video] createPC not found"); }
+          }
+
+          // NEW: if remoteDescription is not set yet, queue candidate
+          if (!pc || !pc.remoteDescription || !pc.remoteDescription.type) {
+            log("[video] remoteDescription not set yet — queueing candidate");
+            pendingCandidates.push(cand);
+            return;
           }
 
           try {
