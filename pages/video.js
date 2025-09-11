@@ -20,13 +20,12 @@ export default function VideoPage() {
     let pendingAnswers = {}; // { questionId: { self: 'A', other: null } } on client side we only keep self until reveal
     let twoOptionScore = { total: 0, matched: 0, asked: 0 };
 
-    // negotiation flags (Perfect Negotiation pattern)
+    // negotiation flags
     let makingOffer = false;
     let ignoreOffer = false;
     let polite = false;
 
-    // pending candidate queue for robust handling
-    let pendingCandidates = [];
+    const pendingCandidates = [];
     let draining = false;
 
     const get = (id) => document.getElementById(id);
@@ -59,22 +58,14 @@ export default function VideoPage() {
       } catch (e) { log("safeEmit err", e); }
     };
 
-    const parseCandidateLike = (maybe) => {
-      if (!maybe) return null;
-      if (maybe.candidate !== undefined || maybe.sdpMid !== undefined || maybe.sdpMLineIndex !== undefined) return maybe;
-      if (maybe.payload && maybe.payload.candidate) return maybe.payload.candidate;
-      if (typeof maybe === "string") return { candidate: maybe };
-      return null;
-    };
-
-    async function drainPendingCandidates() {
+    const drainPendingCandidates = async () => {
       if (draining) return;
       draining = true;
       try {
         if (!pendingCandidates || pendingCandidates.length === 0) return;
         log("[video] draining", pendingCandidates.length, "pending candidates");
         const copy = pendingCandidates.slice();
-        pendingCandidates = [];
+        pendingCandidates.length = 0;
         for (const cand of copy) {
           try {
             if (!pc || !pc.remoteDescription || !pc.remoteDescription.type) {
@@ -97,7 +88,7 @@ export default function VideoPage() {
           setTimeout(() => { drainPendingCandidates(); }, 250);
         }
       }
-    }
+    };
 
     function cleanupPeerConnection() {
       try {
@@ -114,7 +105,7 @@ export default function VideoPage() {
       makingOffer = false;
       ignoreOffer = false;
       try { var rv = get("remoteVideo"); if (rv) rv.srcObject = null; } catch (e) {}
-      pendingCandidates = [];
+      pendingCandidates.length = 0;
     }
 
     var cleanup = function (opts) {
@@ -407,15 +398,12 @@ export default function VideoPage() {
 
       // ---------------- NEW: Activities (Two-Option & Spin) SIGNALS ----------------
 
-      // When server sends a two-option question to both, it will be delivered as:
-      // { questionId, text, optionA, optionB, totalQuestions, currentIndex }
+      // Two-option question arrives
       socket.on("twoOptionQuestion", (q) => {
         try {
           log("twoOptionQuestion", q);
           currentQuestion = q;
-          // reset any UI hint
           pendingAnswers[q.questionId] = { self: null, revealed: false };
-          // show UI
           const modal = get("twoOptionModal");
           if (!modal) { log("twoOptionModal missing"); return; }
           modal.querySelector(".q-text").textContent = q.text || "";
@@ -423,47 +411,39 @@ export default function VideoPage() {
           modal.querySelector("#optB").textContent = q.optionB || "B";
           modal.querySelector(".q-counter").textContent = `${q.currentIndex || 1}/${q.totalQuestions || 1}`;
           modal.style.display = "flex";
-          // hide reveal area until both answers present
           var reveal = get("twoOptionReveal");
           if (reveal) reveal.style.display = "none";
         } catch (e) { console.error("twoOptionQuestion handler", e); }
       });
 
-      // When partner's answer is revealed by server, payload:
-      // { questionId, answers: { you: 'A'|'B', partner: 'A'|'B' } }
+      // Reveal after server confirms both answered
       socket.on("twoOptionReveal", (payload) => {
         try {
           log("twoOptionReveal", payload);
           if (!payload || !payload.questionId) return;
           var modal = get("twoOptionModal");
           if (!modal) return;
-          // fill reveal area
           var reveal = get("twoOptionReveal");
           if (reveal) {
             reveal.style.display = "block";
             reveal.querySelector(".you-choice").textContent = payload.answers.you === "A" ? modal.querySelector("#optA").textContent : modal.querySelector("#optB").textContent;
             reveal.querySelector(".other-choice").textContent = payload.answers.partner === "A" ? modal.querySelector("#optA").textContent : modal.querySelector("#optB").textContent;
-            // animate small heart if matched
             var match = payload.answers.you === payload.answers.partner;
             reveal.querySelector(".match-text").textContent = match ? "Match! 💖 +1" : "Different — Opposites attract! ✨";
-            // update score
             if (typeof payload.matched !== "undefined") {
               twoOptionScore.asked = payload.totalAsked || twoOptionScore.asked;
               twoOptionScore.matched = payload.matched;
               twoOptionScore.total = payload.totalAsked || twoOptionScore.asked;
             }
           }
-          // after 2-3s auto hide this question and ask server next
           setTimeout(() => {
             try {
               if (modal) modal.style.display = "none";
-              // if server sent final result it will emit "twoOptionResult"
             } catch (e) {}
           }, 2200);
         } catch (e) { console.error("twoOptionReveal err", e); }
       });
 
-      // Final percentage
       socket.on("twoOptionResult", (res) => {
         try {
           log("twoOptionResult", res);
@@ -472,29 +452,56 @@ export default function VideoPage() {
           rmodal.querySelector(".final-percent").textContent = `${res.percent || 0}%`;
           rmodal.querySelector(".final-text").textContent = res.text || "Here's your love score!";
           rmodal.style.display = "flex";
-          // small animation: fill hearts
           var hearts = rmodal.querySelectorAll(".result-hearts i");
           var fillCount = Math.round(((res.percent || 0) / 100) * hearts.length);
           for (var i = 0; i < hearts.length; i++) hearts[i].classList.toggle("selected", i < fillCount);
         } catch (e) { console.error("twoOptionResult", e); }
       });
 
-      // Spin the bottle result: server decides who bottle points to AND a question/dare
-      // payload: { targetSocketId, questionType: 'truth'|'date', prompt: '...' }
+      // SPIN: server tells clients to start animation in sync
+      socket.on("spinStarted", ({ spinId, startAt, duration } = {}) => {
+        try {
+          log("spinStarted", spinId, startAt, duration);
+          const overlay = get("spinOverlay");
+          const bottle = get("spinBottleImg");
+          if (!overlay || !bottle) return;
+          const now = Date.now();
+          const delay = Math.max(0, (startAt || now) - now);
+          overlay.style.display = "flex";
+          // reset transform and transition
+          bottle.style.transition = `transform ${duration}ms cubic-bezier(.17,.67,.83,.67)`;
+          bottle.style.transform = `rotate(0deg)`;
+          // slight timeout to allow layout
+          setTimeout(() => {
+            const revolutions = 4 + Math.floor(Math.random() * 3); // 4-6 revs
+            const randomOffset = Math.floor(Math.random() * 360);
+            const finalDeg = revolutions * 360 + randomOffset;
+            setTimeout(() => {
+              bottle.style.transform = `rotate(${finalDeg}deg)`;
+            }, delay);
+          }, 40);
+          // fallback hide if no result after duration + buffer
+          setTimeout(() => {
+            try { overlay.style.display = "none"; } catch (e) {}
+          }, delay + (duration || 6000) + 6000);
+        } catch (e) { console.error("spinStarted handler", e); }
+      });
+
+      // SPIN result: who was picked + prompt
       socket.on("spinBottleResult", (payload) => {
         try {
           log("spinBottleResult", payload);
           var modal = get("spinModal");
           if (!modal) return;
           modal.querySelector(".spin-status").textContent = payload.prompt || (payload.questionType === "truth" ? "Truth..." : "Date...");
-          // show who was chosen
           var who = payload.isYou ? "You" : (payload.partnerName || "Partner");
           modal.querySelector(".spin-who").textContent = `Bottle pointed to: ${who}`;
           modal.style.display = "flex";
+          // ensure spin overlay hidden now
+          try { var overlay = get("spinOverlay"); if (overlay) overlay.style.display = "none"; } catch (e) {}
         } catch (e) { console.error("spinBottleResult err", e); }
       });
 
-      // server notifies partner answered (only for UI notices)
       socket.on("twoOptionPartnerAnswered", (d) => {
         try {
           var modal = get("twoOptionModal");
@@ -504,7 +511,7 @@ export default function VideoPage() {
         } catch (e) {}
       });
 
-      // wire UI controls after small delay
+      // UI wiring
       setTimeout(() => {
         var micBtn = get("micBtn");
         if (micBtn) {
@@ -627,7 +634,6 @@ export default function VideoPage() {
         // Start Two-Option Quiz
         var startTwo = get("startTwoOption");
         if (startTwo) startTwo.onclick = function () {
-          // request server to start quiz; server will send sequence of 'twoOptionQuestion'
           safeEmit("twoOptionStart", { questionsPack: "default", count: 10 });
           var m = get("activitiesModal"); if (m) m.style.display = "none";
           showToast("Starting Two-Option Quiz...");
@@ -636,7 +642,6 @@ export default function VideoPage() {
         // Start Spin Bottle
         var startSpin = get("startSpin");
         if (startSpin) startSpin.onclick = function () {
-          // ask server to spin bottle for this room
           safeEmit("spinBottleStart", {});
           var m = get("activitiesModal"); if (m) m.style.display = "none";
           showToast("Spinning the bottle...");
@@ -660,36 +665,26 @@ export default function VideoPage() {
 
       }, 800);
 
-      // helper to submit private answer (client only sends own choice)
       function submitTwoOptionAnswer(choice) {
         try {
           if (!currentQuestion || !currentQuestion.questionId) {
             showToast("No active question");
             return;
           }
-          // store local pending
           pendingAnswers[currentQuestion.questionId] = pendingAnswers[currentQuestion.questionId] || {};
           pendingAnswers[currentQuestion.questionId].self = choice;
-          // UI: show waiting
           var modal = get("twoOptionModal");
           if (modal) {
             modal.querySelector(".waiting-text").textContent = "Waiting for partner...";
-            // disable buttons visually
             modal.querySelector("#optA").classList.add("disabled");
             modal.querySelector("#optB").classList.add("disabled");
           }
-          // emit to server
           safeEmit("twoOptionAnswer", { questionId: currentQuestion.questionId, choice: choice });
         } catch (e) { console.error("submitTwoOptionAnswer err", e); }
       }
 
-      // Server may request to cancel/hide modals
-      socket.on("twoOptionCancel", () => {
-        try { var m = get("twoOptionModal"); if (m) m.style.display = "none"; } catch (e) {}
-      });
-      socket.on("spinCancel", () => {
-        try { var sm = get("spinModal"); if (sm) sm.style.display = "none"; } catch (e) {}
-      });
+      socket.on("twoOptionCancel", () => { try { var m = get("twoOptionModal"); if (m) m.style.display = "none"; } catch (e) {} });
+      socket.on("spinCancel", () => { try { var sm = get("spinModal"); if (sm) sm.style.display = "none"; } catch (e) {} });
 
     })();
 
@@ -700,7 +695,6 @@ export default function VideoPage() {
   // escape helper
   function escapeHtml(s) { return String(s).replace(/[&<>"']/g, (m) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[m]); }
 
-  // UI (JSX) — added activities modal, two-option modal, spin modal, results modal
   return (
     <>
       <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css" referrerPolicy="no-referrer" />
@@ -788,6 +782,18 @@ export default function VideoPage() {
         </div>
       </div>
 
+      {/* Spin Overlay (animation in sync) */}
+      <div id="spinOverlay" className="overlay-modal" style={{display:'none', alignItems:'center', justifyContent:'center'}}>
+        <div className="modal-card">
+          <div style={{textAlign:'center'}}>
+            <div style={{height:160, width:160, margin:'0 auto', position:'relative'}}>
+              <img id="spinBottleImg" src="/bottle.svg" alt="bottle" style={{width:'100%',height:'100%',transformOrigin:'50% 50%'}} />
+            </div>
+            <div style={{marginTop:12}}>Spinning the bottle...</div>
+          </div>
+        </div>
+      </div>
+
       {/* Spin Modal */}
       <div id="spinModal" className="overlay-modal" style={{display:'none'}}>
         <div className="modal-card">
@@ -857,6 +863,8 @@ export default function VideoPage() {
         .reveal{background:rgba(255,255,255,0.03);padding:10px;border-radius:10px;margin-top:8px}
         .result-hearts i{font-size:36px;margin:6px;color:#777}
         .result-hearts i.selected{color:#ff1744}
+        /* spin overlay specific */
+        #spinBottleImg{ display:block; transform-origin:50% 50%; will-change:transform; }
         @media(max-width: 900px){.video-panes{ flex-direction:column; } .video-box{ flex:1 1 50%; min-height: 0; }}
       `}</style>
     </>
