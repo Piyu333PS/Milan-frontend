@@ -1,0 +1,8 @@
+<!-- public/bottle.svg -->
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 200">
+  <g transform="translate(100,100)">
+    <ellipse cx="0" cy="70" rx="36" ry="12" fill="#7b5cff" opacity="0.9"/>
+    <path d="M-22 -60 L22 -60 L32 52 L-32 52 Z" fill="#b29cff" stroke="#6e4fb7" stroke-width="2"/>
+    <rect x="-6" y="-88" width="12" height="24" rx="3" fill="#e6dcff"/>
+  </g>
+</svg>
