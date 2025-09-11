@@ -15,6 +15,11 @@ export default function VideoPage() {
     let cameraTrackSaved = null;
     let isCleaning = false;
 
+    // Two-Option / Spin state helpers
+    let currentQuestion = null;
+    let pendingAnswers = {}; // { questionId: { self: 'A', other: null } } on client side we only keep self until reveal
+    let twoOptionScore = { total: 0, matched: 0, asked: 0 };
+
     // negotiation flags (Perfect Negotiation pattern)
     let makingOffer = false;
     let ignoreOffer = false;
@@ -56,7 +61,6 @@ export default function VideoPage() {
 
     const parseCandidateLike = (maybe) => {
       if (!maybe) return null;
-      // common shapes: { candidate: {...} } or { candidate: "a=..." , sdpMid, sdpMLineIndex }
       if (maybe.candidate !== undefined || maybe.sdpMid !== undefined || maybe.sdpMLineIndex !== undefined) return maybe;
       if (maybe.payload && maybe.payload.candidate) return maybe.payload.candidate;
       if (typeof maybe === "string") return { candidate: maybe };
@@ -69,13 +73,11 @@ export default function VideoPage() {
       try {
         if (!pendingCandidates || pendingCandidates.length === 0) return;
         log("[video] draining", pendingCandidates.length, "pending candidates");
-        // copy and clear, but we'll re-queue ones that still can't be added
         const copy = pendingCandidates.slice();
         pendingCandidates = [];
         for (const cand of copy) {
           try {
             if (!pc || !pc.remoteDescription || !pc.remoteDescription.type) {
-              // remote not ready yet -> requeue
               log("[video] drain: remoteDescription not ready yet, re-queueing candidate", cand);
               pendingCandidates.push(cand);
               continue;
@@ -83,9 +85,7 @@ export default function VideoPage() {
             await pc.addIceCandidate(new RTCIceCandidate(cand));
             log("[video] drained candidate success");
           } catch (err) {
-            // if remoteDescription still not set or other transient error, requeue
             console.warn("[video] drained candidate failed", err, cand);
-            // If the error is specifically "The remote description was null" or InvalidStateError, requeue
             pendingCandidates.push(cand);
           }
         }
@@ -93,11 +93,8 @@ export default function VideoPage() {
         console.error("[video] drainPendingCandidates unexpected error", err);
       } finally {
         draining = false;
-        // if still pending, schedule a retry with a small backoff
         if (pendingCandidates && pendingCandidates.length > 0) {
-          setTimeout(() => {
-            drainPendingCandidates();
-          }, 250);
+          setTimeout(() => { drainPendingCandidates(); }, 250);
         }
       }
     }
@@ -282,7 +279,7 @@ export default function VideoPage() {
         };
       };
 
-      // SIGNALING HANDLERS ------------------------------------------------
+      // ---------------- SIGNALING HANDLERS (existing) ---------------------
 
       socket.on("ready", (data) => {
         log("socket ready", data);
@@ -319,7 +316,6 @@ export default function VideoPage() {
 
           await pc.setRemoteDescription(offerDesc);
           log("[video] remoteDescription set -> draining candidates");
-          // drain pending candidates now that remote description is set
           try { await drainPendingCandidates(); } catch (e) { console.warn("[video] drain after offer failed", e); }
 
           const answer = await pc.createAnswer();
@@ -384,11 +380,9 @@ export default function VideoPage() {
             else { console.warn("[video] createPC not found"); }
           }
 
-          // If remoteDescription not set yet, queue candidate
           if (!pc || !pc.remoteDescription || !pc.remoteDescription.type) {
             log("[video] remoteDescription not set yet — queueing candidate");
             pendingCandidates.push(cand);
-            // schedule a drain attempt
             setTimeout(() => drainPendingCandidates(), 200);
             return;
           }
@@ -398,7 +392,6 @@ export default function VideoPage() {
             log("[video] addIceCandidate success");
           } catch (err) {
             console.warn("[video] addIceCandidate failed", err, cand);
-            // on failure, queue for retry
             pendingCandidates.push(cand);
             setTimeout(() => drainPendingCandidates(), 250);
           }
@@ -411,6 +404,105 @@ export default function VideoPage() {
       socket.on("partnerDisconnected", () => { log("partnerDisconnected"); showToast("Partner disconnected"); showRating(); cleanupPeerConnection(); });
       socket.on("partnerLeft", () => { log("partnerLeft"); showToast("Partner left"); showRating(); cleanupPeerConnection(); });
       socket.on("errorMessage", (e) => { console.warn("server errorMessage:", e); showToast(e && e.message ? e.message : "Server error"); });
+
+      // ---------------- NEW: Activities (Two-Option & Spin) SIGNALS ----------------
+
+      // When server sends a two-option question to both, it will be delivered as:
+      // { questionId, text, optionA, optionB, totalQuestions, currentIndex }
+      socket.on("twoOptionQuestion", (q) => {
+        try {
+          log("twoOptionQuestion", q);
+          currentQuestion = q;
+          // reset any UI hint
+          pendingAnswers[q.questionId] = { self: null, revealed: false };
+          // show UI
+          const modal = get("twoOptionModal");
+          if (!modal) { log("twoOptionModal missing"); return; }
+          modal.querySelector(".q-text").textContent = q.text || "";
+          modal.querySelector("#optA").textContent = q.optionA || "A";
+          modal.querySelector("#optB").textContent = q.optionB || "B";
+          modal.querySelector(".q-counter").textContent = `${q.currentIndex || 1}/${q.totalQuestions || 1}`;
+          modal.style.display = "flex";
+          // hide reveal area until both answers present
+          var reveal = get("twoOptionReveal");
+          if (reveal) reveal.style.display = "none";
+        } catch (e) { console.error("twoOptionQuestion handler", e); }
+      });
+
+      // When partner's answer is revealed by server, payload:
+      // { questionId, answers: { you: 'A'|'B', partner: 'A'|'B' } }
+      socket.on("twoOptionReveal", (payload) => {
+        try {
+          log("twoOptionReveal", payload);
+          if (!payload || !payload.questionId) return;
+          var modal = get("twoOptionModal");
+          if (!modal) return;
+          // fill reveal area
+          var reveal = get("twoOptionReveal");
+          if (reveal) {
+            reveal.style.display = "block";
+            reveal.querySelector(".you-choice").textContent = payload.answers.you === "A" ? modal.querySelector("#optA").textContent : modal.querySelector("#optB").textContent;
+            reveal.querySelector(".other-choice").textContent = payload.answers.partner === "A" ? modal.querySelector("#optA").textContent : modal.querySelector("#optB").textContent;
+            // animate small heart if matched
+            var match = payload.answers.you === payload.answers.partner;
+            reveal.querySelector(".match-text").textContent = match ? "Match! 💖 +1" : "Different — Opposites attract! ✨";
+            // update score
+            if (typeof payload.matched !== "undefined") {
+              twoOptionScore.asked = payload.totalAsked || twoOptionScore.asked;
+              twoOptionScore.matched = payload.matched;
+              twoOptionScore.total = payload.totalAsked || twoOptionScore.asked;
+            }
+          }
+          // after 2-3s auto hide this question and ask server next
+          setTimeout(() => {
+            try {
+              if (modal) modal.style.display = "none";
+              // if server sent final result it will emit "twoOptionResult"
+            } catch (e) {}
+          }, 2200);
+        } catch (e) { console.error("twoOptionReveal err", e); }
+      });
+
+      // Final percentage
+      socket.on("twoOptionResult", (res) => {
+        try {
+          log("twoOptionResult", res);
+          var rmodal = get("twoOptionResultModal");
+          if (!rmodal) return;
+          rmodal.querySelector(".final-percent").textContent = `${res.percent || 0}%`;
+          rmodal.querySelector(".final-text").textContent = res.text || "Here's your love score!";
+          rmodal.style.display = "flex";
+          // small animation: fill hearts
+          var hearts = rmodal.querySelectorAll(".result-hearts i");
+          var fillCount = Math.round(((res.percent || 0) / 100) * hearts.length);
+          for (var i = 0; i < hearts.length; i++) hearts[i].classList.toggle("selected", i < fillCount);
+        } catch (e) { console.error("twoOptionResult", e); }
+      });
+
+      // Spin the bottle result: server decides who bottle points to AND a question/dare
+      // payload: { targetSocketId, questionType: 'truth'|'date', prompt: '...' }
+      socket.on("spinBottleResult", (payload) => {
+        try {
+          log("spinBottleResult", payload);
+          var modal = get("spinModal");
+          if (!modal) return;
+          modal.querySelector(".spin-status").textContent = payload.prompt || (payload.questionType === "truth" ? "Truth..." : "Date...");
+          // show who was chosen
+          var who = payload.isYou ? "You" : (payload.partnerName || "Partner");
+          modal.querySelector(".spin-who").textContent = `Bottle pointed to: ${who}`;
+          modal.style.display = "flex";
+        } catch (e) { console.error("spinBottleResult err", e); }
+      });
+
+      // server notifies partner answered (only for UI notices)
+      socket.on("twoOptionPartnerAnswered", (d) => {
+        try {
+          var modal = get("twoOptionModal");
+          if (!modal) return;
+          var waiting = modal.querySelector(".waiting-text");
+          if (waiting) waiting.textContent = d.partnerName ? `${d.partnerName} answered` : "Partner answered";
+        } catch (e) {}
+      });
 
       // wire UI controls after small delay
       setTimeout(() => {
@@ -518,7 +610,86 @@ export default function VideoPage() {
             });
           })(hearts[hi]);
         }
+
+        // Activities button
+        var activitiesBtn = get("activitiesBtn");
+        if (activitiesBtn) {
+          activitiesBtn.onclick = function () {
+            var m = get("activitiesModal");
+            if (m) m.style.display = "flex";
+          };
+        }
+
+        // Activities modal close
+        var actClose = get("activitiesClose");
+        if (actClose) actClose.onclick = function () { var m = get("activitiesModal"); if (m) m.style.display = "none"; };
+
+        // Start Two-Option Quiz
+        var startTwo = get("startTwoOption");
+        if (startTwo) startTwo.onclick = function () {
+          // request server to start quiz; server will send sequence of 'twoOptionQuestion'
+          safeEmit("twoOptionStart", { questionsPack: "default", count: 10 });
+          var m = get("activitiesModal"); if (m) m.style.display = "none";
+          showToast("Starting Two-Option Quiz...");
+        };
+
+        // Start Spin Bottle
+        var startSpin = get("startSpin");
+        if (startSpin) startSpin.onclick = function () {
+          // ask server to spin bottle for this room
+          safeEmit("spinBottleStart", {});
+          var m = get("activitiesModal"); if (m) m.style.display = "none";
+          showToast("Spinning the bottle...");
+        };
+
+        // Two-option option buttons
+        var optA = get("optA");
+        var optB = get("optB");
+        if (optA) optA.onclick = function () { submitTwoOptionAnswer("A"); };
+        if (optB) optB.onclick = function () { submitTwoOptionAnswer("B"); };
+
+        // Close result modal
+        var closeTwoRes = get("closeTwoRes");
+        if (closeTwoRes) closeTwoRes.onclick = function () { var r = get("twoOptionResultModal"); if (r) r.style.display = "none"; };
+
+        // Spin modal action buttons
+        var spinDone = get("spinDone");
+        var spinSkip = get("spinSkip");
+        if (spinDone) spinDone.onclick = function () { var sm = get("spinModal"); if (sm) sm.style.display = "none"; safeEmit("spinBottleDone", {}); };
+        if (spinSkip) spinSkip.onclick = function () { var sm = get("spinModal"); if (sm) sm.style.display = "none"; safeEmit("spinBottleSkip", {}); };
+
       }, 800);
+
+      // helper to submit private answer (client only sends own choice)
+      function submitTwoOptionAnswer(choice) {
+        try {
+          if (!currentQuestion || !currentQuestion.questionId) {
+            showToast("No active question");
+            return;
+          }
+          // store local pending
+          pendingAnswers[currentQuestion.questionId] = pendingAnswers[currentQuestion.questionId] || {};
+          pendingAnswers[currentQuestion.questionId].self = choice;
+          // UI: show waiting
+          var modal = get("twoOptionModal");
+          if (modal) {
+            modal.querySelector(".waiting-text").textContent = "Waiting for partner...";
+            // disable buttons visually
+            modal.querySelector("#optA").classList.add("disabled");
+            modal.querySelector("#optB").classList.add("disabled");
+          }
+          // emit to server
+          safeEmit("twoOptionAnswer", { questionId: currentQuestion.questionId, choice: choice });
+        } catch (e) { console.error("submitTwoOptionAnswer err", e); }
+      }
+
+      // Server may request to cancel/hide modals
+      socket.on("twoOptionCancel", () => {
+        try { var m = get("twoOptionModal"); if (m) m.style.display = "none"; } catch (e) {}
+      });
+      socket.on("spinCancel", () => {
+        try { var sm = get("spinModal"); if (sm) sm.style.display = "none"; } catch (e) {}
+      });
 
     })();
 
@@ -529,7 +700,7 @@ export default function VideoPage() {
   // escape helper
   function escapeHtml(s) { return String(s).replace(/[&<>"']/g, (m) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[m]); }
 
-  // UI (JSX) — ensure elements with id="remoteVideo" and id="localVideo" are present
+  // UI (JSX) — added activities modal, two-option modal, spin modal, results modal
   return (
     <>
       <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css" referrerPolicy="no-referrer" />
@@ -562,6 +733,71 @@ export default function VideoPage() {
         <button id="disconnectBtn" className="control-btn danger" aria-label="End Call">
           <i className="fas fa-phone-slash"></i><span>End</span>
         </button>
+      </div>
+
+      {/* Activities Modal */}
+      <div id="activitiesModal" className="overlay-modal" style={{display:'none'}}>
+        <div className="modal-card">
+          <button id="activitiesClose" className="modal-close">×</button>
+          <h3>Fun Activities</h3>
+          <div className="activities-list">
+            <div className="act-card">
+              <h4>Two-Option Quiz</h4>
+              <p>Answer quick two-choice questions privately. Reveal together and get love %!</p>
+              <button id="startTwoOption">Start Two-Option Quiz</button>
+            </div>
+            <div className="act-card">
+              <h4>Spin the Bottle — Truth & Date</h4>
+              <p>Spin a virtual bottle. When it lands, selected person does truth or date challenge.</p>
+              <button id="startSpin">Spin the Bottle</button>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* Two-Option Modal */}
+      <div id="twoOptionModal" className="overlay-modal" style={{display:'none'}}>
+        <div className="modal-card small">
+          <div className="q-counter" style={{textAlign:'right',opacity:.8}}>1/10</div>
+          <div className="q-text" style={{fontSize:20,marginBottom:12}}>Question text</div>
+          <div className="options-row">
+            <button id="optA" className="opt-btn">Option A</button>
+            <button id="optB" className="opt-btn">Option B</button>
+          </div>
+          <div className="waiting-text" style={{marginTop:12,opacity:.9}}>Choose your answer...</div>
+
+          <div id="twoOptionReveal" className="reveal" style={{display:'none',marginTop:12}}>
+            <div><strong>You:</strong> <span className="you-choice"></span></div>
+            <div><strong>Partner:</strong> <span className="other-choice"></span></div>
+            <div className="match-text" style={{marginTop:8}}></div>
+          </div>
+        </div>
+      </div>
+
+      {/* Two-Option Result Modal */}
+      <div id="twoOptionResultModal" className="overlay-modal" style={{display:'none'}}>
+        <div className="modal-card">
+          <h2 className="final-percent">0%</h2>
+          <p className="final-text">Your love score</p>
+          <div className="result-hearts">
+            <i className="far fa-heart"></i><i className="far fa-heart"></i><i className="far fa-heart"></i><i className="far fa-heart"></i><i className="far fa-heart"></i>
+          </div>
+          <div style={{marginTop:14}}>
+            <button id="closeTwoRes">Close</button>
+          </div>
+        </div>
+      </div>
+
+      {/* Spin Modal */}
+      <div id="spinModal" className="overlay-modal" style={{display:'none'}}>
+        <div className="modal-card">
+          <h3 className="spin-who">Bottle pointed to: —</h3>
+          <p className="spin-status">Prompt / dare</p>
+          <div style={{marginTop:16}}>
+            <button id="spinDone">Done</button>
+            <button id="spinSkip" style={{marginLeft:10}}>Skip</button>
+          </div>
+        </div>
       </div>
 
       <div id="ratingOverlay">
@@ -606,6 +842,21 @@ export default function VideoPage() {
         .rating-buttons{ display:flex;gap:26px;margin-top:32px;justify-content:center;position:relative;z-index:2 }
         .rating-buttons button{ padding:18px 32px;font-size:20px;border-radius:16px;border:none;color:#fff;cursor:pointer;background:linear-gradient(135deg,#ff4d8d,#6a5acd);box-shadow:0 10px 28px rgba(0,0,0,.45);backdrop-filter: blur(14px);transition:transform .2s ease,opacity .2s ease }
         #toast{position:fixed;left:50%;bottom:110px;transform:translateX(-50%);background:#111;color:#fff;padding:10px 14px;border-radius:8px;display:none;z-index:5000;border:1px solid rgba(255,255,255,.12)}
+
+        /* overlay modal styles */
+        .overlay-modal{position:fixed;inset:0;display:flex;align-items:center;justify-content:center;background:rgba(0,0,0,.6);z-index:4500}
+        .modal-card{background:linear-gradient(180deg, rgba(255,255,255,0.04), rgba(255,255,255,0.02));padding:22px;border-radius:16px;min-width:320px;color:#fff;border:1px solid rgba(255,255,255,.08);box-shadow:0 14px 40px rgba(0,0,0,.6)}
+        .modal-card.small{min-width: min(520px, 92vw)}
+        .modal-close{position:absolute;right:14px;top:8px;background:transparent;border:none;color:#fff;font-size:28px;cursor:pointer}
+        .activities-list{display:flex;gap:12px;flex-direction:column;margin-top:10px}
+        .act-card{padding:12px;border-radius:12px;background:rgba(255,255,255,0.02)}
+        .act-card button{margin-top:10px;padding:10px 14px;border-radius:10px;border:none;background:#ff4d8d;color:#fff;cursor:pointer}
+        .options-row{display:flex;gap:12px}
+        .opt-btn{flex:1;padding:12px;border-radius:12px;border:none;background:#222;color:#fff;font-size:16px;cursor:pointer}
+        .opt-btn.disabled{opacity:.5;pointer-events:none}
+        .reveal{background:rgba(255,255,255,0.03);padding:10px;border-radius:10px;margin-top:8px}
+        .result-hearts i{font-size:36px;margin:6px;color:#777}
+        .result-hearts i.selected{color:#ff1744}
         @media(max-width: 900px){.video-panes{ flex-direction:column; } .video-box{ flex:1 1 50%; min-height: 0; }}
       `}</style>
     </>
