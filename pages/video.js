@@ -2,6 +2,35 @@
 import { useEffect } from "react";
 import io from "socket.io-client";
 
+
+/* --- Responsive tweaks injected by assistant --- */
+const __MOBILE_RESPONSIVE_CSS = `
+:root { --controls-height: 88px; }
+.video-grid { display: flex; gap: 12px; align-items: stretch; justify-content: center; flex-wrap: wrap; }
+.video-tile { flex: 1 1 48%; max-width: 48%; height: calc(50vh - var(--controls-height)); border-radius: 12px; overflow: hidden; position: relative; }
+.video-tile video { width: 100%; height: 100%; object-fit: cover; display: block; }
+@media (max-width: 800px) {
+  .video-tile { flex: 1 1 100%; max-width: 100%; height: calc(45vh - var(--controls-height)); border-radius: 10px; }
+  .controls-bar { padding-bottom: 16px; }
+  .rating-modal { width: 92% !important; left: 4% !important; right: 4% !important; max-height: 80vh; overflow: auto; }
+  .rating-modal .buttons { display:flex; gap:12px; flex-direction:row; justify-content:space-between; }
+  .rating-modal .hearts { transform: scale(0.95); }
+}
+@media (max-height: 700px) and (max-width:420px) {
+  .video-tile { height: calc(40vh - var(--controls-height)); }
+}
+`;
+
+// inject CSS once at runtime
+(function injectMobileCSS(){
+  if (typeof document === 'undefined') return;
+  if (document.getElementById('__mobile_resp_css')) return;
+  const s = document.createElement('style');
+  s.id = '__mobile_resp_css';
+  s.innerHTML = __MOBILE_RESPONSIVE_CSS;
+  document.head.appendChild(s);
+})();
+/* --- end injected CSS --- */
 export default function VideoPage() {
   useEffect(() => {
     const BACKEND_URL = window.BACKEND_URL || process.env.NEXT_PUBLIC_BACKEND_URL || "https://milan-j9u9.onrender.com";
@@ -263,7 +292,7 @@ export default function VideoPage() {
             makingOffer = true;
             const offer = await pc.createOffer();
             await pc.setLocalDescription(offer);
-            safeEmit("offer", { type: pc.localDescription && pc.localDescription.type, sdp: pc.localDescription && pc.localDescription.sdp });
+            safeEmit("offer", pc.localDescription);
             log("negotiationneeded: offer sent");
           } catch (err) {
             log("negotiationneeded error", err);
@@ -283,7 +312,7 @@ export default function VideoPage() {
               makingOffer = true;
               const off = await pc.createOffer();
               await pc.setLocalDescription(off);
-              safeEmit("offer", { type: pc.localDescription && pc.localDescription.type, sdp: pc.localDescription && pc.localDescription.sdp });
+              safeEmit("offer", pc.localDescription);
               hasOffered = true;
               log("ready: offer emitted");
             } else {
@@ -293,17 +322,11 @@ export default function VideoPage() {
         })();
       });
 
-      
-      /* ===== Robust signaling handlers (offer/answer/candidate) ===== */
       socket.on("offer", async (offer) => {
         log("socket offer", offer && offer.type);
+        createPC();
         try {
-          if (!offer || typeof offer !== "object" || !offer.type || !offer.sdp) {
-            log("[video] invalid offer payload - ignoring", offer);
-            return;
-          }
-          if (!pc) createPC();
-          const offerDesc = { type: offer.type, sdp: offer.sdp };
+          const offerDesc = new RTCSessionDescription(offer);
           const readyForOffer = !makingOffer && (pc.signalingState === "stable" || pc.signalingState === "have-local-offer");
           ignoreOffer = !readyForOffer && !polite;
           if (ignoreOffer) { log("ignoring offer (not ready & not polite)"); return; }
@@ -318,7 +341,7 @@ export default function VideoPage() {
 
           const answer = await pc.createAnswer();
           await pc.setLocalDescription(answer);
-          safeEmit("answer", { type: pc.localDescription && pc.localDescription.type, sdp: pc.localDescription && pc.localDescription.sdp });
+          safeEmit("answer", pc.localDescription);
           log("answer created & sent");
         } catch (err) { log("handle offer error", err); }
       });
@@ -326,13 +349,9 @@ export default function VideoPage() {
       socket.on("answer", async (answer) => {
         log("socket answer", answer && answer.type);
         try {
-          if (!answer || typeof answer !== "object" || !answer.type || !answer.sdp) {
-            log("[video] invalid answer payload - ignoring", answer);
-            return;
-          }
           if (!pc) createPC();
-          if (pc.signalingState === "have-local-offer" || pc.signalingState === "have-remote-offer" || pc.signalingState === "stable") {
-            await pc.setRemoteDescription({ type: answer.type, sdp: answer.sdp });
+          if (pc.signalingState === "have-local-offer") {
+            await pc.setRemoteDescription(new RTCSessionDescription(answer));
             log("answer set as remoteDescription");
             try { await drainPendingCandidates(); } catch (e) { console.warn("[video] drain after answer failed", e); }
           } else {
@@ -344,6 +363,7 @@ export default function VideoPage() {
       socket.on("candidate", async (payload) => {
         try {
           log("socket candidate payload:", payload);
+
           const wrapper = (payload && (payload.candidate !== undefined || payload.sdpMid !== undefined || payload.sdpMLineIndex !== undefined))
                           ? payload
                           : (payload && payload.payload ? payload.payload : payload);
@@ -400,8 +420,8 @@ export default function VideoPage() {
           console.error("[video] candidate handler unexpected error", err);
         }
       });
-      /* ===== end robust handlers ===== */
-socket.on("waitingForPeer", (d) => { log("waitingForPeer", d); showToast("Waiting for partner..."); });
+
+      socket.on("waitingForPeer", (d) => { log("waitingForPeer", d); showToast("Waiting for partner..."); });
       socket.on("partnerDisconnected", () => { log("partnerDisconnected"); showToast("Partner disconnected"); showRating(); cleanupPeerConnection(); });
       socket.on("partnerLeft", () => { log("partnerLeft"); showToast("Partner left"); showRating(); cleanupPeerConnection(); });
       socket.on("errorMessage", (e) => { console.warn("server errorMessage:", e); showToast(e && e.message ? e.message : "Server error"); });
