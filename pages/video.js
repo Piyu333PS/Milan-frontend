@@ -4,7 +4,26 @@ import io from "socket.io-client";
 
 export default function VideoPage() {
   useEffect(() => {
-    const BACKEND_URL = window.BACKEND_URL || process.env.NEXT_PUBLIC_BACKEND_URL || "https://milan-j9u9.onrender.com";
+    const BACKEND_URL = (function(){
+    try {
+      if (typeof window !== 'undefined') {
+        if (window.BACKEND_URL) return window.BACKEND_URL;
+        if (window.__BACKEND__) return window.__BACKEND__;
+        // Next.js public env
+        if (typeof process !== 'undefined' && process.env && process.env.NEXT_PUBLIC_BACKEND_URL) {
+          return process.env.NEXT_PUBLIC_BACKEND_URL;
+        }
+        // derive sensible default for known frontends
+        const host = window.location && window.location.hostname ? window.location.hostname : '';
+        if (host.indexOf('milanlove.in') !== -1 || host.indexOf('milan-frontend.vercel.app') !== -1 || host.indexOf('milan-frontend.vercel.app') !== -1) {
+          return 'https://milan-j9u9.onrender.com';
+        }
+      }
+    } catch(e){}
+    return 'https://milan-j9u9.onrender.com';
+  })();
+    console.log('[video] USING BACKEND_URL ->', BACKEND_URL);
+
     const ICE_CONFIG = { iceServers: [{ urls: "stun:stun.l.google.com:19302" }] };
 
     let socket = null;
@@ -156,8 +175,10 @@ export default function VideoPage() {
       }
 
       socket = io(BACKEND_URL, {
-        transports: ['polling', 'websocket'], // try polling first then upgrade
-        timeout: 20000,
+        transports: ['polling'],
+        forceNew: true,
+        upgrade: true,
+        timeout: 30000,
         reconnection: true,
         reconnectionAttempts: Infinity,
         reconnectionDelay: 1000,
@@ -165,6 +186,8 @@ export default function VideoPage() {
       });
 
       socket.on("connect", () => {
+        console.log('[video] socket transport:', socket && socket.conn && socket.conn.transport && socket.conn.transport.name);
+
         log("socket connected", socket.id);
         socketConnected = true;
         const roomCode = getRoomCode();
