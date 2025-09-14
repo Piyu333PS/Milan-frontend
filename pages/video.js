@@ -4,7 +4,7 @@ import io from "socket.io-client";
 
 export default function VideoPage() {
   useEffect(() => {
-    const BACKEND_URL = process.env.NEXT_PUBLIC_BACKEND_URL || "https://milan-j9u9.onrender.com";
+    const BACKEND_URL = window.BACKEND_URL || process.env.NEXT_PUBLIC_BACKEND_URL || "https://milan-j9u9.onrender.com";
     const ICE_CONFIG = { iceServers: [{ urls: "stun:stun.l.google.com:19302" }] };
 
     let socket = null;
@@ -156,11 +156,12 @@ export default function VideoPage() {
       }
 
       socket = io(BACKEND_URL, {
-        transports: ["websocket", "polling"],
+        transports: ['polling', 'websocket'], // try polling first then upgrade
+        timeout: 20000,
         reconnection: true,
-        reconnectionAttempts: 10,
-        reconnectionDelay: 800,
-        path: "/socket.io"
+        reconnectionAttempts: Infinity,
+        reconnectionDelay: 1000,
+        path: '/socket.io'
       });
 
       socket.on("connect", () => {
