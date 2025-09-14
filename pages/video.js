@@ -263,7 +263,7 @@ export default function VideoPage() {
             makingOffer = true;
             const offer = await pc.createOffer();
             await pc.setLocalDescription(offer);
-            safeEmit("offer", pc.localDescription);
+            safeEmit("offer", { type: pc.localDescription && pc.localDescription.type, sdp: pc.localDescription && pc.localDescription.sdp });
             log("negotiationneeded: offer sent");
           } catch (err) {
             log("negotiationneeded error", err);
@@ -283,7 +283,7 @@ export default function VideoPage() {
               makingOffer = true;
               const off = await pc.createOffer();
               await pc.setLocalDescription(off);
-              safeEmit("offer", pc.localDescription);
+              safeEmit("offer", { type: pc.localDescription && pc.localDescription.type, sdp: pc.localDescription && pc.localDescription.sdp });
               hasOffered = true;
               log("ready: offer emitted");
             } else {
@@ -293,11 +293,17 @@ export default function VideoPage() {
         })();
       });
 
+      
+      /* ===== Robust signaling handlers (offer/answer/candidate) ===== */
       socket.on("offer", async (offer) => {
         log("socket offer", offer && offer.type);
-        createPC();
         try {
-          const offerDesc = new RTCSessionDescription(offer);
+          if (!offer || typeof offer !== "object" || !offer.type || !offer.sdp) {
+            log("[video] invalid offer payload - ignoring", offer);
+            return;
+          }
+          if (!pc) createPC();
+          const offerDesc = { type: offer.type, sdp: offer.sdp };
           const readyForOffer = !makingOffer && (pc.signalingState === "stable" || pc.signalingState === "have-local-offer");
           ignoreOffer = !readyForOffer && !polite;
           if (ignoreOffer) { log("ignoring offer (not ready & not polite)"); return; }
@@ -312,7 +318,7 @@ export default function VideoPage() {
 
           const answer = await pc.createAnswer();
           await pc.setLocalDescription(answer);
-          safeEmit("answer", pc.localDescription);
+          safeEmit("answer", { type: pc.localDescription && pc.localDescription.type, sdp: pc.localDescription && pc.localDescription.sdp });
           log("answer created & sent");
         } catch (err) { log("handle offer error", err); }
       });
@@ -320,9 +326,13 @@ export default function VideoPage() {
       socket.on("answer", async (answer) => {
         log("socket answer", answer && answer.type);
         try {
+          if (!answer || typeof answer !== "object" || !answer.type || !answer.sdp) {
+            log("[video] invalid answer payload - ignoring", answer);
+            return;
+          }
           if (!pc) createPC();
-          if (pc.signalingState === "have-local-offer") {
-            await pc.setRemoteDescription(new RTCSessionDescription(answer));
+          if (pc.signalingState === "have-local-offer" || pc.signalingState === "have-remote-offer" || pc.signalingState === "stable") {
+            await pc.setRemoteDescription({ type: answer.type, sdp: answer.sdp });
             log("answer set as remoteDescription");
             try { await drainPendingCandidates(); } catch (e) { console.warn("[video] drain after answer failed", e); }
           } else {
@@ -334,7 +344,6 @@ export default function VideoPage() {
       socket.on("candidate", async (payload) => {
         try {
           log("socket candidate payload:", payload);
-
           const wrapper = (payload && (payload.candidate !== undefined || payload.sdpMid !== undefined || payload.sdpMLineIndex !== undefined))
                           ? payload
                           : (payload && payload.payload ? payload.payload : payload);
@@ -391,8 +400,8 @@ export default function VideoPage() {
           console.error("[video] candidate handler unexpected error", err);
         }
       });
-
-      socket.on("waitingForPeer", (d) => { log("waitingForPeer", d); showToast("Waiting for partner..."); });
+      /* ===== end robust handlers ===== */
+socket.on("waitingForPeer", (d) => { log("waitingForPeer", d); showToast("Waiting for partner..."); });
       socket.on("partnerDisconnected", () => { log("partnerDisconnected"); showToast("Partner disconnected"); showRating(); cleanupPeerConnection(); });
       socket.on("partnerLeft", () => { log("partnerLeft"); showToast("Partner left"); showRating(); cleanupPeerConnection(); });
       socket.on("errorMessage", (e) => { console.warn("server errorMessage:", e); showToast(e && e.message ? e.message : "Server error"); });
