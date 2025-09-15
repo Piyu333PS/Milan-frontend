@@ -15,6 +15,11 @@ export default function VideoPage() {
     let cameraTrackSaved = null;
     let isCleaning = false;
 
+    // timer vars
+    let timerInterval = null;
+    let timerStartTS = null;
+    let elapsedBeforePause = 0; // keep if needed
+
     // Two-Option / Spin state helpers
     let currentQuestion = null;
     let pendingAnswers = {}; // { questionId: { self: 'A', other: null } } on client side we only keep self until reveal
@@ -106,6 +111,8 @@ export default function VideoPage() {
       ignoreOffer = false;
       try { var rv = get("remoteVideo"); if (rv) rv.srcObject = null; } catch (e) {}
       pendingCandidates.length = 0;
+      // stop timer but keep elapsed shown
+      stopTimer(true);
     }
 
     var cleanup = function (opts) {
@@ -133,6 +140,45 @@ export default function VideoPage() {
       setTimeout(() => { isCleaning = false; }, 300);
       if (opts.goToConnect) window.location.href = "/connect";
     };
+
+    // Timer helpers
+    function formatTime(ms) {
+      const total = Math.floor(ms / 1000);
+      const mm = String(Math.floor(total / 60)).padStart(2, '0');
+      const ss = String(total % 60).padStart(2, '0');
+      return `${mm}:${ss}`;
+    }
+    function updateTimerDisplay() {
+      const el = get('callTimer');
+      if (!el) return;
+      const now = Date.now();
+      const elapsed = (timerStartTS ? (elapsedBeforePause + (now - timerStartTS)) : elapsedBeforePause) || 0;
+      el.textContent = formatTime(elapsed);
+    }
+    function startTimer() {
+      try {
+        if (timerInterval) return; // already running
+        timerStartTS = Date.now();
+        // keep elapsedBeforePause as-is
+        updateTimerDisplay();
+        timerInterval = setInterval(updateTimerDisplay, 1000);
+        log('call timer started');
+      } catch (e) { console.warn('startTimer err', e); }
+    }
+    function stopTimer(preserve = false) {
+      try {
+        if (timerInterval) { clearInterval(timerInterval); timerInterval = null; }
+        if (timerStartTS) {
+          elapsedBeforePause = elapsedBeforePause + (Date.now() - timerStartTS);
+        }
+        timerStartTS = null;
+        if (!preserve) {
+          elapsedBeforePause = 0;
+          const el = get('callTimer'); if (el) el.textContent = '00:00';
+        }
+        log('call timer stopped', { preserve });
+      } catch (e) { console.warn('stopTimer err', e); }
+    }
 
     (async function start() {
       log("video page start");
@@ -253,6 +299,11 @@ export default function VideoPage() {
           log("pc.iceConnectionState:", pc.iceConnectionState);
           if (pc.iceConnectionState === "connected") {
             log("ICE connected");
+            // start the call timer
+            startTimer();
+          } else if (pc.iceConnectionState === "disconnected" || pc.iceConnectionState === "failed" || pc.iceConnectionState === "closed") {
+            // stop but preserve elapsed so user can see duration before rating
+            stopTimer(true);
           }
         };
 
@@ -703,12 +754,13 @@ socket.on("waitingForPeer", (d) => { log("waitingForPeer", d); showToast("Waitin
   }, []); // <-- end useEffect
 
   // escape helper
-  function escapeHtml(s) { return String(s).replace(/[&<>"']/g, (m) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[m]); }
+  function escapeHtml(s) { return String(s).replace(/[&<>\"']/g, (m) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[m]); }
 
   return (
     <>
       <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css" referrerPolicy="no-referrer" />
       <div className="video-stage">
+        <div id="callTimer" className="call-timer">00:00</div>
         <div className="video-panes">
           <div className="video-box">
             <video id="remoteVideo" autoPlay playsInline></video>
@@ -721,7 +773,7 @@ socket.on("waitingForPeer", (d) => { log("waitingForPeer", d); showToast("Waitin
         </div>
       </div>
 
-      <div className="control-bar">
+      <div className="control-bar" role="toolbar" aria-label="Call controls">
         <button id="micBtn" className="control-btn" aria-label="Toggle Mic">
           <i className="fas fa-microphone"></i><span>Mic</span>
         </button>
@@ -839,31 +891,33 @@ socket.on("waitingForPeer", (d) => { log("waitingForPeer", d); showToast("Waitin
       <style jsx global>{`
         *{margin:0;padding:0;box-sizing:border-box}
         html,body{height:100%;background:#000;font-family:'Segoe UI',sans-serif;overflow:hidden}
-        .video-stage{position:relative;width:100%;height:100vh;padding-bottom:110px;background:#000;}
-        .video-panes{position:absolute;left:0;right:0;top:0;bottom:110px;display:flex;gap:12px;padding:12px;}
-        .video-box{position:relative;flex:1 1 50%;border-radius:14px;overflow:hidden;background:#111;border:1px solid rgba(255,255,255,.08);}
-        .video-box video{width:100%;height:100%;object-fit:cover;background:#000;}
+        .video-stage{position:relative;width:100%;height:100vh;padding-bottom:calc(110px + env(safe-area-inset-bottom));background:#000;}
+        .call-timer{position:absolute;left:50%;top:12px;transform:translateX(-50%);z-index:3500;background:linear-gradient(90deg,#ff7aa3,#ffb26a);padding:6px 14px;border-radius:999px;color:#fff;font-weight:600;box-shadow:0 6px 20px rgba(0,0,0,.6);backdrop-filter: blur(6px);font-size:14px}
+        .video-panes{position:absolute;left:0;right:0;top:0;bottom:calc(110px + env(safe-area-inset-bottom));display:flex;gap:12px;padding:12px;}
+        .video-box{position:relative;flex:1 1 50%;border-radius:14px;overflow:hidden;background:#111;border:1px solid rgba(255,255,255,.08);min-height:120px}
+        .video-box video{width:100%;height:100%;object-fit:cover;background:#000;display:block}
         #localVideo{ transform: scaleX(-1); }
-        .label{position:absolute;left:10px;bottom:10px;padding:6px 10px;font-size:12px;color:#fff;background:rgba(0,0,0,.5);border:1px solid rgba(255,255,255,.15);border-radius:10px;pointer-events:none;}
-        .control-bar{position:fixed;bottom:18px;left:50%;transform:translateX(-50%);display:flex;gap:18px;padding:12px 16px;background:rgba(0,0,0,.6);border-radius:16px;z-index:3000;backdrop-filter: blur(8px);}
-        .control-btn{display:flex;flex-direction:column;align-items:center;justify-content:center;background:#18181b;color:#fff;border-radius:14px;width:68px;height:68px;cursor:pointer;}
+        .label{position:absolute;left:10px;bottom:10px;padding:6px 10px;font-size:12px;color:#fff;background:rgba(0,0,0,.5);border:1px solid rgba(255,255,255,.15);border-radius:10px;pointer-events:none}
+        .control-bar{position:fixed;bottom:calc(18px + env(safe-area-inset-bottom));left:50%;transform:translateX(-50%);display:flex;gap:12px;padding:12px 10px;background:rgba(0,0,0,.6);border-radius:16px;z-index:3000;backdrop-filter: blur(8px);max-width:calc(100% - 24px);overflow-x:auto}
+        .control-btn{display:flex;flex-direction:column;align-items:center;justify-content:center;background:#18181b;color:#fff;border-radius:14px;width:64px;height:64px;cursor:pointer;flex:0 0 auto}
+        .control-btn span{font-size:12px;margin-top:6px}
         .control-btn.inactive{opacity:0.5}.control-btn.active{box-shadow:0 6px 18px rgba(255,77,141,0.18);transform:translateY(-2px)}.control-btn.danger{background:#9b1c2a}
-        #ratingOverlay{position:fixed;inset:0;display:none;align-items:center;justify-content:center;background:rgba(0,0,0,.9);color:#fff;z-index:4000;padding:40px}
-        .rating-content{position:relative;min-width: min(720px, 92vw);padding:48px 56px;border-radius:24px;text-align:center;background:rgba(255,255,255,.10);border:1px solid rgba(255,255,255,.18);box-shadow:0 20px 60px rgba(0,0,0,.55);z-index:1}
-        .rating-content h2{ font-size:32px;margin-bottom:18px;letter-spacing:.3px }
-        .hearts{ display:flex;gap:30px;font-size:70px;margin:26px 0 8px 0;justify-content:center;z-index:2;position:relative }
+        #ratingOverlay{position:fixed;inset:0;display:none;align-items:center;justify-content:center;background:rgba(0,0,0,.9);color:#fff;z-index:4000;padding:20px}
+        .rating-content{position:relative;min-width: min(720px, 92vw);max-width:920px;max-height:80vh;padding:28px 36px;border-radius:20px;text-align:center;background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.08);box-shadow:0 20px 60px rgba(0,0,0,.55);z-index:1;overflow:auto}
+        .rating-content h2{ font-size:28px;margin-bottom:14px;letter-spacing:.3px }
+        .hearts{ display:flex;gap:18px;font-size:56px;margin:22px 0 8px 0;justify-content:center;z-index:2;position:relative }
         .hearts i{ color:#777;cursor:pointer;transition:transform .18s,color .18s }
-        .hearts i:hover{ transform:scale(1.2);color:#ff6fa3 }
+        .hearts i:hover{ transform:scale(1.12);color:#ff6fa3 }
         .hearts i.selected{ color:#ff1744 }
-        .rating-buttons{ display:flex;gap:26px;margin-top:32px;justify-content:center;position:relative;z-index:2 }
-        .rating-buttons button{ padding:18px 32px;font-size:20px;border-radius:16px;border:none;color:#fff;cursor:pointer;background:linear-gradient(135deg,#ff4d8d,#6a5acd);box-shadow:0 10px 28px rgba(0,0,0,.45);backdrop-filter: blur(14px);transition:transform .2s ease,opacity .2s ease }
-        #toast{position:fixed;left:50%;bottom:110px;transform:translateX(-50%);background:#111;color:#fff;padding:10px 14px;border-radius:8px;display:none;z-index:5000;border:1px solid rgba(255,255,255,.12)}
+        .rating-buttons{ display:flex;gap:18px;margin-top:24px;justify-content:center;position:relative;z-index:2;flex-wrap:wrap }
+        .rating-buttons button{ padding:14px 24px;font-size:18px;border-radius:14px;border:none;color:#fff;cursor:pointer;background:linear-gradient(135deg,#ff4d8d,#6a5acd);box-shadow:0 10px 28px rgba(0,0,0,.45);backdrop-filter: blur(14px);transition:transform .2s ease,opacity .2s ease }
+        #toast{position:fixed;left:50%;bottom:calc(110px + env(safe-area-inset-bottom));transform:translateX(-50%);background:#111;color:#fff;padding:10px 14px;border-radius:8px;display:none;z-index:5000;border:1px solid rgba(255,255,255,.12)}
 
         /* overlay modal styles */
         .overlay-modal{position:fixed;inset:0;display:flex;align-items:center;justify-content:center;background:rgba(0,0,0,.6);z-index:4500}
-        .modal-card{background:linear-gradient(180deg, rgba(255,255,255,0.04), rgba(255,255,255,0.02));padding:22px;border-radius:16px;min-width:320px;color:#fff;border:1px solid rgba(255,255,255,.08);box-shadow:0 14px 40px rgba(0,0,0,.6)}
+        .modal-card{background:linear-gradient(180deg, rgba(255,255,255,0.02), rgba(255,255,255,0.01));padding:18px;border-radius:12px;min-width:300px;color:#fff;border:1px solid rgba(255,255,255,.06);box-shadow:0 14px 40px rgba(0,0,0,.6)}
         .modal-card.small{min-width: min(520px, 92vw)}
-        .modal-close{position:absolute;right:14px;top:8px;background:transparent;border:none;color:#fff;font-size:28px;cursor:pointer}
+        .modal-close{position:absolute;right:10px;top:6px;background:transparent;border:none;color:#fff;font-size:28px;cursor:pointer}
         .activities-list{display:flex;gap:12px;flex-direction:column;margin-top:10px}
         .act-card{padding:12px;border-radius:12px;background:rgba(255,255,255,0.02)}
         .act-card button{margin-top:10px;padding:10px 14px;border-radius:10px;border:none;background:#ff4d8d;color:#fff;cursor:pointer}
@@ -875,7 +929,28 @@ socket.on("waitingForPeer", (d) => { log("waitingForPeer", d); showToast("Waitin
         .result-hearts i.selected{color:#ff1744}
         /* spin overlay specific */
         #spinBottleImg{ display:block; transform-origin:50% 50%; will-change:transform; }
-        @media(max-width: 900px){.video-panes{ flex-direction:column; } .video-box{ flex:1 1 50%; min-height: 0; }}
+
+        @media(max-width: 900px){
+          .video-panes{ flex-direction:column; }
+          .video-box{ flex:1 1 50%; min-height: 180px; }
+          .rating-content{ padding:20px; min-width: 88vw }
+          .hearts{ font-size:44px; gap:14px }
+          .rating-buttons button{ font-size:16px; padding:12px 18px }
+          .call-timer{ top:8px; font-size:13px; padding:6px 12px }
+          .control-btn{ width:72px; height:72px }
+          .control-bar{ gap:10px; padding:10px }
+        }
+
+        @media(max-width: 480px){
+          .video-box{ border-radius:10px }
+          .video-panes{ padding:8px }
+          .control-bar{ left:0; right:0; transform:none; margin:0 auto; justify-content:center }
+          .control-bar{ bottom:calc(10px + env(safe-area-inset-bottom)); }
+          .control-btn span{ display:none }
+          .rating-content{ padding:18px; min-width:86vw }
+          .hearts{ font-size:36px }
+          .call-timer{ font-size:12px; padding:6px 10px }
+        }
       `}</style>
     </>
   );
