@@ -866,20 +866,20 @@ export default function VideoPage() {
       socket.on("twoOptionCancel", () => { try { var m = get("twoOptionModal"); if (m) m.style.display = "none"; } catch (e) {} });
       socket.on("spinCancel", () => { try { var sm = get("spinModal"); if (sm) sm.style.display = "none"; } catch (e) {} });
 
-      // small helper: adjust watermark so it doesn't sit on faces for portrait videos
-      function adjustWatermarkPosition() {
+      // small helper: (kept minimal) no face-detection—badge placed bottom-right so it won't block central face area
+      function adjustBadge() {
         try {
-          const localVideo = get('localVideo');
-          const remoteVideo = get('remoteVideo');
-          const wms = document.querySelectorAll('.watermark');
-          if (!localVideo || !wms.length) return;
-          const vh = Math.max(localVideo.videoHeight || localVideo.clientHeight || 480, 240);
-          const offset = (vh > 800) ? '-14%' : (vh > 600 ? '-10%' : (vh > 420 ? '-8%' : '-5%'));
-          wms.forEach(w => { w.style.transform = `translateY(${offset}) rotate(-18deg)`; });
-        } catch(e){ console.warn("adjustWatermarkPosition", e); }
+          const wbs = document.querySelectorAll('.watermark-badge');
+          if (!wbs || !wbs.length) return;
+          // optional: reduce size on very small screens
+          const small = window.innerWidth < 420;
+          wbs.forEach(w => {
+            w.classList.toggle('small', !!small);
+          });
+        } catch (e) { console.warn("adjustBadge", e); }
       }
-      window.addEventListener('resize', adjustWatermarkPosition);
-      setTimeout(adjustWatermarkPosition, 900);
+      window.addEventListener('resize', adjustBadge);
+      setTimeout(adjustBadge, 600);
 
     })();
 
@@ -897,14 +897,14 @@ export default function VideoPage() {
         <div id="callTimer" className="call-timer">00:00</div>
         <div className="video-panes">
           <div className="video-box">
-            {/* diagonal watermark added with bg panel */}
-            <div className="watermark"><div className="bg"></div><span>Milan</span></div>
+            {/* small modern badge (moved from center to bottom-right) */}
+            <div className="watermark-badge" aria-hidden="true"><span>Milan</span><em className="reel-dot"></em></div>
             <video id="remoteVideo" autoPlay playsInline></video>
             <div className="label">Partner</div>
           </div>
           <div className="video-box">
-            {/* diagonal watermark added with bg panel */}
-            <div className="watermark"><div className="bg"></div><span>Milan</span></div>
+            {/* small modern badge */}
+            <div className="watermark-badge" aria-hidden="true"><span>Milan</span><em className="reel-dot"></em></div>
             <video id="localVideo" autoPlay playsInline muted></video>
             <div className="label">You</div>
           </div>
@@ -1046,7 +1046,8 @@ export default function VideoPage() {
         #localVideo{ transform: scaleX(-1); }
         .label{position:absolute;left:10px;bottom:10px;padding:6px 10px;font-size:12px;color:#fff;background:rgba(0,0,0,.5);border:1px solid rgba(255,255,255,.05);border-radius:10px;pointer-events:none}
         .control-bar{position:fixed;bottom:calc(18px + env(safe-area-inset-bottom));left:50%;transform:translateX(-50%);display:flex;gap:12px;padding:8px 10px;background:linear-gradient(90deg, rgba(255,255,255,0.04), rgba(255,255,255,0.02));border-radius:16px;z-index:3000;backdrop-filter: blur(8px);max-width:calc(100% - 24px);overflow-x:auto;align-items:center;box-shadow:0 12px 30px rgba(0,0,0,.6)}
-        .control-btn{display:flex;flex-direction:column;align-items:center;justify-content:center;background:rgba(255,255,255,0.03);color:#fff;border-radius:14px;width:64px;height:64px;cursor:pointer;flex:0 0 auto;border:1px solid rgba(255,255,255,0.03)}
+        .control-btn{display:flex;flex-direction:column;align-items:center;justify-content:center;background:rgba(255,255,255,0.03);color:#fff;border-radius:14px;width:64px;height:64px;cursor:pointer;flex:0 0 auto;border:1px solid rgba(255,255,255,0.03);transition:transform .12s ease, box-shadow .12s ease}
+        .control-btn:hover{ transform: translateY(-4px); box-shadow:0 10px 22px rgba(0,0,0,0.45)}
         .control-btn span{font-size:12px;margin-top:6px}
         .control-btn.inactive{opacity:0.5}.control-btn.active{box-shadow:0 6px 18px rgba(255,77,141,0.18);transform:translateY(-2px)}.control-btn.danger{background:linear-gradient(135deg,#ff4d8d,#b51751);border:none}
         #ratingOverlay{position:fixed;inset:0;display:none;align-items:center;justify-content:center;background:rgba(0,0,0,.9);color:#fff;z-index:4000;padding:20px}
@@ -1060,10 +1061,45 @@ export default function VideoPage() {
         .rating-buttons button{ padding:14px 24px;font-size:18px;border-radius:14px;border:none;color:#fff;cursor:pointer;background:linear-gradient(135deg,#ff4d8d,#6a5acd);box-shadow:0 10px 28px rgba(0,0,0,.45);backdrop-filter: blur(14px);transition:transform .2s ease,opacity .2s ease }
         #toast{position:fixed;left:50%;bottom:calc(110px + env(safe-area-inset-bottom));transform:translateX(-50%);background:#111;color:#fff;padding:10px 14px;border-radius:8px;display:none;z-index:5000;border:1px solid rgba(255,255,255,.08)}
 
-        /* improved watermark */
-        .watermark{ position:absolute; inset:0; display:flex; align-items:center; justify-content:center; pointer-events:none; z-index:18; mix-blend-mode: normal; transform: rotate(-18deg); }
-        .watermark .bg{ position:absolute; inset:0; display:block; background: linear-gradient(180deg, rgba(0,0,0,0.04), rgba(0,0,0,0.02)); pointer-events:none; border-radius:8px; }
-        .watermark span{ font-weight:900; font-size: clamp(28px, 6vw, 92px); color: rgba(255,255,255,0.16); text-transform:uppercase; letter-spacing:8px; transform: translateY(-6%); text-shadow: 0 1px 0 rgba(255,255,255,0.06), 0 6px 18px rgba(0,0,0,0.48); -webkit-text-stroke: 0.8px rgba(0,0,0,0.08); padding: 10px 18px; border-radius: 8px; opacity: 0.95; backdrop-filter: blur(2px); }
+        /* ---------- new badge watermark (bottom-right) ---------- */
+        .watermark-badge{
+          position:absolute;
+          right:14px;
+          bottom:14px;
+          z-index:40;
+          display:flex;
+          align-items:center;
+          gap:8px;
+          padding:8px 12px;
+          border-radius:26px;
+          background: linear-gradient(135deg, rgba(255,255,255,0.06), rgba(255,255,255,0.02));
+          color: rgba(255,255,255,0.94);
+          font-weight:800;
+          letter-spacing:1px;
+          font-size:14px;
+          transform: rotate(-12deg);
+          box-shadow: 0 8px 30px rgba(0,0,0,0.6);
+          backdrop-filter: blur(6px) saturate(1.1);
+          -webkit-backdrop-filter: blur(6px) saturate(1.1);
+          transition: transform .18s ease, opacity .18s ease;
+          opacity: 0.95;
+          pointer-events: none;
+        }
+        .watermark-badge.small{ font-size:12px; padding:6px 10px; right:10px; bottom:10px; transform: rotate(-10deg) scale(0.92); }
+        .watermark-badge span{ display:inline-block; transform: translateY(-1px); }
+        /* little reel-like dot (small accent like Instagram) */
+        .watermark-badge .reel-dot{
+          display:inline-block;
+          width:10px;height:10px;border-radius:50%;
+          background: linear-gradient(45deg,#ff6b8a,#ffd166);
+          box-shadow:0 6px 14px rgba(255,107,138,0.14), inset 0 -2px 6px rgba(0,0,0,0.15);
+          transform: translateY(0) rotate(0);
+        }
+        /* pulse on hover of parent container (not clickable but adds life) */
+        .video-box:hover .watermark-badge{ transform: translateX(-4px) rotate(-10deg); opacity:1; }
+        /* small breathing animation so badge is alive but not annoying */
+        @keyframes badge-breath { 0%{ transform: rotate(-12deg) scale(0.995) } 50%{ transform: rotate(-12deg) scale(1.01) } 100%{ transform: rotate(-12deg) scale(0.995) } }
+        .watermark-badge{ animation: badge-breath 4.5s ease-in-out infinite; }
 
         /* overlay modal styles */
         .overlay-modal{position:fixed;inset:0;display:flex;align-items:center;justify-content:center;background:rgba(0,0,0,.6);z-index:4500}
