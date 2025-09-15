@@ -600,11 +600,32 @@ export default function VideoPage() {
           };
         }
 
-        // --- Improved screen-share handler (tries multiple fallbacks & shows friendly notice) ---
+        // --- Improved screen-share handler (diagnostic + existing flow) ---
         var screenBtn = get("screenShareBtn");
         if (screenBtn) {
           screenBtn.onclick = async function () {
             if (!pc) return showToast("No connection");
+
+            // Diagnostic check
+            const supports = !!(navigator.mediaDevices && (typeof navigator.mediaDevices.getDisplayMedia === 'function' || typeof navigator.getDisplayMedia === 'function'));
+            const secure = !!window.isSecureContext;
+            const ua = navigator.userAgent || '';
+            const inAppBrowser = !!(/(FBAN|FBAV|Instagram|Line|WhatsApp|wv\)|; wv;|WebView)/i.test(ua));
+            console.log("[DEBUG] screenShare - supports:", supports, "secureContext:", secure, "inAppBrowser:", inAppBrowser, "UA:", ua);
+
+            if (!supports) {
+              showToast("Screen share not implemented in this browser. Open the page in Chrome (not inside WhatsApp/Telegram).");
+              return;
+            }
+            if (!secure) {
+              showToast("Screen sharing requires secure connection (HTTPS). Please use secure link.");
+              return;
+            }
+            if (inAppBrowser) {
+              showToast("We detected an in-app browser. Open the link in Chrome app for screen sharing.");
+              return;
+            }
+
             // Toggle off if already sharing (we track via data attribute)
             if (screenBtn.dataset.sharing === "true") {
               // attempt to restore camera track
@@ -729,10 +750,10 @@ export default function VideoPage() {
             } catch (err) {
               log("DisplayMedia error or not supported", err);
               // friendly instructive notice for mobile users
-              const ua = navigator.userAgent || "";
-              if (/android/i.test(ua)) {
+              const ua2 = navigator.userAgent || "";
+              if (/android/i.test(ua2)) {
                 showToast("Screen share not supported in this browser. Use Chrome on Android (latest) for screen sharing.");
-              } else if (/iphone|ipad|ipod/i.test(ua)) {
+              } else if (/iphone|ipad|ipod/i.test(ua2)) {
                 showToast("iOS Safari doesn't support screen sharing for web apps. Use Android or desktop.");
               } else {
                 showToast("Screen sharing not available. Try updating your browser (Chrome/Firefox).");
@@ -845,6 +866,21 @@ export default function VideoPage() {
       socket.on("twoOptionCancel", () => { try { var m = get("twoOptionModal"); if (m) m.style.display = "none"; } catch (e) {} });
       socket.on("spinCancel", () => { try { var sm = get("spinModal"); if (sm) sm.style.display = "none"; } catch (e) {} });
 
+      // small helper: adjust watermark so it doesn't sit on faces for portrait videos
+      function adjustWatermarkPosition() {
+        try {
+          const localVideo = get('localVideo');
+          const remoteVideo = get('remoteVideo');
+          const wms = document.querySelectorAll('.watermark');
+          if (!localVideo || !wms.length) return;
+          const vh = Math.max(localVideo.videoHeight || localVideo.clientHeight || 480, 240);
+          const offset = (vh > 800) ? '-14%' : (vh > 600 ? '-10%' : (vh > 420 ? '-8%' : '-5%'));
+          wms.forEach(w => { w.style.transform = `translateY(${offset}) rotate(-18deg)`; });
+        } catch(e){ console.warn("adjustWatermarkPosition", e); }
+      }
+      window.addEventListener('resize', adjustWatermarkPosition);
+      setTimeout(adjustWatermarkPosition, 900);
+
     })();
 
     // on unmount
@@ -861,14 +897,14 @@ export default function VideoPage() {
         <div id="callTimer" className="call-timer">00:00</div>
         <div className="video-panes">
           <div className="video-box">
-            {/* diagonal watermark added */}
-            <div className="watermark"><span>Milan</span></div>
+            {/* diagonal watermark added with bg panel */}
+            <div className="watermark"><div className="bg"></div><span>Milan</span></div>
             <video id="remoteVideo" autoPlay playsInline></video>
             <div className="label">Partner</div>
           </div>
           <div className="video-box">
-            {/* diagonal watermark added */}
-            <div className="watermark"><span>Milan</span></div>
+            {/* diagonal watermark added with bg panel */}
+            <div className="watermark"><div className="bg"></div><span>Milan</span></div>
             <video id="localVideo" autoPlay playsInline muted></video>
             <div className="label">You</div>
           </div>
@@ -998,7 +1034,15 @@ export default function VideoPage() {
         .call-timer{position:absolute;left:50%;top:12px;transform:translateX(-50%);z-index:3500;background:linear-gradient(90deg,#ff7aa3,#ffb26a);padding:6px 14px;border-radius:999px;color:#fff;font-weight:600;box-shadow:0 6px 20px rgba(0,0,0,.6);backdrop-filter: blur(6px);font-size:14px}
         .video-panes{position:absolute;left:0;right:0;top:0;bottom:calc(110px + env(safe-area-inset-bottom));display:flex;gap:12px;padding:12px;}
         .video-box{position:relative;flex:1 1 50%;border-radius:14px;overflow:hidden;background:linear-gradient(180deg,#08080a,#111);border:1px solid rgba(255,255,255,.04);min-height:120px;box-shadow:0 12px 40px rgba(0,0,0,.6)}
-        .video-box video{width:100%;height:100%;object-fit:cover;background:#000;display:block}
+        .video-box video{width:100%;height:100%;object-fit:cover;background:#000;display:block; filter: contrast(1.05) saturate(1.05); -webkit-filter: contrast(1.05) saturate(1.05);}
+        .video-box::after{
+          content:"";
+          position:absolute; inset:0;
+          pointer-events:none;
+          box-shadow: inset 0 80px 120px rgba(0,0,0,0.25);
+          border-radius: inherit;
+          z-index:16;
+        }
         #localVideo{ transform: scaleX(-1); }
         .label{position:absolute;left:10px;bottom:10px;padding:6px 10px;font-size:12px;color:#fff;background:rgba(0,0,0,.5);border:1px solid rgba(255,255,255,.05);border-radius:10px;pointer-events:none}
         .control-bar{position:fixed;bottom:calc(18px + env(safe-area-inset-bottom));left:50%;transform:translateX(-50%);display:flex;gap:12px;padding:8px 10px;background:linear-gradient(90deg, rgba(255,255,255,0.04), rgba(255,255,255,0.02));border-radius:16px;z-index:3000;backdrop-filter: blur(8px);max-width:calc(100% - 24px);overflow-x:auto;align-items:center;box-shadow:0 12px 30px rgba(0,0,0,.6)}
@@ -1016,9 +1060,10 @@ export default function VideoPage() {
         .rating-buttons button{ padding:14px 24px;font-size:18px;border-radius:14px;border:none;color:#fff;cursor:pointer;background:linear-gradient(135deg,#ff4d8d,#6a5acd);box-shadow:0 10px 28px rgba(0,0,0,.45);backdrop-filter: blur(14px);transition:transform .2s ease,opacity .2s ease }
         #toast{position:fixed;left:50%;bottom:calc(110px + env(safe-area-inset-bottom));transform:translateX(-50%);background:#111;color:#fff;padding:10px 14px;border-radius:8px;display:none;z-index:5000;border:1px solid rgba(255,255,255,.08)}
 
-        /* watermark */
-        .watermark{ position:absolute; inset:0; display:flex; align-items:center; justify-content:center; pointer-events:none; z-index:12; }
-        .watermark span{ font-weight:800; font-size:36px; color:rgba(255,255,255,0.12); text-transform:uppercase; letter-spacing:6px; transform: rotate(-20deg); text-shadow: 0 2px 8px rgba(0,0,0,0.4); }
+        /* improved watermark */
+        .watermark{ position:absolute; inset:0; display:flex; align-items:center; justify-content:center; pointer-events:none; z-index:18; mix-blend-mode: normal; transform: rotate(-18deg); }
+        .watermark .bg{ position:absolute; inset:0; display:block; background: linear-gradient(180deg, rgba(0,0,0,0.04), rgba(0,0,0,0.02)); pointer-events:none; border-radius:8px; }
+        .watermark span{ font-weight:900; font-size: clamp(28px, 6vw, 92px); color: rgba(255,255,255,0.16); text-transform:uppercase; letter-spacing:8px; transform: translateY(-6%); text-shadow: 0 1px 0 rgba(255,255,255,0.06), 0 6px 18px rgba(0,0,0,0.48); -webkit-text-stroke: 0.8px rgba(0,0,0,0.08); padding: 10px 18px; border-radius: 8px; opacity: 0.95; backdrop-filter: blur(2px); }
 
         /* overlay modal styles */
         .overlay-modal{position:fixed;inset:0;display:flex;align-items:center;justify-content:center;background:rgba(0,0,0,.6);z-index:4500}
