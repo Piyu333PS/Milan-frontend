@@ -202,13 +202,13 @@ export default function VideoPage() {
       }
 
       socket = io(BACKEND_URL, {
-  transports: ['polling'], // force polling only
-  timeout: 20000,
-  reconnection: true,
-  reconnectionAttempts: Infinity,
-  reconnectionDelay: 1000,
-  path: '/socket.io'
-});
+        transports: ['polling'], // force polling only as original
+        timeout: 20000,
+        reconnection: true,
+        reconnectionAttempts: Infinity,
+        reconnectionDelay: 1000,
+        path: '/socket.io'
+      });
 
       socket.on("connect", () => {
         log("socket connected", socket.id);
@@ -452,7 +452,7 @@ export default function VideoPage() {
         }
       });
       /* ===== end robust handlers ===== */
-socket.on("waitingForPeer", (d) => { log("waitingForPeer", d); showToast("Waiting for partner..."); });
+      socket.on("waitingForPeer", (d) => { log("waitingForPeer", d); showToast("Waiting for partner..."); });
       socket.on("partnerDisconnected", () => { log("partnerDisconnected"); showToast("Partner disconnected"); showRating(); cleanupPeerConnection(); });
       socket.on("partnerLeft", () => { log("partnerLeft"); showToast("Partner left"); showRating(); cleanupPeerConnection(); });
       socket.on("errorMessage", (e) => { console.warn("server errorMessage:", e); showToast(e && e.message ? e.message : "Server error"); });
@@ -600,46 +600,144 @@ socket.on("waitingForPeer", (d) => { log("waitingForPeer", d); showToast("Waitin
           };
         }
 
+        // --- Improved screen-share handler (tries multiple fallbacks & shows friendly notice) ---
         var screenBtn = get("screenShareBtn");
         if (screenBtn) {
           screenBtn.onclick = async function () {
             if (!pc) return showToast("No connection");
+            // Toggle off if already sharing (we track via data attribute)
+            if (screenBtn.dataset.sharing === "true") {
+              // attempt to restore camera track
+              try {
+                var sender = pc.getSenders ? pc.getSenders().find(s => s && s.track && s.track.kind === "video") : null;
+                var cam = cameraTrackSaved;
+                if (!cam || cam.readyState === "ended") {
+                  try {
+                    const freshStream = await navigator.mediaDevices.getUserMedia({ video: true });
+                    cam = freshStream.getVideoTracks()[0];
+                    cameraTrackSaved = cam;
+                    // merge into localStream
+                    if (localStream && typeof localStream.addTrack === "function") {
+                      try { localStream.addTrack(cam); } catch (e) { /* ignore */ }
+                    }
+                    var lv = get("localVideo");
+                    if (lv) lv.srcObject = localStream;
+                  } catch (err) {
+                    log("Couldn't reacquire camera after screen share ended", err);
+                  }
+                }
+                if (sender && cam) {
+                  try { await sender.replaceTrack(cam); } catch (err) { log("restore camera failed", err); }
+                }
+                screenBtn.dataset.sharing = 'false';
+                screenBtn.classList.remove("active");
+                showToast("Screen sharing stopped");
+              } catch (err) {
+                console.warn("Error stopping screen share", err);
+                showToast("Could not stop screen share cleanly");
+                screenBtn.dataset.sharing = 'false';
+                screenBtn.classList.remove("active");
+              }
+              return;
+            }
+
+            // try primary API
+            const tryGetDisplayMedia = async () => {
+              if (navigator.mediaDevices && typeof navigator.mediaDevices.getDisplayMedia === "function") {
+                return await navigator.mediaDevices.getDisplayMedia({ video: true });
+              }
+              // try legacy exposed function (older browsers)
+              if (typeof navigator.getDisplayMedia === "function") {
+                return await navigator.getDisplayMedia({ video: true });
+              }
+              // not supported
+              throw new Error("getDisplayMedia not supported");
+            };
+
             try {
-              var screen = await navigator.mediaDevices.getDisplayMedia({ video: true });
-              var screenTrack = screen && screen.getVideoTracks ? screen.getVideoTracks()[0] : null;
-              var sender = pc.getSenders ? pc.getSenders().find(s => s && s.track && s.track.kind === "video") : null;
-              if (!sender) { showToast("No video sender found"); screenTrack && screenTrack.stop && screenTrack.stop(); return; }
+              const displayStream = await tryGetDisplayMedia();
+              if (!displayStream) throw new Error("No display stream returned");
+              const screenTrack = displayStream.getVideoTracks()[0];
+              const sender = pc.getSenders ? pc.getSenders().find(s => s && s.track && s.track.kind === "video") : null;
+              if (!sender) {
+                showToast("No video sender found");
+                screenTrack && screenTrack.stop && screenTrack.stop();
+                return;
+              }
 
-              var saved = localStream && localStream.getVideoTracks && localStream.getVideoTracks()[0];
-              cameraTrackSaved = saved || cameraTrackSaved;
-              try { await sender.replaceTrack(screenTrack); } catch (e) { try { pc.addTrack(screenTrack, screen); } catch (e2) { log("replace/add screen track failed", e2); } }
+              // Save camera track to restore later
+              const savedCam = localStream && localStream.getVideoTracks ? localStream.getVideoTracks()[0] : cameraTrackSaved;
+              cameraTrackSaved = savedCam || cameraTrackSaved;
+
+              try {
+                if (typeof sender.replaceTrack === "function") {
+                  await sender.replaceTrack(screenTrack);
+                } else {
+                  // as last resort try addTrack (may create additional sender)
+                  try { pc.addTrack(screenTrack, displayStream); } catch (e) { log("addTrack screen failed", e); }
+                }
+              } catch (e) {
+                log("replaceTrack/addTrack failed for screen", e);
+              }
+
+              // Replace local preview to show screen (optional UX)
+              var lv = get("localVideo");
+              if (lv) lv.srcObject = displayStream;
+
+              screenBtn.dataset.sharing = 'true';
               screenBtn.classList.add("active");
-              showToast("Screen sharing");
+              showToast("Screen sharing active");
 
+              // when screen stops, restore camera track (robust restore)
               screenTrack.onended = async function () {
                 try {
+                  // try to restore saved camera on sender
+                  var sender2 = pc.getSenders ? pc.getSenders().find(s => s && s.track && s.track.kind === "video") : null;
                   var cam = cameraTrackSaved;
                   if (!cam || cam.readyState === "ended") {
                     try {
-                      var fresh = await navigator.mediaDevices.getUserMedia({ video: true });
+                      const fresh = await navigator.mediaDevices.getUserMedia({ video: true });
                       cam = fresh.getVideoTracks()[0];
-                      if (localStream) {
-                        var prev = localStream.getVideoTracks()[0];
-                        try { prev && prev.stop(); } catch (e) {}
-                        try { localStream.removeTrack && localStream.removeTrack(prev); } catch (e) {}
-                        try { localStream.addTrack && localStream.addTrack(cam); } catch (e) {}
-                        var lv = get("localVideo");
-                        if (lv) lv.srcObject = localStream;
-                      }
                       cameraTrackSaved = cam;
-                    } catch (err) { console.warn("Couldn't reacquire camera after screen share ended", err); }
+                      // update localStream
+                      try {
+                        var prev = localStream && localStream.getVideoTracks && localStream.getVideoTracks()[0];
+                        if (prev && prev.stop) prev.stop();
+                        if (localStream && typeof localStream.removeTrack === "function" && prev) { try { localStream.removeTrack(prev); } catch (e) {} }
+                        if (localStream && typeof localStream.addTrack === "function" && cam) { try { localStream.addTrack(cam); } catch (e) {} }
+                      } catch (e) { /* ignore */ }
+                    } catch (err) {
+                      log("Couldn't reacquire camera after screen share ended", err);
+                    }
                   }
-                  if (sender && cam) { try { await sender.replaceTrack(cam); } catch (err) { log("restore camera via replaceTrack failed", err); } showToast("Screen sharing stopped — camera restored"); }
-                  else { showToast("Screen sharing stopped"); }
-                } catch (err) { console.error("Error restoring camera after screen end", err); showToast("Stopped screen sharing"); }
-                finally { screenBtn.classList.remove("active"); }
+                  if (sender2 && cam) {
+                    try { await sender2.replaceTrack(cam); } catch (err) { log("restore camera via replaceTrack failed", err); }
+                    showToast("Screen sharing stopped — camera restored");
+                  } else {
+                    showToast("Screen sharing stopped");
+                  }
+                } catch (err) {
+                  console.error("Error restoring camera after screen end", err);
+                  showToast("Stopped screen sharing");
+                } finally {
+                  screenBtn.dataset.sharing = 'false';
+                  screenBtn.classList.remove("active");
+                  // restore local preview to camera if available
+                  try { var lv2 = get("localVideo"); if (lv2 && localStream) lv2.srcObject = localStream; } catch (e) {}
+                }
               };
-            } catch (e) { console.warn("Screen share cancelled / error", e); showToast("Screen share cancelled"); }
+            } catch (err) {
+              log("DisplayMedia error or not supported", err);
+              // friendly instructive notice for mobile users
+              const ua = navigator.userAgent || "";
+              if (/android/i.test(ua)) {
+                showToast("Screen share not supported in this browser. Use Chrome on Android (latest) for screen sharing.");
+              } else if (/iphone|ipad|ipod/i.test(ua)) {
+                showToast("iOS Safari doesn't support screen sharing for web apps. Use Android or desktop.");
+              } else {
+                showToast("Screen sharing not available. Try updating your browser (Chrome/Firefox).");
+              }
+            }
           };
         }
 
@@ -763,10 +861,14 @@ socket.on("waitingForPeer", (d) => { log("waitingForPeer", d); showToast("Waitin
         <div id="callTimer" className="call-timer">00:00</div>
         <div className="video-panes">
           <div className="video-box">
+            {/* diagonal watermark added */}
+            <div className="watermark"><span>Milan</span></div>
             <video id="remoteVideo" autoPlay playsInline></video>
             <div className="label">Partner</div>
           </div>
           <div className="video-box">
+            {/* diagonal watermark added */}
+            <div className="watermark"><span>Milan</span></div>
             <video id="localVideo" autoPlay playsInline muted></video>
             <div className="label">You</div>
           </div>
@@ -891,19 +993,20 @@ socket.on("waitingForPeer", (d) => { log("waitingForPeer", d); showToast("Waitin
       <style jsx global>{`
         *{margin:0;padding:0;box-sizing:border-box}
         html,body{height:100%;background:#000;font-family:'Segoe UI',sans-serif;overflow:hidden}
-        .video-stage{position:relative;width:100%;height:100vh;padding-bottom:calc(110px + env(safe-area-inset-bottom));background:#000;}
+        .video-stage{position:relative;width:100%;height:100vh;padding-bottom:calc(110px + env(safe-area-inset-bottom));background:
+          linear-gradient(180deg,#0b0b0f 0%, #0f0610 100%);}
         .call-timer{position:absolute;left:50%;top:12px;transform:translateX(-50%);z-index:3500;background:linear-gradient(90deg,#ff7aa3,#ffb26a);padding:6px 14px;border-radius:999px;color:#fff;font-weight:600;box-shadow:0 6px 20px rgba(0,0,0,.6);backdrop-filter: blur(6px);font-size:14px}
         .video-panes{position:absolute;left:0;right:0;top:0;bottom:calc(110px + env(safe-area-inset-bottom));display:flex;gap:12px;padding:12px;}
-        .video-box{position:relative;flex:1 1 50%;border-radius:14px;overflow:hidden;background:#111;border:1px solid rgba(255,255,255,.08);min-height:120px}
+        .video-box{position:relative;flex:1 1 50%;border-radius:14px;overflow:hidden;background:linear-gradient(180deg,#08080a,#111);border:1px solid rgba(255,255,255,.04);min-height:120px;box-shadow:0 12px 40px rgba(0,0,0,.6)}
         .video-box video{width:100%;height:100%;object-fit:cover;background:#000;display:block}
         #localVideo{ transform: scaleX(-1); }
-        .label{position:absolute;left:10px;bottom:10px;padding:6px 10px;font-size:12px;color:#fff;background:rgba(0,0,0,.5);border:1px solid rgba(255,255,255,.15);border-radius:10px;pointer-events:none}
-        .control-bar{position:fixed;bottom:calc(18px + env(safe-area-inset-bottom));left:50%;transform:translateX(-50%);display:flex;gap:12px;padding:12px 10px;background:rgba(0,0,0,.6);border-radius:16px;z-index:3000;backdrop-filter: blur(8px);max-width:calc(100% - 24px);overflow-x:auto}
-        .control-btn{display:flex;flex-direction:column;align-items:center;justify-content:center;background:#18181b;color:#fff;border-radius:14px;width:64px;height:64px;cursor:pointer;flex:0 0 auto}
+        .label{position:absolute;left:10px;bottom:10px;padding:6px 10px;font-size:12px;color:#fff;background:rgba(0,0,0,.5);border:1px solid rgba(255,255,255,.05);border-radius:10px;pointer-events:none}
+        .control-bar{position:fixed;bottom:calc(18px + env(safe-area-inset-bottom));left:50%;transform:translateX(-50%);display:flex;gap:12px;padding:8px 10px;background:linear-gradient(90deg, rgba(255,255,255,0.04), rgba(255,255,255,0.02));border-radius:16px;z-index:3000;backdrop-filter: blur(8px);max-width:calc(100% - 24px);overflow-x:auto;align-items:center;box-shadow:0 12px 30px rgba(0,0,0,.6)}
+        .control-btn{display:flex;flex-direction:column;align-items:center;justify-content:center;background:rgba(255,255,255,0.03);color:#fff;border-radius:14px;width:64px;height:64px;cursor:pointer;flex:0 0 auto;border:1px solid rgba(255,255,255,0.03)}
         .control-btn span{font-size:12px;margin-top:6px}
-        .control-btn.inactive{opacity:0.5}.control-btn.active{box-shadow:0 6px 18px rgba(255,77,141,0.18);transform:translateY(-2px)}.control-btn.danger{background:#9b1c2a}
+        .control-btn.inactive{opacity:0.5}.control-btn.active{box-shadow:0 6px 18px rgba(255,77,141,0.18);transform:translateY(-2px)}.control-btn.danger{background:linear-gradient(135deg,#ff4d8d,#b51751);border:none}
         #ratingOverlay{position:fixed;inset:0;display:none;align-items:center;justify-content:center;background:rgba(0,0,0,.9);color:#fff;z-index:4000;padding:20px}
-        .rating-content{position:relative;min-width: min(720px, 92vw);max-width:920px;max-height:80vh;padding:28px 36px;border-radius:20px;text-align:center;background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.08);box-shadow:0 20px 60px rgba(0,0,0,.55);z-index:1;overflow:auto}
+        .rating-content{position:relative;min-width: min(720px, 92vw);max-width:920px;max-height:80vh;padding:28px 36px;border-radius:20px;text-align:center;background:linear-gradient(180deg, rgba(255,255,255,0.02), rgba(255,255,255,0.01));border:1px solid rgba(255,255,255,.03);box-shadow:0 20px 60px rgba(0,0,0,.6);z-index:1;overflow:auto}
         .rating-content h2{ font-size:28px;margin-bottom:14px;letter-spacing:.3px }
         .hearts{ display:flex;gap:18px;font-size:56px;margin:22px 0 8px 0;justify-content:center;z-index:2;position:relative }
         .hearts i{ color:#777;cursor:pointer;transition:transform .18s,color .18s }
@@ -911,7 +1014,11 @@ socket.on("waitingForPeer", (d) => { log("waitingForPeer", d); showToast("Waitin
         .hearts i.selected{ color:#ff1744 }
         .rating-buttons{ display:flex;gap:18px;margin-top:24px;justify-content:center;position:relative;z-index:2;flex-wrap:wrap }
         .rating-buttons button{ padding:14px 24px;font-size:18px;border-radius:14px;border:none;color:#fff;cursor:pointer;background:linear-gradient(135deg,#ff4d8d,#6a5acd);box-shadow:0 10px 28px rgba(0,0,0,.45);backdrop-filter: blur(14px);transition:transform .2s ease,opacity .2s ease }
-        #toast{position:fixed;left:50%;bottom:calc(110px + env(safe-area-inset-bottom));transform:translateX(-50%);background:#111;color:#fff;padding:10px 14px;border-radius:8px;display:none;z-index:5000;border:1px solid rgba(255,255,255,.12)}
+        #toast{position:fixed;left:50%;bottom:calc(110px + env(safe-area-inset-bottom));transform:translateX(-50%);background:#111;color:#fff;padding:10px 14px;border-radius:8px;display:none;z-index:5000;border:1px solid rgba(255,255,255,.08)}
+
+        /* watermark */
+        .watermark{ position:absolute; inset:0; display:flex; align-items:center; justify-content:center; pointer-events:none; z-index:12; }
+        .watermark span{ font-weight:800; font-size:36px; color:rgba(255,255,255,0.12); text-transform:uppercase; letter-spacing:6px; transform: rotate(-20deg); text-shadow: 0 2px 8px rgba(0,0,0,0.4); }
 
         /* overlay modal styles */
         .overlay-modal{position:fixed;inset:0;display:flex;align-items:center;justify-content:center;background:rgba(0,0,0,.6);z-index:4500}
@@ -937,16 +1044,17 @@ socket.on("waitingForPeer", (d) => { log("waitingForPeer", d); showToast("Waitin
           .hearts{ font-size:44px; gap:14px }
           .rating-buttons button{ font-size:16px; padding:12px 18px }
           .call-timer{ top:8px; font-size:13px; padding:6px 12px }
-          .control-btn{ width:72px; height:72px }
-          .control-bar{ gap:10px; padding:10px }
+          .control-btn{ width:64px; height:64px }
+          .control-bar{ gap:10px; padding:8px }
         }
 
         @media(max-width: 480px){
           .video-box{ border-radius:10px }
           .video-panes{ padding:8px }
-          .control-bar{ left:0; right:0; transform:none; margin:0 auto; justify-content:center }
+          .control-bar{ left:8px; right:8px; transform:none; margin:0 auto; justify-content:center }
           .control-bar{ bottom:calc(10px + env(safe-area-inset-bottom)); }
           .control-btn span{ display:none }
+          .control-btn{ width:56px; height:56px }
           .rating-content{ padding:18px; min-width:86vw }
           .hearts{ font-size:36px }
           .call-timer{ font-size:12px; padding:6px 10px }
