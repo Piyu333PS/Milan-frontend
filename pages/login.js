@@ -7,7 +7,6 @@ export default function Login() {
   const [password, setPassword] = useState('');
   const [message, setMessage] = useState('');
 
-  // Vercel ke liye env var, fallback Render backend URL
   const API_BASE = process.env.NEXT_PUBLIC_API_BASE || 'https://milan-j9u9.onrender.com';
 
   const handleLogin = async (e) => {
@@ -19,19 +18,18 @@ export default function Login() {
       return;
     }
 
-    // Agar sirf numbers hain to mobile treat karo
+    // Agar digits only hain to mobile treat karo
     const isDigitsOnly = /^\d+$/.test(emailOrMobile.trim());
+    let payload;
 
-    // Payload prepare
-    const payload = {
-      email: isDigitsOnly ? undefined : emailOrMobile.trim(),
-      mobile: isDigitsOnly ? emailOrMobile.trim() : undefined,
-      emailOrMobile: emailOrMobile.trim(), // backup field
-      password: password
-    };
+    if (isDigitsOnly) {
+      payload = { mobile: emailOrMobile.trim(), password };
+    } else {
+      payload = { email: emailOrMobile.trim(), password };
+    }
 
     try {
-      console.log('Logging in to', API_BASE + '/login', 'payload:', payload);
+      console.log('Sending login payload:', payload);
       const res = await axios.post(API_BASE + '/login', payload, {
         headers: { 'Content-Type': 'application/json' },
         withCredentials: true
@@ -41,7 +39,7 @@ export default function Login() {
         setMessage('Login successful! Welcome ' + (res.data.user?.name || 'User'));
         if (res.data.token) localStorage.setItem('token', res.data.token);
         console.log('Login response:', res.data);
-        // TODO: redirect to dashboard or home
+        // TODO: redirect here
       } else {
         setMessage(res.data.message || 'Login failed');
       }
