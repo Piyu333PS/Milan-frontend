@@ -5,22 +5,7 @@ import io from "socket.io-client";
 export default function VideoPage() {
   useEffect(() => {
     const BACKEND_URL = window.BACKEND_URL || process.env.NEXT_PUBLIC_BACKEND_URL || "https://milan-j9u9.onrender.com";
-    const ICE_CONFIG = {
-  iceServers: [
-    { urls: "stun:stun.l.google.com:19302" },
-    // Recommended: add your TURN server credentials here for production
-    {
-      urls: "turn:TURN_HOST:3478?transport=udp",
-      username: "TURN_USER",
-      credential: "TURN_PASS"
-    },
-    {
-      urls: "turn:TURN_HOST:3478?transport=tcp",
-      username: "TURN_USER",
-      credential: "TURN_PASS"
-    }
-  ]
-};
+    const ICE_CONFIG = { iceServers: [{ urls: "stun:stun.l.google.com:19302" }] };
 
     let socket = null;
     let socketConnected = false;
@@ -105,7 +90,7 @@ export default function VideoPage() {
       } finally {
         draining = false;
         if (pendingCandidates && pendingCandidates.length > 0) {
-          setTimeout(() => { drainPendingCandidates(); }, 500);
+          setTimeout(() => { drainPendingCandidates(); }, 250);
         }
       }
     };
@@ -217,7 +202,7 @@ export default function VideoPage() {
       }
 
       socket = io(BACKEND_URL, {
-        transports: ['websocket','polling'], // force polling only as original
+        transports: ['polling'], // force polling only as original
         timeout: 20000,
         reconnection: true,
         reconnectionAttempts: Infinity,
@@ -225,9 +210,7 @@ export default function VideoPage() {
         path: '/socket.io'
       });
 
-        // debug: log all socket events
-  socket.onAny((ev,payload) => { try { console.debug('[SOCKET EVENT]', ev, payload); } catch(e){} });
-socket.on("connect", () => {
+      socket.on("connect", () => {
         log("socket connected", socket.id);
         socketConnected = true;
         const roomCode = getRoomCode();
@@ -318,28 +301,13 @@ socket.on("connect", () => {
             log("ICE connected");
             // start the call timer
             startTimer();
-          } else if (pc.iceConnectionState === "disconnected") {
+          } else if (pc.iceConnectionState === "disconnected" || pc.iceConnectionState === "failed" || pc.iceConnectionState === "closed") {
             // stop but preserve elapsed so user can see duration before rating
             stopTimer(true);
-            // try a lightweight ICE restart to recover from transient network hiccups
-            try { pc.restartIce && pc.restartIce(); log("pc.restartIce() called after disconnect"); } catch (e) { log("restartIce failed", e); }
-          } else if (pc.iceConnectionState === "failed") {
-            stopTimer(true);
-            // attempt one restart, then recreate PC if still failed
-            try {
-              pc.restartIce && pc.restartIce();
-              setTimeout(() => {
-                if (pc && (pc.iceConnectionState === "failed" || pc.connectionState === "failed")) {
-                  log("ICE still failed after restart -> recreating peer connection");
-                  try { cleanupPeerConnection(); } catch(e) { log('cleanup err', e); }
-                  try { createPeerConnectionAndNegotiate(); } catch(e) { log('recreate pc err', e); }
-                }
-              }, 2500);
-            } catch (e) { log("restartIce fail", e); }
-          } else if (pc.iceConnectionState === "closed") {
-            stopTimer(true);
           }
-        };pc.onnegotiationneeded = async () => {
+        };
+
+        pc.onnegotiationneeded = async () => {
           if (!socketConnected) { log("negotiation: socket not connected"); return; }
           if (makingOffer) { log("negotiationneeded: already makingOffer"); return; }
           try {
@@ -467,7 +435,7 @@ socket.on("connect", () => {
           if (!pc || !pc.remoteDescription || !pc.remoteDescription.type) {
             log("[video] remoteDescription not set yet — queueing candidate");
             pendingCandidates.push(cand);
-            setTimeout(() => drainPendingCandidates(), 500);
+            setTimeout(() => drainPendingCandidates(), 200);
             return;
           }
 
@@ -477,7 +445,7 @@ socket.on("connect", () => {
           } catch (err) {
             console.warn("[video] addIceCandidate failed", err, cand);
             pendingCandidates.push(cand);
-            setTimeout(() => drainPendingCandidates(), 500);
+            setTimeout(() => drainPendingCandidates(), 250);
           }
         } catch (err) {
           console.error("[video] candidate handler unexpected error", err);
