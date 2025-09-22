@@ -197,7 +197,7 @@ export default function HomePage() {
       const res = await fetch(`${API_BASE}/register`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ emailOrMobile: contact, password, name }),
+        body: JSON.stringify({ emailOrMobile: contact, password, name,gender, dob, city, reason }),
       });
       const data = await res.json();
       if (res.ok) {
