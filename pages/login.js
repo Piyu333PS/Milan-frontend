@@ -38,6 +38,7 @@ export default function Login() {
       if (res.status === 200) {
         setMessage('Login successful! Welcome ' + (res.data.user?.name || 'User'));
         if (res.data.token) localStorage.setItem('token', res.data.token);
+        if(res.data.user) localStorage.setItem('uid', res.data.user.id);
         console.log('Login response:', res.data);
         // TODO: redirect here
       } else {

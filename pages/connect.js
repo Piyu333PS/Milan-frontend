@@ -1544,37 +1544,47 @@ export default function ConnectPage() {
 }
 
 /* Avatar component kept at bottom to avoid hoisting issues */
-function Avatar({ profile }) {
-  // fallback to reading DOM state - but our ConnectPage wraps Avatar call without prop in current code
-  // so we replicate the same logic used earlier in the file. This keeps behaviour identical.
-  // If you prefer, pass profile prop into Avatar() where used.
-  // For compatibility we try to read profile from window/localStorage if not provided.
-  let localProfile;
-  try {
-    localProfile = JSON.parse(localStorage.getItem("milan_profile") || "null") || null;
-  } catch (e) {
-    localProfile = null;
-  }
-  const p = localProfile || { name: "M" };
-  const first =
-    (p.name && p.name.trim().charAt(0).toUpperCase()) || "M";
+function Avatar() {
+  const [profile, setProfile] = useState(null);
 
-  if (p.photoDataUrls && p.photoDataUrls.length) {
-    return (
-      <img
-        src={p.photoDataUrls[0]}
-        alt="avatar"
-        style={{
-          width: 70,
-          height: 70,
-          borderRadius: "50%",
-          objectFit: "cover",
-        }}
-      />
-    );
-  }
+  useEffect(() => {
+    async function loadProfile() {
+      const uid = localStorage.getItem("uid");
+      const token = localStorage.getItem("token");
+      if (!uid || !token) return;
 
-  return (
+      try {
+        const res = await fetch(`/api/profile/${uid}`, {
+          headers: {
+            Authorization: `Bearer ${token}`, // if you secure the route
+          },
+        });
+        if (!res.ok) throw new Error("Failed to fetch profile");
+        const data = await res.json();
+        setProfile(data);
+      } catch (err) {
+        console.error("Error fetching profile:", err);
+      }
+    }
+    loadProfile();
+  }, []);
+
+  if (!profile) return <div>Loading...</div>;
+
+  const first = (profile.name?.trim()?.charAt(0).toUpperCase()) || "M";
+
+  return profile.avatar ? (
+    <img
+      src={profile.avatar}
+      alt="avatar"
+      style={{
+        width: 70,
+        height: 70,
+        borderRadius: "50%",
+        objectFit: "cover",
+      }}
+    />
+  ) : (
     <div
       aria-label={`avatar ${first}`}
       style={{
