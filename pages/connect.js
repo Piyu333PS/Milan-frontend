@@ -2,17 +2,6 @@
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import io from "socket.io-client";
 
-/**
- * Milan Connect Page
- * - Sidebar with Profile, Security, Love Calculator, Logout
- * - Center "Select Milan Mode" (Video enabled, others coming soon)
- * - Hearts background animation
- * - Profile overlay editor with photos, interests, and completeness
- * - Love Calculator modal (fun algorithm)
- * - Robust socket partner search + safe redirects
- * - Fixed: handleSaveProfileForm defined (prevents client-side crash)
- */
-
 export default function ConnectPage() {
   // -----------------------------
   // UI state
@@ -22,7 +11,7 @@ export default function ConnectPage() {
   const [showSecurity, setShowSecurity] = useState(false);
   const [showLogoutConfirm, setShowLogoutConfirm] = useState(false);
 
-  // Profile (localStorage backed)
+  // Profile (localStorage)
   const [profile, setProfile] = useState({
     name: "",
     contact: "",
@@ -39,15 +28,9 @@ export default function ConnectPage() {
   const [currentPasswordInput, setCurrentPasswordInput] = useState("");
   const [newPasswordInput, setNewPasswordInput] = useState("");
 
-  const QUOTES = [
-    "❤️ जहाँ दिल मिले, वहीं होती है शुरुआत Milan की…",
-    "✨ हर chat के पीछे छुपी है एक नई कहानी…",
-    "💬 शब्द कम हों या ज़्यादा, connection सच्चा होना चाहिए।",
-    "🎥 नज़रें कह देती हैं जो लफ़्ज़ नहीं कह पाते।",
-    "🌸 प्यार मिल जाए, तो सफ़र आसान लगने लगता है।",
-  ];
-  const [quoteIndex, setQuoteIndex] = useState(0);
-  const [statusMessage, setStatusMessage] = useState(QUOTES[0]);
+  const [statusMessage, setStatusMessage] = useState(
+    "❤️ जहाँ दिल मिले, वहीं होती है शुरुआत Milan की…"
+  );
   const [modeText, setModeText] = useState("");
   const [isSearching, setIsSearching] = useState(false);
   const [showLoader, setShowLoader] = useState(false);
@@ -65,6 +48,21 @@ export default function ConnectPage() {
   const [lcHearts, setLcHearts] = useState([]);
   const [incomingLove, setIncomingLove] = useState(null);
 
+  const QUOTES = [
+    "❤️ जहाँ दिल मिले, वहीं होती है शुरुआत Milan की…",
+    "✨ हर chat के पीछे छुपी है एक नई कहानी…",
+    "💬 शब्द कम हों या ज़्यादा, connection सच्चा होना चाहिए।",
+    "🎥 नज़रें कह देती हैं जो लफ़्ज़ नहीं कह पाते।",
+    "🌸 प्यार मिल जाए, तो सफ़र आसान लगने लगता है।",
+  ];
+  const [quoteIndex, setQuoteIndex] = useState(0);
+  useEffect(() => {
+    const id = setInterval(() => {
+      setQuoteIndex((i) => (i + 1) % QUOTES.length);
+    }, 5000);
+    return () => clearInterval(id);
+  }, []);
+
   const socketRef = useRef(null);
   const partnerRef = useRef(null);
   const connectingRef = useRef(false);
@@ -73,19 +71,6 @@ export default function ConnectPage() {
     return process.env.NEXT_PUBLIC_BACKEND_URL || "https://milan-j9u9.onrender.com";
   }, []);
 
-  // Quote rotator
-  useEffect(() => {
-    const id = setInterval(() => {
-      setQuoteIndex((i) => {
-        const next = (i + 1) % QUOTES.length;
-        setStatusMessage(QUOTES[next]);
-        return next;
-      });
-    }, 5000);
-    return () => clearInterval(id);
-  }, []);
-
-  // Load profile from localStorage
   useEffect(() => {
     if (typeof window === "undefined") return;
     try {
@@ -105,14 +90,14 @@ export default function ConnectPage() {
     }
   }, []);
 
-  // Prefill love calc nameA
+  // Prefill love calc nameA when profile loads
   useEffect(() => {
     if (profile && profile.name) {
       setLcNameA(profile.name);
     }
   }, [profile.name]);
 
-  // Hearts canvas animation
+  // hearts canvas
   useEffect(() => {
     if (typeof window === "undefined") return;
     const canvas = document.getElementById("heartCanvas");
@@ -201,7 +186,6 @@ export default function ConnectPage() {
     };
   }, []);
 
-  // Cleanup socket on unmount
   useEffect(() => {
     return () => {
       if (socketRef.current) {
@@ -214,13 +198,15 @@ export default function ConnectPage() {
     };
   }, []);
 
-  // Avoid disconnect on intentional redirect
   useEffect(() => {
     if (typeof document === "undefined") return;
     const onVisibility = () => {
+      // <-- PATCH: suppress disconnect when we intentionally redirect
       if (typeof window !== "undefined" && window.__milan_redirecting) {
+        // if redirecting, ignore visibilitychange
         return;
       }
+
       if (
         document.visibilityState === "hidden" &&
         socketRef.current &&
@@ -235,7 +221,7 @@ export default function ConnectPage() {
         setShowLoader(false);
         setShowModeButtons(true);
         setModeText("");
-        setStatusMessage(QUOTES[0]);
+        setStatusMessage("❤️ जहाँ दिल मिले, वहीं होती है शुरुआत Milan की…");
       }
     };
     document.addEventListener("visibilitychange", onVisibility);
@@ -266,66 +252,6 @@ export default function ConnectPage() {
       localStorage.setItem("milan_profile", JSON.stringify(newProfile));
     }
   }
-
-  // -------- FIX: handleSaveProfileForm (prevents ReferenceError & crashes) --------
-  async function handleSaveProfileForm(e) {
-    e && e.preventDefault && e.preventDefault();
-
-    try {
-      if (!editProfile) {
-        console.warn("No editProfile available to save.");
-        setShowProfile(false);
-        return;
-      }
-
-      const updated = {
-        ...editProfile,
-        name: editProfile.name || editProfile.fullname || profile.name || "",
-      };
-
-      if (!updated.name || !updated.name.trim()) {
-        alert("Please enter your name.");
-        return;
-      }
-
-      // Save locally first
-      saveProfile(updated);
-
-      // Optional: attempt backend sync if token exists
-      try {
-        if (typeof window !== "undefined") {
-          const token = localStorage.getItem("token");
-          const uid = localStorage.getItem("uid");
-          if (token && uid) {
-            fetch(`${backendUrl}/api/profile/${uid}`, {
-              method: "PUT",
-              headers: {
-                "Content-Type": "application/json",
-                Authorization: `Bearer ${token}`,
-              },
-              body: JSON.stringify(updated),
-            }).then((res) => {
-              if (!res.ok) {
-                console.warn("Backend profile save did not succeed (non-blocking).");
-              }
-            }).catch((err) => {
-              console.warn("Backend profile save failed (non-blocking):", err);
-            });
-          }
-        }
-      } catch (e) {
-        console.warn("Optional backend sync error", e);
-      }
-
-      setShowProfile(false);
-      setEditProfile(null);
-      alert("Profile saved!");
-    } catch (err) {
-      console.error("Error in handleSaveProfileForm:", err);
-      alert("Profile save failed (see console).");
-    }
-  }
-  // -------------------------------------------------------------------------------
 
   async function handleAddPhoto(e, options = { overlayMode: false }) {
     const file = e.target.files && e.target.files[0];
@@ -437,6 +363,7 @@ export default function ConnectPage() {
 
       socketRef.current.emit("lookingForPartner", { type, token });
 
+      // ---------- PATCHED partnerFound handler (safe handoff & redirect) ----------
       socketRef.current.on("partnerFound", (data) => {
         try {
           partnerRef.current = data?.partner || {};
@@ -444,13 +371,16 @@ export default function ConnectPage() {
 
           console.log("[connect] partnerFound payload:", data);
 
+          // Defensive: if no roomCode, show message and abort
           if (!roomCode) {
             console.warn("[connect] partnerFound but no roomCode received", data);
             setStatusMessage("Partner found but room creation failed. Trying again shortly...");
+            // stop search to avoid stuck state, and optionally requeue after a small delay
             setTimeout(() => stopSearch(), 800);
             return;
           }
 
+          // store into sessionStorage and localStorage as fallback
           if (typeof window !== "undefined") {
             try {
               sessionStorage.setItem("partnerData", JSON.stringify(partnerRef.current));
@@ -463,6 +393,7 @@ export default function ConnectPage() {
 
           setStatusMessage("💖 Milan Successful!");
 
+          // <-- PATCH: set redirect flag to avoid visibility/disconnect race
           if (typeof window !== "undefined") {
             try {
               window.__milan_redirecting = true;
@@ -472,6 +403,7 @@ export default function ConnectPage() {
             } catch (e) {}
           }
 
+          // small delay so server room mapping settles; then redirect with query param for reliability
           setTimeout(() => {
             try {
               const safePath =
@@ -481,11 +413,13 @@ export default function ConnectPage() {
                   ? `/game?room=${encodeURIComponent(roomCode)}`
                   : "/chat";
 
+              // Use replace to avoid extra history entries if desired: window.location.replace(safePath)
               if (typeof window !== "undefined") {
                 window.location.href = safePath;
               }
             } catch (e) {
               console.error("[connect] redirect failed", e);
+              // fallback: plain session storage redirect
               if (typeof window !== "undefined") {
                 window.location.href = type === "game" ? "/game" : type === "video" ? "/video" : "/chat";
               }
@@ -496,8 +430,10 @@ export default function ConnectPage() {
           setTimeout(() => stopSearch(), 500);
         }
       });
+      // ---------------------------------------------------------------------------
 
       socketRef.current.on("partnerDisconnected", () => {
+        // <-- PATCH: ignore partnerDisconnected if we are redirecting intentionally
         if (typeof window !== "undefined" && window.__milan_redirecting) {
           console.log("[connect] ignored partnerDisconnected due to redirect");
           return;
@@ -507,8 +443,10 @@ export default function ConnectPage() {
       });
 
       socketRef.current.on("partnerSharedLoveCalc", (payload) => {
+        // partner shared a love calc with us
         try {
           setIncomingLove(payload || null);
+          // open modal and populate
           if (payload && payload.payload) {
             const p = payload.payload;
             setLcNameA(p.nameA || "");
@@ -518,6 +456,7 @@ export default function ConnectPage() {
             setLcInterests(Array.isArray(p.interests) ? p.interests.join(", ") : (p.interests || ""));
             setLcScore(p.score || null);
             setLcMsg(p.message || "");
+            // show hearts
             triggerHearts(p.score || 60);
             setShowLoveCalc(true);
           } else {
@@ -559,41 +498,47 @@ export default function ConnectPage() {
     setShowLoader(false);
     setShowModeButtons(true);
     setModeText("");
-    setStatusMessage(QUOTES[0]);
+    setStatusMessage("❤️ जहाँ दिल मिले, वहीं होती है शुरुआत Milan की…");
   }
 
-  // Love Calculator utils
+  // Love Calculator functions
   function sanitize(s) { return (s||"").toString().trim().toLowerCase(); }
 
   function calcLoveScore(nameA, nameB, ageA, ageB, interestsArr){
+    // 1) Base from letters: sum char codes of letters mod 50
     const letters = (sanitize(nameA)+sanitize(nameB)).replace(/[^a-z]/g,'');
     let sum = 0;
-    for (let i=0;i<letters.length;i++) sum += (letters.charCodeAt(i) - 96);
-    let partLetters = (sum % 51);
+    for (let i=0;i<letters.length;i++) sum += (letters.charCodeAt(i) - 96); // a=1
+    let partLetters = (sum % 51); // 0-50
 
+    // 2) Age factor: smaller gap -> bonus up to 20
     let ageBonus = 0;
     if (ageA && ageB) {
       const gap = Math.abs(Number(ageA) - Number(ageB));
-      ageBonus = Math.max(0, 20 - gap);
+      ageBonus = Math.max(0, 20 - gap); // gap 0 -> 20, gap 20+ -> 0
     }
 
+    // 3) Interests: each shared interest +8 (max 24)
     let interestBonus = 0;
     if (interestsArr && interestsArr.length){
       const uniq = [...new Set(interestsArr.map(s=>s.trim().toLowerCase()).filter(Boolean))];
       interestBonus = Math.min(uniq.length * 8, 24);
     }
 
+    // 4) Name harmony: common letters count * 2 (max 6)
     const setA = new Set(sanitize(nameA).replace(/[^a-z]/g,'').split(''));
     const setB = new Set(sanitize(nameB).replace(/[^a-z]/g,'').split(''));
     let common = 0;
     setA.forEach(ch => { if (setB.has(ch)) common++; });
     const nameHarmony = Math.min(common * 2, 6);
 
-    let raw = partLetters + ageBonus + interestBonus + nameHarmony;
-    raw = Math.max(3, Math.min(98, Math.round(raw)));
+    // final raw score
+    let raw = partLetters + ageBonus + interestBonus + nameHarmony; // max ~101
+    raw = Math.max(3, Math.min(98, Math.round(raw))); // clamp 3-98 for playful range
 
+    // small randomness based on names (deterministic)
     const rndSeed = (sanitize(nameA)+sanitize(nameB)).split('').reduce((a,c)=>a+c.charCodeAt(0),0);
-    const tiny = (rndSeed % 7) - 3;
+    const tiny = (rndSeed % 7) - 3; // -3..+3
     const finalScore = Math.max(5, Math.min(99, raw + tiny));
     return finalScore;
   }
@@ -615,13 +560,14 @@ export default function ConnectPage() {
       delay: i * 120
     }));
     setLcHearts(arr);
+    // clear after animation
     setTimeout(()=> setLcHearts([]), 2600);
   }
 
   function onCalculateLove(e){
     e && e.preventDefault && e.preventDefault();
     if (!lcNameA || !lcNameB) {
-      alert("Dono names daal do — masti shuru!");
+      alert("Dono names daaldo — masti shuru!");
       return;
     }
     const interestsArr = (lcInterests || "").split(",").map(s=>s.trim()).filter(Boolean);
@@ -630,27 +576,32 @@ export default function ConnectPage() {
     setLcMsg(friendlyMessage(score));
     triggerHearts(score);
     const payload = { nameA: lcNameA, nameB: lcNameB, ageA: lcAgeA, ageB: lcAgeB, interests: interestsArr, score, message: friendlyMessage(score), time: Date.now() };
+    // persist locally
     try {
       const hist = JSON.parse(localStorage.getItem("lovecalc_history")||"[]");
       hist.unshift(payload);
       localStorage.setItem("lovecalc_history", JSON.stringify(hist.slice(0,50)));
     } catch (e) {}
+    // keep last
     localStorage.setItem("lastLoveCalc", JSON.stringify(payload));
   }
 
   function onShareLoveCalc(){
     const last = JSON.parse(localStorage.getItem("lastLoveCalc") || "null");
     if (!last) {
-      alert("Pehle calculate karo phir share 😉");
+      alert("Pehle calculate karo phir share karna 😉");
       return;
     }
+
+    // if socket connected & partner known, emit to server
     try {
       if (socketRef.current && socketRef.current.connected && partnerRef.current && partnerRef.current.id) {
         socketRef.current.emit("shareLoveCalc", { fromName: profile.name || "Someone", to: partnerRef.current.id, payload: last });
         alert("Result sent to partner ✨");
       } else {
+        // fallback: copy text to clipboard
         const text = `LoveCalc: ${last.nameA} + ${last.nameB} = ${last.score}% — ${last.message}`;
-        navigator.clipboard?.writeText(text).then(()=> alert('Copied result — share anywhere!')).catch(()=> alert('Could not copy — but result saved locally.'));
+        navigator.clipboard?.writeText(text).then(()=> alert('Copied result to clipboard — share manually!')).catch(()=> alert('Could not copy — but result saved locally.'));
       }
     } catch (e) {
       console.warn(e);
@@ -765,6 +716,7 @@ export default function ConnectPage() {
             <span className="sidebar-txt">Security</span>
           </li>
 
+          {/* LOVE CALCULATOR BUTTON - quick access */}
           <li role="button" onClick={() => setShowLoveCalc(true)} className="sidebar-item">
             <span className="sidebar-ic">💘</span>
             <span className="sidebar-txt">Love Calculator</span>
@@ -809,6 +761,7 @@ export default function ConnectPage() {
                 </div>
               )}
 
+              {/* Play & Chat - disabled with "Coming Soon" */}
               {showModeButtons && (
                 <div
                   className="mode-card disabled-card"
@@ -823,6 +776,7 @@ export default function ConnectPage() {
                 </div>
               )}
 
+              {/* Text Chat - disabled with "Coming Soon" */}
               {showModeButtons && (
                 <div
                   className="mode-card disabled-card"
@@ -880,8 +834,7 @@ export default function ConnectPage() {
           role="dialog"
           aria-modal="true"
           onClick={(e) => {
-            // close only when clicking the backdrop itself (not inner form or controls)
-            if (e.currentTarget === e.target) {
+            if (e.target && e.target.classList && e.target.classList.contains("profile-overlay")) {
               setShowProfile(false);
               setEditProfile(null);
             }
@@ -894,7 +847,7 @@ export default function ConnectPage() {
             </header>
 
             {editProfile ? (
-              <form className="profile-body" onSubmit={handleSaveProfileForm} onClick={(e)=>e.stopPropagation()}>
+              <form className="profile-body" onSubmit={handleSaveProfileForm}>
                 <div className="row">
                   <label>Full Name</label>
                   <input
@@ -1159,198 +1112,438 @@ export default function ConnectPage() {
       )}
 
       <style jsx global>{`
-        /* ====== Milan Connect Page Styles ====== */
-        * { box-sizing: border-box; margin: 0; padding: 0; }
-        html,body,#__next { height: 100%; }
-        body {
-          font-family: "Inter", "Segoe UI", Roboto, Arial, sans-serif;
-          -webkit-font-smoothing: antialiased;
-          -moz-osx-font-smoothing: grayscale;
-          background: linear-gradient(180deg, #f9a8d4 0%, #f472b6 30%, #a78bfa 100%);
-          color: #111827;
-          overflow-x: hidden;
+        html, body {
+          margin: 0;
+          padding: 0;
+          height: 100%;
+          font-family: "Poppins", sans-serif;
+          background: linear-gradient(135deg, #8b5cf6, #ec4899);
+          overflow: auto;
         }
-        #heartCanvas {
+        canvas {
           position: fixed;
-          left: 0;
           top: 0;
-          z-index: 1;
+          left: 0;
+          width: 100%;
+          height: 100%;
           pointer-events: none;
+          z-index: 0;
+          image-rendering: -webkit-optimize-contrast;
         }
+
         .hamburger {
+          display: none;
           position: fixed;
+          top: env(safe-area-inset-top, 12px);
           left: 12px;
-          top: 12px;
-          z-index: 40;
-          background: rgba(255,255,255,0.9);
-          border: 0;
-          padding: 6px 8px;
+          font-size: 24px;
+          color: white;
+          z-index: 50;
+          background: rgba(0, 0, 0, 0.25);
+          padding: 8px 10px;
           border-radius: 6px;
-          box-shadow: 0 6px 18px rgba(16,24,40,0.08);
           cursor: pointer;
+          user-select: none;
+          border: 0;
         }
+
         .sidebar {
           position: fixed;
-          left: 0;
           top: 0;
-          bottom: 0;
-          width: 260px;
-          padding: 22px 18px;
-          background: linear-gradient(180deg, rgba(255,255,255,0.06), rgba(255,255,255,0.03));
-          backdrop-filter: blur(8px) saturate(120%);
-          border-right: 1px solid rgba(255,255,255,0.06);
-          z-index: 20;
-          color: #fff;
-          box-shadow: 8px 0 24px rgba(0,0,0,0.08);
+          left: 0;
+          width: 240px;
+          height: 100%;
+          background: rgba(255, 255, 255, 0.06);
+          backdrop-filter: blur(10px);
+          display: flex;
+          flex-direction: column;
+          align-items: center;
+          padding-top: 38px;
+          z-index: 40;
+          color: white;
+          transition: transform 0.28s ease;
         }
         .sidebar.open { transform: translateX(0); }
-        .sidebar-top { text-align: center; margin-bottom: 16px; }
-        .profile-pic-wrapper { margin: 0 auto 8px; width: 70px; height: 70px; border-radius: 50%; overflow: hidden; display:flex; align-items:center; justify-content:center; background: linear-gradient(90deg,#ff8ab3,#ff5a9e); box-shadow: 0 6px 18px rgba(0,0,0,0.12);}
-        .profile-pic-wrapper img { width:100%; height:100%; object-fit:cover; }
-        .username { margin-top: 8px; font-weight: 800; color: #fff; font-size: 16px; text-shadow: 0 2px 8px rgba(0,0,0,0.18); }
-        .completeness-mini { margin-top: 6px; }
-        .mini-progress { width: 100%; height: 8px; background: rgba(255,255,255,0.08); border-radius: 8px; margin-top: 6px; overflow:hidden;}
-        .mini-progress-bar { height:100%; background: linear-gradient(90deg,#ff6b81,#ff3b9b); border-radius:8px; width:40%; }
-        .sidebar-list { list-style: none; margin-top: 18px; padding-left: 0; text-align: left; }
-        .sidebar-item {
-          display:flex;
-          align-items:center;
-          gap: 10px;
-          padding: 12px;
-          border-radius: 10px;
-          margin-bottom: 10px;
+        .profile-pic-wrapper { width: 78px; height: 78px; border-radius: 50%; overflow: hidden; box-shadow: 0 6px 18px rgba(0,0,0,0.25); }
+        .username {
+          margin-top: 8px;
+          font-size: 18px;
+          font-weight: 800;
           color: #fff;
-          cursor: pointer;
-          transition: transform .12s ease, background .12s ease;
-          user-select:none;
+          text-align: center;
+          padding: 6px 12px;
+          letter-spacing: 0.2px;
         }
-        .sidebar-item:hover { transform: translateX(6px); background: rgba(255,255,255,0.03); }
-        .sidebar-ic { font-size: 18px; }
-        .sidebar-txt { font-weight: 700; font-size: 15px; color: #fff; text-shadow: 0 1px 0 rgba(0,0,0,0.12); }
+        .photo-label {
+          font-size: 13px;
+          color: #fff;
+          background: linear-gradient(90deg, rgba(255,107,129,0.12), rgba(255,159,176,0.08));
+          padding: 6px 12px;
+          border-radius: 10px;
+          cursor: pointer;
+          display: inline-block;
+          margin-top: 8px;
+        }
+
+        .sidebar-list { list-style: none; padding: 0; margin-top: 26px; width: 100%; }
+        .sidebar-list li {
+          display: flex;
+          align-items: center;
+          gap: 12px;
+          justify-content: flex-start;
+          padding: 10px 14px;
+          margin: 8px 12px;
+          background: linear-gradient(90deg, rgba(255,255,255,0.02), rgba(255,255,255,0.01));
+          border-radius: 12px;
+          cursor: pointer;
+          transition: transform 0.12s ease, box-shadow 0.12s ease, background 0.12s ease;
+        }
+        .sidebar-item:hover {
+          transform: translateX(6px);
+          box-shadow: 0 10px 28px rgba(0,0,0,0.22);
+          background: linear-gradient(90deg, rgba(255,107,129,0.04), rgba(255,159,176,0.02));
+        }
+        .sidebar-ic { font-size: 18px; display:inline-block; width:22px; text-align:center; }
+        .sidebar-txt { font-size: 17px; font-weight:800; color:#fff; }
+
         .content-wrap {
-          margin-left: 260px;
-          padding: 55px 30px;
+          margin-left: 240px;
           min-height: 100vh;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          padding: 18px;
           z-index: 10;
           position: relative;
         }
+
         .glass-card {
-          max-width: 880px;
-          margin: 40px auto;
-          background: linear-gradient(180deg, rgba(255,255,255,0.12), rgba(255,255,255,0.06));
-          border-radius: 16px;
-          padding: 36px;
-          box-shadow: 0 14px 40px rgba(12, 20, 60, 0.12);
-          border: 1px solid rgba(255,255,255,0.08);
-          backdrop-filter: blur(8px) saturate(120%);
+          width: min(100%, 820px);
+          background: rgba(255, 255, 255, 0.06);
+          border-radius: 18px;
+          backdrop-filter: blur(10px);
+          box-shadow: 0 10px 40px rgba(0, 0, 0, 0.20);
+          display: block;
+          padding: 12px;
         }
-        .center-box { text-align: center; color: #fff; padding: 8px 12px; }
-        .center-top h2 { font-size: 36px; font-weight: 900; margin-bottom: 6px; letter-spacing: 0.3px; }
-        .mode-text { font-size: 14px; margin-top: 6px; opacity: 0.95; }
-        .mode-options { display:flex; gap: 18px; justify-content: center; margin-top: 20px; flex-wrap:wrap; }
-        .mode-card {
-          width: 260px;
-          border-radius: 12px;
-          padding: 18px;
-          background: linear-gradient(180deg, rgba(255,255,255,0.04), rgba(255,255,255,0.02));
-          box-shadow: 0 8px 26px rgba(2,6,23,0.12);
+
+        .center-box {
+          width: 100%;
           color: #fff;
-          text-align: left;
+          text-align: center;
+          z-index: 12;
+          display: flex;
+          flex-direction: column;
+          gap: 8px;
+          box-sizing: border-box;
+          padding: 6px 6px;
         }
-        .mode-card.disabled-card { opacity: 0.7; filter: saturate(0.9); }
+
+        .center-top { margin-bottom: 2px; }
+        .center-box h2 {
+          font-size: 34px;
+          margin: 6px 0 4px 0;
+          font-weight: 800;
+          text-shadow: 0 0 12px rgba(236,72,153,0.16);
+        }
+
+        .mode-text {
+          color: #ffe4f1;
+          font-weight: 700;
+          margin-bottom: 6px;
+          min-height: 20px;
+        }
+
+        .mode-options {
+          display: flex;
+          justify-content: center;
+          gap: 10px;
+          align-items: stretch;
+          flex-wrap: nowrap;
+          margin-top: 6px;
+        }
+
+        .mode-card,
+        .disabled-card {
+          flex: 1 1 260px;
+          max-width: 420px;
+          background: rgba(255, 255, 255, 0.04);
+          border-radius: 12px;
+          padding: 10px;
+          display: flex;
+          flex-direction: column;
+          align-items: center;
+          gap: 8px;
+          box-shadow: 0 8px 24px rgba(0, 0, 0, 0.12);
+          transition: transform 0.18s ease, box-shadow 0.18s ease;
+          outline: none;
+          box-sizing: border-box;
+          min-height: 120px;
+        }
+        .mode-card:active { transform: translateY(1px); }
+        .mode-card:hover { transform: translateY(-3px); box-shadow: 0 14px 36px rgba(0,0,0,0.18); }
+
         .mode-btn {
-          background: #fff;
-          color: #d63384;
-          border: 0;
+          width: 92%;
           padding: 10px 12px;
-          border-radius: 8px;
+          border-radius: 10px;
+          border: none;
+          background: #fff;
+          color: #ec4899;
+          font-size: 15px;
           font-weight: 800;
           cursor: pointer;
+          box-shadow: 0 8px 20px rgba(236,72,153,0.06);
         }
-        .mode-btn.disabled { background: rgba(255,255,255,0.12); color: rgba(255,255,255,0.7); cursor: default; }
-        .mode-desc { font-size: 13px; margin-top: 10px; opacity: 0.95; }
-        .disabled-note { margin-top: 8px; font-size: 13px; opacity: 0.85; }
-        .quote-box {
-          margin-top: 18px;
-          background: rgba(255,255,255,0.06);
-          padding: 12px;
-          border-radius: 10px;
+
+        .mode-btn.disabled {
+          opacity: 0.6;
+          cursor: not-allowed;
+        }
+
+        .mode-desc {
+          color: rgba(255, 255, 255, 0.92);
+          font-size: 13px;
+          margin-top: 4px;
+          margin-bottom: 4px;
+        }
+
+        .disabled-note {
+          margin-top: 4px;
+          font-size: 13px;
+          color: #ffe4f1;
+          font-style: italic;
+        }
+
+        .loader { margin: 6px auto; }
+        .heart-loader {
+          font-size: 26px;
           color: #fff;
-          font-weight: 700;
-          box-shadow: inset 0 1px 0 rgba(255,255,255,0.02);
+          animation: blink 1s infinite;
         }
-        .loader { margin-top: 18px; }
-        .heart-loader { padding: 14px; border-radius: 10px; background: rgba(0,0,0,0.05); color: #fff; display:inline-block; }
-        .stop-btn { margin-top:10px; background: rgba(0,0,0,0.06); color: #fff; padding: 8px 12px; border:0; border-radius:8px; cursor:pointer; }
+        @keyframes blink {
+          0% { opacity: 0.2; transform: scale(1); }
+          50% { opacity: 1; transform: scale(1.08); }
+          100% { opacity: 0.2; transform: scale(1); }
+        }
+
+        .stop-btn {
+          margin-top: 6px;
+          padding: 10px 16px;
+          background: #ff4d4f;
+          color: #fff;
+          border: none;
+          border-radius: 10px;
+          cursor: pointer;
+        }
+
+        .quote-box {
+          margin-top: 6px;
+          font-weight: 700;
+          color: #ffeff7;
+          text-shadow: 0 0 6px rgba(255,136,170,0.12);
+          padding: 8px 10px;
+          border-radius: 10px;
+          background: rgba(255, 255, 255, 0.04);
+          border: 1px solid rgba(255, 255, 255, 0.06);
+          animation: quoteFade 0.35s ease;
+        }
+        @keyframes quoteFade {
+          from { opacity: 0; transform: translateY(4px); }
+          to { opacity: 1; transform: translateY(0); }
+        }
+
+        /* PROFILE OVERLAY (glass) - improved for small screens */
         .profile-overlay {
           position: fixed;
-          left: 0; right: 0; top:0; bottom:0;
-          background: rgba(6, 5, 17, 0.6);
-          display:flex;
-          align-items:center;
-          justify-content:center;
-          z-index: 60;
-          padding: 28px;
+          inset: 0;
+          background: rgba(2,6,23,0.55);
+          z-index: 120;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          padding: 18px;
         }
         .profile-card {
-          width: 820px;
-          max-width: calc(100% - 48px);
-          background: #fff;
+          width: min(880px, 96%);
+          max-width: 880px;
+          background: linear-gradient(180deg, rgba(255,255,255,0.98), rgba(255,255,255,0.95));
           border-radius: 12px;
+          box-shadow: 0 18px 60px rgba(0,0,0,0.35);
           overflow: hidden;
-          box-shadow: 0 18px 60px rgba(2,6,23,0.22);
+          display: flex;
+          flex-direction: column;
+          gap: 8px;
+          max-height: calc(100vh - 80px);
         }
         .profile-head {
-          padding: 18px 20px;
-          border-bottom: 1px solid rgba(0,0,0,0.06);
-          display:flex; align-items:center; justify-content:space-between;
+          display:flex;
+          align-items:center;
+          justify-content:space-between;
+          padding: 12px 16px;
+          background: linear-gradient(90deg, rgba(255,236,245,0.95), rgba(255,255,255,0.95));
+          border-bottom: 1px solid rgba(0,0,0,0.04);
         }
-        .profile-head h3 { font-size: 20px; font-weight:800; color:#111; }
-        .profile-head .close { background: transparent; border:0; font-size:18px; cursor:pointer; }
-        .profile-body { padding: 18px 20px; max-height: 75vh; overflow:auto; }
-        .profile-body .row { margin-bottom: 14px; }
-        .profile-body label { display:block; font-weight:700; margin-bottom:6px; color:#333; font-size:13px; }
-        .profile-body input, .profile-body select, .profile-body textarea {
-          width:100%; padding:10px 12px; border-radius:8px; border: 1px solid rgba(16,24,40,0.06); font-size:14px;
-          background: #fff;
+        .profile-head h3 { margin:0; font-size:18px; color:#0b1220; font-weight:900; }
+        .profile-head .close { background:transparent;border:0;font-size:18px;cursor:pointer;color:#666; }
+
+        .profile-body {
+          padding: 12px 16px 12px 16px;
+          display:flex;
+          flex-direction:column;
+          gap:10px;
+          color:#222;
+          overflow: auto; /* allow scrolling inside overlay */
         }
-        .profile-body textarea { min-height: 80px; resize: vertical; }
-        .photo-row { display:flex; gap:8px; align-items:center; flex-wrap:wrap; margin-top:6px; }
-        .photo-thumb img { height:110px; width:110px; object-fit:cover; border-radius:12px; box-shadow:0 10px 30px rgba(0,0,0,0.12); }
-        .photo-add { display:flex; align-items:center; justify-content:center; width:110px; height:110px; border-radius:12px; background: linear-gradient(90deg,#ff8ab3,#ff5a9e); color:#fff; cursor:pointer; font-weight:800; }
+        .profile-body label { display:block; font-weight:700; color:#334; margin-bottom:6px; font-size:13px; }
+        .profile-body input, .profile-body select, .profile-body textarea { width:100%; padding:8px 10px; border-radius:8px; border:1px solid #e6e6e9; box-sizing:border-box; font-size:14px; height: 38px; }
+        .profile-body textarea { min-height:70px; resize:vertical; padding-top:8px; padding-bottom:8px; }
+
+        .row { width:100%; }
+        .two-col { display:flex; gap:8px; }
+        .three-col { display:flex; gap:8px; }
+        .three-col > div { flex:1; }
+
+        .interests-input { display:flex; gap:8px; align-items:center; }
+        .interests-input input { flex:1; height:36px; }
+        .btn-small { background: linear-gradient(90deg,#ff6b81,#ff9fb0); color:#08121a; padding:8px 10px; border-radius:8px; border:none; font-weight:700; cursor:pointer; height:36px; }
+
         .chips { display:flex; gap:8px; flex-wrap:wrap; margin-top:8px; }
-        .chip { background: #f3f4f6; padding:6px 8px; border-radius:14px; display:inline-flex; gap:8px; align-items:center; font-weight:700; }
-        .progress-wrap { width:100%; height: 10px; background: #f3f4f6; border-radius: 10px; overflow:hidden; margin-top:6px; }
-        .progress-bar { height:100%; background: linear-gradient(90deg,#ff6b81,#ff3b9b); width:40%; }
-        .modal-back { position: fixed; inset:0; background: rgba(0,0,0,0.45); display:flex; align-items:center; justify-content:center; z-index: 60; padding: 18px; }
-        .modal-card { background: #fff; border-radius: 10px; width: 520px; max-width: 100%; padding: 14px; box-shadow: 0 10px 40px rgba(2,6,23,0.12); }
-        .modal-card.small { width: 360px; }
-        .modal-card.love-card { width: 560px; }
-        .modal-head { display:flex; align-items:center; justify-content:space-between; padding-bottom:8px; border-bottom:1px solid rgba(0,0,0,0.06); }
-        .modal-head h3 { margin:0; }
-        .modal-body { padding: 12px 6px; }
-        .modal-actions { display:flex; gap:10px; justify-content:flex-end; margin-top:8px; }
-        .btn-primary { background: linear-gradient(90deg,#ff6b81,#ff3b9b); color: #fff; padding: 10px 12px; border-radius:8px; border:0; font-weight:800; cursor:pointer; }
-        .btn-ghost { background: transparent; border: 1px solid rgba(0,0,0,0.06); padding: 8px 10px; border-radius:8px; cursor:pointer; color:#333; }
-        .btn-small { padding:6px 8px; border-radius:8px; border:0; cursor:pointer; }
-        .lc-hearts { display:flex; gap:8px; justify-content:center; align-items:flex-end; }
-        .lc-heart { animation: pop 1s ease both; position: relative; }
-        @keyframes pop { 0%{ transform: translateY(20px) scale(.6); opacity:0 } 60%{ transform: translateY(-8px) scale(1.08); opacity:1 } 100%{ transform: translateY(0) scale(1); opacity:1 } }
-        @media (max-width: 900px) {
-          .sidebar { width: 72px; padding: 12px; }
-          .content-wrap { margin-left: 72px; padding: 22px; }
-          .glass-card { padding: 20px; margin-top: 24px; }
-          .mode-card { width: 100%; }
+        .chip { background:#fff; padding:6px 10px; border-radius:18px; display:flex; gap:8px; align-items:center; font-weight:700; box-shadow: 0 6px 18px rgba(0,0,0,0.06); font-size:13px; }
+        .chip button { background:transparent; border:0; cursor:pointer; color:#c33; font-weight:800; }
+
+        .photo-row { display:flex; gap:10px; align-items:center; flex-wrap:wrap; }
+        .photo-thumb { position:relative; width:72px; height:72px; border-radius:8px; overflow:hidden; background:#f3f3f3; display:flex; align-items:center; justify-content:center; box-shadow: 0 6px 18px rgba(0,0,0,0.06); }
+        .photo-thumb img { width:100%; height:100%; object-fit:cover; }
+        .photo-thumb .remove-photo { position:absolute; top:6px; right:6px; background: rgba(0,0,0,0.36); color:#fff; border:0; padding:6px 8px; border-radius:6px; cursor:pointer; font-size:12px; }
+
+        .photo-add { width:72px; height:72px; border-radius:8px; background:linear-gradient(90deg,#fff,#fff); display:flex; align-items:center; justify-content:center; box-shadow: 0 6px 18px rgba(0,0,0,0.04); }
+        .photo-add-label { display:block; cursor:pointer; color:#ec4899; font-weight:800; }
+
+        .progress-wrap { width:100%; height:10px; background: #f1f1f1; border-radius:8px; overflow: hidden; margin-top:6px; }
+        .progress-bar { height:100%; background: linear-gradient(90deg,#ff6b81,#ff9fb0); width:0%; transition: width 260ms ease; }
+
+        .actions { display:flex; align-items:center; justify-content:space-between; gap:12px; }
+
+        .btn-primary { background: linear-gradient(90deg,#ff6b81,#ff9fb0); color:#08121a; padding:8px 12px; border-radius:8px; border:none; font-weight:800; cursor:pointer; height:38px; }
+        .btn-ghost { background:#f3f4f6; color:#333; padding:8px 10px; border-radius:8px; border:none; cursor:pointer; height:38px; }
+
+        .modal-back {
+          position: fixed;
+          inset: 0;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          background: rgba(2,6,23,0.45);
+          z-index: 80;
+          padding: 12px;
         }
-        [role="button"] { outline: none; }
-        [role="button"]:focus { box-shadow: 0 0 0 4px rgba(99,102,241,0.12); }
-        .profile-card .loading { padding: 24px; text-align:center; color:#666; }
+
+        .modal-card {
+          width: 96%;
+          max-width: 520px;
+          background: #fff;
+          border-radius: 12px;
+          box-shadow: 0 18px 60px rgba(0,0,0,0.35);
+          overflow: hidden;
+        }
+
+        /* Love Calculator specific */
+        .love-card { max-width:520px; }
+        .lc-hearts .lc-heart {
+          position:absolute;
+          bottom:6px;
+          animation: lc-rise 2200ms linear forwards;
+          opacity:0.95;
+        }
+        @keyframes lc-rise {
+          0%{ transform: translateY(0) scale(0.8); opacity:0.9 }
+          60%{ opacity:1; transform: translateY(-80px) scale(1.05) }
+          100%{ transform: translateY(-160px) scale(0.9); opacity:0 }
+        }
+
+        .modal-card.small { max-width: 420px; }
+        .modal-head { display:flex; align-items:center; justify-content:space-between; padding:14px 16px; background: linear-gradient(90deg,#ffeef5,#fff); }
+        .modal-head h3 { margin:0; font-size:18px; color:#08121a; font-weight:800; }
+        .modal-head .close { background:transparent;border:0;font-size:18px;cursor:pointer;color:#666; }
+
+        .modal-body { padding:14px 16px 18px 16px; color:#08121a; }
+        .modal-body label { display:block; font-weight:700; color:#334; margin-top:8px; }
+        .modal-body input { width:100%; padding:10px 12px; margin-top:8px; border-radius:8px; border:1px solid #e6e6e9; box-sizing:border-box; }
+
+        .modal-actions { display:flex; gap:10px; justify-content:flex-end; margin-top:12px; }
+
+        .mini-progress { width:140px; height:8px; background: rgba(255,255,255,0.08); border-radius:8px; margin-top:6px; overflow:hidden; }
+        .mini-progress-bar { height:100%; background: linear-gradient(90deg,#ff6b81,#ff9fb0); width:0%; transition: width 280ms ease; }
+
+        .contact-input {
+          border: 1px solid #e6e6e9;
+          box-shadow: none;
+          background: #fff;
+          border-radius: 8px;
+        }
+
+        .export-btn { border: 1px solid #e6e6e9; padding:8px 10px; background:#fff; border-radius:8px; }
+
+        @media (max-width: 1024px) {
+          .glass-card { width: min(100%, 760px); }
+        }
+
+        @media (max-width: 768px) {
+          .hamburger { display: block; }
+
+          .sidebar { transform: translateX(-100%); width: 200px; }
+          .sidebar.open { transform: translateX(0); }
+
+          .content-wrap { left: 0; padding: 10px; margin-left: 0; }
+
+          .glass-card { width: 98%; padding: 10px; border-radius: 14px; }
+
+          .center-box h2 { font-size: 22px; margin: 4px 0 6px 0; }
+
+          .mode-options {
+            flex-direction: column;
+            gap: 8px;
+            margin-top: 6px;
+            align-items: center;
+          }
+          .mode-card, .disabled-card {
+            width: 96%;
+            max-width: 96%;
+            padding: 10px;
+            border-radius: 12px;
+            min-height: 100px;
+          }
+
+          .mode-btn { font-size: 15px; padding: 10px; }
+          .mode-desc { font-size: 13px; margin-bottom: 6px; }
+          .quote-box { font-size: 13px; padding: 8px; margin-bottom: 4px; }
+
+          .profile-card { width: 96%; max-width: 680px; padding: 0; max-height: calc(100vh - 48px); }
+          .three-col { flex-direction: column; }
+          .two-col { flex-direction: column; }
+
+          .profile-body { padding: 10px; gap:8px; }
+
+          .photo-thumb { width: 56px; height: 56px; }
+          .photo-add { width:56px; height:56px; }
+          .btn-primary { padding:8px 10px; height:36px; }
+          .btn-ghost { padding:8px 10px; height:36px; }
+
+          .actions { gap: 8px; }
+          .export-btn { display: none; } /* hide export on small screens */
+        }
+
+        @media (max-width: 480px) {
+          .sidebar { width: 180px; }
+          .profile-card { max-width: 100%; }
+        }
       `}</style>
     </>
   );
 }
 
-/* Avatar component */
+/* Avatar component kept at bottom to avoid hoisting issues */
 function Avatar() {
   const [profile, setProfile] = useState(null);
 
@@ -1363,7 +1556,7 @@ function Avatar() {
       try {
         const res = await fetch(`/api/profile/${uid}`, {
           headers: {
-            Authorization: `Bearer ${token}`,
+            Authorization: `Bearer ${token}`, // if you secure the route
           },
         });
         if (!res.ok) throw new Error("Failed to fetch profile");
@@ -1376,7 +1569,7 @@ function Avatar() {
     loadProfile();
   }, []);
 
-  if (!profile) return <div style={{color:"#fff"}}>Loading...</div>;
+  if (!profile) return <div>Loading...</div>;
 
   const first = (profile.name?.trim()?.charAt(0).toUpperCase()) || "M";
 
