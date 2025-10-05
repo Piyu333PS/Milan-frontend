@@ -880,7 +880,8 @@ export default function ConnectPage() {
           role="dialog"
           aria-modal="true"
           onClick={(e) => {
-            if (e.target && e.target.classList && e.target.classList.contains("profile-overlay")) {
+            // close only when clicking the backdrop itself (not inner form or controls)
+            if (e.currentTarget === e.target) {
               setShowProfile(false);
               setEditProfile(null);
             }
@@ -893,7 +894,7 @@ export default function ConnectPage() {
             </header>
 
             {editProfile ? (
-              <form className="profile-body" onSubmit={handleSaveProfileForm}>
+              <form className="profile-body" onSubmit={handleSaveProfileForm} onClick={(e)=>e.stopPropagation()}>
                 <div className="row">
                   <label>Full Name</label>
                   <input
@@ -1315,8 +1316,8 @@ export default function ConnectPage() {
         }
         .profile-body textarea { min-height: 80px; resize: vertical; }
         .photo-row { display:flex; gap:8px; align-items:center; flex-wrap:wrap; margin-top:6px; }
-        .photo-thumb img { height:70px; width:70px; object-fit:cover; border-radius:8px; }
-        .photo-add { display:flex; align-items:center; justify-content:center; width:70px; height:70px; border-radius:8px; background: linear-gradient(90deg,#ff8ab3,#ff5a9e); color:#fff; cursor:pointer; font-weight:800; }
+        .photo-thumb img { height:110px; width:110px; object-fit:cover; border-radius:12px; box-shadow:0 10px 30px rgba(0,0,0,0.12); }
+        .photo-add { display:flex; align-items:center; justify-content:center; width:110px; height:110px; border-radius:12px; background: linear-gradient(90deg,#ff8ab3,#ff5a9e); color:#fff; cursor:pointer; font-weight:800; }
         .chips { display:flex; gap:8px; flex-wrap:wrap; margin-top:8px; }
         .chip { background: #f3f4f6; padding:6px 8px; border-radius:14px; display:inline-flex; gap:8px; align-items:center; font-weight:700; }
         .progress-wrap { width:100%; height: 10px; background: #f3f4f6; border-radius: 10px; overflow:hidden; margin-top:6px; }
