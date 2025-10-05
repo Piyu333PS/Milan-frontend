@@ -2,6 +2,17 @@
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import io from "socket.io-client";
 
+/**
+ * Milan Connect Page
+ * - Sidebar with Profile, Security, Love Calculator, Logout
+ * - Center "Select Milan Mode" (Video enabled, others coming soon)
+ * - Hearts background animation
+ * - Profile overlay editor with photos, interests, and completeness
+ * - Love Calculator modal (fun algorithm)
+ * - Robust socket partner search + safe redirects
+ * - Fixed: handleSaveProfileForm defined (prevents client-side crash)
+ */
+
 export default function ConnectPage() {
   // -----------------------------
   // UI state
@@ -11,7 +22,7 @@ export default function ConnectPage() {
   const [showSecurity, setShowSecurity] = useState(false);
   const [showLogoutConfirm, setShowLogoutConfirm] = useState(false);
 
-  // Profile (localStorage)
+  // Profile (localStorage backed)
   const [profile, setProfile] = useState({
     name: "",
     contact: "",
@@ -28,9 +39,15 @@ export default function ConnectPage() {
   const [currentPasswordInput, setCurrentPasswordInput] = useState("");
   const [newPasswordInput, setNewPasswordInput] = useState("");
 
-  const [statusMessage, setStatusMessage] = useState(
-    "❤️ जहाँ दिल मिले, वहीं होती है शुरुआत Milan की…"
-  );
+  const QUOTES = [
+    "❤️ जहाँ दिल मिले, वहीं होती है शुरुआत Milan की…",
+    "✨ हर chat के पीछे छुपी है एक नई कहानी…",
+    "💬 शब्द कम हों या ज़्यादा, connection सच्चा होना चाहिए।",
+    "🎥 नज़रें कह देती हैं जो लफ़्ज़ नहीं कह पाते।",
+    "🌸 प्यार मिल जाए, तो सफ़र आसान लगने लगता है।",
+  ];
+  const [quoteIndex, setQuoteIndex] = useState(0);
+  const [statusMessage, setStatusMessage] = useState(QUOTES[0]);
   const [modeText, setModeText] = useState("");
   const [isSearching, setIsSearching] = useState(false);
   const [showLoader, setShowLoader] = useState(false);
@@ -48,21 +65,6 @@ export default function ConnectPage() {
   const [lcHearts, setLcHearts] = useState([]);
   const [incomingLove, setIncomingLove] = useState(null);
 
-  const QUOTES = [
-    "❤️ जहाँ दिल मिले, वहीं होती है शुरुआत Milan की…",
-    "✨ हर chat के पीछे छुपी है एक नई कहानी…",
-    "💬 शब्द कम हों या ज़्यादा, connection सच्चा होना चाहिए।",
-    "🎥 नज़रें कह देती हैं जो लफ़्ज़ नहीं कह पाते।",
-    "🌸 प्यार मिल जाए, तो सफ़र आसान लगने लगता है।",
-  ];
-  const [quoteIndex, setQuoteIndex] = useState(0);
-  useEffect(() => {
-    const id = setInterval(() => {
-      setQuoteIndex((i) => (i + 1) % QUOTES.length);
-    }, 5000);
-    return () => clearInterval(id);
-  }, []);
-
   const socketRef = useRef(null);
   const partnerRef = useRef(null);
   const connectingRef = useRef(false);
@@ -71,6 +73,19 @@ export default function ConnectPage() {
     return process.env.NEXT_PUBLIC_BACKEND_URL || "https://milan-j9u9.onrender.com";
   }, []);
 
+  // Quote rotator
+  useEffect(() => {
+    const id = setInterval(() => {
+      setQuoteIndex((i) => {
+        const next = (i + 1) % QUOTES.length;
+        setStatusMessage(QUOTES[next]);
+        return next;
+      });
+    }, 5000);
+    return () => clearInterval(id);
+  }, []);
+
+  // Load profile from localStorage
   useEffect(() => {
     if (typeof window === "undefined") return;
     try {
@@ -90,14 +105,14 @@ export default function ConnectPage() {
     }
   }, []);
 
-  // Prefill love calc nameA when profile loads
+  // Prefill love calc nameA
   useEffect(() => {
     if (profile && profile.name) {
       setLcNameA(profile.name);
     }
   }, [profile.name]);
 
-  // hearts canvas
+  // Hearts canvas animation
   useEffect(() => {
     if (typeof window === "undefined") return;
     const canvas = document.getElementById("heartCanvas");
@@ -186,6 +201,7 @@ export default function ConnectPage() {
     };
   }, []);
 
+  // Cleanup socket on unmount
   useEffect(() => {
     return () => {
       if (socketRef.current) {
@@ -198,15 +214,13 @@ export default function ConnectPage() {
     };
   }, []);
 
+  // Avoid disconnect on intentional redirect
   useEffect(() => {
     if (typeof document === "undefined") return;
     const onVisibility = () => {
-      // <-- PATCH: suppress disconnect when we intentionally redirect
       if (typeof window !== "undefined" && window.__milan_redirecting) {
-        // if redirecting, ignore visibilitychange
         return;
       }
-
       if (
         document.visibilityState === "hidden" &&
         socketRef.current &&
@@ -221,7 +235,7 @@ export default function ConnectPage() {
         setShowLoader(false);
         setShowModeButtons(true);
         setModeText("");
-        setStatusMessage("❤️ जहाँ दिल मिले, वहीं होती है शुरुआत Milan की…");
+        setStatusMessage(QUOTES[0]);
       }
     };
     document.addEventListener("visibilitychange", onVisibility);
@@ -253,26 +267,22 @@ export default function ConnectPage() {
     }
   }
 
-  // --- ADDED: handleSaveProfileForm (fix for missing function that caused client-side crash) ---
+  // -------- FIX: handleSaveProfileForm (prevents ReferenceError & crashes) --------
   async function handleSaveProfileForm(e) {
     e && e.preventDefault && e.preventDefault();
 
     try {
       if (!editProfile) {
-        // defensive: if edit state missing, do nothing
         console.warn("No editProfile available to save.");
         setShowProfile(false);
         return;
       }
 
-      // Map any form-field naming mismatches if needed (most fields are controlled)
-      // Ensure name is stored consistently
       const updated = {
         ...editProfile,
         name: editProfile.name || editProfile.fullname || profile.name || "",
       };
 
-      // Basic validation (you can expand)
       if (!updated.name || !updated.name.trim()) {
         alert("Please enter your name.");
         return;
@@ -287,7 +297,6 @@ export default function ConnectPage() {
           const token = localStorage.getItem("token");
           const uid = localStorage.getItem("uid");
           if (token && uid) {
-            // best-effort; don't block UI on failure
             fetch(`${backendUrl}/api/profile/${uid}`, {
               method: "PUT",
               headers: {
@@ -428,7 +437,6 @@ export default function ConnectPage() {
 
       socketRef.current.emit("lookingForPartner", { type, token });
 
-      // ---------- PATCHED partnerFound handler (safe handoff & redirect) ----------
       socketRef.current.on("partnerFound", (data) => {
         try {
           partnerRef.current = data?.partner || {};
@@ -436,16 +444,13 @@ export default function ConnectPage() {
 
           console.log("[connect] partnerFound payload:", data);
 
-          // Defensive: if no roomCode, show message and abort
           if (!roomCode) {
             console.warn("[connect] partnerFound but no roomCode received", data);
             setStatusMessage("Partner found but room creation failed. Trying again shortly...");
-            // stop search to avoid stuck state, and optionally requeue after a small delay
             setTimeout(() => stopSearch(), 800);
             return;
           }
 
-          // store into sessionStorage and localStorage as fallback
           if (typeof window !== "undefined") {
             try {
               sessionStorage.setItem("partnerData", JSON.stringify(partnerRef.current));
@@ -458,7 +463,6 @@ export default function ConnectPage() {
 
           setStatusMessage("💖 Milan Successful!");
 
-          // <-- PATCH: set redirect flag to avoid visibility/disconnect race
           if (typeof window !== "undefined") {
             try {
               window.__milan_redirecting = true;
@@ -468,7 +472,6 @@ export default function ConnectPage() {
             } catch (e) {}
           }
 
-          // small delay so server room mapping settles; then redirect with query param for reliability
           setTimeout(() => {
             try {
               const safePath =
@@ -478,13 +481,11 @@ export default function ConnectPage() {
                   ? `/game?room=${encodeURIComponent(roomCode)}`
                   : "/chat";
 
-              // Use replace to avoid extra history entries if desired: window.location.replace(safePath)
               if (typeof window !== "undefined") {
                 window.location.href = safePath;
               }
             } catch (e) {
               console.error("[connect] redirect failed", e);
-              // fallback: plain session storage redirect
               if (typeof window !== "undefined") {
                 window.location.href = type === "game" ? "/game" : type === "video" ? "/video" : "/chat";
               }
@@ -495,10 +496,8 @@ export default function ConnectPage() {
           setTimeout(() => stopSearch(), 500);
         }
       });
-      // ---------------------------------------------------------------------------
 
       socketRef.current.on("partnerDisconnected", () => {
-        // <-- PATCH: ignore partnerDisconnected if we are redirecting intentionally
         if (typeof window !== "undefined" && window.__milan_redirecting) {
           console.log("[connect] ignored partnerDisconnected due to redirect");
           return;
@@ -508,10 +507,8 @@ export default function ConnectPage() {
       });
 
       socketRef.current.on("partnerSharedLoveCalc", (payload) => {
-        // partner shared a love calc with us
         try {
           setIncomingLove(payload || null);
-          // open modal and populate
           if (payload && payload.payload) {
             const p = payload.payload;
             setLcNameA(p.nameA || "");
@@ -521,7 +518,6 @@ export default function ConnectPage() {
             setLcInterests(Array.isArray(p.interests) ? p.interests.join(", ") : (p.interests || ""));
             setLcScore(p.score || null);
             setLcMsg(p.message || "");
-            // show hearts
             triggerHearts(p.score || 60);
             setShowLoveCalc(true);
           } else {
@@ -563,47 +559,41 @@ export default function ConnectPage() {
     setShowLoader(false);
     setShowModeButtons(true);
     setModeText("");
-    setStatusMessage("❤️ जहाँ दिल मिले, वहीं होती है शुरुआत Milan की…");
+    setStatusMessage(QUOTES[0]);
   }
 
-  // Love Calculator functions
+  // Love Calculator utils
   function sanitize(s) { return (s||"").toString().trim().toLowerCase(); }
 
   function calcLoveScore(nameA, nameB, ageA, ageB, interestsArr){
-    // 1) Base from letters: sum char codes of letters mod 50
     const letters = (sanitize(nameA)+sanitize(nameB)).replace(/[^a-z]/g,'');
     let sum = 0;
-    for (let i=0;i<letters.length;i++) sum += (letters.charCodeAt(i) - 96); // a=1
-    let partLetters = (sum % 51); // 0-50
+    for (let i=0;i<letters.length;i++) sum += (letters.charCodeAt(i) - 96);
+    let partLetters = (sum % 51);
 
-    // 2) Age factor: smaller gap -> bonus up to 20
     let ageBonus = 0;
     if (ageA && ageB) {
       const gap = Math.abs(Number(ageA) - Number(ageB));
-      ageBonus = Math.max(0, 20 - gap); // gap 0 -> 20, gap 20+ -> 0
+      ageBonus = Math.max(0, 20 - gap);
     }
 
-    // 3) Interests: each shared interest +8 (max 24)
     let interestBonus = 0;
     if (interestsArr && interestsArr.length){
       const uniq = [...new Set(interestsArr.map(s=>s.trim().toLowerCase()).filter(Boolean))];
       interestBonus = Math.min(uniq.length * 8, 24);
     }
 
-    // 4) Name harmony: common letters count * 2 (max 6)
     const setA = new Set(sanitize(nameA).replace(/[^a-z]/g,'').split(''));
     const setB = new Set(sanitize(nameB).replace(/[^a-z]/g,'').split(''));
     let common = 0;
     setA.forEach(ch => { if (setB.has(ch)) common++; });
     const nameHarmony = Math.min(common * 2, 6);
 
-    // final raw score
-    let raw = partLetters + ageBonus + interestBonus + nameHarmony; // max ~101
-    raw = Math.max(3, Math.min(98, Math.round(raw))); // clamp 3-98 for playful range
+    let raw = partLetters + ageBonus + interestBonus + nameHarmony;
+    raw = Math.max(3, Math.min(98, Math.round(raw)));
 
-    // small randomness based on names (deterministic)
     const rndSeed = (sanitize(nameA)+sanitize(nameB)).split('').reduce((a,c)=>a+c.charCodeAt(0),0);
-    const tiny = (rndSeed % 7) - 3; // -3..+3
+    const tiny = (rndSeed % 7) - 3;
     const finalScore = Math.max(5, Math.min(99, raw + tiny));
     return finalScore;
   }
@@ -625,14 +615,13 @@ export default function ConnectPage() {
       delay: i * 120
     }));
     setLcHearts(arr);
-    // clear after animation
     setTimeout(()=> setLcHearts([]), 2600);
   }
 
   function onCalculateLove(e){
     e && e.preventDefault && e.preventDefault();
     if (!lcNameA || !lcNameB) {
-      alert("Dono names daaldo — masti shuru!");
+      alert("Dono names daal do — masti shuru!");
       return;
     }
     const interestsArr = (lcInterests || "").split(",").map(s=>s.trim()).filter(Boolean);
@@ -641,32 +630,27 @@ export default function ConnectPage() {
     setLcMsg(friendlyMessage(score));
     triggerHearts(score);
     const payload = { nameA: lcNameA, nameB: lcNameB, ageA: lcAgeA, ageB: lcAgeB, interests: interestsArr, score, message: friendlyMessage(score), time: Date.now() };
-    // persist locally
     try {
       const hist = JSON.parse(localStorage.getItem("lovecalc_history")||"[]");
       hist.unshift(payload);
       localStorage.setItem("lovecalc_history", JSON.stringify(hist.slice(0,50)));
     } catch (e) {}
-    // keep last
     localStorage.setItem("lastLoveCalc", JSON.stringify(payload));
   }
 
   function onShareLoveCalc(){
     const last = JSON.parse(localStorage.getItem("lastLoveCalc") || "null");
     if (!last) {
-      alert("Pehle calculate karo phir share karna 😉");
+      alert("Pehle calculate karo phir share 😉");
       return;
     }
-
-    // if socket connected & partner known, emit to server
     try {
       if (socketRef.current && socketRef.current.connected && partnerRef.current && partnerRef.current.id) {
         socketRef.current.emit("shareLoveCalc", { fromName: profile.name || "Someone", to: partnerRef.current.id, payload: last });
         alert("Result sent to partner ✨");
       } else {
-        // fallback: copy text to clipboard
         const text = `LoveCalc: ${last.nameA} + ${last.nameB} = ${last.score}% — ${last.message}`;
-        navigator.clipboard?.writeText(text).then(()=> alert('Copied result to clipboard — share manually!')).catch(()=> alert('Could not copy — but result saved locally.'));
+        navigator.clipboard?.writeText(text).then(()=> alert('Copied result — share anywhere!')).catch(()=> alert('Could not copy — but result saved locally.'));
       }
     } catch (e) {
       console.warn(e);
@@ -781,7 +765,6 @@ export default function ConnectPage() {
             <span className="sidebar-txt">Security</span>
           </li>
 
-          {/* LOVE CALCULATOR BUTTON - quick access */}
           <li role="button" onClick={() => setShowLoveCalc(true)} className="sidebar-item">
             <span className="sidebar-ic">💘</span>
             <span className="sidebar-txt">Love Calculator</span>
@@ -826,7 +809,6 @@ export default function ConnectPage() {
                 </div>
               )}
 
-              {/* Play & Chat - disabled with "Coming Soon" */}
               {showModeButtons && (
                 <div
                   className="mode-card disabled-card"
@@ -841,7 +823,6 @@ export default function ConnectPage() {
                 </div>
               )}
 
-              {/* Text Chat - disabled with "Coming Soon" */}
               {showModeButtons && (
                 <div
                   className="mode-card disabled-card"
@@ -1177,13 +1158,198 @@ export default function ConnectPage() {
       )}
 
       <style jsx global>{`
-        /* (style rules unchanged — omitted here for brevity in this comment block) */
+        /* ====== Milan Connect Page Styles ====== */
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+        html,body,#__next { height: 100%; }
+        body {
+          font-family: "Inter", "Segoe UI", Roboto, Arial, sans-serif;
+          -webkit-font-smoothing: antialiased;
+          -moz-osx-font-smoothing: grayscale;
+          background: linear-gradient(180deg, #f9a8d4 0%, #f472b6 30%, #a78bfa 100%);
+          color: #111827;
+          overflow-x: hidden;
+        }
+        #heartCanvas {
+          position: fixed;
+          left: 0;
+          top: 0;
+          z-index: 1;
+          pointer-events: none;
+        }
+        .hamburger {
+          position: fixed;
+          left: 12px;
+          top: 12px;
+          z-index: 40;
+          background: rgba(255,255,255,0.9);
+          border: 0;
+          padding: 6px 8px;
+          border-radius: 6px;
+          box-shadow: 0 6px 18px rgba(16,24,40,0.08);
+          cursor: pointer;
+        }
+        .sidebar {
+          position: fixed;
+          left: 0;
+          top: 0;
+          bottom: 0;
+          width: 260px;
+          padding: 22px 18px;
+          background: linear-gradient(180deg, rgba(255,255,255,0.06), rgba(255,255,255,0.03));
+          backdrop-filter: blur(8px) saturate(120%);
+          border-right: 1px solid rgba(255,255,255,0.06);
+          z-index: 20;
+          color: #fff;
+          box-shadow: 8px 0 24px rgba(0,0,0,0.08);
+        }
+        .sidebar.open { transform: translateX(0); }
+        .sidebar-top { text-align: center; margin-bottom: 16px; }
+        .profile-pic-wrapper { margin: 0 auto 8px; width: 70px; height: 70px; border-radius: 50%; overflow: hidden; display:flex; align-items:center; justify-content:center; background: linear-gradient(90deg,#ff8ab3,#ff5a9e); box-shadow: 0 6px 18px rgba(0,0,0,0.12);}
+        .profile-pic-wrapper img { width:100%; height:100%; object-fit:cover; }
+        .username { margin-top: 8px; font-weight: 800; color: #fff; font-size: 16px; text-shadow: 0 2px 8px rgba(0,0,0,0.18); }
+        .completeness-mini { margin-top: 6px; }
+        .mini-progress { width: 100%; height: 8px; background: rgba(255,255,255,0.08); border-radius: 8px; margin-top: 6px; overflow:hidden;}
+        .mini-progress-bar { height:100%; background: linear-gradient(90deg,#ff6b81,#ff3b9b); border-radius:8px; width:40%; }
+        .sidebar-list { list-style: none; margin-top: 18px; padding-left: 0; text-align: left; }
+        .sidebar-item {
+          display:flex;
+          align-items:center;
+          gap: 10px;
+          padding: 12px;
+          border-radius: 10px;
+          margin-bottom: 10px;
+          color: #fff;
+          cursor: pointer;
+          transition: transform .12s ease, background .12s ease;
+          user-select:none;
+        }
+        .sidebar-item:hover { transform: translateX(6px); background: rgba(255,255,255,0.03); }
+        .sidebar-ic { font-size: 18px; }
+        .sidebar-txt { font-weight: 700; font-size: 15px; color: #fff; text-shadow: 0 1px 0 rgba(0,0,0,0.12); }
+        .content-wrap {
+          margin-left: 260px;
+          padding: 55px 30px;
+          min-height: 100vh;
+          z-index: 10;
+          position: relative;
+        }
+        .glass-card {
+          max-width: 880px;
+          margin: 40px auto;
+          background: linear-gradient(180deg, rgba(255,255,255,0.12), rgba(255,255,255,0.06));
+          border-radius: 16px;
+          padding: 36px;
+          box-shadow: 0 14px 40px rgba(12, 20, 60, 0.12);
+          border: 1px solid rgba(255,255,255,0.08);
+          backdrop-filter: blur(8px) saturate(120%);
+        }
+        .center-box { text-align: center; color: #fff; padding: 8px 12px; }
+        .center-top h2 { font-size: 36px; font-weight: 900; margin-bottom: 6px; letter-spacing: 0.3px; }
+        .mode-text { font-size: 14px; margin-top: 6px; opacity: 0.95; }
+        .mode-options { display:flex; gap: 18px; justify-content: center; margin-top: 20px; flex-wrap:wrap; }
+        .mode-card {
+          width: 260px;
+          border-radius: 12px;
+          padding: 18px;
+          background: linear-gradient(180deg, rgba(255,255,255,0.04), rgba(255,255,255,0.02));
+          box-shadow: 0 8px 26px rgba(2,6,23,0.12);
+          color: #fff;
+          text-align: left;
+        }
+        .mode-card.disabled-card { opacity: 0.7; filter: saturate(0.9); }
+        .mode-btn {
+          background: #fff;
+          color: #d63384;
+          border: 0;
+          padding: 10px 12px;
+          border-radius: 8px;
+          font-weight: 800;
+          cursor: pointer;
+        }
+        .mode-btn.disabled { background: rgba(255,255,255,0.12); color: rgba(255,255,255,0.7); cursor: default; }
+        .mode-desc { font-size: 13px; margin-top: 10px; opacity: 0.95; }
+        .disabled-note { margin-top: 8px; font-size: 13px; opacity: 0.85; }
+        .quote-box {
+          margin-top: 18px;
+          background: rgba(255,255,255,0.06);
+          padding: 12px;
+          border-radius: 10px;
+          color: #fff;
+          font-weight: 700;
+          box-shadow: inset 0 1px 0 rgba(255,255,255,0.02);
+        }
+        .loader { margin-top: 18px; }
+        .heart-loader { padding: 14px; border-radius: 10px; background: rgba(0,0,0,0.05); color: #fff; display:inline-block; }
+        .stop-btn { margin-top:10px; background: rgba(0,0,0,0.06); color: #fff; padding: 8px 12px; border:0; border-radius:8px; cursor:pointer; }
+        .profile-overlay {
+          position: fixed;
+          left: 0; right: 0; top:0; bottom:0;
+          background: rgba(6, 5, 17, 0.6);
+          display:flex;
+          align-items:center;
+          justify-content:center;
+          z-index: 60;
+          padding: 28px;
+        }
+        .profile-card {
+          width: 820px;
+          max-width: calc(100% - 48px);
+          background: #fff;
+          border-radius: 12px;
+          overflow: hidden;
+          box-shadow: 0 18px 60px rgba(2,6,23,0.22);
+        }
+        .profile-head {
+          padding: 18px 20px;
+          border-bottom: 1px solid rgba(0,0,0,0.06);
+          display:flex; align-items:center; justify-content:space-between;
+        }
+        .profile-head h3 { font-size: 20px; font-weight:800; color:#111; }
+        .profile-head .close { background: transparent; border:0; font-size:18px; cursor:pointer; }
+        .profile-body { padding: 18px 20px; max-height: 75vh; overflow:auto; }
+        .profile-body .row { margin-bottom: 14px; }
+        .profile-body label { display:block; font-weight:700; margin-bottom:6px; color:#333; font-size:13px; }
+        .profile-body input, .profile-body select, .profile-body textarea {
+          width:100%; padding:10px 12px; border-radius:8px; border: 1px solid rgba(16,24,40,0.06); font-size:14px;
+          background: #fff;
+        }
+        .profile-body textarea { min-height: 80px; resize: vertical; }
+        .photo-row { display:flex; gap:8px; align-items:center; flex-wrap:wrap; margin-top:6px; }
+        .photo-thumb img { height:70px; width:70px; object-fit:cover; border-radius:8px; }
+        .photo-add { display:flex; align-items:center; justify-content:center; width:70px; height:70px; border-radius:8px; background: linear-gradient(90deg,#ff8ab3,#ff5a9e); color:#fff; cursor:pointer; font-weight:800; }
+        .chips { display:flex; gap:8px; flex-wrap:wrap; margin-top:8px; }
+        .chip { background: #f3f4f6; padding:6px 8px; border-radius:14px; display:inline-flex; gap:8px; align-items:center; font-weight:700; }
+        .progress-wrap { width:100%; height: 10px; background: #f3f4f6; border-radius: 10px; overflow:hidden; margin-top:6px; }
+        .progress-bar { height:100%; background: linear-gradient(90deg,#ff6b81,#ff3b9b); width:40%; }
+        .modal-back { position: fixed; inset:0; background: rgba(0,0,0,0.45); display:flex; align-items:center; justify-content:center; z-index: 60; padding: 18px; }
+        .modal-card { background: #fff; border-radius: 10px; width: 520px; max-width: 100%; padding: 14px; box-shadow: 0 10px 40px rgba(2,6,23,0.12); }
+        .modal-card.small { width: 360px; }
+        .modal-card.love-card { width: 560px; }
+        .modal-head { display:flex; align-items:center; justify-content:space-between; padding-bottom:8px; border-bottom:1px solid rgba(0,0,0,0.06); }
+        .modal-head h3 { margin:0; }
+        .modal-body { padding: 12px 6px; }
+        .modal-actions { display:flex; gap:10px; justify-content:flex-end; margin-top:8px; }
+        .btn-primary { background: linear-gradient(90deg,#ff6b81,#ff3b9b); color: #fff; padding: 10px 12px; border-radius:8px; border:0; font-weight:800; cursor:pointer; }
+        .btn-ghost { background: transparent; border: 1px solid rgba(0,0,0,0.06); padding: 8px 10px; border-radius:8px; cursor:pointer; color:#333; }
+        .btn-small { padding:6px 8px; border-radius:8px; border:0; cursor:pointer; }
+        .lc-hearts { display:flex; gap:8px; justify-content:center; align-items:flex-end; }
+        .lc-heart { animation: pop 1s ease both; position: relative; }
+        @keyframes pop { 0%{ transform: translateY(20px) scale(.6); opacity:0 } 60%{ transform: translateY(-8px) scale(1.08); opacity:1 } 100%{ transform: translateY(0) scale(1); opacity:1 } }
+        @media (max-width: 900px) {
+          .sidebar { width: 72px; padding: 12px; }
+          .content-wrap { margin-left: 72px; padding: 22px; }
+          .glass-card { padding: 20px; margin-top: 24px; }
+          .mode-card { width: 100%; }
+        }
+        [role="button"] { outline: none; }
+        [role="button"]:focus { box-shadow: 0 0 0 4px rgba(99,102,241,0.12); }
+        .profile-card .loading { padding: 24px; text-align:center; color:#666; }
       `}</style>
     </>
   );
 }
 
-/* Avatar component kept at bottom to avoid hoisting issues */
+/* Avatar component */
 function Avatar() {
   const [profile, setProfile] = useState(null);
 
@@ -1196,7 +1362,7 @@ function Avatar() {
       try {
         const res = await fetch(`/api/profile/${uid}`, {
           headers: {
-            Authorization: `Bearer ${token}`, // if you secure the route
+            Authorization: `Bearer ${token}`,
           },
         });
         if (!res.ok) throw new Error("Failed to fetch profile");
@@ -1209,7 +1375,7 @@ function Avatar() {
     loadProfile();
   }, []);
 
-  if (!profile) return <div>Loading...</div>;
+  if (!profile) return <div style={{color:"#fff"}}>Loading...</div>;
 
   const first = (profile.name?.trim()?.charAt(0).toUpperCase()) || "M";
 
