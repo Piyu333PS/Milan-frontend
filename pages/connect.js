@@ -48,6 +48,17 @@ export default function ConnectPage() {
   const [lcHearts, setLcHearts] = useState([]);
   const [incomingLove, setIncomingLove] = useState(null);
 
+  // Diwali add-ons
+  const [showBanner, setShowBanner] = useState(true);
+  const [showWish, setShowWish] = useState(false);
+  const [wishDone, setWishDone] = useState(false);
+  const [wish, setWish] = useState("");
+  const [countdown, setCountdown] = useState("");
+  const offerEndsAt = new Date("2025-10-31T23:59:59+05:30").getTime();
+
+  // Fireworks ref
+  const fwRef = useRef({ raf: null, burst: () => {}, cleanup: null });
+
   const QUOTES = [
     "❤️ जहाँ दिल मिले, वहीं होती है शुरुआत Milan की…",
     "✨ हर chat के पीछे छुपी है एक नई कहानी…",
@@ -97,7 +108,7 @@ export default function ConnectPage() {
     }
   }, [profile.name]);
 
-  // hearts canvas
+  // hearts canvas (already present)
   useEffect(() => {
     if (typeof window === "undefined") return;
     const canvas = document.getElementById("heartCanvas");
@@ -186,6 +197,93 @@ export default function ConnectPage() {
     };
   }, []);
 
+  // Fireworks canvas (new)
+  useEffect(() => {
+    startFireworks();
+    const t = setInterval(() => {
+      const diff = offerEndsAt - Date.now();
+      if (diff <= 0) {
+        setCountdown("Offer ended");
+        clearInterval(t);
+        return;
+      }
+      const d = Math.floor(diff / 86400000);
+      const h = Math.floor((diff / 3600000) % 24);
+      const m = Math.floor((diff / 60000) % 60);
+      const s = Math.floor((diff / 1000) % 60);
+      setCountdown(`${d}d : ${h}h : ${m}m : ${s}s`);
+    }, 1000);
+
+    return () => {
+      stopFireworks();
+      clearInterval(t);
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  function startFireworks() {
+    const cvs = document.getElementById("fxCanvas");
+    if (!cvs) return;
+    const ctx = cvs.getContext("2d");
+    let W, H, ents = [];
+
+    function resize() {
+      W = cvs.width = window.innerWidth;
+      H = cvs.height = window.innerHeight;
+    }
+    window.addEventListener("resize", resize);
+    resize();
+
+    function rand(a, b) { return a + Math.random() * (b - a); }
+    function hsv(h, s, v) {
+      const f = (n, k = (n + h / 60) % 6) =>
+        v - v * s * Math.max(Math.min(k, 4 - k, 1), 0);
+      return `rgb(${(f(5) * 255) | 0},${(f(3) * 255) | 0},${(f(1) * 255) | 0})`;
+    }
+    function burst(x, y) {
+      const n = 60 + ((Math.random() * 40) | 0);
+      const hue = Math.random() * 360;
+      for (let i = 0; i < n; i++) {
+        const speed = rand(1.2, 3.2);
+        const ang = ((Math.PI * 2) * i) / n + rand(-0.03, 0.03);
+        ents.push({
+          x, y,
+          vx: Math.cos(ang) * speed,
+          vy: Math.sin(ang) * speed - rand(0.2, 0.6),
+          life: rand(0.9, 1.4),
+          age: 0,
+          color: hsv(hue + rand(-20, 20), 0.9, 1),
+          r: rand(1, 2.2),
+        });
+      }
+    }
+    function tick() {
+      ctx.fillStyle = "rgba(15,10,20,0.22)";
+      ctx.fillRect(0, 0, W, H);
+      if (Math.random() < 0.01) burst(rand(W * 0.1, W * 0.9), rand(H * 0.15, H * 0.55));
+      ents = ents.filter((p) => ((p.age += 0.016), p.age < p.life));
+      for (const p of ents) {
+        p.vy += 0.5 * 0.016;
+        p.x += p.vx; p.y += p.vy;
+        const a = 1 - p.age / p.life;
+        ctx.beginPath(); ctx.arc(p.x, p.y, p.r, 0, Math.PI * 2);
+        ctx.fillStyle = p.color.replace("rgb", "rgba").replace(")", `,${a.toFixed(2)})`);
+        ctx.fill();
+      }
+      fwRef.current.raf = requestAnimationFrame(tick);
+    }
+    tick();
+
+    fwRef.current.burst = burst;
+    fwRef.current.cleanup = () => {
+      cancelAnimationFrame(fwRef.current.raf);
+      window.removeEventListener("resize", resize);
+    };
+  }
+  function stopFireworks() {
+    fwRef.current.cleanup && fwRef.current.cleanup();
+  }
+
   useEffect(() => {
     return () => {
       if (socketRef.current) {
@@ -201,11 +299,8 @@ export default function ConnectPage() {
   useEffect(() => {
     if (typeof document === "undefined") return;
     const onVisibility = () => {
-      // <-- PATCH: suppress disconnect when we intentionally redirect
-      if (typeof window !== "undefined" && window.__milan_redirecting) {
-        // if redirecting, ignore visibilitychange
-        return;
-      }
+      // <-- keep your redirect protection
+      if (typeof window !== "undefined" && window.__milan_redirecting) return;
 
       if (
         document.visibilityState === "hidden" &&
@@ -363,47 +458,35 @@ export default function ConnectPage() {
 
       socketRef.current.emit("lookingForPartner", { type, token });
 
-      // ---------- PATCHED partnerFound handler (safe handoff & redirect) ----------
+      // ---------- partnerFound handler ----------
       socketRef.current.on("partnerFound", (data) => {
         try {
           partnerRef.current = data?.partner || {};
           const roomCode = (data && data.roomCode) || "";
 
-          console.log("[connect] partnerFound payload:", data);
-
-          // Defensive: if no roomCode, show message and abort
           if (!roomCode) {
-            console.warn("[connect] partnerFound but no roomCode received", data);
-            setStatusMessage("Partner found but room creation failed. Trying again shortly...");
-            // stop search to avoid stuck state, and optionally requeue after a small delay
+            console.warn("[connect] partnerFound but no roomCode", data);
+            setStatusMessage("Partner found but room creation failed. Trying again...");
             setTimeout(() => stopSearch(), 800);
             return;
           }
 
-          // store into sessionStorage and localStorage as fallback
           if (typeof window !== "undefined") {
             try {
               sessionStorage.setItem("partnerData", JSON.stringify(partnerRef.current));
               sessionStorage.setItem("roomCode", roomCode);
               localStorage.setItem("lastRoomCode", roomCode);
-            } catch (e) {
-              console.warn("[connect] storage write failed", e);
-            }
-          }
-
-          setStatusMessage("💖 Milan Successful!");
-
-          // <-- PATCH: set redirect flag to avoid visibility/disconnect race
-          if (typeof window !== "undefined") {
-            try {
-              window.__milan_redirecting = true;
-              setTimeout(() => {
-                try { window.__milan_redirecting = false; } catch {}
-              }, 2000);
             } catch (e) {}
           }
 
-          // small delay so server room mapping settles; then redirect with query param for reliability
+          setStatusMessage("💖 Milan Successful!");
+          if (typeof window !== "undefined") {
+            try {
+              window.__milan_redirecting = true;
+              setTimeout(() => { try { window.__milan_redirecting = false; } catch {} }, 2000);
+            } catch (e) {}
+          }
+
           setTimeout(() => {
             try {
               const safePath =
@@ -412,14 +495,9 @@ export default function ConnectPage() {
                   : type === "game"
                   ? `/game?room=${encodeURIComponent(roomCode)}`
                   : "/chat";
-
-              // Use replace to avoid extra history entries if desired: window.location.replace(safePath)
-              if (typeof window !== "undefined") {
-                window.location.href = safePath;
-              }
+              if (typeof window !== "undefined") window.location.href = safePath;
             } catch (e) {
               console.error("[connect] redirect failed", e);
-              // fallback: plain session storage redirect
               if (typeof window !== "undefined") {
                 window.location.href = type === "game" ? "/game" : type === "video" ? "/video" : "/chat";
               }
@@ -430,23 +508,16 @@ export default function ConnectPage() {
           setTimeout(() => stopSearch(), 500);
         }
       });
-      // ---------------------------------------------------------------------------
 
       socketRef.current.on("partnerDisconnected", () => {
-        // <-- PATCH: ignore partnerDisconnected if we are redirecting intentionally
-        if (typeof window !== "undefined" && window.__milan_redirecting) {
-          console.log("[connect] ignored partnerDisconnected due to redirect");
-          return;
-        }
+        if (typeof window !== "undefined" && window.__milan_redirecting) return;
         alert("Partner disconnected.");
         stopSearch();
       });
 
       socketRef.current.on("partnerSharedLoveCalc", (payload) => {
-        // partner shared a love calc with us
         try {
           setIncomingLove(payload || null);
-          // open modal and populate
           if (payload && payload.payload) {
             const p = payload.payload;
             setLcNameA(p.nameA || "");
@@ -456,7 +527,6 @@ export default function ConnectPage() {
             setLcInterests(Array.isArray(p.interests) ? p.interests.join(", ") : (p.interests || ""));
             setLcScore(p.score || null);
             setLcMsg(p.message || "");
-            // show hearts
             triggerHearts(p.score || 60);
             setShowLoveCalc(true);
           } else {
@@ -501,48 +571,34 @@ export default function ConnectPage() {
     setStatusMessage("❤️ जहाँ दिल मिले, वहीं होती है शुरुआत Milan की…");
   }
 
-  // Love Calculator functions
+  // Love Calculator helpers
   function sanitize(s) { return (s||"").toString().trim().toLowerCase(); }
-
   function calcLoveScore(nameA, nameB, ageA, ageB, interestsArr){
-    // 1) Base from letters: sum char codes of letters mod 50
     const letters = (sanitize(nameA)+sanitize(nameB)).replace(/[^a-z]/g,'');
     let sum = 0;
-    for (let i=0;i<letters.length;i++) sum += (letters.charCodeAt(i) - 96); // a=1
-    let partLetters = (sum % 51); // 0-50
-
-    // 2) Age factor: smaller gap -> bonus up to 20
+    for (let i=0;i<letters.length;i++) sum += (letters.charCodeAt(i) - 96);
+    let partLetters = (sum % 51);
     let ageBonus = 0;
     if (ageA && ageB) {
       const gap = Math.abs(Number(ageA) - Number(ageB));
-      ageBonus = Math.max(0, 20 - gap); // gap 0 -> 20, gap 20+ -> 0
+      ageBonus = Math.max(0, 20 - gap);
     }
-
-    // 3) Interests: each shared interest +8 (max 24)
     let interestBonus = 0;
     if (interestsArr && interestsArr.length){
       const uniq = [...new Set(interestsArr.map(s=>s.trim().toLowerCase()).filter(Boolean))];
       interestBonus = Math.min(uniq.length * 8, 24);
     }
-
-    // 4) Name harmony: common letters count * 2 (max 6)
     const setA = new Set(sanitize(nameA).replace(/[^a-z]/g,'').split(''));
     const setB = new Set(sanitize(nameB).replace(/[^a-z]/g,'').split(''));
-    let common = 0;
-    setA.forEach(ch => { if (setB.has(ch)) common++; });
+    let common = 0; setA.forEach(ch => { if (setB.has(ch)) common++; });
     const nameHarmony = Math.min(common * 2, 6);
-
-    // final raw score
-    let raw = partLetters + ageBonus + interestBonus + nameHarmony; // max ~101
-    raw = Math.max(3, Math.min(98, Math.round(raw))); // clamp 3-98 for playful range
-
-    // small randomness based on names (deterministic)
+    let raw = partLetters + ageBonus + interestBonus + nameHarmony;
+    raw = Math.max(3, Math.min(98, Math.round(raw)));
     const rndSeed = (sanitize(nameA)+sanitize(nameB)).split('').reduce((a,c)=>a+c.charCodeAt(0),0);
-    const tiny = (rndSeed % 7) - 3; // -3..+3
+    const tiny = (rndSeed % 7) - 3;
     const finalScore = Math.max(5, Math.min(99, raw + tiny));
     return finalScore;
   }
-
   function friendlyMessage(score){
     if (score >= 90) return "Soulmates alert! 🔥 Be gentle, you're on fire.";
     if (score >= 75) return "Strong vibes — go say hi with confidence 😊";
@@ -550,7 +606,6 @@ export default function ConnectPage() {
     if (score >= 35) return "Could grow — try common interests & patience.";
     return "Awww — maybe friendship first? Keep it genuine.";
   }
-
   function triggerHearts(score){
     const count = Math.max(4, Math.min(10, Math.round((score||50)/10)));
     const arr = new Array(count).fill(0).map((_,i)=>({
@@ -560,10 +615,8 @@ export default function ConnectPage() {
       delay: i * 120
     }));
     setLcHearts(arr);
-    // clear after animation
     setTimeout(()=> setLcHearts([]), 2600);
   }
-
   function onCalculateLove(e){
     e && e.preventDefault && e.preventDefault();
     if (!lcNameA || !lcNameB) {
@@ -576,30 +629,24 @@ export default function ConnectPage() {
     setLcMsg(friendlyMessage(score));
     triggerHearts(score);
     const payload = { nameA: lcNameA, nameB: lcNameB, ageA: lcAgeA, ageB: lcAgeB, interests: interestsArr, score, message: friendlyMessage(score), time: Date.now() };
-    // persist locally
     try {
       const hist = JSON.parse(localStorage.getItem("lovecalc_history")||"[]");
       hist.unshift(payload);
       localStorage.setItem("lovecalc_history", JSON.stringify(hist.slice(0,50)));
     } catch (e) {}
-    // keep last
     localStorage.setItem("lastLoveCalc", JSON.stringify(payload));
   }
-
   function onShareLoveCalc(){
     const last = JSON.parse(localStorage.getItem("lastLoveCalc") || "null");
     if (!last) {
       alert("Pehle calculate karo phir share karna 😉");
       return;
     }
-
-    // if socket connected & partner known, emit to server
     try {
       if (socketRef.current && socketRef.current.connected && partnerRef.current && partnerRef.current.id) {
         socketRef.current.emit("shareLoveCalc", { fromName: profile.name || "Someone", to: partnerRef.current.id, payload: last });
         alert("Result sent to partner ✨");
       } else {
-        // fallback: copy text to clipboard
         const text = `LoveCalc: ${last.nameA} + ${last.nameB} = ${last.score}% — ${last.message}`;
         navigator.clipboard?.writeText(text).then(()=> alert('Copied result to clipboard — share manually!')).catch(()=> alert('Could not copy — but result saved locally.'));
       }
@@ -654,10 +701,52 @@ export default function ConnectPage() {
   const completeness = calcCompleteness(profile);
   const editCompleteness = editProfile ? calcCompleteness(editProfile) : completeness;
 
+  // --- Diwali actions
+  function celebrate() {
+    const audio = document.getElementById("celeAudio");
+    try { audio.currentTime = 0; audio.play(); } catch {}
+    const { burst } = fwRef.current;
+    const x = window.innerWidth / 2, y = window.innerHeight * 0.3;
+    for (let i = 0; i < 4; i++)
+      setTimeout(() => burst(x + (Math.random()*160 - 80), y + (Math.random()*80 - 40)), i * 140);
+  }
+  function lightDiya() {
+    setWish("");
+    setWishDone(false);
+    setShowWish(true);
+  }
+  function submitWish() {
+    setWishDone(true);
+    const { burst } = fwRef.current;
+    burst && burst(window.innerWidth * 0.5, window.innerHeight * 0.32);
+  }
+  function ripple(e) {
+    const btn = e.currentTarget;
+    const r = btn.getBoundingClientRect();
+    const s = document.createElement("span");
+    const d = Math.max(r.width, r.height);
+    s.style.width = s.style.height = d + "px";
+    s.style.left = e.clientX - r.left - d / 2 + "px";
+    s.style.top = e.clientY - r.top - d / 2 + "px";
+    s.className = "ripple";
+    const old = btn.querySelector(".ripple");
+    old && old.remove();
+    btn.appendChild(s);
+    setTimeout(() => s.remove(), 700);
+  }
+
   return (
     <>
+      {/* Backgrounds */}
       <canvas id="heartCanvas" aria-hidden />
+      <canvas id="fxCanvas" aria-hidden />
 
+      {/* Audio */}
+      <audio id="celeAudio" preload="auto">
+        <source src="https://cdn.pixabay.com/download/audio/2022/03/15/audio_4c76d6de8a.mp3?filename=soft-bell-ambient-10473.mp3" type="audio/mpeg" />
+      </audio>
+
+      {/* Mobile menu */}
       <button
         type="button"
         className="hamburger"
@@ -667,6 +756,7 @@ export default function ConnectPage() {
         ☰
       </button>
 
+      {/* Sidebar */}
       <aside
         className={`sidebar ${sidebarOpen ? "open" : ""}`}
         aria-hidden={false}
@@ -715,13 +805,10 @@ export default function ConnectPage() {
             <span className="sidebar-ic">🔒</span>
             <span className="sidebar-txt">Security</span>
           </li>
-
-          {/* LOVE CALCULATOR BUTTON - quick access */}
           <li role="button" onClick={() => setShowLoveCalc(true)} className="sidebar-item">
             <span className="sidebar-ic">💘</span>
             <span className="sidebar-txt">Love Calculator</span>
           </li>
-
           <li role="button" onClick={openLogoutConfirm} className="sidebar-item">
             <span className="sidebar-ic">🚪</span>
             <span className="sidebar-txt">Logout</span>
@@ -730,6 +817,23 @@ export default function ConnectPage() {
       </aside>
 
       <main className="content-wrap" role="main">
+        {/* Festive banner */}
+        {showBanner && (
+          <div className="banner">
+            <div className="b-left">
+              <span className="tag">🪔 Diwali Special</span>
+              <h1>Happy Diwali!</h1>
+              <p className="sub">“Where hearts meet, that’s where Milan begins…”</p>
+            </div>
+            <div className="b-right">
+              <button className="btn gold" onClick={(e)=>{ripple(e);celebrate();}}>🎉 Celebrate</button>
+              <button className="btn ghost" onClick={(e)=>{ripple(e);lightDiya();}}>🪔 Make a Wish</button>
+              <span className="count">⏳ Offer ends: <b>{countdown}</b></span>
+              <button className="btn x" aria-label="Close banner" onClick={()=>setShowBanner(false)}>✕</button>
+            </div>
+          </div>
+        )}
+
         <div className="glass-card">
           <div className="center-box">
             <div className="center-top">
@@ -761,7 +865,6 @@ export default function ConnectPage() {
                 </div>
               )}
 
-              {/* Play & Chat - disabled with "Coming Soon" */}
               {showModeButtons && (
                 <div
                   className="mode-card disabled-card"
@@ -776,7 +879,6 @@ export default function ConnectPage() {
                 </div>
               )}
 
-              {/* Text Chat - disabled with "Coming Soon" */}
               {showModeButtons && (
                 <div
                   className="mode-card disabled-card"
@@ -828,237 +930,43 @@ export default function ConnectPage() {
         </div>
       </main>
 
-      {showProfile && (
-        <div
-          className="profile-overlay"
-          role="dialog"
-          aria-modal="true"
-          onClick={(e) => {
-            if (e.target && e.target.classList && e.target.classList.contains("profile-overlay")) {
-              setShowProfile(false);
-              setEditProfile(null);
-            }
-          }}
-        >
-          <div className="profile-card" role="region" aria-label="Edit Profile">
-            <header className="profile-head">
-              <h3>Edit Your Profile</h3>
-              <button className="close" onClick={() => { setShowProfile(false); setEditProfile(null); }} aria-label="Close">✕</button>
-            </header>
-
-            {editProfile ? (
-              <form className="profile-body" onSubmit={handleSaveProfileForm}>
-                <div className="row">
-                  <label>Full Name</label>
-                  <input
-                    name="fullname"
-                    placeholder="Full Name"
-                    value={editProfile.name || ""}
-                    onChange={(e) => setEditProfile({ ...editProfile, name: e.target.value })}
-                  />
-                </div>
-
-                <div className="row two-col">
-                  <div style={{ flex: 1 }}>
-                    <label>Contact (Email or Mobile)</label>
-                    <input
-                      name="contact"
-                      placeholder="Email or Mobile"
-                      value={editProfile.contact || ""}
-                      onChange={(e) => setEditProfile({ ...editProfile, contact: e.target.value })}
-                      className="contact-input"
-                    />
-                  </div>
-                </div>
-
-                <div className="row three-col">
-                  <div>
-                    <label>Age</label>
-                    <input
-                      name="age"
-                      type="number"
-                      min="13"
-                      placeholder="Age"
-                      value={editProfile.age || ""}
-                      onChange={(e) => setEditProfile({ ...editProfile, age: e.target.value })}
-                    />
-                  </div>
-                  <div>
-                    <label>City</label>
-                    <input
-                      name="city"
-                      placeholder="City"
-                      value={editProfile.city || ""}
-                      onChange={(e) => setEditProfile({ ...editProfile, city: e.target.value })}
-                    />
-                  </div>
-                  <div>
-                    <label>Language</label>
-                    <select
-                      name="language"
-                      value={editProfile.language || ""}
-                      onChange={(e) => setEditProfile({ ...editProfile, language: e.target.value })}
-                    >
-                      <option value="">Select</option>
-                      <option value="English">English</option>
-                      <option value="Hindi">Hindi</option>
-                      <option value="Hinglish">Hinglish</option>
-                      <option value="Other">Other</option>
-                    </select>
-                  </div>
-                </div>
-
-                <div className="row">
-                  <label>Short Bio (max 150 chars)</label>
-                  <textarea
-                    name="bio"
-                    maxLength={150}
-                    placeholder="A short intro about you..."
-                    value={editProfile.bio || ""}
-                    onChange={(e) => setEditProfile({ ...editProfile, bio: e.target.value })}
-                  />
-                  <div className="char-note">{(editProfile.bio || "").length}/150</div>
-                </div>
-
-                <div className="row">
-                  <label>Interests / Hobbies</label>
-                  <div className="interests-input">
-                    <input
-                      value={interestInput}
-                      onChange={(e) => setInterestInput(e.target.value)}
-                      onKeyDown={(e) => {
-                        if (e.key === "Enter") {
-                          e.preventDefault();
-                          handleAddInterestFromInput();
-                        } else if (e.key === ",") {
-                          e.preventDefault();
-                          handleAddInterestFromInput();
-                        }
-                      }}
-                      placeholder="Type and press Enter or comma (e.g. Music, Movies)"
-                    />
-                    <button type="button" className="btn-small" onClick={handleAddInterestFromInput}>Add</button>
-                  </div>
-                  <div className="chips">
-                    {(editProfile.interests || []).map((it, idx) => (
-                      <div className="chip" key={idx}>
-                        {it}
-                        <button type="button" aria-label={`Remove ${it}`} onClick={() => removeInterest(idx, { overlayMode: true })}>✕</button>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-
-                <div className="row">
-                  <label>Photos (1–3)</label>
-                  <div className="photo-row">
-                    {(editProfile.photoDataUrls || []).map((p, i) => (
-                      <div className="photo-thumb" key={i}>
-                        <img src={p} alt={`photo-${i}`} />
-                        <button type="button" className="remove-photo" onClick={() => removePhoto(i, { overlayMode: true })}>Remove</button>
-                      </div>
-                    ))}
-
-                    {(editProfile.photoDataUrls || []).length < 3 && (
-                      <div className="photo-add">
-                        <label className="photo-add-label">
-                          + Add Photo
-                          <input
-                            type="file"
-                            accept="image/*"
-                            onChange={(e) => handleAddPhoto(e, { overlayMode: true })}
-                            style={{ display: "none" }}
-                          />
-                        </label>
-                      </div>
-                    )}
-                  </div>
-                </div>
-
-                <div className="row">
-                  <label>Profile Completeness</label>
-                  <div className="progress-wrap" aria-hidden>
-                    <div className="progress-bar" style={{ width: `${editCompleteness}%` }} />
-                  </div>
-                  <div style={{ marginTop: 6, fontSize: 13, color: "#333" }}>{editCompleteness}% complete</div>
-                </div>
-
-                <div className="row actions">
-                  <div style={{ display: "flex", gap: 8 }}>
-                    <button type="submit" className="btn-primary">Save Profile</button>
-                    <button type="button" className="btn-ghost" onClick={() => { setShowProfile(false); setEditProfile(null); }}>Cancel</button>
-                  </div>
-                  <div>
-                    <button
-                      type="button"
-                      className="btn-ghost export-btn"
-                      onClick={() => {
-                        try {
-                          const data = JSON.stringify(editProfile || profile, null, 2);
-                          const blob = new Blob([data], { type: "application/json" });
-                          const url = URL.createObjectURL(blob);
-                          const a = document.createElement("a");
-                          a.href = url;
-                          a.download = "milan_profile.json";
-                          a.click();
-                          URL.revokeObjectURL(url);
-                        } catch (e) {
-                          alert("Export failed");
-                        }
-                      }}
-                    >
-                      Export
-                    </button>
-                  </div>
-                </div>
-              </form>
-            ) : (
-              <div style={{ padding: 24, textAlign: "center" }}>Loading…</div>
-            )}
-          </div>
-        </div>
-      )}
-
-      {showSecurity && (
-        <div className="modal-back" role="dialog" aria-modal="true" onClick={(e)=>{ if(e.target.classList.contains('modal-back')) setShowSecurity(false); }}>
+      {/* Wish modal */}
+      {showWish && (
+        <div className="modal-back" role="dialog" aria-modal="true" onClick={(e)=>{ if(e.target.classList.contains('modal-back')) setShowWish(false); }}>
           <div className="modal-card">
             <header className="modal-head">
-              <h3>Security</h3>
-              <button className="close" onClick={() => setShowSecurity(false)} aria-label="Close">✕</button>
+              <h3>🪔 Light a Diya & Make a Wish</h3>
+              <button className="close" onClick={() => setShowWish(false)} aria-label="Close">✕</button>
             </header>
             <div className="modal-body">
-              <label>Current Password</label>
-              <input type="password" value={currentPasswordInput} onChange={(e)=>setCurrentPasswordInput(e.target.value)} />
-              <label>New Password</label>
-              <input type="password" value={newPasswordInput} onChange={(e)=>setNewPasswordInput(e.target.value)} />
-              <div className="modal-actions">
-                <button className="btn-primary" onClick={saveNewPassword}>Save</button>
-                <button className="btn-ghost" onClick={() => setShowSecurity(false)}>Cancel</button>
-              </div>
+              {!wishDone ? (
+                <>
+                  <p className="m-desc">Close your eyes, type your wish, then light the diya. May it come true ✨</p>
+                  <textarea
+                    value={wish}
+                    onChange={(e)=>setWish(e.target.value)}
+                    placeholder="Type your Diwali wish..."
+                    style={{width:'100%',minHeight:100,marginTop:8,padding:'10px 12px',borderRadius:10,border:'1px solid #e6e6e9'}}
+                  />
+                  <div className="modal-actions">
+                    <button className="btn-ghost" onClick={()=>setShowWish(false)}>Cancel</button>
+                    <button className="btn-primary" onClick={submitWish}>Light the Diya</button>
+                  </div>
+                </>
+              ) : (
+                <>
+                  <p className="m-desc">Diya is lit 🔥 Your wish is released to the universe. Ab connection sachha mile! 💖</p>
+                  <div className="modal-actions">
+                    <button className="btn-primary" onClick={()=>setShowWish(false)}>Close</button>
+                  </div>
+                </>
+              )}
             </div>
           </div>
         </div>
       )}
 
-      {showLogoutConfirm && (
-        <div className="modal-back" role="dialog" aria-modal="true" onClick={(e)=>{ if(e.target.classList.contains('modal-back')) setShowLogoutConfirm(false); }}>
-          <div className="modal-card small">
-            <header className="modal-head">
-              <h3>Confirm Logout</h3>
-              <button className="close" onClick={() => setShowLogoutConfirm(false)} aria-label="Close">✕</button>
-            </header>
-            <div className="modal-body">
-              <p style={{margin:0, color:'#333'}}>Are you sure you want to logout?</p>
-              <div className="modal-actions" style={{marginTop:12}}>
-                <button className="btn-primary" onClick={handleLogoutConfirmYes}>Yes</button>
-                <button className="btn-ghost" onClick={() => setShowLogoutConfirm(false)}>No</button>
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* Love Calculator Modal */}
+      {/* Love Calculator Modal (unchanged core) */}
       {showLoveCalc && (
         <div className="modal-back" role="dialog" aria-modal="true" onClick={(e)=>{ if(e.target.classList && e.target.classList.contains('modal-back')) setShowLoveCalc(false); }}>
           <div className="modal-card love-card">
@@ -1111,6 +1019,17 @@ export default function ConnectPage() {
         </div>
       )}
 
+      {/* Bottom diyas */}
+      <footer className="foot">
+        <div className="diyas">
+          <div className="diya"><div className="bowl"></div><div className="oil"></div><div className="flame"></div></div>
+          <div className="diya"><div className="bowl"></div><div className="oil"></div><div className="flame" style={{ animationDuration: "1.2s" }}></div></div>
+          <div className="diya"><div className="bowl"></div><div className="oil"></div><div className="flame" style={{ animationDuration: "1.6s" }}></div></div>
+          <div className="diya"><div className="bowl"></div><div className="oil"></div><div className="flame" style={{ animationDuration: "1.3s" }}></div></div>
+        </div>
+      </footer>
+
+      {/* Styles */}
       <style jsx global>{`
         html, body {
           margin: 0;
@@ -1130,6 +1049,10 @@ export default function ConnectPage() {
           z-index: 0;
           image-rendering: -webkit-optimize-contrast;
         }
+
+        /* Fireworks canvas above hearts but below UI */
+        #fxCanvas { z-index: 1; }
+        #heartCanvas { z-index: 0; }
 
         .hamburger {
           display: none;
@@ -1210,12 +1133,36 @@ export default function ConnectPage() {
           margin-left: 240px;
           min-height: 100vh;
           display: flex;
+          flex-direction: column;
+          gap: 12px;
           align-items: center;
-          justify-content: center;
+          justify-content: flex-start;
           padding: 18px;
           z-index: 10;
           position: relative;
         }
+
+        /* Festive banner */
+        .banner{
+          width:min(100%, 980px);
+          display:flex;gap:16px;justify-content:space-between;align-items:center;
+          background:rgba(255,255,255,0.18);
+          border:1px solid rgba(255,255,255,.22);
+          backdrop-filter:blur(6px);
+          border-radius:18px;padding:12px 14px;
+          box-shadow:0 12px 48px rgba(0,0,0,.22);
+        }
+        .b-left h1{margin:0;font-size:28px;letter-spacing:.5px;text-shadow:0 10px 28px rgba(0,0,0,.26)}
+        .b-left .tag{display:inline-block;border:1px solid rgba(255,255,255,.25);padding:4px 8px;border-radius:999px;background:rgba(255,255,255,.08);font-size:12px;margin-bottom:6px}
+        .b-left .sub{margin:4px 0 0 0;color:#fff;opacity:.92;font-weight:600;font-size:13px}
+        .b-right{display:flex;gap:10px;align-items:center;flex-wrap:wrap}
+        .btn{position:relative;overflow:hidden;border:none;border-radius:12px;padding:10px 12px;font-weight:800;cursor:pointer}
+        .btn.gold{background:rgba(255,209,102,.18);color:#ffe9ac;box-shadow:0 8px 28px rgba(255,209,102,.22)}
+        .btn.ghost{border:1px solid rgba(255,255,255,.22);background:rgba(255,255,255,.06);color:#fff}
+        .btn.x{background:transparent;border:1px solid rgba(255,255,255,.18);padding:6px 10px}
+        .count{font-size:12px;color:#fff;opacity:.95;font-weight:800}
+        .ripple{position:absolute;border-radius:50%;transform:scale(0);animation:ripple .7s linear;background:rgba(255,255,255,.35);pointer-events:none}
+        @keyframes ripple{to{transform:scale(4);opacity:0}}
 
         .glass-card {
           width: min(100%, 820px);
@@ -1348,22 +1295,10 @@ export default function ConnectPage() {
           border: 1px solid rgba(255, 255, 255, 0.06);
           animation: quoteFade 0.35s ease;
         }
-        @keyframes quoteFade {
-          from { opacity: 0; transform: translateY(4px); }
-          to { opacity: 1; transform: translateY(0); }
-        }
+        @keyframes quoteFade { from { opacity: 0; transform: translateY(4px); } to { opacity: 1; transform: translateY(0); } }
 
-        /* PROFILE OVERLAY (glass) - improved for small screens */
-        .profile-overlay {
-          position: fixed;
-          inset: 0;
-          background: rgba(2,6,23,0.55);
-          z-index: 120;
-          display: flex;
-          align-items: center;
-          justify-content: center;
-          padding: 18px;
-        }
+        /* PROFILE OVERLAY (glass) */
+        .profile-overlay { position: fixed; inset: 0; background: rgba(2,6,23,0.55); z-index: 120; display: flex; align-items: center; justify-content: center; padding: 18px; }
         .profile-card {
           width: min(880px, 96%);
           max-width: 880px;
@@ -1371,169 +1306,93 @@ export default function ConnectPage() {
           border-radius: 12px;
           box-shadow: 0 18px 60px rgba(0,0,0,0.35);
           overflow: hidden;
-          display: flex;
-          flex-direction: column;
-          gap: 8px;
+          display: flex; flex-direction: column; gap: 8px;
           max-height: calc(100vh - 80px);
         }
-        .profile-head {
-          display:flex;
-          align-items:center;
-          justify-content:space-between;
-          padding: 12px 16px;
-          background: linear-gradient(90deg, rgba(255,236,245,0.95), rgba(255,255,255,0.95));
-          border-bottom: 1px solid rgba(0,0,0,0.04);
-        }
+        .profile-head { display:flex; align-items:center; justify-content:space-between; padding: 12px 16px; background: linear-gradient(90deg, rgba(255,236,245,0.95), rgba(255,255,255,0.95)); border-bottom: 1px solid rgba(0,0,0,0.04); }
         .profile-head h3 { margin:0; font-size:18px; color:#0b1220; font-weight:900; }
         .profile-head .close { background:transparent;border:0;font-size:18px;cursor:pointer;color:#666; }
-
-        .profile-body {
-          padding: 12px 16px 12px 16px;
-          display:flex;
-          flex-direction:column;
-          gap:10px;
-          color:#222;
-          overflow: auto; /* allow scrolling inside overlay */
-        }
+        .profile-body { padding: 12px 16px; display:flex; flex-direction:column; gap:10px; color:#222; overflow: auto; }
         .profile-body label { display:block; font-weight:700; color:#334; margin-bottom:6px; font-size:13px; }
         .profile-body input, .profile-body select, .profile-body textarea { width:100%; padding:8px 10px; border-radius:8px; border:1px solid #e6e6e9; box-sizing:border-box; font-size:14px; height: 38px; }
         .profile-body textarea { min-height:70px; resize:vertical; padding-top:8px; padding-bottom:8px; }
-
         .row { width:100%; }
         .two-col { display:flex; gap:8px; }
         .three-col { display:flex; gap:8px; }
         .three-col > div { flex:1; }
-
         .interests-input { display:flex; gap:8px; align-items:center; }
         .interests-input input { flex:1; height:36px; }
-        .btn-small { background: linear-gradient(90deg,#ff6b81,#ff9fb0); color:#08121a; padding:8px 10px; border-radius:8px; border:none; font-weight:700; cursor:pointer; height:36px; }
-
+        .btn-small { background: linear-gradient(90deg,#ff6b81,#ff9fb0); color:#08121a; padding:8px 10px; border-radius:8px; border:none; font-weight:800; cursor:pointer; height:36px; }
         .chips { display:flex; gap:8px; flex-wrap:wrap; margin-top:8px; }
         .chip { background:#fff; padding:6px 10px; border-radius:18px; display:flex; gap:8px; align-items:center; font-weight:700; box-shadow: 0 6px 18px rgba(0,0,0,0.06); font-size:13px; }
         .chip button { background:transparent; border:0; cursor:pointer; color:#c33; font-weight:800; }
-
         .photo-row { display:flex; gap:10px; align-items:center; flex-wrap:wrap; }
         .photo-thumb { position:relative; width:72px; height:72px; border-radius:8px; overflow:hidden; background:#f3f3f3; display:flex; align-items:center; justify-content:center; box-shadow: 0 6px 18px rgba(0,0,0,0.06); }
         .photo-thumb img { width:100%; height:100%; object-fit:cover; }
         .photo-thumb .remove-photo { position:absolute; top:6px; right:6px; background: rgba(0,0,0,0.36); color:#fff; border:0; padding:6px 8px; border-radius:6px; cursor:pointer; font-size:12px; }
-
         .photo-add { width:72px; height:72px; border-radius:8px; background:linear-gradient(90deg,#fff,#fff); display:flex; align-items:center; justify-content:center; box-shadow: 0 6px 18px rgba(0,0,0,0.04); }
         .photo-add-label { display:block; cursor:pointer; color:#ec4899; font-weight:800; }
-
         .progress-wrap { width:100%; height:10px; background: #f1f1f1; border-radius:8px; overflow: hidden; margin-top:6px; }
         .progress-bar { height:100%; background: linear-gradient(90deg,#ff6b81,#ff9fb0); width:0%; transition: width 260ms ease; }
-
         .actions { display:flex; align-items:center; justify-content:space-between; gap:12px; }
-
         .btn-primary { background: linear-gradient(90deg,#ff6b81,#ff9fb0); color:#08121a; padding:8px 12px; border-radius:8px; border:none; font-weight:800; cursor:pointer; height:38px; }
         .btn-ghost { background:#f3f4f6; color:#333; padding:8px 10px; border-radius:8px; border:none; cursor:pointer; height:38px; }
 
-        .modal-back {
-          position: fixed;
-          inset: 0;
-          display: flex;
-          align-items: center;
-          justify-content: center;
-          background: rgba(2,6,23,0.45);
-          z-index: 80;
-          padding: 12px;
-        }
-
-        .modal-card {
-          width: 96%;
-          max-width: 520px;
-          background: #fff;
-          border-radius: 12px;
-          box-shadow: 0 18px 60px rgba(0,0,0,0.35);
-          overflow: hidden;
-        }
-
-        /* Love Calculator specific */
+        .modal-back { position: fixed; inset: 0; display: flex; align-items: center; justify-content: center; background: rgba(2,6,23,0.45); z-index: 80; padding: 12px; }
+        .modal-card { width: 96%; max-width: 520px; background: #fff; border-radius: 12px; box-shadow: 0 18px 60px rgba(0,0,0,0.35); overflow: hidden; }
         .love-card { max-width:520px; }
-        .lc-hearts .lc-heart {
-          position:absolute;
-          bottom:6px;
-          animation: lc-rise 2200ms linear forwards;
-          opacity:0.95;
-        }
-        @keyframes lc-rise {
-          0%{ transform: translateY(0) scale(0.8); opacity:0.9 }
-          60%{ opacity:1; transform: translateY(-80px) scale(1.05) }
-          100%{ transform: translateY(-160px) scale(0.9); opacity:0 }
-        }
-
+        .lc-hearts .lc-heart { position:absolute; bottom:6px; animation: lc-rise 2200ms linear forwards; opacity:0.95; }
+        @keyframes lc-rise { 0%{ transform: translateY(0) scale(0.8); opacity:0.9 } 60%{ opacity:1; transform: translateY(-80px) scale(1.05) } 100%{ transform: translateY(-160px) scale(0.9); opacity:0 } }
         .modal-card.small { max-width: 420px; }
         .modal-head { display:flex; align-items:center; justify-content:space-between; padding:14px 16px; background: linear-gradient(90deg,#ffeef5,#fff); }
         .modal-head h3 { margin:0; font-size:18px; color:#08121a; font-weight:800; }
         .modal-head .close { background:transparent;border:0;font-size:18px;cursor:pointer;color:#666; }
-
         .modal-body { padding:14px 16px 18px 16px; color:#08121a; }
         .modal-body label { display:block; font-weight:700; color:#334; margin-top:8px; }
         .modal-body input { width:100%; padding:10px 12px; margin-top:8px; border-radius:8px; border:1px solid #e6e6e9; box-sizing:border-box; }
-
+        .m-desc{ color:#333; }
         .modal-actions { display:flex; gap:10px; justify-content:flex-end; margin-top:12px; }
 
         .mini-progress { width:140px; height:8px; background: rgba(255,255,255,0.08); border-radius:8px; margin-top:6px; overflow:hidden; }
         .mini-progress-bar { height:100%; background: linear-gradient(90deg,#ff6b81,#ff9fb0); width:0%; transition: width 280ms ease; }
-
-        .contact-input {
-          border: 1px solid #e6e6e9;
-          box-shadow: none;
-          background: #fff;
-          border-radius: 8px;
-        }
-
         .export-btn { border: 1px solid #e6e6e9; padding:8px 10px; background:#fff; border-radius:8px; }
+
+        /* Bottom diyas */
+        .foot .diyas{position:fixed;left:0;right:0;bottom:12px;display:flex;gap:24px;justify-content:center;align-items:flex-end;pointer-events:none;z-index:5}
+        .diya{position:relative;width:70px;height:44px;filter:drop-shadow(0 6px 14px rgba(255,128,0,.35))}
+        .diya .bowl{position:absolute;inset:auto 0 0 0;height:32px;border-radius:0 0 36px 36px/0 0 24px 24px;background:radial-gradient(120% 140% at 50% -10%,#ffb86b,#8b2c03 60%);border-top:2px solid rgba(255,255,255,.25)}
+        .diya .oil{position:absolute;left:8px;right:8px;bottom:18px;height:8px;border-radius:6px;background:linear-gradient(#5a1b00,#2b0a00)}
+        .flame{position:absolute;left:50%;bottom:28px;width:18px;height:28px;transform:translateX(-50%);background:radial-gradient(50% 65% at 50% 60%,#fff7cc 0%,#ffd166 55%,#ff8c00 75%,rgba(255,0,0,0) 80%);border-radius:12px 12px 14px 14px/18px 18px 8px 8px;animation:flicker 1.4s infinite ease-in-out;box-shadow:0 0 18px 6px rgba(255,173,51,.45),0 0 36px 12px rgba(255,140,0,.15)}
+        .flame:before{content:"";position:absolute;inset:4px;border-radius:inherit;background:radial-gradient(circle at 50% 70%,#fffbe6,rgba(255,255,255,0) 66%);filter:blur(1px)}
+        @keyframes flicker{0%{transform:translateX(-50%) scale(1) rotate(-2deg);opacity:.95}40%{transform:translateX(calc(-50% + 1px)) scale(1.05) rotate(2deg);opacity:.85}70%{transform:translateX(calc(-50% - 1px)) scale(.98) rotate(-1deg);opacity:.92}100%{transform:translateX(-50%) scale(1) rotate(0deg);opacity:.95}}
 
         @media (max-width: 1024px) {
           .glass-card { width: min(100%, 760px); }
         }
-
         @media (max-width: 768px) {
           .hamburger { display: block; }
-
           .sidebar { transform: translateX(-100%); width: 200px; }
           .sidebar.open { transform: translateX(0); }
-
           .content-wrap { left: 0; padding: 10px; margin-left: 0; }
-
+          .banner{flex-direction:column;align-items:flex-start}
           .glass-card { width: 98%; padding: 10px; border-radius: 14px; }
-
           .center-box h2 { font-size: 22px; margin: 4px 0 6px 0; }
-
-          .mode-options {
-            flex-direction: column;
-            gap: 8px;
-            margin-top: 6px;
-            align-items: center;
-          }
-          .mode-card, .disabled-card {
-            width: 96%;
-            max-width: 96%;
-            padding: 10px;
-            border-radius: 12px;
-            min-height: 100px;
-          }
-
+          .mode-options { flex-direction: column; gap: 8px; margin-top: 6px; align-items: center; }
+          .mode-card, .disabled-card { width: 96%; max-width: 96%; padding: 10px; border-radius: 12px; min-height: 100px; }
           .mode-btn { font-size: 15px; padding: 10px; }
           .mode-desc { font-size: 13px; margin-bottom: 6px; }
           .quote-box { font-size: 13px; padding: 8px; margin-bottom: 4px; }
-
           .profile-card { width: 96%; max-width: 680px; padding: 0; max-height: calc(100vh - 48px); }
           .three-col { flex-direction: column; }
           .two-col { flex-direction: column; }
-
           .profile-body { padding: 10px; gap:8px; }
-
           .photo-thumb { width: 56px; height: 56px; }
           .photo-add { width:56px; height:56px; }
           .btn-primary { padding:8px 10px; height:36px; }
           .btn-ghost { padding:8px 10px; height:36px; }
-
           .actions { gap: 8px; }
-          .export-btn { display: none; } /* hide export on small screens */
+          .export-btn { display: none; }
         }
-
         @media (max-width: 480px) {
           .sidebar { width: 180px; }
           .profile-card { max-width: 100%; }
@@ -1543,7 +1402,7 @@ export default function ConnectPage() {
   );
 }
 
-/* Avatar component kept at bottom to avoid hoisting issues */
+/* Avatar component (unchanged) */
 function Avatar() {
   const [profile, setProfile] = useState(null);
 
@@ -1555,9 +1414,7 @@ function Avatar() {
 
       try {
         const res = await fetch(`/api/profile/${uid}`, {
-          headers: {
-            Authorization: `Bearer ${token}`, // if you secure the route
-          },
+          headers: { Authorization: `Bearer ${token}` },
         });
         if (!res.ok) throw new Error("Failed to fetch profile");
         const data = await res.json();
@@ -1577,27 +1434,15 @@ function Avatar() {
     <img
       src={profile.avatar}
       alt="avatar"
-      style={{
-        width: 70,
-        height: 70,
-        borderRadius: "50%",
-        objectFit: "cover",
-      }}
+      style={{ width: 70, height: 70, borderRadius: "50%", objectFit: "cover" }}
     />
   ) : (
     <div
       aria-label={`avatar ${first}`}
       style={{
-        width: 70,
-        height: 70,
-        borderRadius: "50%",
-        background: "#ec4899",
-        display: "flex",
-        alignItems: "center",
-        justifyContent: "center",
-        fontSize: 28,
-        fontWeight: 700,
-        color: "#fff",
+        width: 70, height: 70, borderRadius: "50%",
+        background: "#ec4899", display: "flex", alignItems: "center",
+        justifyContent: "center", fontSize: 28, fontWeight: 700, color: "#fff",
       }}
     >
       {first}
