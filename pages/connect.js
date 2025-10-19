@@ -199,8 +199,11 @@ export default function ConnectPage() {
       <main className="heroWrap">
         {/* Big stylish brand (center, large) */}
         <div className="heroBrand">Milan</div>
+        <h3 className="brandTagline">Where hearts connect ❤️</h3>
 
-        <h2 className="diwaliHead">Milan ki taraf se aapko Diwali ki dher saari shubhkamnaye ✨</h2>
+        <h2 className="diwaliHead">
+          🌟 Wishing you a sparkling Diwali full of love, light, and unforgettable connections – from all of us at Milan 💞
+        </h2>
         <p className="lead">
           “Diye ki roshni jaise andheron ko mita deti hai, waise hi <b>Milan</b> aapke dil ki tanhayi mita dega.
           Is Diwali, connect karo aur ek nayi kahani shuru karo.”
@@ -269,19 +272,39 @@ export default function ConnectPage() {
         .nav li{ padding:10px 14px; margin:6px 12px; border-radius:12px; background:rgba(255,255,255,.04); cursor:pointer; font-weight:700; }
 
         /* Full-height hero — CENTER everything, no scroll */
-        .heroWrap{ position:relative; margin-left:200px; z-index:3;
-          height:100vh; display:flex; flex-direction:column; align-items:center; justify-content:center; padding:0 12px 100px; gap:14px; }
+        .heroWrap{
+          position:relative; margin-left:200px; z-index:3;
+          height:100vh; display:flex; flex-direction:column; align-items:center; justify-content:center;
+          padding:140px 12px 110px; /* extra top padding to avoid any crop */
+          gap:10px;
+        }
 
         /* Big Milan brand in center with gold gradient + glow */
         .heroBrand{
-          position:absolute; top:70px; text-align:center;
-          font-family:'Great Vibes', cursive; font-size:120px; line-height:1;
+          position:absolute; top:96px; /* pushed down to prevent cut */
+          text-align:center;
+          font-family:'Great Vibes', cursive; font-size:120px; line-height:1.02;
           background: linear-gradient(180deg, #fff5cc, #ffd166 48%, #f3b03f);
           -webkit-background-clip: text; background-clip: text; color: transparent;
           text-shadow: 0 0 22px rgba(255,209,102,.35), 0 0 40px rgba(255,110,167,.15);
+          pointer-events:none;
         }
 
-        .diwaliHead{ margin:0; font-size:34px; font-weight:900; color:#ffe9ac; text-shadow:0 0 18px rgba(255,209,102,.22); letter-spacing:.3px; text-align:center; }
+        /* New tagline under logo */
+        .brandTagline{
+          margin-top:32px;
+          font-size:20px; font-weight:600; letter-spacing:.02em; text-align:center;
+          background: linear-gradient(90deg, #ffd166, #ffb6c1);
+          -webkit-background-clip:text; background-clip:text; color:transparent;
+          text-shadow: 0 0 10px rgba(255,209,102,.18);
+          font-style: italic;
+        }
+
+        .diwaliHead{
+          margin:4px 0 0 0; max-width:980px;
+          font-size:30px; font-weight:900; color:#ffe9ac;
+          text-shadow:0 0 18px rgba(255,209,102,.22); letter-spacing:.3px; text-align:center;
+        }
         .lead{ max-width:880px; text-align:center; color:#e9e5ef; opacity:.95; font-weight:600; }
 
         .ctaRow{ display:flex; gap:14px; margin-top:6px; flex-wrap:wrap; justify-content:center; align-items:flex-end; }
@@ -317,15 +340,17 @@ export default function ConnectPage() {
         /* MOBILE */
         @media(max-width:1024px){
           .frame{ left:12px; right:12px; }
-          .heroBrand{ top:76px; font-size:96px; }
+          .heroBrand{ top:110px; font-size:96px; }
         }
         @media(max-width:860px){
           .sidebar{display:none;} /* mobile me clean hero */
-          .heroWrap{ margin-left:0; }
+          .heroWrap{ margin-left:0; padding-top:150px; }
         }
         @media(max-width:520px){
-          .diwaliHead{font-size:22px;} .cta{width:100%;}
-          .heroBrand{ font-size:72px; top:86px; }
+          .diwaliHead{font-size:22px;}
+          .cta{width:100%;}
+          .heroBrand{ font-size:72px; top:120px; }
+          .brandTagline{ font-size:16px; margin-top:28px; }
         }
       `}</style>
     </>
