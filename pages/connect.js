@@ -13,6 +13,9 @@ export default function ConnectPage() {
   const [showLoader, setShowLoader] = useState(false);
   const [statusMessage, setStatusMessage] = useState("❤️ जहाँ दिल मिले, वहीं होती है शुरुआत Milan की…");
 
+  // diya count (SSR safe)
+  const [diyaCount, setDiyaCount] = useState(7);
+
   // sockets + fx
   const fwRef = useRef({ raf: null, burst: () => {}, cleanup: null });
   const socketRef = useRef(null);
@@ -134,8 +137,16 @@ export default function ConnectPage() {
   }
   const percent = completeness(profile);
 
-  // Diyas array (more lamps, responsive)
-  const diyas = Array.from({ length: innerWidth > 1200 ? 9 : innerWidth > 760 ? 7 : 5 });
+  // ====== SET DIYA COUNT (client only) ======
+  useEffect(() => {
+    function setCount() {
+      const w = window.innerWidth;
+      setDiyaCount(w > 1200 ? 9 : w > 760 ? 7 : 5);
+    }
+    setCount();
+    window.addEventListener("resize", setCount);
+    return () => window.removeEventListener("resize", setCount);
+  }, []);
 
   return (
     <>
@@ -215,10 +226,10 @@ export default function ConnectPage() {
 
         {/* Diyas — centered & more lamps */}
         <div className="diyas">
-          {diyas.map((_, i) => (
+          {Array.from({ length: diyaCount }).map((_, i) => (
             <div key={i} className="diya">
               <div className="bowl"/><div className="oil"/>
-              <div className="flame" style={{animationDuration: `${1.2 + (i%4)*0.2}s`}}/>
+              <div className="flame" style={{animationDuration: `${1.2 + (i % 4) * 0.2}s`}}/>
             </div>
           ))}
         </div>
