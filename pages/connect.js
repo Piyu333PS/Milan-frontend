@@ -4,7 +4,6 @@ import Head from "next/head";
 import io from "socket.io-client";
 
 export default function ConnectPage() {
-  // ===== STATE =====
   const [profile, setProfile] = useState({
     name: "", contact: "", photoDataUrls: [], interests: [],
     age: "", city: "", language: "", bio: ""
@@ -23,7 +22,7 @@ export default function ConnectPage() {
     []
   );
 
-  // ===== PROFILE LOAD =====
+  // Load profile
   useEffect(() => {
     try {
       const saved = localStorage.getItem("milan_profile");
@@ -40,7 +39,7 @@ export default function ConnectPage() {
     } catch {}
   }, []);
 
-  // ===== HEARTS BG =====
+  // Hearts BG
   useEffect(() => {
     const cvs = document.getElementById("heartsCanvas");
     if (!cvs) return; const ctx = cvs.getContext("2d"); if (!ctx) return;
@@ -59,7 +58,7 @@ export default function ConnectPage() {
     return ()=>{ cancelAnimationFrame(rafId); removeEventListener("resize", resize); };
   }, []);
 
-  // ===== FIREWORKS =====
+  // Fireworks
   useEffect(() => { startFireworks(); return stopFireworks; }, []);
   function startFireworks(){
     const cvs=document.getElementById("fxCanvas"); if(!cvs) return;
@@ -86,7 +85,7 @@ export default function ConnectPage() {
   }
   function stopFireworks(){ fwRef.current.cleanup && fwRef.current.cleanup(); }
 
-  // ===== MATCHING =====
+  // Matching
   function startSearch(type){
     if(isSearching||connectingRef.current) return;
     connectingRef.current=true;
@@ -128,7 +127,6 @@ export default function ConnectPage() {
     setStatusMessage("❤️ जहाँ दिल मिले, वहीं होती है शुरुआत Milan की…");
   }
 
-  // ===== COMPLETENESS =====
   function completeness(p=profile){
     let s=0; if(p.name) s+=18; if(p.contact) s+=12; if(p.age) s+=10; if(p.city) s+=10; if(p.language) s+=10; if(p.bio) s+=15;
     if((p.interests||[]).length) s+=15; if((p.photoDataUrls||[]).length) s+=Math.min(10, p.photoDataUrls.length*4);
@@ -136,7 +134,6 @@ export default function ConnectPage() {
   }
   const percent = completeness(profile);
 
-  // ===== DIYAS COUNT =====
   useEffect(() => {
     function setCount() {
       const w = window.innerWidth;
@@ -192,20 +189,19 @@ export default function ConnectPage() {
         </ul>
       </aside>
 
-      {/* Brand fixed at top */}
+      {/* Brand */}
       <div className="brandBlock">
         <div className="heroBrand">Milan</div>
         <div className="brandTagline">Where hearts connect <span aria-hidden>❤️</span></div>
       </div>
 
-      {/* Center area — greeting + feature grid */}
+      {/* Center section */}
       <main className="heroWrap">
         <p className="miniGreeting">
           🌟 Wishing you a sparkling Diwali full of love, light, and unforgettable connections – from all of us at Milan 💞
         </p>
 
         <section className="featuresGrid" role="navigation" aria-label="Choose a mode">
-          {/* Text Chat */}
           <article className="featureCard text">
             <header>
               <h3>Text Chat</h3>
@@ -214,7 +210,6 @@ export default function ConnectPage() {
             <button className="cta ghost" onClick={()=>startSearch('text')}>💬 Start Text Chat</button>
           </article>
 
-          {/* Video Chat */}
           <article className="featureCard video">
             <header>
               <h3>Video Chat</h3>
@@ -223,16 +218,14 @@ export default function ConnectPage() {
             <button className="cta primary" onClick={()=>startSearch('video')}>🎥 Start Video Chat</button>
           </article>
 
-          {/* AI Studio */}
           <article className="featureCard studio">
             <header>
               <h3>Milan AI Studio</h3>
-              <p>Create dreamy prompts, art & reels—love, but make it aesthetic.</p>
+              <p>Create dreamy prompts & reels—love, but make it aesthetic.</p>
             </header>
             <a href="/studio" className="cta outline">🎨 Open AI Studio</a>
           </article>
 
-          {/* Celebrate */}
           <article className="featureCard celebrate">
             <header>
               <h3>Festive Spark</h3>
@@ -259,18 +252,20 @@ export default function ConnectPage() {
         </div>
       </main>
 
-      {/* ===== STYLES ===== */}
       <style>{`
         :root{
           --bg:#07070c; --rose:#ff6ea7; --rose2:#ff9fb0; --gold:#ffd166;
-          --brandH: 170px;   /* brand + tagline block */
-          --bottomH: 120px;  /* diyas space */
+          --brandH: 170px;     /* desktop brand height */
+          --bottomH: 120px;    /* desktop bottom safe space */
         }
-        html,body{ margin:0; padding:0; height:100%; overflow:hidden;
+        html,body{
+          margin:0; padding:0; height:100%;
+          overflow:hidden; /* desktop keeps hero framed with no page scroll */
           background:
             radial-gradient(1200px 600px at 20% 10%, rgba(255,110,167,.10), transparent 60%),
             radial-gradient(900px 500px at 90% 20%, rgba(255,110,167,.06), transparent 60%),
-            #08060c; color:#f7f7fb; font-family:Poppins, system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, sans-serif; }
+            #08060c; color:#f7f7fb; font-family:Poppins, system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, sans-serif;
+        }
         #heartsCanvas,#fxCanvas{ position:fixed; inset:0; pointer-events:none; z-index:1; }
 
         /* Frame */
@@ -295,7 +290,7 @@ export default function ConnectPage() {
         .nav{ list-style:none; padding:0; width:100%; margin-top:18px; }
         .nav li{ padding:10px 14px; margin:6px 12px; border-radius:12px; background:rgba(255,255,255,.04); cursor:pointer; font-weight:700; }
 
-        /* Brand fixed */
+        /* Brand (desktop: fixed) */
         .brandBlock{
           position:fixed; left:50%; transform:translateX(-50%);
           top:120px; text-align:center; z-index:4; pointer-events:none;
@@ -322,23 +317,19 @@ export default function ConnectPage() {
           position:relative; margin-left:200px; z-index:3; min-height:100vh;
           display:flex; flex-direction:column; align-items:center; justify-content:center;
           padding: calc(var(--brandH) + 16px) 12px var(--bottomH);
-          box-sizing:border-box;
-          gap:16px;
+          box-sizing:border-box; gap:16px;
         }
-
         .miniGreeting{
           max-width:min(980px, calc(100vw - 260px));
           text-align:center; font-weight:700; line-height:1.35;
           color:#ffe9ac; text-shadow:0 0 14px rgba(255,209,102,.22);
           margin:0;
         }
-
         .featuresGrid{
           width:min(980px, calc(100vw - 260px));
           display:grid; grid-template-columns:repeat(2, minmax(260px, 1fr));
           gap:16px;
         }
-
         .featureCard{
           background:rgba(16,13,22,.46);
           border:1px solid rgba(255,255,255,.08);
@@ -350,7 +341,6 @@ export default function ConnectPage() {
         }
         .featureCard header h3{ margin:0; font-size:22px; font-weight:900; letter-spacing:.2px; }
         .featureCard header p{ margin:4px 0 0 0; opacity:.9; }
-
         .featureCard:hover{ transform: translateY(-4px); box-shadow:0 18px 56px rgba(0,0,0,.45); }
         .featureCard.text{ border-color:rgba(255,110,167,.22); }
         .featureCard.video{ border-color:rgba(255,110,167,.18); }
@@ -365,7 +355,6 @@ export default function ConnectPage() {
         .cta:hover{ transform: translateY(-2px); filter: brightness(1.02); }
         .cta:active{ transform: scale(.97); box-shadow: inset 0 0 0 9999px rgba(0,0,0,.05); }
         .cta:focus-visible{ outline: 3px solid rgba(255,209,102,.6); outline-offset: 2px; }
-
         .cta.primary{ background:linear-gradient(90deg,var(--rose),var(--rose2)); color:#0a0b12; box-shadow:0 10px 34px rgba(255,110,167,.25); }
         .cta.ghost{ background:rgba(255,255,255,.07); color:#fff; border:1px solid rgba(255,255,255,.14); }
         .cta.outline{ background:transparent; color:#fff; border:2px solid rgba(255,110,167,.45); box-shadow:0 0 0 2px rgba(255,110,167,.12) inset; }
@@ -382,7 +371,7 @@ export default function ConnectPage() {
         .flame{ position:absolute; left:50%; bottom:26px; width:18px; height:26px; transform:translateX(-50%); background: radial-gradient(50% 65% at 50% 60%, #fff7cc 0%, #ffd166 55%, #ff8c00 75%, rgba(255,0,0,0) 80%); border-radius: 12px 12px 14px 14px / 18px 18px 8px 8px; animation: flicker 1.4s infinite ease-in-out; box-shadow: 0 0 18px 6px rgba(255,173,51,.45), 0 0 36px 12px rgba(255,140,0,.15); }
         .flame:before{ content:""; position:absolute; inset:4px; border-radius:inherit; background: radial-gradient(circle at 50% 70%, #fffbe6, rgba(255,255,255,0) 66%); filter: blur(1px); }
 
-        /* Responsive */
+        /* ===== MOBILE FIXES ===== */
         @media(max-width:1024px){
           :root{ --brandH: 160px; --bottomH: 110px; }
           .frame{ left:12px; right:12px; }
@@ -390,18 +379,24 @@ export default function ConnectPage() {
           .heroBrand{ font-size:96px; }
         }
         @media(max-width:860px){
-          :root{ --brandH: 150px; --bottomH: 110px; }
+          :root{ --brandH: 150px; --bottomH: 120px; }
           .sidebar{display:none;}
           .frame{ left:12px; right:12px; }
-          .brandBlock{ top:126px; }
           .heroWrap{ margin-left:0; }
           .featuresGrid{ width:min(980px, calc(100vw - 48px)); grid-template-columns:1fr 1fr; }
         }
         @media(max-width:560px){
-          :root{ --brandH: 138px; --bottomH: 100px; }
-          .brandBlock{ top:120px; }
+          :root{ --brandH: 138px; --bottomH: 140px; } /* more bottom room so diyas don't cover buttons */
+          html,body{ overflow:auto; }                /* ENABLE SCROLL on mobile */
+          .brandBlock{                               /* avoid overlap: sticky instead of fixed */
+            position:sticky; top:8px; transform:translateX(-50%); z-index:4; pointer-events:none;
+          }
           .heroBrand{ font-size:72px; }
           .brandTagline{ font-size:16px; }
+          .heroWrap{
+            padding: calc(var(--brandH) + 10px) 12px var(--bottomH);  /* reserve space for brand + diyas */
+            justify-content:flex-start; gap:14px;
+          }
           .featuresGrid{ grid-template-columns:1fr; }
           .cta{ width:100%; }
           .miniGreeting{ padding:0 8px; }
@@ -411,7 +406,6 @@ export default function ConnectPage() {
   );
 }
 
-/* ===== Avatar ===== */
 function Avatar(){
   const [profile,setProfile]=useState(null);
   useEffect(()=>{ (async()=>{ try{
