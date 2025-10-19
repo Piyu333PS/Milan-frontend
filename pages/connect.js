@@ -22,7 +22,7 @@ export default function ConnectPage() {
     []
   );
 
-  // Profile load
+  // Load profile
   useEffect(() => {
     try {
       const saved = localStorage.getItem("milan_profile");
@@ -127,7 +127,7 @@ export default function ConnectPage() {
     setStatusMessage("❤️ जहाँ दिल मिले, वहीं होती है शुरुआत Milan की…");
   }
 
-  // Completeness
+  // Completeness meter
   function completeness(p=profile){
     let s=0; if(p.name) s+=18; if(p.contact) s+=12; if(p.age) s+=10; if(p.city) s+=10; if(p.language) s+=10; if(p.bio) s+=15;
     if((p.interests||[]).length) s+=15; if((p.photoDataUrls||[]).length) s+=Math.min(10, p.photoDataUrls.length*4);
@@ -151,8 +151,10 @@ export default function ConnectPage() {
         <link href="https://fonts.googleapis.com/css2?family=Great+Vibes&family=Poppins:wght@300;400;600;700;900&display=swap" rel="stylesheet"/>
       </Head>
 
+      {/* Frame */}
       <div className="frame" aria-hidden />
 
+      {/* Backgrounds */}
       <canvas id="heartsCanvas"/>
       <canvas id="fxCanvas" style={{position:'fixed',inset:0,zIndex:1,pointerEvents:'none'}}/>
       <audio id="bellAudio" preload="auto">
@@ -185,13 +187,13 @@ export default function ConnectPage() {
         </ul>
       </aside>
 
-      {/* BRAND BLOCK — exact placement */}
+      {/* Brand — kept fixed; slightly lower than before */}
       <div className="brandBlock">
         <div className="heroBrand">Milan</div>
         <div className="brandTagline">Where hearts connect <span aria-hidden>❤️</span></div>
       </div>
 
-      {/* CARD SECTION — pulled UP to reduce gap */}
+      {/* Main — perfectly centered card */}
       <main className="heroWrap">
         <section className="heroCard">
           <h2 className="diwaliHead">
@@ -262,15 +264,15 @@ export default function ConnectPage() {
         .nav{ list-style:none; padding:0; width:100%; margin-top:18px; }
         .nav li{ padding:10px 14px; margin:6px 12px; border-radius:12px; background:rgba(255,255,255,.04); cursor:pointer; font-weight:700; }
 
-        /* BRAND — moved a bit DOWN, tagline sticks right below */
+        /* BRAND — slightly LOWER so it doesn't crowd the card */
         .brandBlock{
-          position:fixed; /* keep it independent from card */
+          position:fixed;
           left:50%; transform:translateX(-50%);
-          top:140px; /* earlier ~96px — increased so it's lower */
+          top:120px;  /* lowered a bit */
           text-align:center; z-index:4; pointer-events:none;
         }
         .heroBrand{
-          font-family:'Great Vibes', cursive; font-size:120px; line-height:1.02;
+          font-family:'Great Vibes', cursive; font-size:116px; line-height:1.02;
           background: linear-gradient(180deg, #fff5cc, #ffd166 48%, #f3b03f);
           -webkit-background-clip: text; background-clip: text; color: transparent;
           text-shadow: 0 0 22px rgba(255,209,102,.35), 0 0 40px rgba(255,110,167,.15);
@@ -287,18 +289,17 @@ export default function ConnectPage() {
           box-shadow:0 0 12px rgba(255,209,102,.45);
         }
 
-        /* HERO WRAP — leave top room for brand, pull card UP */
+        /* MAIN — center the card between brand & diyas */
         .heroWrap{
           position:relative; margin-left:200px; z-index:3; height:100vh;
-          display:flex; flex-direction:column; align-items:center; justify-content:flex-end;
-          padding:0 12px 110px; /* only bottom padding for diyas */
+          display:flex; flex-direction:column; align-items:center; justify-content:center;
+          padding:240px 12px 120px; /* top space for brand, bottom for diyas */
         }
 
-        /* CARD — floating glass panel, pulled towards brand */
+        /* CARD — bigger & balanced */
         .heroCard{
           width:min(980px, calc(100vw - 260px));
-          margin-top:0;
-          transform: translateY(-110px); /* pulls the card UP to reduce gap */
+          min-height: clamp(420px, 50vh, 640px);  /* bigger transparent box */
           background:rgba(16, 13, 22, .48);
           border:1px solid rgba(255,255,255,.08);
           border-radius:18px; padding:28px 22px 24px;
@@ -307,13 +308,14 @@ export default function ConnectPage() {
             inset 0 0 0 1px rgba(255,209,102,.10);
           backdrop-filter: blur(8px);
           text-align:center;
+          display:flex; flex-direction:column; justify-content:center; gap:10px;
         }
 
         .diwaliHead{
-          margin:0 0 8px 0; font-size:30px; font-weight:900; color:#ffe9ac;
+          margin:0; font-size:30px; font-weight:900; color:#ffe9ac;
           text-shadow:0 0 18px rgba(255,209,102,.22); letter-spacing:.3px;
         }
-        .lead{ max-width:880px; margin:0 auto 6px; color:#e9e5ef; opacity:.95; font-weight:600; }
+        .lead{ max-width:880px; margin:0 auto; color:#e9e5ef; opacity:.95; font-weight:600; }
 
         .ctaRow{ display:flex; gap:14px; margin-top:8px; flex-wrap:wrap; justify-content:center; align-items:flex-end; }
         .cta{ padding:14px 18px; border-radius:14px; font-weight:900; border:0;
@@ -341,23 +343,23 @@ export default function ConnectPage() {
         .flame{ position:absolute; left:50%; bottom:26px; width:18px; height:26px; transform:translateX(-50%); background: radial-gradient(50% 65% at 50% 60%, #fff7cc 0%, #ffd166 55%, #ff8c00 75%, rgba(255,0,0,0) 80%); border-radius: 12px 12px 14px 14px / 18px 18px 8px 8px; animation: flicker 1.4s infinite ease-in-out; box-shadow: 0 0 18px 6px rgba(255,173,51,.45), 0 0 36px 12px rgba(255,140,0,.15); }
         .flame:before{ content:""; position:absolute; inset:4px; border-radius:inherit; background: radial-gradient(circle at 50% 70%, #fffbe6, rgba(255,255,255,0) 66%); filter: blur(1px); }
 
-        /* Responsive tweaks */
+        /* Responsive */
         @media(max-width:1024px){
           .frame{ left:12px; right:12px; }
-          .brandBlock{ top:150px; }
+          .brandBlock{ top:128px; }
           .heroBrand{ font-size:96px; }
         }
         @media(max-width:860px){
           .sidebar{display:none;}
           .frame{ left:12px; right:12px; }
-          .heroWrap{ margin-left:0; }
-          .brandBlock{ top:170px; }
-          .heroCard{ width:min(980px, calc(100vw - 48px)); transform: translateY(-90px); }
+          .brandBlock{ top:146px; }
+          .heroWrap{ margin-left:0; padding:220px 12px 110px; }
+          .heroCard{ width:min(980px, calc(100vw - 48px)); min-height: clamp(420px, 56vh, 640px); }
         }
         @media(max-width:520px){
           .heroBrand{ font-size:72px; }
           .brandTagline{ font-size:16px; }
-          .brandBlock{ top:180px; }
+          .brandBlock{ top:156px; }
           .diwaliHead{font-size:22px;}
           .cta{width:100%;}
         }
