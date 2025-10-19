@@ -19,7 +19,6 @@ export default function ConnectPage() {
   const [statusMessage, setStatusMessage] = useState(
     "❤️ जहाँ दिल मिले, वहीं होती है शुरुआत Milan की…"
   );
-  const [diyaCount, setDiyaCount] = useState(7);
 
   const fwRef = useRef({ raf: null, burst: () => {}, cleanup: null });
   const socketRef = useRef(null);
@@ -33,7 +32,10 @@ export default function ConnectPage() {
     []
   );
 
-  // -------------------- Load profile (SSR-safe) --------------------
+  // ===== Smoke mark: badge so you know this build is live =====
+  const BUILD_TAG = "CONNECT v4 (no diyas) ✅";
+
+  // Load profile (SSR-safe)
   useEffect(() => {
     try {
       if (typeof window === "undefined") return;
@@ -56,7 +58,7 @@ export default function ConnectPage() {
     } catch {}
   }, []);
 
-  // -------------------- Hearts background --------------------
+  // Hearts BG
   useEffect(() => {
     const cvs = document.getElementById("heartsCanvas");
     if (!cvs) return;
@@ -123,7 +125,7 @@ export default function ConnectPage() {
     };
   }, []);
 
-  // -------------------- Fireworks layer --------------------
+  // Fireworks layer
   useEffect(() => {
     startFireworks();
     return stopFireworks;
@@ -213,7 +215,7 @@ export default function ConnectPage() {
     if (fwRef.current.cleanup) fwRef.current.cleanup();
   }
 
-  // -------------------- FIX: file input handler (no inline arrow) --------------------
+  // SWC-safe file input handler
   const handlePhotoPick = (e) => {
     try {
       const input = e && e.target ? e.target : null;
@@ -247,7 +249,7 @@ export default function ConnectPage() {
     } catch {}
   };
 
-  // -------------------- Matching --------------------
+  // Matching
   function startSearch(type) {
     if (isSearching || connectingRef.current) return;
     connectingRef.current = true;
@@ -339,7 +341,7 @@ export default function ConnectPage() {
     setStatusMessage("❤️ जहाँ दिल मिले, वहीं होती है शुरुआत Milan की…");
   }
 
-  // -------------------- Completeness meter --------------------
+  // Completeness meter
   function completeness(p = profile) {
     let s = 0;
     if (p.name) s += 18;
@@ -355,21 +357,11 @@ export default function ConnectPage() {
   }
   const percent = completeness(profile);
 
-  // -------------------- Diyas count by width --------------------
-  useEffect(() => {
-    function setCount() {
-      const w = window.innerWidth;
-      setDiyaCount(w > 1200 ? 9 : w > 760 ? 7 : 5);
-    }
-    setCount();
-    window.addEventListener("resize", setCount);
-    return () => window.removeEventListener("resize", setCount);
-  }, []);
-
   return (
     <>
       <Head>
         <title>Milan — Connect</title>
+        <meta name="viewport" content="width=device-width, initial-scale=1" />
         <link rel="preconnect" href="https://fonts.googleapis.com" />
         <link
           rel="preconnect"
@@ -381,6 +373,8 @@ export default function ConnectPage() {
           rel="stylesheet"
         />
       </Head>
+
+      <div className="devBadge">{BUILD_TAG}</div>
 
       {/* Frame */}
       <div className="frame" aria-hidden />
@@ -499,12 +493,19 @@ export default function ConnectPage() {
                   a.currentTime = 0;
                   a.play();
                 } catch {}
-                const b = fwRef.current && fwRef.current.burst ? fwRef.current.burst : null;
+                const b =
+                  fwRef.current && fwRef.current.burst
+                    ? fwRef.current.burst
+                    : null;
                 const x = window.innerWidth / 2;
                 const y = window.innerHeight * 0.58;
                 for (let i = 0; i < 6; i++) {
                   setTimeout(() => {
-                    if (b) b(x + (Math.random() * 260 - 130), y + (Math.random() * 140 - 70));
+                    if (b)
+                      b(
+                        x + (Math.random() * 260 - 130),
+                        y + (Math.random() * 140 - 70)
+                      );
                   }, i * 120);
                 }
               }}
@@ -515,111 +516,48 @@ export default function ConnectPage() {
         </section>
 
         {showLoader ? <div className="status">{statusMessage}</div> : null}
-
-        {/* Diyas */}
-        <div className="diyas" aria-hidden>
-          {Array.from({ length: diyaCount }).map((_, i) => (
-            <div key={i} className="diya">
-              <div className="bowl" />
-              <div className="oil" />
-              <div
-                className="flame"
-                style={{ animationDuration: `${1.2 + (i % 4) * 0.2}s` }}
-              />
-            </div>
-          ))}
-        </div>
       </main>
 
       <style>{`
-        :root{
-          --bg:#07070c; --rose:#ff6ea7; --rose2:#ff9fb0; --gold:#ffd166;
-          --brandH: 170px;     /* desktop brand height */
-          --bottomH: 120px;    /* desktop bottom safe space */
-        }
-        html,body{
-          margin:0; padding:0; height:100%;
-          overflow:hidden; /* desktop: no page scroll */
-          background:
-            radial-gradient(1200px 600px at 20% 10%, rgba(255,110,167,.10), transparent 60%),
-            radial-gradient(900px 500px at 90% 20%, rgba(255,110,167,.06), transparent 60%),
-            #08060c; color:#f7f7fb; font-family:Poppins, system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, sans-serif;
-        }
+        /* Hard reset helpers */
+        :root{ --brandH: 170px; --bottomH: 60px; } /* reduced since diyas removed */
+        *,*::before,*::after{ box-sizing: border-box; min-width:0; }
+        html,body{ margin:0; padding:0; height:100%; background:#08060c; color:#f7f7fb; font-family:Poppins,system-ui,-apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif; }
+        body{ overflow:hidden; } /* desktop */
         #heartsCanvas{ position:fixed; inset:0; z-index:0; pointer-events:none; }
         #fxCanvas{ position:fixed; inset:0; z-index:0; pointer-events:none; }
 
-        /* Frame */
+        .devBadge{ position:fixed; top:8px; left:8px; z-index:10; background:#111; border:1px solid rgba(255,255,255,.2); padding:6px 10px; border-radius:10px; font-weight:800; }
+
         .frame{ position:fixed; top:10px; bottom:10px; right:10px; left:210px; z-index:2; pointer-events:none; }
-        .frame::before, .frame::after{ content:""; position:absolute; inset:0; border-radius:18px; }
-        .frame::before{
-          padding:2px; background:linear-gradient(135deg, rgba(255,209,102,.9), rgba(255,209,102,.45) 40%, rgba(255,110,167,.55), rgba(255,209,102,.9));
+        .frame::before,.frame::after{ content:""; position:absolute; inset:0; border-radius:18px; }
+        .frame::before{ padding:2px; background:linear-gradient(135deg, rgba(255,209,102,.9), rgba(255,209,102,.45) 40%, rgba(255,110,167,.55), rgba(255,209,102,.9));
           -webkit-mask:linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
-          -webkit-mask-composite:xor; mask-composite:exclude; box-shadow:0 0 24px rgba(255,209,102,.32), 0 0 46px rgba(255,110,167,.2);
-          border-radius:18px;
-        }
+          -webkit-mask-composite:xor; mask-composite:exclude; border-radius:18px; box-shadow:0 0 24px rgba(255,209,102,.32), 0 0 46px rgba(255,110,167,.2); }
         .frame::after{ inset:8px; border:2px solid rgba(255,209,102,.6); border-radius:14px; box-shadow:0 0 20px rgba(255,209,102,.28) inset; }
 
-        /* Sidebar */
-        .sidebar{ position:fixed; left:0; top:0; bottom:0; width:200px; background:rgba(255,255,255,.04);
-          backdrop-filter:blur(8px); border-right:1px solid rgba(255,255,255,.06); z-index:3; display:flex; flex-direction:column; align-items:center; padding-top:18px; }
+        .sidebar{ position:fixed; left:0; top:0; bottom:0; width:200px; background:rgba(255,255,255,.04); backdrop-filter:blur(8px); border-right:1px solid rgba(255,255,255,.06); z-index:3; display:flex; flex-direction:column; align-items:center; padding-top:18px; }
         .avatarWrap{ width:70px; height:70px; border-radius:50%; overflow:hidden; box-shadow:0 6px 18px rgba(0,0,0,.35); }
         .name{ margin-top:8px; font-weight:800; }
         .meter{ width:140px; height:8px; background:rgba(255,255,255,.1); border-radius:8px; margin-top:6px; overflow:hidden; }
-        .meter .bar{ height:100%; background:linear-gradient(90deg,var(--rose),var(--rose2)); }
+        .meter .bar{ height:100%; background:linear-gradient(90deg,#ff6ea7,#ff9fb0); }
         .photoPick{ margin-top:8px; font-size:12px; color:#fff; background:rgba(255,255,255,.08); padding:6px 10px; border-radius:8px; cursor:pointer; }
         .nav{ list-style:none; padding:0; width:100%; margin-top:18px; }
         .nav li{ padding:10px 14px; margin:6px 12px; border-radius:12px; background:rgba(255,255,255,.04); cursor:pointer; font-weight:700; }
 
-        /* Brand (desktop fixed; mobile becomes static) */
-        .brandBlock{
-          position:fixed; left:50%; transform:translateX(-50%);
-          top:120px; text-align:center; z-index:3; pointer-events:none;
-        }
-        .heroBrand{
-          font-family:'Great Vibes', cursive; font-size:116px; line-height:1.02;
-          background: linear-gradient(180deg, #fff5cc, #ffd166 48%, #f3b03f);
-          -webkit-background-clip: text; background-clip: text; color: transparent;
-          text-shadow: 0 0 22px rgba(255,209,102,.35), 0 0 40px rgba(255,110,167,.15);
-        }
-        .brandTagline{
-          margin-top:6px; font-size:20px; font-weight:700; letter-spacing:.02em;
-          background: linear-gradient(90deg, #ffd166, #ffb6c1); -webkit-background-clip:text; background-clip:text; color:transparent;
-          font-style: italic; position:relative; display:inline-block;
-        }
-        .brandTagline:after{
-          content:""; display:block; height:2px; margin:8px auto 0; width:160px; border-radius:999px;
-          background:linear-gradient(90deg, rgba(255,182,193,0), #ffd166, rgba(255,182,193,0));
-          box-shadow:0 0 12px rgba(255,209,102,.45);
-        }
+        .brandBlock{ position:fixed; left:50%; transform:translateX(-50%); top:120px; text-align:center; z-index:3; pointer-events:none; }
+        .heroBrand{ font-family:'Great Vibes', cursive; font-size:116px; line-height:1.02; background: linear-gradient(180deg, #fff5cc, #ffd166 48%, #f3b03f);
+          -webkit-background-clip: text; background-clip: text; color: transparent; text-shadow: 0 0 22px rgba(255,209,102,.35), 0 0 40px rgba(255,110,167,.15); }
+        .brandTagline{ margin-top:6px; font-size:20px; font-weight:700; letter-spacing:.02em; background: linear-gradient(90deg, #ffd166, #ffb6c1);
+          -webkit-background-clip:text; background-clip:text; color:transparent; font-style: italic; position:relative; display:inline-block; }
+        .brandTagline:after{ content:""; display:block; height:2px; margin:8px auto 0; width:160px; border-radius:999px; background:linear-gradient(90deg, rgba(255,182,193,0), #ffd166, rgba(255,182,193,0)); box-shadow:0 0 12px rgba(255,209,102,.45); }
 
-        /* Center area */
-        .heroWrap{
-          position:relative; margin-left:200px; z-index:3; min-height:100vh;
-          display:flex; flex-direction:column; align-items:center; justify-content:center;
-          padding: calc(var(--brandH) + 16px) 12px var(--bottomH);
-          box-sizing:border-box; gap:16px;
-        }
-        .miniGreeting{
-          max-width:min(980px, calc(100vw - 260px));
-          text-align:center; font-weight:700; line-height:1.35;
-          color:#ffe9ac; text-shadow:0 0 14px rgba(255,209,102,.22);
-          margin:0;
-        }
+        .heroWrap{ position:relative; margin-left:200px; z-index:3; min-height:100vh; display:flex; flex-direction:column; align-items:center; justify-content:center;
+          padding: calc(var(--brandH) + 16px) 12px var(--bottomH); box-sizing:border-box; gap:16px; }
+        .miniGreeting{ max-width:min(980px, calc(100vw - 260px)); text-align:center; font-weight:700; line-height:1.35; color:#ffe9ac; text-shadow:0 0 14px rgba(255,209,102,.22); margin:0; }
 
-        .featuresGrid{
-          width:min(980px, calc(100vw - 260px));
-          display:grid; grid-template-columns:repeat(2, minmax(260px, 1fr));
-          gap:16px;
-        }
-        .featureCard{
-          background:rgba(16,13,22,.46);
-          border:1px solid rgba(255,255,255,.08);
-          border-radius:18px; padding:22px;
-          backdrop-filter:blur(8px);
-          box-shadow:0 14px 44px rgba(0,0,0,.35);
-          display:flex; flex-direction:column; align-items:flex-start; gap:14px;
-          transition:transform .15s ease, box-shadow .15s ease, border-color .15s ease;
-        }
+        .featuresGrid{ width:min(980px, calc(100vw - 260px)); display:grid; grid-template-columns:repeat(2, minmax(260px, 1fr)); gap:16px; }
+        .featureCard{ background:rgba(16,13,22,.46); border:1px solid rgba(255,255,255,.08); border-radius:18px; padding:22px; backdrop-filter:blur(8px); box-shadow:0 14px 44px rgba(0,0,0,.35); display:flex; flex-direction:column; align-items:flex-start; gap:14px; transition:transform .15s ease, box-shadow .15s ease, border-color .15s ease; }
         .featureCard header h3{ margin:0; font-size:22px; font-weight:900; letter-spacing:.2px; }
         .featureCard header p{ margin:4px 0 0 0; opacity:.9; }
         .featureCard:hover{ transform: translateY(-4px); box-shadow:0 18px 56px rgba(0,0,0,.45); }
@@ -628,16 +566,12 @@ export default function ConnectPage() {
         .featureCard.studio{ border-color:rgba(140,150,255,.22); }
         .featureCard.celebrate{ border-color:rgba(255,209,102,.35); }
 
-        .cta{
-          padding:12px 16px; border-radius:12px; font-weight:900; border:0;
-          cursor:pointer; display:inline-flex; align-items:center; justify-content:center; text-decoration:none;
-          transition:transform .14s ease, box-shadow .14s ease, filter .14s ease;
-        }
+        .cta{ padding:12px 16px; border-radius:12px; font-weight:900; border:0; cursor:pointer; display:inline-flex; align-items:center; justify-content:center; text-decoration:none; transition:transform .14s ease, box-shadow .14s ease, filter .14s ease; }
         .cta:hover{ transform: translateY(-2px); filter: brightness(1.02); }
         .cta:active{ transform: scale(.97); box-shadow: inset 0 0 0 9999px rgba(0,0,0,.05); }
         .cta:focus-visible{ outline: 3px solid rgba(255,209,102,.6); outline-offset: 2px; }
 
-        .cta.primary{ background:linear-gradient(90deg,var(--rose),var(--rose2)); color:#0a0b12; box-shadow:0 10px 34px rgba(255,110,167,.25); }
+        .cta.primary{ background:linear-gradient(90deg,#ff6ea7,#ff9fb0); color:#0a0b12; box-shadow:0 10px 34px rgba(255,110,167,.25); }
         .cta.ghost{ background:rgba(255,255,255,.07); color:#fff; border:1px solid rgba(255,255,255,.14); }
         .cta.outline{ background:transparent; color:#fff; border:2px solid rgba(255,110,167,.45); box-shadow:0 0 0 2px rgba(255,110,167,.12) inset; }
         .cta.gold{ background:rgba(255,209,102,.18); color:#ffe9ac; border:1px solid rgba(255,209,102,.4); box-shadow:0 12px 36px rgba(255,209,102,.18); }
@@ -645,30 +579,22 @@ export default function ConnectPage() {
         .status{ font-weight:800; color:#fff; animation:blink 1s infinite; }
         @keyframes blink{0%{opacity:.3}50%{opacity:1}100%{opacity:.3}}
 
-        /* Diyas — fixed at bottom, behind content */
-        .diyas{ position:fixed; left:0; right:0; bottom:12px; display:flex; gap:22px; justify-content:center; align-items:flex-end; pointer-events:none; z-index:1; flex-wrap:wrap; }
-        .diya{ position:relative; width:64px; height:42px; filter: drop-shadow(0 6px 14px rgba(255,128,0,.35)); }
-        .bowl{ position:absolute; inset:auto 0 0 0; height:30px; border-radius:0 0 36px 36px / 0 0 22px 22px; background:radial-gradient(120% 140% at 50% -10%, #ffb86b, #8b2c03 60%); border-top:2px solid rgba(255,255,255,.25); }
-        .oil{ position:absolute; left:8px; right:8px; bottom:18px; height:8px; border-radius:6px; background: linear-gradient(#5a1b00,#2b0a00); }
-        .flame{ position:absolute; left:50%; bottom:26px; width:18px; height:26px; transform:translateX(-50%); background: radial-gradient(50% 65% at 50% 60%, #fff7cc 0%, #ffd166 55%, #ff8c00 75%, rgba(255,0,0,0) 80%); border-radius: 12px 12px 14px 14px / 18px 18px 8px 8px; animation: flicker 1.4s infinite ease-in-out; box-shadow: 0 0 18px 6px rgba(255,173,51,.45), 0 0 36px 12px rgba(255,140,0,.15); }
-        .flame:before{ content:""; position:absolute; inset:4px; border-radius:inherit; background: radial-gradient(circle at 50% 70%, #fffbe6, rgba(255,255,255,0) 66%); filter: blur(1px); }
-
         /* ===== Mobile fixes ===== */
         @media(max-width:1024px){
-          :root{ --brandH: 160px; --bottomH: 110px; }
+          :root{ --brandH: 160px; --bottomH: 60px; }
           .frame{ left:12px; right:12px; }
           .brandBlock{ top:118px; }
           .heroBrand{ font-size:96px; }
         }
         @media(max-width:860px){
-          :root{ --brandH: 150px; --bottomH: 120px; }
+          :root{ --brandH: 150px; --bottomH: 70px; }
           .sidebar{display:none;}
           .frame{ left:12px; right:12px; }
           .heroWrap{ margin-left:0; }
           .featuresGrid{ width:min(980px, calc(100vw - 48px)); grid-template-columns:1fr 1fr; }
         }
         @media(max-width:560px){
-          :root{ --brandH: 0px; --bottomH: 160px; }  /* more bottom space so diyas don't cover CTAs */
+          :root{ --brandH: 0px; --bottomH: 80px; }  /* small safe space for bottom shadow */
           html,body{ overflow:auto; }                /* enable scroll on mobile */
           .brandBlock{
             position:static; transform:none; top:auto; margin:16px 0 4px;
@@ -707,7 +633,9 @@ function Avatar() {
         setProfile(data);
       } catch {
         setProfile({
-          name: (typeof window !== "undefined" && localStorage.getItem("registered_name")) || "M",
+          name:
+            (typeof window !== "undefined" &&
+              localStorage.getItem("registered_name")) || "M",
         });
       }
     })();
