@@ -173,7 +173,7 @@ export default function ConnectPage() {
           <input id="photoPick" type="file" accept="image/*" style={{display:'none'}}
             onChange={(e)=>{
               const f=e.target.files?.[0]; if(!f) return; const r=new FileReader();
-              r.onload=(ev)=>{
+              r.onload={(ev)=>{
                 const du=ev.target?.result; const next=[...(profile.photoDataUrls||[])];
                 if(next.length>=3) return alert('Max 3 photos');
                 next.push(du); const p={...profile, photoDataUrls:next};
@@ -223,7 +223,7 @@ export default function ConnectPage() {
               <h3>Milan AI Studio</h3>
               <p>Create dreamy prompts & reels—love, but make it aesthetic.</p>
             </header>
-          <a href="/ai" className="cta outline">🎨 Open AI Studio</a>
+            <a href="/ai" className="cta outline">🎨 Open AI Studio</a>
           </article>
 
           <article className="featureCard celebrate">
