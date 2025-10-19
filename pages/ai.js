@@ -76,7 +76,6 @@ export default function MilanAIStudio() {
   useEffect(()=>{
     const s = readLS(LS.SETTINGS,null);
     if(s){ setSize(String(s.size??"1024")); setSteps(s.steps??25); setGuidance(s.guidance??7); }
-    // set initial theme attr
     if (typeof document !== "undefined") document.documentElement.dataset.theme = theme;
   // eslint-disable-next-line react-hooks/exhaustive-deps
   },[]);
@@ -149,7 +148,7 @@ export default function MilanAIStudio() {
               }
             </div>
           </div>
-          {/* Overlay (purely outside content, catches taps) */}
+          {/* Overlay (only outside the drawer) */}
           <div className="overlay" onClick={()=>setDrawer(false)} />
         </aside>
 
@@ -261,17 +260,24 @@ export default function MilanAIStudio() {
         .brand{ display:flex; gap:8px; align-items:center; font-weight:900; letter-spacing:.02em; color:var(--text); }
         .close{ display:none; }
 
-        /* True drawer on small screens (no edge leak) */
+        /* True drawer on small screens (fixed) */
         @media (max-width: 1024px){
-          .rail{ position:fixed; inset:0; z-index:60; pointer-events:none; }
+          .rail{ position:fixed; inset:0; z-index:60; } /* no pointer-events:none */
           .rail-inner{
             position:absolute; left:-100vw; top:0; height:100vh; width:86vw; max-width:360px;
             border-right:1px solid var(--border); background:var(--panel); padding:16px;
-            transition:left .25s ease; pointer-events:auto;
+            transition:left .25s ease; z-index:2; /* above overlay */
           }
           .rail.open .rail-inner{ left:0; }
-          .rail .overlay{ display:block; position:absolute; inset:0; background:rgba(0,0,0,.45); opacity:0; transition:opacity .25s ease; pointer-events:none; }
+
+          /* Overlay only outside drawer so taps on drawer work */
+          .rail .overlay{
+            position:absolute; top:0; right:0; bottom:0; left:86vw;
+            background:rgba(0,0,0,.45); opacity:0; transition:opacity .25s ease;
+            pointer-events:none; z-index:1;
+          }
           .rail.open .overlay{ opacity:1; pointer-events:auto; }
+
           .close{ display:inline-block; }
         }
 
