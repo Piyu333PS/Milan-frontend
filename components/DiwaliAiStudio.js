@@ -9,7 +9,7 @@ const EXAMPLES = [
   "Diwali sweets flatlay, moody soft light, festive props, photoreal",
 ];
 
-export default function DiwaliAiStudio() {
+export default function MilanAiStudio({ compact = false }) {
   const [prompt, setPrompt] = useState(EXAMPLES[0]);
   const [loading, setLoading] = useState(false);
   const [images, setImages] = useState([]);
@@ -27,7 +27,7 @@ export default function DiwaliAiStudio() {
       });
       const data = await r.json();
       if (!r.ok) throw new Error(data?.error || "Failed");
-      setImages((prev) => [data.image, ...prev].slice(0, 8));
+      setImages((prev) => [data.image, ...prev].slice(0, 12));
     } catch (e) {
       alert(e.message || "Generation failed");
     } finally {
@@ -36,9 +36,9 @@ export default function DiwaliAiStudio() {
   }
 
   return (
-    <section className="ai-wrap">
+    <section className={`ai-wrap ${compact ? "is-compact" : ""}`}>
       <header className="ai-head">
-        <h3>✨ Diwali AI Studio</h3>
+        <h3>✨ Milan AI Studio</h3>
         <p className="ai-sub">“Simple prompt likho, aur image turant dekhlo.”</p>
       </header>
 
@@ -90,7 +90,7 @@ export default function DiwaliAiStudio() {
               {images.map((src, i) => (
                 <figure key={i} className="card">
                   <img src={src} alt={`gen-${i}`} />
-                  <a className="dl" href={src} download={`diwali-${i}.png`}>Download</a>
+                  <a className="dl" href={src} download={`milan-ai-${i}.png`}>Download</a>
                 </figure>
               ))}
             </div>
@@ -101,7 +101,7 @@ export default function DiwaliAiStudio() {
       <style jsx>{`
         .ai-wrap {
           margin: 22px auto 10px;
-          width: min(1020px, 96%);
+          width: min(1100px, 96%);
           background: rgba(255, 255, 255, 0.06);
           border: 1px solid rgba(255, 255, 255, 0.12);
           border-radius: 18px;
@@ -109,9 +109,10 @@ export default function DiwaliAiStudio() {
           backdrop-filter: blur(8px);
           color: #fff;
         }
+        .ai-wrap.is-compact { margin-top: 16px; }
         .ai-head h3 { margin: 0; font-size: 22px; font-weight: 900; }
         .ai-sub { margin: 4px 0 10px; opacity: .9; }
-        .ai-grid { display: grid; grid-template-columns: 420px 1fr; gap: 14px; }
+        .ai-grid { display: grid; grid-template-columns: 440px 1fr; gap: 14px; }
         .lbl { font-size: 13px; opacity: .9; }
         textarea {
           width: 100%; min-height: 110px; margin-top: 6px; padding: 10px 12px;
@@ -125,10 +126,10 @@ export default function DiwaliAiStudio() {
         .controls .val { font-size: 12px; margin-left: 8px; opacity: .9; }
         .gen-btn { padding: 10px 14px; border-radius: 12px; font-weight: 900; border: 0; background: linear-gradient(90deg, #ff6ea7, #ff9fb0); color: #0b0a12; box-shadow: 0 10px 30px rgba(255,110,167,.2); cursor: pointer; }
         .hint { margin-top: 8px; font-size: 12px; opacity: .85; }
-        .ai-right .empty { height: 100%; min-height: 200px; display: grid; place-items: center; opacity: .8; }
-        .ai-right .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(180px, 1fr)); gap: 10px; }
+        .ai-right .empty { height: 100%; min-height: 220px; display: grid; place-items: center; opacity: .8; }
+        .ai-right .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 10px; }
         .card { position: relative; overflow: hidden; border-radius: 12px; border: 1px solid rgba(255,255,255,.12); background: rgba(0,0,0,.2); }
-        .card img { width: 100%; height: 220px; object-fit: cover; display: block; }
+        .card img { width: 100%; height: 240px; object-fit: cover; display: block; }
         .dl { position: absolute; right: 8px; bottom: 8px; background: rgba(255,255,255,.9); color: #111; font-weight: 800; padding: 6px 8px; border-radius: 8px; font-size: 12px; }
         @media (max-width: 900px) { .ai-grid { grid-template-columns: 1fr; } }
       `}</style>
