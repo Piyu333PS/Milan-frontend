@@ -1,17 +1,22 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 
-/** ---------- Utilities ---------- */
+/* ---------- LocalStorage helpers ---------- */
 const LS = {
   HISTORY: "milan_ai_history",
   SAVED: "milan_ai_saved",
   SETTINGS: "milan_ai_settings",
+  THEME: "milan_ai_theme",
 };
 const readLS = (k, v=null)=> (typeof window==="undefined"?v: (()=>{try{return JSON.parse(localStorage.getItem(k))??v;}catch{return v;}})());
 const writeLS = (k,v)=>{ if(typeof window==="undefined") return; try{ localStorage.setItem(k, JSON.stringify(v)); }catch{} };
 
-/** ---------- Small UI Bits ---------- */
+/* ---------- Tiny bits ---------- */
 const Chip = ({ active, children, onClick }) => (
   <button className={`chip ${active ? "active" : ""}`} onClick={onClick}>{children}</button>
+);
+
+const SectionTitle = ({ children }) => (
+  <div className="sect"><h4>{children}</h4></div>
 );
 
 const ImageCard = ({ src, onSave, onDownload }) => (
@@ -22,7 +27,7 @@ const ImageCard = ({ src, onSave, onDownload }) => (
       <button onClick={onDownload}>⬇ Download</button>
     </div>
     <style jsx>{`
-      .card { position:relative; border:1px solid #2b3450; border-radius:14px; overflow:hidden; background:#0d1221; }
+      .card { position:relative; border:1px solid var(--border); border-radius:14px; overflow:hidden; background:var(--panel); }
       img { width:100%; display:block; }
       .actions { position:absolute; right:8px; bottom:8px; display:flex; gap:8px; }
       .actions button { background:#ffffffdd; color:#0b0f1a; font-weight:800; border:0; border-radius:10px; padding:6px 10px; cursor:pointer; }
@@ -30,14 +35,15 @@ const ImageCard = ({ src, onSave, onDownload }) => (
   </figure>
 );
 
-const SectionTitle = ({ children }) => (
-  <div className="sect"><h4>{children}</h4>
-    <style jsx>{`.sect{margin:16px 0 10px;} h4{margin:0;font-size:11px;letter-spacing:.12em;opacity:.9;text-transform:uppercase;}`}</style>
-  </div>
-);
-
-/** ---------- Page ---------- */
+/* ---------- Page ---------- */
 export default function MilanAIStudio() {
+  // theme
+  const [theme, setTheme] = useState(()=> readLS(LS.THEME, "dark"));
+  useEffect(()=> {
+    writeLS(LS.THEME, theme);
+    if (typeof document !== "undefined") document.documentElement.dataset.theme = theme;
+  }, [theme]);
+
   // main state
   const [prompt, setPrompt] = useState("romantic cinematic portrait, warm tones, soft bokeh, masterpiece");
   const [negative, setNegative] = useState("");
@@ -49,9 +55,9 @@ export default function MilanAIStudio() {
   const [err, setErr] = useState(null);
   const taRef = useRef(null);
 
-  // left rail state
-  const [history, setHistory] = useState(()=>readLS(LS.HISTORY, []));
-  const [saved, setSaved]     = useState(()=>readLS(LS.SAVED, []));
+  // left rail
+  const [history, setHistory] = useState(()=> readLS(LS.HISTORY, []));
+  const [saved, setSaved]     = useState(()=> readLS(LS.SAVED, []));
   const [mode, setMode]       = useState("txt2img");
 
   // mobile drawer
@@ -70,6 +76,9 @@ export default function MilanAIStudio() {
   useEffect(()=>{
     const s = readLS(LS.SETTINGS,null);
     if(s){ setSize(String(s.size??"1024")); setSteps(s.steps??25); setGuidance(s.guidance??7); }
+    // set initial theme attr
+    if (typeof document !== "undefined") document.documentElement.dataset.theme = theme;
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   },[]);
 
   async function onGenerate(){
@@ -86,7 +95,7 @@ export default function MilanAIStudio() {
       if(!j?.ok) throw new Error(j?.error || "failed");
       setImages(prev=>[j.image,...prev]);
       setHistory(prev=>[{p:prompt,t:Date.now()},...prev.filter(x=>x.p!==prompt)].slice(0,50));
-      if(drawer) setDrawer(false); // auto close drawer after generate on mobile
+      if(drawer) setDrawer(false);
     }catch(e){ setErr(String(e.message||e)); } finally{ setLoading(false); }
   }
   function onDownload(src){ const a=document.createElement("a"); a.href=src; a.download="milan-ai.png"; a.click(); }
@@ -95,33 +104,33 @@ export default function MilanAIStudio() {
 
   return (
     <div className="page">
-      {/* Top App Bar (mobile + desktop) */}
+      {/* App bar */}
       <div className="appbar">
-        <button className="icon" onClick={()=>setDrawer(true)}>☰</button>
+        <button className="icon" aria-label="Open menu" onClick={()=>setDrawer(true)}>☰</button>
         <div className="title">💖 Milan Studio</div>
-        <a className="back pill" href="/connect">← Back to Dashboard</a>
+        <a className="pill" href="/connect">← Back to Dashboard</a>
       </div>
 
       <div className="layout">
-        {/* Sidebar — desktop static, mobile drawer */}
+        {/* Sidebar (drawer on mobile) */}
         <aside className={`rail ${drawer ? "open" : ""}`}>
           <div className="rail-inner">
             <div className="rail-head">
-              <div className="brand">
-                <span>💖</span><strong>Milan Studio</strong>
-              </div>
+              <div className="brand"><span>💖</span><strong>Milan Studio</strong></div>
               <button className="close icon" onClick={()=>setDrawer(false)}>✕</button>
             </div>
 
             <div className="modes">
               <div className="modes-badge">MODES</div>
               <button className={`mode-btn ${mode==="txt2img"?"active":""}`} onClick={()=>setMode("txt2img")}><span>✍️</span> Text → Image</button>
-              <button className={`mode-btn ${mode==="img2img"?"active":""}`} onClick={()=>alert("Image → Image coming soon!")}>
-                <span>🖼️</span> Image → Image
-              </button>
-              <button className={`mode-btn ${mode==="prompter"?"active":""}`} onClick={()=>alert("Prompt Helper coming soon!")}>
-                <span>🧠</span> Prompt Helper
-              </button>
+              <button className={`mode-btn ${mode==="img2img"?"active":""}`} onClick={()=>alert("Image → Image coming soon!")}><span>🖼️</span> Image → Image</button>
+              <button className={`mode-btn ${mode==="prompter"?"active":""}`} onClick={()=>alert("Prompt Helper coming soon!")}><span>🧠</span> Prompt Helper</button>
+            </div>
+
+            <SectionTitle>Theme</SectionTitle>
+            <div className="theme-row">
+              <label className={`theme-pill ${theme==="dark"?"active":""}`} onClick={()=>setTheme("dark")}>🌙 Dark</label>
+              <label className={`theme-pill ${theme==="light"?"active":""}`} onClick={()=>setTheme("light")}>🌤️ Light</label>
             </div>
 
             <SectionTitle>History</SectionTitle>
@@ -140,7 +149,7 @@ export default function MilanAIStudio() {
               }
             </div>
           </div>
-          {/* overlay click to close */}
+          {/* Overlay (purely outside content, catches taps) */}
           <div className="overlay" onClick={()=>setDrawer(false)} />
         </aside>
 
@@ -163,7 +172,6 @@ export default function MilanAIStudio() {
             placeholder="Describe your image… (Cmd/Ctrl + Enter to generate)"
           />
 
-          {/* Controls */}
           <div className="adv">
             <select value={size} onChange={(e)=>setSize(e.target.value)} title="Size">
               <option value="512">512 × 512</option>
@@ -210,96 +218,114 @@ export default function MilanAIStudio() {
       </div>
 
       <style jsx>{`
-        :global(html,body){ margin:0; padding:0; }
-        .page{ background:#0b0f1a; color:#fff; min-height:100vh; }
+        :global(html){ box-sizing:border-box; } :global(*, *:before, *:after){ box-sizing:inherit; }
+        :global(body){ margin:0; background:var(--bg); color:var(--text); }
 
-        /* App bar (always visible) */
+        /* THEME TOKENS */
+        :global(:root[data-theme="dark"]){
+          --bg:#0b0f1a; --panel:#0e1323; --text:#fff; --muted:#cfe1ff;
+          --border:#1e2741; --chip:#121a30; --chip-border:#354266; --chip-active:#26334f; --chip-active-border:#44537a;
+          --input:#0f1320; --input-border:#3a4157;
+        }
+        :global(:root[data-theme="light"]){
+          --bg:#f6f8ff; --panel:#ffffff; --text:#0b0f1a; --muted:#243050;
+          --border:#d6def5; --chip:#f0f3ff; --chip-border:#c9d5ff; --chip-active:#dfe8ff; --chip-active-border:#afc3ff;
+          --input:#ffffff; --input-border:#c9d5ff;
+        }
+
+        .page{ min-height:100vh; }
+
+        /* App bar */
         .appbar{
           position:sticky; top:0; z-index:50;
           display:flex; align-items:center; gap:10px;
-          padding:10px 14px; background:#0e1323; border-bottom:1px solid #1e2741;
+          padding:10px 14px; background:var(--panel); border-bottom:1px solid var(--border);
         }
-        .icon{ background:#11182d; color:#dbe7ff; border:1px solid #324066; border-radius:10px; padding:8px 10px; cursor:pointer; }
-        .title{ font-weight:900; letter-spacing:.02em; flex:1; }
+        .icon{ background:var(--chip); color:var(--muted); border:1px solid var(--chip-border); border-radius:10px; padding:8px 10px; cursor:pointer; }
+        .title{ font-weight:900; letter-spacing:.02em; flex:1; color:var(--text); }
         .pill{ border:1px solid #394a75; background:#11162a; color:#cfe1ff; text-decoration:none; padding:6px 10px; border-radius:999px; }
+        :global(:root[data-theme="light"]) .pill{ background:#eef3ff; color:#10204a; border-color:#c9d5ff; }
 
         /* Layout grid */
-        .layout{ display:grid; grid-template-columns: 300px 1fr; max-width:1400px; margin:0 auto; }
+        .layout{ display:grid; grid-template-columns: 300px 1fr; max-width:1400px; margin:0 auto; overflow:hidden; }
         @media (max-width: 1024px){ .layout{ grid-template-columns: 1fr; } }
 
-        /* Sidebar */
+        /* Sidebar / Drawer */
         .rail{ position:relative; }
         .rail .overlay{ display:none; }
         .rail-inner{
-          background:#0e1323; border-right:1px solid #1e2741; padding:18px; position:sticky; top:54px; height:calc(100vh - 54px); overflow:auto;
+          background:var(--panel); border-right:1px solid var(--border); padding:18px;
+          position:sticky; top:54px; height:calc(100vh - 54px); overflow:auto;
         }
         .rail-head{ display:flex; align-items:center; justify-content:space-between; }
-        .brand{ display:flex; gap:8px; align-items:center; font-weight:900; letter-spacing:.02em; }
+        .brand{ display:flex; gap:8px; align-items:center; font-weight:900; letter-spacing:.02em; color:var(--text); }
         .close{ display:none; }
 
-        /* Drawer behavior for small screens */
+        /* True drawer on small screens (no edge leak) */
         @media (max-width: 1024px){
           .rail{ position:fixed; inset:0; z-index:60; pointer-events:none; }
           .rail-inner{
-            position:absolute; left:-86vw; top:0; height:100vh; width:86vw; max-width:360px;
-            border-right:1px solid #1e2741; background:#0e1323; padding:16px; transition:left .25s ease; pointer-events:auto;
+            position:absolute; left:-100vw; top:0; height:100vh; width:86vw; max-width:360px;
+            border-right:1px solid var(--border); background:var(--panel); padding:16px;
+            transition:left .25s ease; pointer-events:auto;
           }
           .rail.open .rail-inner{ left:0; }
-          .rail .overlay{ display:block; position:absolute; inset:0; background:rgba(0,0,0,.45); opacity:0; transition:opacity .25s ease; }
+          .rail .overlay{ display:block; position:absolute; inset:0; background:rgba(0,0,0,.45); opacity:0; transition:opacity .25s ease; pointer-events:none; }
           .rail.open .overlay{ opacity:1; pointer-events:auto; }
           .close{ display:inline-block; }
         }
 
         .modes{ margin-top:12px; }
-        .modes-badge{
-          display:inline-block; font-size:11px; letter-spacing:.14em; padding:6px 10px;
-          border:1px solid #44537a; border-radius:999px; background:#121a30; color:#dbe7ff; margin-bottom:10px;
-        }
+        .modes-badge{ display:inline-block; font-size:11px; letter-spacing:.14em; padding:6px 10px; border:1px solid var(--chip-active-border); border-radius:999px; background:var(--chip); color:var(--muted); margin-bottom:10px; }
         .mode-btn{
           width:100%; display:flex; align-items:center; gap:10px;
           font-weight:700; font-size:14px; letter-spacing:.01em;
-          padding:12px 12px; margin:6px 0; background:#10172c; color:#e7efff;
-          border:1px solid #3a4a76; border-radius:12px; cursor:pointer; transition:transform .06s ease, background .2s ease;
+          padding:12px 12px; margin:6px 0; background:var(--chip); color:var(--text);
+          border:1px solid var(--chip-border); border-radius:12px; cursor:pointer; transition:transform .06s ease, background .2s ease;
         }
         .mode-btn span{ font-size:18px; }
-        .mode-btn:hover{ background:#172340; transform:translateY(-1px); }
-        .mode-btn.active{ background:#26334f; border-color:#5170b5; }
+        .mode-btn:hover{ background:var(--chip-active); transform:translateY(-1px); }
+        .mode-btn.active{ background:var(--chip-active); border-color:var(--chip-active-border); }
+
+        .theme-row{ display:flex; gap:10px; }
+        .theme-pill{ cursor:pointer; padding:8px 10px; border-radius:999px; border:1px solid var(--chip-border); background:var(--chip); color:var(--text); font-size:13px; }
+        .theme-pill.active{ background:var(--chip-active); border-color:var(--chip-active-border); }
 
         .list{ display:flex; flex-direction:column; gap:6px; }
-        .row{ text-align:left; background:#0f1529; color:#cfe1ff; border:1px solid #273255; padding:10px 12px; border-radius:10px; cursor:pointer; overflow:hidden; white-space:nowrap; text-overflow:ellipsis; font-size:13px; }
+        .row{ text-align:left; background:var(--chip); color:var(--muted); border:1px solid var(--chip-border); padding:10px 12px; border-radius:10px; cursor:pointer; overflow:hidden; white-space:nowrap; text-overflow:ellipsis; font-size:13px; }
         .saved{ display:grid; grid-template-columns:repeat(2,1fr); gap:8px; }
-        .saved img{ width:100%; border-radius:8px; border:1px solid #273255; cursor:pointer; }
+        .saved img{ width:100%; border-radius:8px; border:1px solid var(--chip-border); cursor:pointer; }
 
         /* Main */
-        .main{ padding:20px 24px 36px; }
+        .main{ padding:20px 24px 36px; overflow-x:hidden; }
         @media (max-width:640px){ .main{ padding:16px; } }
         .top{ display:flex; align-items:center; justify-content:space-between; gap:10px; margin-bottom:4px; }
-        .top h1{ font-size:20px; margin:0; }
+        .top h1{ font-size:20px; margin:0; color:var(--text); }
         .sub{ opacity:.85; margin:4px 0 14px; }
 
         .chips{ display:flex; flex-wrap:wrap; gap:8px; margin-bottom:10px; }
-        .chip{ border:1px solid #354266; background:#121a30; color:#dbe7ff; border-radius:999px; padding:6px 10px; font-size:12px; cursor:pointer; }
-        .chip.active{ background:#26334f; border-color:#44537a; }
+        .chip{ border:1px solid var(--chip-border); background:var(--chip); color:var(--muted); border-radius:999px; padding:6px 10px; font-size:12px; cursor:pointer; }
+        .chip.active{ background:var(--chip-active); border-color:var(--chip-active-border); }
 
         textarea{
-          width:100%; background:#0f1320; border:1px solid #3a4157; color:#fff; border-radius:12px; padding:12px; min-height:110px;
+          width:100%; background:var(--input); border:1px solid var(--input-border); color:var(--text);
+          border-radius:12px; padding:12px; min-height:110px; display:block;
         }
 
         .adv{ display:flex; gap:10px; align-items:center; flex-wrap:wrap; margin:12px 0 6px; }
-        .adv select{ background:#0f1320; border:1px solid #3a4157; color:#fff; border-radius:10px; padding:8px 10px; }
-        .adv label{ display:flex; align-items:center; gap:8px; background:#0f1320; border:1px solid #3a4157; border-radius:10px; padding:4px 8px; font-size:12px; }
+        .adv select{ background:var(--input); border:1px solid var(--input-border); color:var(--text); border-radius:10px; padding:8px 10px; }
+        .adv label{ display:flex; align-items:center; gap:8px; background:var(--input); border:1px solid var(--input-border); border-radius:10px; padding:4px 8px; font-size:12px; }
         .adv input[type="range"]{ accent-color:#e91e63; }
-        .adv .neg{ flex:1; min-width:220px; background:#0f1320; border:1px solid #3a4157; color:#fff; border-radius:10px; padding:8px 10px; }
-        @media (max-width:640px){
-          .adv select{ width:100%; }
-          .adv .neg{ min-width:100%; }
-        }
+        .adv .neg{ flex:1; min-width:220px; background:var(--input); border:1px solid var(--input-border); color:var(--text); border-radius:10px; padding:8px 10px; }
+        @media (max-width:640px){ .adv select, .adv .neg{ width:100%; min-width:100%; } }
 
         .actions{ display:flex; gap:10px; margin:12px 0 8px; flex-wrap:wrap; }
         .primary{ padding:12px 16px; border-radius:12px; font-weight:900; border:0; background:linear-gradient(90deg,#ff6ea7,#ff9fb0); color:#0b0a12; box-shadow:0 10px 30px rgba(255,110,167,.2); cursor:pointer; }
-        .ghost{ padding:12px 16px; border-radius:12px; background:#2f3a55; border:1px solid #3a4157; color:#fff; cursor:pointer; }
+        .ghost{ padding:12px 16px; border-radius:12px; background:#2f3a55; border:1px solid var(--input-border); color:#fff; cursor:pointer; }
+        :global(:root[data-theme="light"]) .ghost{ background:#e9eeff; color:#0b0f1a; }
 
-        .error{ background:#3a2030; border:1px solid #5a2a3a; padding:10px; border-radius:10px; margin:8px 0; }
+        .error{ background:#3a2030; border:1px solid #5a2a3a; padding:10px; border-radius:10px; margin:8px 0; color:#ffd7de; }
+        :global(:root[data-theme="light"]) .error{ background:#ffe6ea; border-color:#ffc5cf; color:#4b0c18; }
 
         .grid{ display:grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap:12px; margin-top:12px; }
       `}</style>
