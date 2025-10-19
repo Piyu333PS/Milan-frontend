@@ -25,6 +25,7 @@ export default function ConnectPage() {
   const socketRef = useRef(null);
   const partnerRef = useRef(null);
   const connectingRef = useRef(false);
+
   const backendUrl = useMemo(
     () =>
       process.env.NEXT_PUBLIC_BACKEND_URL ||
@@ -32,69 +33,70 @@ export default function ConnectPage() {
     []
   );
 
-  // Load profile
+  // -------------------- Load profile (SSR-safe) --------------------
   useEffect(() => {
     try {
-      const saved = typeof window !== "undefined" && localStorage.getItem("milan_profile");
+      if (typeof window === "undefined") return;
+      const saved = localStorage.getItem("milan_profile");
       if (saved) {
         const p = JSON.parse(saved);
         setProfile((prev) => ({
           ...prev,
           ...p,
-          photoDataUrls: p.photoDataUrls || [],
-          interests: p.interests || [],
+          photoDataUrls: Array.isArray(p.photoDataUrls) ? p.photoDataUrls : [],
+          interests: Array.isArray(p.interests) ? p.interests : [],
         }));
       } else {
         setProfile((p) => ({
           ...p,
-          name:
-            (typeof window !== "undefined" && localStorage.getItem("registered_name")) ||
-            "",
-          contact:
-            (typeof window !== "undefined" && localStorage.getItem("registered_contact")) ||
-            "",
+          name: localStorage.getItem("registered_name") || "",
+          contact: localStorage.getItem("registered_contact") || "",
         }));
       }
     } catch {}
   }, []);
 
-  // Hearts BG
+  // -------------------- Hearts background --------------------
   useEffect(() => {
     const cvs = document.getElementById("heartsCanvas");
     if (!cvs) return;
     const ctx = cvs.getContext("2d");
     if (!ctx) return;
-    let W,
-      H,
-      rafId,
-      dpr = Math.max(1, window.devicePixelRatio || 1),
-      items = [];
+
+    let W, H, rafId;
+    const dpr = Math.max(1, window.devicePixelRatio || 1);
+    let items = [];
+
     function resize() {
-      W = cvs.width = Math.round(innerWidth * dpr);
-      H = cvs.height = Math.round(innerHeight * dpr);
-      cvs.style.width = innerWidth + "px";
-      cvs.style.height = innerHeight + "px";
+      W = Math.round(window.innerWidth * dpr);
+      H = Math.round(window.innerHeight * dpr);
+      cvs.width = W;
+      cvs.height = H;
+      cvs.style.width = window.innerWidth + "px";
+      cvs.style.height = window.innerHeight + "px";
       ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
     }
     resize();
-    addEventListener("resize", resize);
+    window.addEventListener("resize", resize);
+
     function spawn() {
-      const small = innerWidth < 760;
+      const small = window.innerWidth < 760;
       const size = (small ? 6 : 10) + Math.random() * (small ? 16 : 22);
       items.push({
-        x: Math.random() * innerWidth,
-        y: innerHeight + size,
+        x: Math.random() * window.innerWidth,
+        y: window.innerHeight + size,
         s: size,
-        v:
-          (small ? 0.5 : 0.9) + Math.random() * (small ? 0.6 : 0.9),
+        v: (small ? 0.5 : 0.9) + Math.random() * (small ? 0.6 : 0.9),
         c: ["#ff6ea7", "#ff8fb7", "#ff4d6d", "#e6007a"][
           Math.floor(Math.random() * 4)
         ],
       });
     }
+
     function draw() {
       ctx.clearRect(0, 0, W, H);
-      items.forEach((h) => {
+      for (let i = 0; i < items.length; i++) {
+        const h = items[i];
         ctx.save();
         ctx.globalAlpha = 0.9;
         ctx.translate(h.x, h.y);
@@ -108,34 +110,39 @@ export default function ConnectPage() {
         ctx.fill();
         ctx.restore();
         h.y -= h.v;
-      });
+      }
       items = items.filter((h) => h.y + h.s > -40);
-      if (Math.random() < (innerWidth < 760 ? 0.06 : 0.12)) spawn();
+      if (Math.random() < (window.innerWidth < 760 ? 0.06 : 0.12)) spawn();
       rafId = requestAnimationFrame(draw);
     }
     draw();
+
     return () => {
       cancelAnimationFrame(rafId);
-      removeEventListener("resize", resize);
+      window.removeEventListener("resize", resize);
     };
   }, []);
 
-  // Fireworks
+  // -------------------- Fireworks layer --------------------
   useEffect(() => {
     startFireworks();
     return stopFireworks;
   }, []);
+
   function startFireworks() {
     const cvs = document.getElementById("fxCanvas");
     if (!cvs) return;
     const ctx = cvs.getContext("2d");
-    let W, H, ents = [];
+    let W, H;
+    let ents = [];
+
     function resize() {
-      W = cvs.width = innerWidth;
-      H = cvs.height = innerHeight;
+      W = cvs.width = window.innerWidth;
+      H = cvs.height = window.innerHeight;
     }
-    addEventListener("resize", resize);
+    window.addEventListener("resize", resize);
     resize();
+
     function rand(a, b) {
       return a + Math.random() * (b - a);
     }
@@ -145,8 +152,8 @@ export default function ConnectPage() {
       return `rgb(${(f(5) * 255) | 0},${(f(3) * 255) | 0},${(f(1) * 255) | 0})`;
     }
     function burst(x, y) {
-      const n = 60 + ((Math.random() * 40) | 0),
-        hue = Math.random() * 360;
+      const n = 60 + ((Math.random() * 40) | 0);
+      const hue = Math.random() * 360;
       for (let i = 0; i < n; i++) {
         const speed = rand(1.2, 3.2);
         const ang = ((Math.PI * 2) * i) / n + rand(-0.03, 0.03);
@@ -162,12 +169,25 @@ export default function ConnectPage() {
         });
       }
     }
+
     function tick() {
       ctx.fillStyle = "rgba(10,7,16,.22)";
       ctx.fillRect(0, 0, W, H);
-      if (Math.random() < 0.02) burst(rand(W * 0.05, W * 0.95), rand(H * 0.12, H * 0.9));
-      ents = ents.filter((p) => ((p.age += 0.016), p.age < p.life));
-      for (const p of ents) {
+
+      if (Math.random() < 0.02) {
+        burst(rand(W * 0.05, W * 0.95), rand(H * 0.12, H * 0.9));
+      }
+
+      const next = [];
+      for (let i = 0; i < ents.length; i++) {
+        const p = ents[i];
+        p.age += 0.016;
+        if (p.age < p.life) next.push(p);
+      }
+      ents = next;
+
+      for (let i = 0; i < ents.length; i++) {
+        const p = ents[i];
         p.vy += 0.5 * 0.016;
         p.x += p.vx;
         p.y += p.vy;
@@ -182,17 +202,18 @@ export default function ConnectPage() {
       fwRef.current.raf = requestAnimationFrame(tick);
     }
     tick();
+
     fwRef.current.burst = burst;
     fwRef.current.cleanup = () => {
       cancelAnimationFrame(fwRef.current.raf);
-      removeEventListener("resize", resize);
+      window.removeEventListener("resize", resize);
     };
   }
   function stopFireworks() {
-    fwRef.current.cleanup && fwRef.current.cleanup();
+    if (fwRef.current.cleanup) fwRef.current.cleanup();
   }
 
-  // ===== FIX: move file input handler out of JSX (SWC-safe), avoid ?.[0] =====
+  // -------------------- FIX: file input handler (no inline arrow) --------------------
   const handlePhotoPick = (e) => {
     try {
       const input = e && e.target ? e.target : null;
@@ -205,16 +226,14 @@ export default function ConnectPage() {
         const du = ev && ev.target ? ev.target.result : null;
         if (!du) return;
 
-        const next = Array.isArray(profile.photoDataUrls)
-          ? [...profile.photoDataUrls]
+        const prev = Array.isArray(profile.photoDataUrls)
+          ? profile.photoDataUrls
           : [];
-
-        if (next.length >= 3) {
+        if (prev.length >= 3) {
           alert("Max 3 photos");
           return;
         }
-
-        next.push(du);
+        const next = [...prev, du];
         const p = { ...profile, photoDataUrls: next };
         setProfile(p);
         try {
@@ -228,7 +247,7 @@ export default function ConnectPage() {
     } catch {}
   };
 
-  // Matching
+  // -------------------- Matching --------------------
   function startSearch(type) {
     if (isSearching || connectingRef.current) return;
     connectingRef.current = true;
@@ -239,6 +258,7 @@ export default function ConnectPage() {
         ? "🎥 Searching for a Video Chat partner..."
         : "💬 Searching for a Text Chat partner..."
     );
+
     try {
       if (!socketRef.current || !socketRef.current.connected) {
         socketRef.current = io(backendUrl, {
@@ -248,12 +268,15 @@ export default function ConnectPage() {
           reconnectionDelay: 800,
         });
       }
-      const token = (typeof window !== "undefined" && localStorage.getItem("token")) || "";
+      const token =
+        (typeof window !== "undefined" && localStorage.getItem("token")) || "";
+
       if (socketRef.current && socketRef.current.off) {
         socketRef.current.off("partnerFound");
         socketRef.current.off("partnerDisconnected");
         socketRef.current.off("connect_error");
       }
+
       socketRef.current.emit("lookingForPartner", { type, token });
 
       socketRef.current.on("partnerFound", (data) => {
@@ -274,19 +297,21 @@ export default function ConnectPage() {
           setTimeout(() => {
             window.location.href = type === "video" ? "/video" : "/chat";
           }, 120);
-        } catch (e) {
+        } catch {
           setTimeout(() => stopSearch(), 500);
         }
       });
+
       socketRef.current.on("partnerDisconnected", () => {
         alert("Partner disconnected.");
         stopSearch();
       });
+
       socketRef.current.on("connect_error", () => {
         alert("Connection error. Please try again.");
         stopSearch();
       });
-    } catch (e) {
+    } catch {
       alert("Something went wrong starting the search.");
       stopSearch();
     } finally {
@@ -295,6 +320,7 @@ export default function ConnectPage() {
       }, 300);
     }
   }
+
   function stopSearch() {
     if (socketRef.current) {
       try {
@@ -302,8 +328,9 @@ export default function ConnectPage() {
         socketRef.current.disconnect();
       } catch {}
       try {
-        socketRef.current.removeAllListeners &&
+        if (socketRef.current.removeAllListeners) {
           socketRef.current.removeAllListeners();
+        }
       } catch {}
       socketRef.current = null;
     }
@@ -312,6 +339,7 @@ export default function ConnectPage() {
     setStatusMessage("❤️ जहाँ दिल मिले, वहीं होती है शुरुआत Milan की…");
   }
 
+  // -------------------- Completeness meter --------------------
   function completeness(p = profile) {
     let s = 0;
     if (p.name) s += 18;
@@ -327,6 +355,7 @@ export default function ConnectPage() {
   }
   const percent = completeness(profile);
 
+  // -------------------- Diyas count by width --------------------
   useEffect(() => {
     function setCount() {
       const w = window.innerWidth;
@@ -356,7 +385,7 @@ export default function ConnectPage() {
       {/* Frame */}
       <div className="frame" aria-hidden />
 
-      {/* Backgrounds */}
+      {/* Background layers */}
       <canvas id="heartsCanvas" />
       <canvas
         id="fxCanvas"
@@ -396,7 +425,9 @@ export default function ConnectPage() {
           <li>💘 Love Calculator</li>
           <li
             onClick={() => {
-              try { localStorage.clear(); } catch {}
+              try {
+                localStorage.clear();
+              } catch {}
               window.location.href = "/login";
             }}
           >
@@ -413,7 +444,7 @@ export default function ConnectPage() {
         </div>
       </div>
 
-      {/* Center section */}
+      {/* Center */}
       <main className="heroWrap">
         <p className="miniGreeting">
           🌟 Wishing you a sparkling Diwali full of love, light, and unforgettable
@@ -468,18 +499,14 @@ export default function ConnectPage() {
                   a.currentTime = 0;
                   a.play();
                 } catch {}
-                const { burst } = fwRef.current;
-                const x = innerWidth / 2,
-                  y = innerHeight * 0.58;
-                for (let i = 0; i < 6; i++)
-                  setTimeout(
-                    () =>
-                      burst(
-                        x + (Math.random() * 260 - 130),
-                        y + (Math.random() * 140 - 70)
-                      ),
-                    i * 120
-                  );
+                const b = fwRef.current && fwRef.current.burst ? fwRef.current.burst : null;
+                const x = window.innerWidth / 2;
+                const y = window.innerHeight * 0.58;
+                for (let i = 0; i < 6; i++) {
+                  setTimeout(() => {
+                    if (b) b(x + (Math.random() * 260 - 130), y + (Math.random() * 140 - 70));
+                  }, i * 120);
+                }
               }}
             >
               🎆 Let’s Celebrate
@@ -487,7 +514,7 @@ export default function ConnectPage() {
           </article>
         </section>
 
-        {showLoader && <div className="status">{statusMessage}</div>}
+        {showLoader ? <div className="status">{statusMessage}</div> : null}
 
         {/* Diyas */}
         <div className="diyas" aria-hidden>
@@ -543,7 +570,7 @@ export default function ConnectPage() {
         .nav{ list-style:none; padding:0; width:100%; margin-top:18px; }
         .nav li{ padding:10px 14px; margin:6px 12px; border-radius:12px; background:rgba(255,255,255,.04); cursor:pointer; font-weight:700; }
 
-        /* Brand (desktop fixed; mobile goes static in media query) */
+        /* Brand (desktop fixed; mobile becomes static) */
         .brandBlock{
           position:fixed; left:50%; transform:translateX(-50%);
           top:120px; text-align:center; z-index:3; pointer-events:none;
@@ -664,14 +691,13 @@ export default function ConnectPage() {
 
 function Avatar() {
   const [profile, setProfile] = useState(null);
+
   useEffect(() => {
     (async () => {
       try {
-        const uid =
-          (typeof window !== "undefined" && localStorage.getItem("uid")) || "";
-        const token =
-          (typeof window !== "undefined" && localStorage.getItem("token")) ||
-          "";
+        if (typeof window === "undefined") return;
+        const uid = localStorage.getItem("uid") || "";
+        const token = localStorage.getItem("token") || "";
         if (!uid || !token) return;
         const res = await fetch(`/api/profile/${uid}`, {
           headers: { Authorization: `Bearer ${token}` },
@@ -679,19 +705,19 @@ function Avatar() {
         if (!res.ok) throw new Error("fail");
         const data = await res.json();
         setProfile(data);
-      } catch (e) {
+      } catch {
         setProfile({
-          name:
-            (typeof window !== "undefined" &&
-              localStorage.getItem("registered_name")) ||
-            "M",
+          name: (typeof window !== "undefined" && localStorage.getItem("registered_name")) || "M",
         });
       }
     })();
   }, []);
+
   if (!profile) return <div>Loading...</div>;
+
   const first =
     (profile.name && profile.name.trim().charAt(0).toUpperCase()) || "M";
+
   return profile.avatar ? (
     <img
       src={profile.avatar}
