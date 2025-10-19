@@ -5,7 +5,6 @@ export default function Navbar() {
       <a href="/login">Login</a> |{" "}
       <a href="/register">Register</a> |{" "}
       <a href="/chat">Chat</a> |{" "}
-      {/* 👇 Yaha humne Milan AI Studio ka sahi link add kar diya */}
       <a href="/ai">Milan AI Studio</a>
     </nav>
   );
