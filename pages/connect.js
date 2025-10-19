@@ -2,8 +2,6 @@
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import Head from "next/head";
 import io from "socket.io-client";
-import dynamic from "next/dynamic"; // <- for AI studio
-const DiwaliAiStudio = dynamic(() => import("../components/DiwaliAiStudio"), { ssr: false });
 
 export default function ConnectPage() {
   // ====== STATE ======
@@ -156,7 +154,7 @@ export default function ConnectPage() {
     for(let i=0;i<4;i++) setTimeout(()=>burst(x+(Math.random()*160-80),y+(Math.random()*80-40)),i*140);
   }
   function lightDiya(){ setWish(""); setWishDone(false); setShowWish(true); }
-  function submitWish(){ setWishDone(true); const {burst}=fwRef.current; burst&&burst(innerWidth*.5, innerHeight*.32); }
+  function submitWish(){ setWishDone(true); const {burst}=fwRef.current; burst&&burst(innerHeight*.5, innerHeight*.32); }
 
   // ====== UI HELPERS ======
   function completeness(p=profile){
@@ -223,13 +221,17 @@ export default function ConnectPage() {
         <div className="ctaRow">
           <button className="cta ghost"   onClick={()=>startSearch('text')}>💬 Start Text Chat</button>
           <button className="cta primary" onClick={()=>startSearch('video')}>🎥 Start Video Chat</button>
+
+          {/* NEW: Milan AI Studio (goes to /studio) */}
+          <a href="/studio" className="cta ghost">🎨 Milan AI Studio</a>
+
           <button className="cta gold"    onClick={celebrate}>🥳 Let’s Celebrate Diwali</button>
         </div>
 
         {showLoader && <div className="status">{statusMessage}</div>}
 
-        {/* ---- AI IMAGE SECTION (fills the empty space) ---- */}
-        <DiwaliAiStudio />
+        {/* Inline AI section removed as per spec */}
+        {/* <DiwaliAiStudio /> */}
 
         {/* Bottom diyas */}
         <div className="diyas">
@@ -282,7 +284,7 @@ export default function ConnectPage() {
         .diwaliHead{ margin:12px 0 6px; font-size:36px; font-weight:900; color:#ffe9ac; text-shadow:0 0 16px rgba(255,209,102,.22); }
         .lead{ max-width:820px; text-align:center; color:#cbd5e1; font-weight:600; }
         .ctaRow{ display:flex; gap:12px; margin-top:16px; flex-wrap:wrap; justify-content:center; }
-        .cta{ padding:12px 16px; border-radius:12px; font-weight:900; border:0; cursor:pointer; }
+        .cta{ padding:12px 16px; border-radius:12px; font-weight:900; border:0; cursor:pointer; display:inline-flex; align-items:center; justify-content:center; text-decoration:none; }
         .cta.primary{ background:linear-gradient(90deg,var(--rose),var(--rose2)); color:#0a0b12; box-shadow:0 12px 40px rgba(255,110,167,.18); }
         .cta.gold{ background:rgba(255,209,102,.18); color:#ffe9ac; border:1px solid rgba(255,209,102,.35); box-shadow:0 12px 36px rgba(255,209,102,.18); }
         .cta.ghost{ background:rgba(255,255,255,.06); color:#fff; border:1px solid rgba(255,255,255,.12); }
