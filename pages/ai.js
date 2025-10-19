@@ -1,3 +1,5 @@
+// pages/ai.js — FIXED for mobile tap/overlay + 100vh
+
 import { useEffect, useMemo, useRef, useState } from "react";
 
 /* ---------- LocalStorage helpers ---------- */
@@ -43,6 +45,20 @@ export default function MilanAIStudio() {
     writeLS(LS.THEME, theme);
     if (typeof document !== "undefined") document.documentElement.dataset.theme = theme;
   }, [theme]);
+
+  // ✅ Mobile 100vh fix
+  useEffect(() => {
+    const setVh = () => {
+      document.documentElement.style.setProperty("--vh", `${window.innerHeight * 0.01}px`);
+    };
+    setVh();
+    window.addEventListener("resize", setVh);
+    window.addEventListener("orientationchange", setVh);
+    return () => {
+      window.removeEventListener("resize", setVh);
+      window.removeEventListener("orientationchange", setVh);
+    };
+  }, []);
 
   // main state
   const [prompt, setPrompt] = useState("romantic cinematic portrait, warm tones, soft bokeh, masterpiece");
@@ -218,7 +234,7 @@ export default function MilanAIStudio() {
 
       <style jsx>{`
         :global(html){ box-sizing:border-box; } :global(*, *:before, *:after){ box-sizing:inherit; }
-        :global(body){ margin:0; background:var(--bg); color:var(--text); }
+        :global(body){ margin:0; background:var(--bg); color:var(--text); -webkit-tap-highlight-color:transparent; }
 
         /* THEME TOKENS */
         :global(:root[data-theme="dark"]){
@@ -232,13 +248,14 @@ export default function MilanAIStudio() {
           --input:#ffffff; --input-border:#c9d5ff;
         }
 
-        .page{ min-height:100vh; }
+        .page{ min-height:calc(var(--vh, 1vh) * 100); }
 
         /* App bar */
         .appbar{
-          position:sticky; top:0; z-index:50;
+          position:sticky; top:0; z-index:40;
           display:flex; align-items:center; gap:10px;
           padding:10px 14px; background:var(--panel); border-bottom:1px solid var(--border);
+          touch-action: manipulation;
         }
         .icon{ background:var(--chip); color:var(--muted); border:1px solid var(--chip-border); border-radius:10px; padding:8px 10px; cursor:pointer; }
         .title{ font-weight:900; letter-spacing:.02em; flex:1; color:var(--text); }
@@ -246,7 +263,7 @@ export default function MilanAIStudio() {
         :global(:root[data-theme="light"]) .pill{ background:#eef3ff; color:#10204a; border-color:#c9d5ff; }
 
         /* Layout grid */
-        .layout{ display:grid; grid-template-columns: 300px 1fr; max-width:1400px; margin:0 auto; overflow:hidden; }
+        .layout{ display:grid; grid-template-columns: 300px 1fr; max-width:1400px; margin:0 auto; overflow:hidden; position:relative; z-index:10; }
         @media (max-width: 1024px){ .layout{ grid-template-columns: 1fr; } }
 
         /* Sidebar / Drawer */
@@ -254,7 +271,7 @@ export default function MilanAIStudio() {
         .rail .overlay{ display:none; }
         .rail-inner{
           background:var(--panel); border-right:1px solid var(--border); padding:18px;
-          position:sticky; top:54px; height:calc(100vh - 54px); overflow:auto;
+          position:sticky; top:54px; height:calc((var(--vh, 1vh) * 100) - 54px); overflow:auto;
         }
         .rail-head{ display:flex; align-items:center; justify-content:space-between; }
         .brand{ display:flex; gap:8px; align-items:center; font-weight:900; letter-spacing:.02em; color:var(--text); }
@@ -262,11 +279,15 @@ export default function MilanAIStudio() {
 
         /* True drawer on small screens (fixed) */
         @media (max-width: 1024px){
-          .rail{ position:fixed; inset:0; z-index:60; } /* no pointer-events:none */
+          /* ❗ Closed state MUST NOT block taps */
+          .rail{ position:fixed; inset:0; z-index:60; pointer-events:none; }
+          .rail.open{ pointer-events:auto; } /* only clickable when open */
+
           .rail-inner{
-            position:absolute; left:-100vw; top:0; height:100vh; width:86vw; max-width:360px;
+            position:absolute; left:-100vw; top:0; height:calc(var(--vh, 1vh) * 100); width:86vw; max-width:360px;
             border-right:1px solid var(--border); background:var(--panel); padding:16px;
             transition:left .25s ease; z-index:2; /* above overlay */
+            pointer-events:auto; /* drawer itself clickable */
           }
           .rail.open .rail-inner{ left:0; }
 
@@ -288,6 +309,7 @@ export default function MilanAIStudio() {
           font-weight:700; font-size:14px; letter-spacing:.01em;
           padding:12px 12px; margin:6px 0; background:var(--chip); color:var(--text);
           border:1px solid var(--chip-border); border-radius:12px; cursor:pointer; transition:transform .06s ease, background .2s ease;
+          touch-action: manipulation;
         }
         .mode-btn span{ font-size:18px; }
         .mode-btn:hover{ background:var(--chip-active); transform:translateY(-1px); }
@@ -299,18 +321,19 @@ export default function MilanAIStudio() {
 
         .list{ display:flex; flex-direction:column; gap:6px; }
         .row{ text-align:left; background:var(--chip); color:var(--muted); border:1px solid var(--chip-border); padding:10px 12px; border-radius:10px; cursor:pointer; overflow:hidden; white-space:nowrap; text-overflow:ellipsis; font-size:13px; }
+
         .saved{ display:grid; grid-template-columns:repeat(2,1fr); gap:8px; }
         .saved img{ width:100%; border-radius:8px; border:1px solid var(--chip-border); cursor:pointer; }
 
         /* Main */
-        .main{ padding:20px 24px 36px; overflow-x:hidden; }
+        .main{ padding:20px 24px 36px; overflow-x:hidden; position:relative; z-index:10; }
         @media (max-width:640px){ .main{ padding:16px; } }
         .top{ display:flex; align-items:center; justify-content:space-between; gap:10px; margin-bottom:4px; }
         .top h1{ font-size:20px; margin:0; color:var(--text); }
         .sub{ opacity:.85; margin:4px 0 14px; }
 
         .chips{ display:flex; flex-wrap:wrap; gap:8px; margin-bottom:10px; }
-        .chip{ border:1px solid var(--chip-border); background:var(--chip); color:var(--muted); border-radius:999px; padding:6px 10px; font-size:12px; cursor:pointer; }
+        .chip{ border:1px solid var(--chip-border); background:var(--chip); color:var(--muted); border-radius:999px; padding:6px 10px; font-size:12px; cursor:pointer; touch-action: manipulation; }
         .chip.active{ background:var(--chip-active); border-color:var(--chip-active-border); }
 
         textarea{
@@ -326,8 +349,8 @@ export default function MilanAIStudio() {
         @media (max-width:640px){ .adv select, .adv .neg{ width:100%; min-width:100%; } }
 
         .actions{ display:flex; gap:10px; margin:12px 0 8px; flex-wrap:wrap; }
-        .primary{ padding:12px 16px; border-radius:12px; font-weight:900; border:0; background:linear-gradient(90deg,#ff6ea7,#ff9fb0); color:#0b0a12; box-shadow:0 10px 30px rgba(255,110,167,.2); cursor:pointer; }
-        .ghost{ padding:12px 16px; border-radius:12px; background:#2f3a55; border:1px solid var(--input-border); color:#fff; cursor:pointer; }
+        .primary{ padding:12px 16px; border-radius:12px; font-weight:900; border:0; background:linear-gradient(90deg,#ff6ea7,#ff9fb0); color:#0b0a12; box-shadow:0 10px 30px rgba(255,110,167,.2); cursor:pointer; touch-action: manipulation; }
+        .ghost{ padding:12px 16px; border-radius:12px; background:#2f3a55; border:1px solid var(--input-border); color:#fff; cursor:pointer; touch-action: manipulation; }
         :global(:root[data-theme="light"]) .ghost{ background:#e9eeff; color:#0b0f1a; }
 
         .error{ background:#3a2030; border:1px solid #5a2a3a; padding:10px; border-radius:10px; margin:8px 0; color:#ffd7de; }
