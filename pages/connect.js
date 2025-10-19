@@ -223,7 +223,7 @@ export default function ConnectPage() {
               <h3>Milan AI Studio</h3>
               <p>Create dreamy prompts & reels—love, but make it aesthetic.</p>
             </header>
-            <a href="/studio" className="cta outline">🎨 Open AI Studio</a>
+          <a href="/ai" className="cta outline">🎨 Open AI Studio</a>
           </article>
 
           <article className="featureCard celebrate">
