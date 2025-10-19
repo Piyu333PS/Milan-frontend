@@ -134,6 +134,9 @@ export default function ConnectPage() {
   }
   const percent = completeness(profile);
 
+  // Diyas array (more lamps, responsive)
+  const diyas = Array.from({ length: innerWidth > 1200 ? 9 : innerWidth > 760 ? 7 : 5 });
+
   return (
     <>
       <Head>
@@ -181,14 +184,9 @@ export default function ConnectPage() {
         </ul>
       </aside>
 
-      {/* Sticky brand bar */}
-      <header className="topbar">
-        <a href="/" className="brandLogo">Milan</a>
-      </header>
-
       {/* HERO — static no-scroll */}
       <main className="heroWrap">
-        {/* Big stylish brand (moves into the “red box” area) */}
+        {/* Big stylish brand (center, large) */}
         <div className="heroBrand">Milan</div>
 
         <h2 className="diwaliHead">Milan ki taraf se aapko Diwali ki dher saari shubhkamnaye ✨</h2>
@@ -215,12 +213,14 @@ export default function ConnectPage() {
 
         {showLoader && <div className="status">{statusMessage}</div>}
 
-        {/* Diyas bottom */}
+        {/* Diyas — centered & more lamps */}
         <div className="diyas">
-          <div className="diya"><div className="bowl"/><div className="oil"/><div className="flame"/></div>
-          <div className="diya"><div className="bowl"/><div className="oil"/><div className="flame" style={{animationDuration:'1.2s'}}/></div>
-          <div className="diya"><div className="bowl"/><div className="oil"/><div className="flame" style={{animationDuration:'1.6s'}}/></div>
-          <div className="diya"><div className="bowl"/><div className="oil"/><div className="flame" style={{animationDuration:'1.3s'}}/></div>
+          {diyas.map((_, i) => (
+            <div key={i} className="diya">
+              <div className="bowl"/><div className="oil"/>
+              <div className="flame" style={{animationDuration: `${1.2 + (i%4)*0.2}s`}}/>
+            </div>
+          ))}
         </div>
       </main>
 
@@ -240,16 +240,12 @@ export default function ConnectPage() {
           content:""; position:absolute; inset:0; border-radius:18px;
         }
         .frame::before{
-          padding:2px; background:linear-gradient(135deg, rgba(255,209,102,.85), rgba(255,209,102,.35) 40%, rgba(255,110,167,.5), rgba(255,209,102,.85));
+          padding:2px; background:linear-gradient(135deg, rgba(255,209,102,.9), rgba(255,209,102,.45) 40%, rgba(255,110,167,.55), rgba(255,209,102,.9));
           -webkit-mask:linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
-          -webkit-mask-composite:xor; mask-composite:exclude; box-shadow:0 0 24px rgba(255,209,102,.28), 0 0 46px rgba(255,110,167,.18);
+          -webkit-mask-composite:xor; mask-composite:exclude; box-shadow:0 0 24px rgba(255,209,102,.32), 0 0 46px rgba(255,110,167,.2);
           border-radius:18px;
         }
-        .frame::after{ inset:8px; border:2px solid rgba(255,209,102,.55); border-radius:14px; box-shadow:0 0 20px rgba(255,209,102,.25) inset; }
-
-        .topbar{ position:fixed; left:210px; right:22px; top:16px; height:50px; z-index:6; display:flex; align-items:center; justify-content:flex-start;
-          background:linear-gradient(180deg, rgba(255,255,255,.05), rgba(255,255,255,.02)); border:1px solid rgba(255,255,255,.10); border-radius:12px; padding:0 16px; backdrop-filter: blur(10px); }
-        .brandLogo{ font-family:'Great Vibes', cursive; font-size:28px; color:#ffe9ac; text-decoration:none; text-shadow:0 0 18px rgba(255,209,102,.3); }
+        .frame::after{ inset:8px; border:2px solid rgba(255,209,102,.6); border-radius:14px; box-shadow:0 0 20px rgba(255,209,102,.28) inset; }
 
         .sidebar{ position:fixed; left:0; top:0; bottom:0; width:200px; background:rgba(255,255,255,.04);
           backdrop-filter:blur(8px); border-right:1px solid rgba(255,255,255,.06); z-index:5; display:flex; flex-direction:column; align-items:center; padding-top:18px; }
@@ -263,15 +259,30 @@ export default function ConnectPage() {
 
         /* Full-height hero — CENTER everything, no scroll */
         .heroWrap{ position:relative; margin-left:200px; z-index:3;
-          height:100vh; display:flex; flex-direction:column; align-items:center; justify-content:center; padding:0 12px 96px; gap:14px; }
-        .heroBrand{ position:absolute; top:84px; font-family:'Great Vibes', cursive; font-size:80px; color:#ffe9ac;
-          text-shadow:0 0 24px rgba(255,209,102,.35), 0 0 42px rgba(255,110,167,.18); }
+          height:100vh; display:flex; flex-direction:column; align-items:center; justify-content:center; padding:0 12px 100px; gap:14px; }
+
+        /* Big Milan brand in center with gold gradient + glow */
+        .heroBrand{
+          position:absolute; top:70px; text-align:center;
+          font-family:'Great Vibes', cursive; font-size:120px; line-height:1;
+          background: linear-gradient(180deg, #fff5cc, #ffd166 48%, #f3b03f);
+          -webkit-background-clip: text; background-clip: text; color: transparent;
+          text-shadow: 0 0 22px rgba(255,209,102,.35), 0 0 40px rgba(255,110,167,.15);
+        }
+
         .diwaliHead{ margin:0; font-size:34px; font-weight:900; color:#ffe9ac; text-shadow:0 0 18px rgba(255,209,102,.22); letter-spacing:.3px; text-align:center; }
         .lead{ max-width:880px; text-align:center; color:#e9e5ef; opacity:.95; font-weight:600; }
 
         .ctaRow{ display:flex; gap:14px; margin-top:6px; flex-wrap:wrap; justify-content:center; align-items:flex-end; }
-        .cta{ padding:14px 18px; border-radius:14px; font-weight:900; border:0; cursor:pointer; display:inline-flex; align-items:center; justify-content:center; text-decoration:none; transition:transform .15s ease, box-shadow .15s ease; }
-        .cta:hover{ transform: translateY(-2px); }
+        .cta{
+          padding:14px 18px; border-radius:14px; font-weight:900; border:0;
+          cursor:pointer; display:inline-flex; align-items:center; justify-content:center; text-decoration:none;
+          transition:transform .14s ease, box-shadow .14s ease, filter .14s ease;
+        }
+        .cta:hover{ transform: translateY(-2px); filter: brightness(1.02); }
+        .cta:active{ transform: scale(.96); box-shadow: inset 0 0 0 9999px rgba(0,0,0,.05); }
+        .cta:focus-visible{ outline: 3px solid rgba(255,209,102,.6); outline-offset: 2px; }
+
         .cta.primary{ background:linear-gradient(90deg,var(--rose),var(--rose2)); color:#0a0b12; box-shadow:0 10px 34px rgba(255,110,167,.25); }
         .cta.ghost{ background:rgba(255,255,255,.07); color:#fff; border:1px solid rgba(255,255,255,.14); }
         .cta.outline{ background:transparent; color:#fff; border:2px solid rgba(255,110,167,.45); box-shadow:0 0 0 2px rgba(255,110,167,.12) inset; }
@@ -284,27 +295,26 @@ export default function ConnectPage() {
         .status{ margin-top:6px; font-weight:800; color:#fff; animation:blink 1s infinite; }
         @keyframes blink{0%{opacity:.3}50%{opacity:1}100%{opacity:.3}}
 
-        /* Diyas */
-        .diyas{ position:fixed; left:0; right:0; bottom:12px; display:flex; gap:28px; justify-content:center; align-items:flex-end; pointer-events:none; z-index:4; }
-        .diya{ position:relative; width:70px; height:44px; filter: drop-shadow(0 6px 14px rgba(255,128,0,.35)); }
-        .bowl{ position:absolute; inset:auto 0 0 0; height:32px; border-radius:0 0 36px 36px / 0 0 24px 24px; background:radial-gradient(120% 140% at 50% -10%, #ffb86b, #8b2c03 60%); border-top:2px solid rgba(255,255,255,.25); }
+        /* Diyas (centered, many) */
+        .diyas{ position:fixed; left:0; right:0; bottom:12px; display:flex; gap:22px; justify-content:center; align-items:flex-end; pointer-events:none; z-index:4; flex-wrap:wrap; }
+        .diya{ position:relative; width:64px; height:42px; filter: drop-shadow(0 6px 14px rgba(255,128,0,.35)); }
+        .bowl{ position:absolute; inset:auto 0 0 0; height:30px; border-radius:0 0 36px 36px / 0 0 22px 22px; background:radial-gradient(120% 140% at 50% -10%, #ffb86b, #8b2c03 60%); border-top:2px solid rgba(255,255,255,.25); }
         .oil{ position:absolute; left:8px; right:8px; bottom:18px; height:8px; border-radius:6px; background: linear-gradient(#5a1b00,#2b0a00); }
-        .flame{ position:absolute; left:50%; bottom:28px; width:18px; height:28px; transform:translateX(-50%); background: radial-gradient(50% 65% at 50% 60%, #fff7cc 0%, #ffd166 55%, #ff8c00 75%, rgba(255,0,0,0) 80%); border-radius: 12px 12px 14px 14px / 18px 18px 8px 8px; animation: flicker 1.4s infinite ease-in-out; box-shadow: 0 0 18px 6px rgba(255,173,51,.45), 0 0 36px 12px rgba(255,140,0,.15); }
+        .flame{ position:absolute; left:50%; bottom:26px; width:18px; height:26px; transform:translateX(-50%); background: radial-gradient(50% 65% at 50% 60%, #fff7cc 0%, #ffd166 55%, #ff8c00 75%, rgba(255,0,0,0) 80%); border-radius: 12px 12px 14px 14px / 18px 18px 8px 8px; animation: flicker 1.4s infinite ease-in-out; box-shadow: 0 0 18px 6px rgba(255,173,51,.45), 0 0 36px 12px rgba(255,140,0,.15); }
         .flame:before{ content:""; position:absolute; inset:4px; border-radius:inherit; background: radial-gradient(circle at 50% 70%, #fffbe6, rgba(255,255,255,0) 66%); filter: blur(1px); }
 
         /* MOBILE */
         @media(max-width:1024px){
-          .topbar{left:12px; right:12px;}
           .frame{ left:12px; right:12px; }
-          .heroBrand{ top:92px; font-size:64px; }
+          .heroBrand{ top:76px; font-size:96px; }
         }
         @media(max-width:860px){
           .sidebar{display:none;} /* mobile me clean hero */
           .heroWrap{ margin-left:0; }
         }
         @media(max-width:520px){
-          .diwaliHead{font-size:24px;} .cta{width:100%;}
-          .heroBrand{ font-size:54px; top:86px; }
+          .diwaliHead{font-size:22px;} .cta{width:100%;}
+          .heroBrand{ font-size:72px; top:86px; }
         }
       `}</style>
     </>
