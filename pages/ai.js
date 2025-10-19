@@ -40,8 +40,8 @@ const SectionTitle = ({ children }) => (
   <div className="sect">
     <h4>{children}</h4>
     <style jsx>{`
-      .sect { margin:14px 0 10px; }
-      h4 { margin:0; font-size:12px; letter-spacing:.08em; opacity:.9; text-transform:uppercase; }
+      .sect { margin:16px 0 10px; }
+      h4 { margin:0; font-size:11px; letter-spacing:.12em; opacity:.9; text-transform:uppercase; }
     `}</style>
   </div>
 );
@@ -72,15 +72,9 @@ export default function MilanAIStudio() {
     { k: "Product", v: "studio shot of a perfume bottle on reflective black surface, editorial lighting, high detail" },
   ]), []);
 
-  useEffect(() => {
-    writeLS(LS_KEYS.HISTORY, history.slice(0, 50));
-  }, [history]);
-  useEffect(() => {
-    writeLS(LS_KEYS.SAVED, saved.slice(0, 100));
-  }, [saved]);
-  useEffect(() => {
-    writeLS(LS_KEYS.SETTINGS, { size, steps, guidance });
-  }, [size, steps, guidance]);
+  useEffect(() => { writeLS(LS_KEYS.HISTORY, history.slice(0, 50)); }, [history]);
+  useEffect(() => { writeLS(LS_KEYS.SAVED, saved.slice(0, 100)); }, [saved]);
+  useEffect(() => { writeLS(LS_KEYS.SETTINGS, { size, steps, guidance }); }, [size, steps, guidance]);
   useEffect(() => {
     const s = readLS(LS_KEYS.SETTINGS, null);
     if (s) { setSize(String(s.size ?? "1024")); setSteps(s.steps ?? 25); setGuidance(s.guidance ?? 7); }
@@ -116,24 +110,31 @@ export default function MilanAIStudio() {
   }
   const onSave = (src) => setSaved((prev) => [src, ...prev.filter(s => s !== src)]);
 
-  function onKeyDown(e) {
-    if ((e.metaKey || e.ctrlKey) && e.key === "Enter") onGenerate();
-  }
+  function onKeyDown(e) { if ((e.metaKey || e.ctrlKey) && e.key === "Enter") onGenerate(); }
 
   return (
     <div className="wrap">
       {/* LEFT RAIL */}
       <aside className="rail">
-        <div className="brand">
-          <span>💖</span>
-          <strong>Milan Studio</strong>
+        <div className="rail-top">
+          <div className="brand">
+            <span>💖</span>
+            <strong>Milan Studio</strong>
+          </div>
+          <a className="back" href="/connect">← Back to Dashboard</a>
         </div>
 
-        <SectionTitle>Modes</SectionTitle>
-        <div className="mode-row">
-          <Chip active={mode === "txt2img"} onClick={() => setMode("txt2img")}>✍️ Text → Image</Chip>
-          <Chip active={mode === "img2img"} onClick={() => alert("Coming soon!")}>🖼️ Image → Image</Chip>
-          <Chip active={mode === "prompter"} onClick={() => alert("Prompt Helper soon!")}>🧠 Prompt Helper</Chip>
+        <div className="modes">
+          <div className="modes-badge">MODES</div>
+          <button className={`mode-btn ${mode==="txt2img"?"active":""}`} onClick={()=>setMode("txt2img")}>
+            <span>✍️</span> Text → Image
+          </button>
+          <button className={`mode-btn ${mode==="img2img"?"active":""}`} onClick={()=>alert("Image → Image coming soon!")}>
+            <span>🖼️</span> Image → Image
+          </button>
+          <button className={`mode-btn ${mode==="prompter"?"active":""}`} onClick={()=>alert("Prompt Helper coming soon!")}>
+            <span>🧠</span> Prompt Helper
+          </button>
         </div>
 
         <SectionTitle>History</SectionTitle>
@@ -161,9 +162,7 @@ export default function MilanAIStudio() {
       <main className="main">
         <header className="top">
           <h1>💖 Milan AI Studio — Text → Image</h1>
-          <div className="right-actions">
-            <a className="pill" href="/">Home</a>
-          </div>
+          {/* removed old Home button */}
         </header>
 
         <p className="sub">Describe your image below and hit generate.</p>
@@ -241,39 +240,78 @@ export default function MilanAIStudio() {
 
       {/* --------- Styles --------- */}
       <style jsx>{`
-        .wrap { display:grid; grid-template-columns: 280px 1fr; min-height:100vh; background:#0b0f1a; color:#fff; }
-        @media (max-width: 980px){ .wrap{ grid-template-columns: 1fr; } .rail{ position:static; height:auto; } }
+        /* Global layout */
+        .wrap {
+          display:grid; grid-template-columns: 300px 1fr; min-height:100vh;
+          background:#0b0f1a; color:#fff;
+        }
+        @media (max-width: 1024px){ .wrap{ grid-template-columns: 1fr; } .rail{ position:static; height:auto; } }
 
-        .rail { background:#0e1323; border-right:1px solid #1e2741; padding:16px; position:sticky; top:0; height:100vh; overflow:auto; }
-        .brand { display:flex; gap:8px; align-items:center; font-weight:900; letter-spacing:.02em; margin-bottom:10px; }
-        .mode-row { display:flex; flex-wrap:wrap; gap:8px; }
-        .chip { border:1px solid #354266; background:#121a30; color:#dbe7ff; border-radius:999px; padding:6px 10px; font-size:12px; cursor:pointer; }
-        .chip.active { background:#26334f; border-color:#44537a; }
+        /* Sidebar */
+        .rail { background:#0e1323; border-right:1px solid #1e2741; padding:18px; position:sticky; top:0; height:100vh; overflow:auto; }
+        .rail-top { display:flex; flex-direction:column; gap:10px; margin-bottom:8px; }
+        .brand { display:flex; gap:8px; align-items:center; font-weight:900; letter-spacing:.02em; }
+        .back { align-self:flex-start; font-size:12px; color:#cfe1ff; text-decoration:none; border:1px solid #394a75; background:#11162a; padding:6px 10px; border-radius:999px; }
+        .back:hover { background:#162041; }
+
+        .modes { margin-top:12px; }
+        .modes-badge {
+          display:inline-block; font-size:11px; letter-spacing:.14em; padding:6px 10px;
+          border:1px solid #44537a; border-radius:999px; background:#121a30; color:#dbe7ff; margin-bottom:10px;
+        }
+        .mode-btn {
+          width:100%; display:flex; align-items:center; gap:10px;
+          font-weight:700; font-size:14px; letter-spacing:.01em;
+          padding:12px 12px; margin:6px 0;
+          background:#10172c; color:#e7efff;
+          border:1px solid #3a4a76; border-radius:12px; cursor:pointer;
+          transition:transform .06s ease, background .2s ease;
+        }
+        .mode-btn span { font-size:18px; }
+        .mode-btn:hover { background:#172340; transform:translateY(-1px); }
+        .mode-btn.active { background:#26334f; border-color:#5170b5; }
+
         .list { display:flex; flex-direction:column; gap:6px; }
-        .row { text-align:left; background:#0f1529; color:#cfe1ff; border:1px solid #273255; padding:8px 10px; border-radius:10px; cursor:pointer; overflow:hidden; white-space:nowrap; text-overflow:ellipsis; }
+        .row { text-align:left; background:#0f1529; color:#cfe1ff; border:1px solid #273255; padding:10px 12px; border-radius:10px; cursor:pointer; overflow:hidden; white-space:nowrap; text-overflow:ellipsis; font-size:13px; }
         .saved { display:grid; grid-template-columns:repeat(2,1fr); gap:8px; }
         .saved img { width:100%; border-radius:8px; border:1px solid #273255; cursor:pointer; }
 
-        .main { padding:22px; max-width:1100px; width:100%; }
-        .top { display:flex; align-items:center; justify-content:space-between; gap:10px; }
+        /* Main area */
+        .main { padding:28px 28px 40px; max-width:1200px; width:100%; margin:0 auto; }
+        .top { display:flex; align-items:center; justify-content:space-between; gap:10px; margin-bottom:4px; }
         .top h1 { font-size:22px; margin:0; }
-        .right-actions .pill { border:1px solid #394a75; background:#11162a; color:#cfe1ff; text-decoration:none; padding:6px 10px; border-radius:999px; font-size:12px; }
-        .sub { opacity:.85; margin:4px 0 12px; }
+        .sub { opacity:.85; margin:4px 0 14px; }
 
-        textarea { width:100%; background:#0f1320; border:1px solid #3a4157; color:#fff; border-radius:12px; padding:12px; min-height:90px; }
-        .adv { display:flex; gap:10px; align-items:center; flex-wrap:wrap; margin:10px 0; }
+        .chips { display:flex; flex-wrap:wrap; gap:8px; margin-bottom:10px; }
+        .chip { border:1px solid #354266; background:#121a30; color:#dbe7ff; border-radius:999px; padding:6px 10px; font-size:12px; cursor:pointer; }
+        .chip.active { background:#26334f; border-color:#44537a; }
+
+        textarea {
+          width:100%; background:#0f1320; border:1px solid #3a4157; color:#fff; border-radius:12px; padding:12px; min-height:110px;
+        }
+
+        .adv { display:flex; gap:10px; align-items:center; flex-wrap:wrap; margin:12px 0 6px; }
         .adv select { background:#0f1320; border:1px solid #3a4157; color:#fff; border-radius:10px; padding:8px 10px; }
         .adv label { display:flex; align-items:center; gap:8px; background:#0f1320; border:1px solid #3a4157; border-radius:10px; padding:4px 8px; font-size:12px; }
         .adv input[type="range"]{ accent-color:#e91e63; }
         .adv .neg { flex:1; min-width:220px; background:#0f1320; border:1px solid #3a4157; color:#fff; border-radius:10px; padding:8px 10px; }
 
-        .actions { display:flex; gap:10px; margin:10px 0 8px; }
+        .actions { display:flex; gap:10px; margin:10px 0 8px; flex-wrap:wrap; }
         .primary { padding:10px 14px; border-radius:12px; font-weight:900; border:0; background:linear-gradient(90deg,#ff6ea7,#ff9fb0); color:#0b0a12; box-shadow:0 10px 30px rgba(255,110,167,.2); cursor:pointer; }
         .ghost { padding:10px 14px; border-radius:12px; background:#2f3a55; border:1px solid #3a4157; color:#fff; cursor:pointer; }
 
         .error { background:#3a2030; border:1px solid #5a2a3a; padding:10px; border-radius:10px; margin:8px 0; }
 
         .grid { display:grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap:14px; margin-top:12px; }
+
+        /* Mobile polish */
+        @media (max-width: 640px){
+          .main { padding:20px 16px 28px; }
+          .top h1 { font-size:18px; }
+          textarea { min-height:94px; }
+          .mode-btn { font-size:13px; padding:10px 10px; }
+          .saved { grid-template-columns:1fr; }
+        }
       `}</style>
     </div>
   );
