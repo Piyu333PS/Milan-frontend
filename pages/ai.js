@@ -121,7 +121,14 @@ export default function MilanAIStudio() {
     <div className="page">
       {/* App bar */}
       <div className="appbar">
-        <button className="icon" aria-label="Open menu" onClick={()=>setDrawer(true)}>☰</button>
+<button
+  className="icon"
+  aria-label="Toggle menu"
+  aria-expanded={drawer}
+  onClick={()=>setDrawer(d => !d)}
+>
+  ☰
+</button>
         <div className="title">💖 Milan Studio</div>
         <a className="pill" href="/connect">← Back to Dashboard</a>
       </div>
