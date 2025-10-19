@@ -158,12 +158,12 @@ export default function ConnectPage() {
 
       {/* Backgrounds */}
       <canvas id="heartsCanvas"/>
-      <canvas id="fxCanvas" style={{position:'fixed',inset:0,zIndex:1,pointerEvents:'none'}}/>
+      <canvas id="fxCanvas" style={{position:'fixed',inset:0,zIndex:0,pointerEvents:'none'}}/>
       <audio id="bellAudio" preload="auto">
         <source src="https://cdn.pixabay.com/download/audio/2022/03/15/audio_4c76d6de8a.mp3?filename=soft-bell-ambient-10473.mp3" type="audio/mpeg"/>
       </audio>
 
-      {/* Sidebar */}
+      {/* Sidebar (desktop only) */}
       <aside className="sidebar">
         <div className="profileTop">
           <div className="avatarWrap"><Avatar /></div>
@@ -260,13 +260,14 @@ export default function ConnectPage() {
         }
         html,body{
           margin:0; padding:0; height:100%;
-          overflow:hidden; /* desktop keeps hero framed with no page scroll */
+          overflow:hidden; /* desktop: no page scroll */
           background:
             radial-gradient(1200px 600px at 20% 10%, rgba(255,110,167,.10), transparent 60%),
             radial-gradient(900px 500px at 90% 20%, rgba(255,110,167,.06), transparent 60%),
             #08060c; color:#f7f7fb; font-family:Poppins, system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, sans-serif;
         }
-        #heartsCanvas,#fxCanvas{ position:fixed; inset:0; pointer-events:none; z-index:1; }
+        #heartsCanvas{ position:fixed; inset:0; z-index:0; pointer-events:none; }
+        #fxCanvas{ position:fixed; inset:0; z-index:0; pointer-events:none; }
 
         /* Frame */
         .frame{ position:fixed; top:10px; bottom:10px; right:10px; left:210px; z-index:2; pointer-events:none; }
@@ -281,7 +282,7 @@ export default function ConnectPage() {
 
         /* Sidebar */
         .sidebar{ position:fixed; left:0; top:0; bottom:0; width:200px; background:rgba(255,255,255,.04);
-          backdrop-filter:blur(8px); border-right:1px solid rgba(255,255,255,.06); z-index:5; display:flex; flex-direction:column; align-items:center; padding-top:18px; }
+          backdrop-filter:blur(8px); border-right:1px solid rgba(255,255,255,.06); z-index:3; display:flex; flex-direction:column; align-items:center; padding-top:18px; }
         .avatarWrap{ width:70px; height:70px; border-radius:50%; overflow:hidden; box-shadow:0 6px 18px rgba(0,0,0,.35); }
         .name{ margin-top:8px; font-weight:800; }
         .meter{ width:140px; height:8px; background:rgba(255,255,255,.1); border-radius:8px; margin-top:6px; overflow:hidden; }
@@ -290,10 +291,10 @@ export default function ConnectPage() {
         .nav{ list-style:none; padding:0; width:100%; margin-top:18px; }
         .nav li{ padding:10px 14px; margin:6px 12px; border-radius:12px; background:rgba(255,255,255,.04); cursor:pointer; font-weight:700; }
 
-        /* Brand (desktop: fixed) */
+        /* Brand (desktop fixed; mobile goes static in media query) */
         .brandBlock{
           position:fixed; left:50%; transform:translateX(-50%);
-          top:120px; text-align:center; z-index:4; pointer-events:none;
+          top:120px; text-align:center; z-index:3; pointer-events:none;
         }
         .heroBrand{
           font-family:'Great Vibes', cursive; font-size:116px; line-height:1.02;
@@ -325,6 +326,7 @@ export default function ConnectPage() {
           color:#ffe9ac; text-shadow:0 0 14px rgba(255,209,102,.22);
           margin:0;
         }
+
         .featuresGrid{
           width:min(980px, calc(100vw - 260px));
           display:grid; grid-template-columns:repeat(2, minmax(260px, 1fr));
@@ -355,6 +357,7 @@ export default function ConnectPage() {
         .cta:hover{ transform: translateY(-2px); filter: brightness(1.02); }
         .cta:active{ transform: scale(.97); box-shadow: inset 0 0 0 9999px rgba(0,0,0,.05); }
         .cta:focus-visible{ outline: 3px solid rgba(255,209,102,.6); outline-offset: 2px; }
+
         .cta.primary{ background:linear-gradient(90deg,var(--rose),var(--rose2)); color:#0a0b12; box-shadow:0 10px 34px rgba(255,110,167,.25); }
         .cta.ghost{ background:rgba(255,255,255,.07); color:#fff; border:1px solid rgba(255,255,255,.14); }
         .cta.outline{ background:transparent; color:#fff; border:2px solid rgba(255,110,167,.45); box-shadow:0 0 0 2px rgba(255,110,167,.12) inset; }
@@ -363,15 +366,15 @@ export default function ConnectPage() {
         .status{ font-weight:800; color:#fff; animation:blink 1s infinite; }
         @keyframes blink{0%{opacity:.3}50%{opacity:1}100%{opacity:.3}}
 
-        /* Diyas */
-        .diyas{ position:fixed; left:0; right:0; bottom:12px; display:flex; gap:22px; justify-content:center; align-items:flex-end; pointer-events:none; z-index:4; flex-wrap:wrap; }
+        /* Diyas — keep behind content to avoid overlap */
+        .diyas{ position:fixed; left:0; right:0; bottom:12px; display:flex; gap:22px; justify-content:center; align-items:flex-end; pointer-events:none; z-index:1; flex-wrap:wrap; }
         .diya{ position:relative; width:64px; height:42px; filter: drop-shadow(0 6px 14px rgba(255,128,0,.35)); }
         .bowl{ position:absolute; inset:auto 0 0 0; height:30px; border-radius:0 0 36px 36px / 0 0 22px 22px; background:radial-gradient(120% 140% at 50% -10%, #ffb86b, #8b2c03 60%); border-top:2px solid rgba(255,255,255,.25); }
         .oil{ position:absolute; left:8px; right:8px; bottom:18px; height:8px; border-radius:6px; background: linear-gradient(#5a1b00,#2b0a00); }
         .flame{ position:absolute; left:50%; bottom:26px; width:18px; height:26px; transform:translateX(-50%); background: radial-gradient(50% 65% at 50% 60%, #fff7cc 0%, #ffd166 55%, #ff8c00 75%, rgba(255,0,0,0) 80%); border-radius: 12px 12px 14px 14px / 18px 18px 8px 8px; animation: flicker 1.4s infinite ease-in-out; box-shadow: 0 0 18px 6px rgba(255,173,51,.45), 0 0 36px 12px rgba(255,140,0,.15); }
         .flame:before{ content:""; position:absolute; inset:4px; border-radius:inherit; background: radial-gradient(circle at 50% 70%, #fffbe6, rgba(255,255,255,0) 66%); filter: blur(1px); }
 
-        /* ===== MOBILE FIXES ===== */
+        /* ===== Mobile fixes ===== */
         @media(max-width:1024px){
           :root{ --brandH: 160px; --bottomH: 110px; }
           .frame{ left:12px; right:12px; }
@@ -386,20 +389,22 @@ export default function ConnectPage() {
           .featuresGrid{ width:min(980px, calc(100vw - 48px)); grid-template-columns:1fr 1fr; }
         }
         @media(max-width:560px){
-          :root{ --brandH: 138px; --bottomH: 140px; } /* more bottom room so diyas don't cover buttons */
-          html,body{ overflow:auto; }                /* ENABLE SCROLL on mobile */
-          .brandBlock{                               /* avoid overlap: sticky instead of fixed */
-            position:sticky; top:8px; transform:translateX(-50%); z-index:4; pointer-events:none;
+          :root{ --brandH: 0px; --bottomH: 160px; }  /* bottom space bigger so diyas never cover buttons */
+          html,body{ overflow:auto; }                /* enable page scroll */
+          .brandBlock{                               
+            position:static;                         /* brand is now PART of page flow */
+            transform:none; top:auto; margin:16px 0 4px;
+            pointer-events:none; text-align:center;
           }
-          .heroBrand{ font-size:72px; }
-          .brandTagline{ font-size:16px; }
+          .heroBrand{ font-size:64px; }
+          .brandTagline{ font-size:15px; }
           .heroWrap{
-            padding: calc(var(--brandH) + 10px) 12px var(--bottomH);  /* reserve space for brand + diyas */
+            padding: 8px 12px var(--bottomH);        /* top spacing small because brand sits above */
             justify-content:flex-start; gap:14px;
           }
-          .featuresGrid{ grid-template-columns:1fr; }
+          .featuresGrid{ grid-template-columns:1fr; width:min(980px, calc(100vw - 28px)); }
           .cta{ width:100%; }
-          .miniGreeting{ padding:0 8px; }
+          .miniGreeting{ padding:0 6px; }
         }
       `}</style>
     </>
