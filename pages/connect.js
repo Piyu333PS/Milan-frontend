@@ -5,12 +5,20 @@ import io from "socket.io-client";
 
 export default function ConnectPage() {
   const [profile, setProfile] = useState({
-    name: "", contact: "", photoDataUrls: [], interests: [],
-    age: "", city: "", language: "", bio: ""
+    name: "",
+    contact: "",
+    photoDataUrls: [],
+    interests: [],
+    age: "",
+    city: "",
+    language: "",
+    bio: "",
   });
   const [isSearching, setIsSearching] = useState(false);
   const [showLoader, setShowLoader] = useState(false);
-  const [statusMessage, setStatusMessage] = useState("❤️ जहाँ दिल मिले, वहीं होती है शुरुआत Milan की…");
+  const [statusMessage, setStatusMessage] = useState(
+    "❤️ जहाँ दिल मिले, वहीं होती है शुरुआत Milan की…"
+  );
   const [diyaCount, setDiyaCount] = useState(7);
 
   const fwRef = useRef({ raf: null, burst: () => {}, cleanup: null });
@@ -18,22 +26,33 @@ export default function ConnectPage() {
   const partnerRef = useRef(null);
   const connectingRef = useRef(false);
   const backendUrl = useMemo(
-    () => process.env.NEXT_PUBLIC_BACKEND_URL || "https://milan-j9u9.onrender.com",
+    () =>
+      process.env.NEXT_PUBLIC_BACKEND_URL ||
+      "https://milan-j9u9.onrender.com",
     []
   );
 
   // Load profile
   useEffect(() => {
     try {
-      const saved = localStorage.getItem("milan_profile");
+      const saved = typeof window !== "undefined" && localStorage.getItem("milan_profile");
       if (saved) {
         const p = JSON.parse(saved);
-        setProfile(prev => ({ ...prev, ...p, photoDataUrls: p.photoDataUrls || [], interests: p.interests || [] }));
-      } else {
-        setProfile(p => ({
+        setProfile((prev) => ({
+          ...prev,
           ...p,
-          name: localStorage.getItem("registered_name") || "",
-          contact: localStorage.getItem("registered_contact") || ""
+          photoDataUrls: p.photoDataUrls || [],
+          interests: p.interests || [],
+        }));
+      } else {
+        setProfile((p) => ({
+          ...p,
+          name:
+            (typeof window !== "undefined" && localStorage.getItem("registered_name")) ||
+            "",
+          contact:
+            (typeof window !== "undefined" && localStorage.getItem("registered_contact")) ||
+            "",
         }));
       }
     } catch {}
@@ -42,95 +61,269 @@ export default function ConnectPage() {
   // Hearts BG
   useEffect(() => {
     const cvs = document.getElementById("heartsCanvas");
-    if (!cvs) return; const ctx = cvs.getContext("2d"); if (!ctx) return;
-    let W, H, rafId, dpr = Math.max(1, window.devicePixelRatio || 1), items = [];
-    function resize(){ W=cvs.width=Math.round(innerWidth*dpr); H=cvs.height=Math.round(innerHeight*dpr);
-      cvs.style.width=innerWidth+"px"; cvs.style.height=innerHeight+"px"; ctx.setTransform(dpr,0,0,dpr,0,0); }
-    resize(); addEventListener("resize", resize);
-    function spawn(){ const small=innerWidth<760; const size=(small?6:10)+Math.random()*(small?16:22);
-      items.push({x:Math.random()*innerWidth,y:innerHeight+size,s:size,v:(small?0.5:0.9)+Math.random()*(small?0.6:0.9),c:["#ff6ea7","#ff8fb7","#ff4d6d","#e6007a"][Math.floor(Math.random()*4)]}); }
-    function draw(){ ctx.clearRect(0,0,W,H);
-      items.forEach(h=>{ ctx.save(); ctx.globalAlpha=.9; ctx.translate(h.x,h.y); ctx.rotate(Math.sin(h.y/40)*.03);
-        ctx.fillStyle=h.c; const s=h.s; ctx.beginPath(); ctx.moveTo(0,0); ctx.bezierCurveTo(s/2,-s,s*1.5,s/3,0,s); ctx.bezierCurveTo(-s*1.5,s/3,-s/2,-s,0,0); ctx.fill(); ctx.restore(); h.y-=h.v; });
-      items=items.filter(h=>h.y+h.s>-40);
-      if(Math.random()<(innerWidth<760?0.06:0.12)) spawn(); rafId=requestAnimationFrame(draw); }
+    if (!cvs) return;
+    const ctx = cvs.getContext("2d");
+    if (!ctx) return;
+    let W,
+      H,
+      rafId,
+      dpr = Math.max(1, window.devicePixelRatio || 1),
+      items = [];
+    function resize() {
+      W = cvs.width = Math.round(innerWidth * dpr);
+      H = cvs.height = Math.round(innerHeight * dpr);
+      cvs.style.width = innerWidth + "px";
+      cvs.style.height = innerHeight + "px";
+      ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    }
+    resize();
+    addEventListener("resize", resize);
+    function spawn() {
+      const small = innerWidth < 760;
+      const size = (small ? 6 : 10) + Math.random() * (small ? 16 : 22);
+      items.push({
+        x: Math.random() * innerWidth,
+        y: innerHeight + size,
+        s: size,
+        v:
+          (small ? 0.5 : 0.9) + Math.random() * (small ? 0.6 : 0.9),
+        c: ["#ff6ea7", "#ff8fb7", "#ff4d6d", "#e6007a"][
+          Math.floor(Math.random() * 4)
+        ],
+      });
+    }
+    function draw() {
+      ctx.clearRect(0, 0, W, H);
+      items.forEach((h) => {
+        ctx.save();
+        ctx.globalAlpha = 0.9;
+        ctx.translate(h.x, h.y);
+        ctx.rotate(Math.sin(h.y / 40) * 0.03);
+        ctx.fillStyle = h.c;
+        const s = h.s;
+        ctx.beginPath();
+        ctx.moveTo(0, 0);
+        ctx.bezierCurveTo(s / 2, -s, s * 1.5, s / 3, 0, s);
+        ctx.bezierCurveTo(-s * 1.5, s / 3, -s / 2, -s, 0, 0);
+        ctx.fill();
+        ctx.restore();
+        h.y -= h.v;
+      });
+      items = items.filter((h) => h.y + h.s > -40);
+      if (Math.random() < (innerWidth < 760 ? 0.06 : 0.12)) spawn();
+      rafId = requestAnimationFrame(draw);
+    }
     draw();
-    return ()=>{ cancelAnimationFrame(rafId); removeEventListener("resize", resize); };
+    return () => {
+      cancelAnimationFrame(rafId);
+      removeEventListener("resize", resize);
+    };
   }, []);
 
   // Fireworks
-  useEffect(() => { startFireworks(); return stopFireworks; }, []);
-  function startFireworks(){
-    const cvs=document.getElementById("fxCanvas"); if(!cvs) return;
-    const ctx=cvs.getContext("2d"); let W,H,ents=[];
-    function resize(){ W=cvs.width=innerWidth; H=cvs.height=innerHeight; }
-    addEventListener("resize",resize); resize();
-    function rand(a,b){return a+Math.random()*(b-a);}
-    function hsv(h,s,v){ const f=(n,k=(n+h/60)%6)=>v-v*s*Math.max(Math.min(k,4-k,1),0); return `rgb(${(f(5)*255)|0},${(f(3)*255)|0},${(f(1)*255)|0})`; }
-    function burst(x,y){ const n=60+((Math.random()*40)|0), hue=Math.random()*360;
-      for(let i=0;i<n;i++){ const speed=rand(1.2,3.2); const ang=((Math.PI*2)*i)/n+rand(-0.03,0.03);
-        ents.push({x,y,vx:Math.cos(ang)*speed,vy:Math.sin(ang)*speed-rand(0.2,0.6),life:rand(0.9,1.4),age:0,color:hsv(hue+rand(-20,20),0.9,1),r:rand(1,2.2)});
-      } }
-    function tick(){
-      ctx.fillStyle="rgba(10,7,16,.22)"; ctx.fillRect(0,0,W,H);
-      if(Math.random()<0.02) burst(rand(W*.05,W*.95),rand(H*.12,H*.9));
-      ents=ents.filter(p=>((p.age+=0.016),p.age<p.life));
-      for(const p of ents){ p.vy+=0.5*0.016; p.x+=p.vx; p.y+=p.vy; const a=1-p.age/p.life;
-        ctx.beginPath(); ctx.arc(p.x,p.y,p.r,0,Math.PI*2);
-        ctx.fillStyle=p.color.replace("rgb","rgba").replace(")",`,`+a.toFixed(2)+`)`); ctx.fill();
+  useEffect(() => {
+    startFireworks();
+    return stopFireworks;
+  }, []);
+  function startFireworks() {
+    const cvs = document.getElementById("fxCanvas");
+    if (!cvs) return;
+    const ctx = cvs.getContext("2d");
+    let W, H, ents = [];
+    function resize() {
+      W = cvs.width = innerWidth;
+      H = cvs.height = innerHeight;
+    }
+    addEventListener("resize", resize);
+    resize();
+    function rand(a, b) {
+      return a + Math.random() * (b - a);
+    }
+    function hsv(h, s, v) {
+      const f = (n, k = (n + h / 60) % 6) =>
+        v - v * s * Math.max(Math.min(k, 4 - k, 1), 0);
+      return `rgb(${(f(5) * 255) | 0},${(f(3) * 255) | 0},${(f(1) * 255) | 0})`;
+    }
+    function burst(x, y) {
+      const n = 60 + ((Math.random() * 40) | 0),
+        hue = Math.random() * 360;
+      for (let i = 0; i < n; i++) {
+        const speed = rand(1.2, 3.2);
+        const ang = ((Math.PI * 2) * i) / n + rand(-0.03, 0.03);
+        ents.push({
+          x,
+          y,
+          vx: Math.cos(ang) * speed,
+          vy: Math.sin(ang) * speed - rand(0.2, 0.6),
+          life: rand(0.9, 1.4),
+          age: 0,
+          color: hsv(hue + rand(-20, 20), 0.9, 1),
+          r: rand(1, 2.2),
+        });
       }
-      fwRef.current.raf=requestAnimationFrame(tick);
-    } tick();
-    fwRef.current.burst=burst; fwRef.current.cleanup=()=>{ cancelAnimationFrame(fwRef.current.raf); removeEventListener("resize",resize); };
+    }
+    function tick() {
+      ctx.fillStyle = "rgba(10,7,16,.22)";
+      ctx.fillRect(0, 0, W, H);
+      if (Math.random() < 0.02) burst(rand(W * 0.05, W * 0.95), rand(H * 0.12, H * 0.9));
+      ents = ents.filter((p) => ((p.age += 0.016), p.age < p.life));
+      for (const p of ents) {
+        p.vy += 0.5 * 0.016;
+        p.x += p.vx;
+        p.y += p.vy;
+        const a = 1 - p.age / p.life;
+        ctx.beginPath();
+        ctx.arc(p.x, p.y, p.r, 0, Math.PI * 2);
+        ctx.fillStyle = p.color
+          .replace("rgb", "rgba")
+          .replace(")", `,${a.toFixed(2)})`);
+        ctx.fill();
+      }
+      fwRef.current.raf = requestAnimationFrame(tick);
+    }
+    tick();
+    fwRef.current.burst = burst;
+    fwRef.current.cleanup = () => {
+      cancelAnimationFrame(fwRef.current.raf);
+      removeEventListener("resize", resize);
+    };
   }
-  function stopFireworks(){ fwRef.current.cleanup && fwRef.current.cleanup(); }
+  function stopFireworks() {
+    fwRef.current.cleanup && fwRef.current.cleanup();
+  }
+
+  // ===== FIX: move file input handler out of JSX (SWC-safe), avoid ?.[0] =====
+  const handlePhotoPick = (e) => {
+    try {
+      const input = e && e.target ? e.target : null;
+      const files = input && input.files ? input.files : null;
+      const f = files && files.length ? files[0] : null;
+      if (!f) return;
+
+      const r = new FileReader();
+      r.onload = (ev) => {
+        const du = ev && ev.target ? ev.target.result : null;
+        if (!du) return;
+
+        const next = Array.isArray(profile.photoDataUrls)
+          ? [...profile.photoDataUrls]
+          : [];
+
+        if (next.length >= 3) {
+          alert("Max 3 photos");
+          return;
+        }
+
+        next.push(du);
+        const p = { ...profile, photoDataUrls: next };
+        setProfile(p);
+        try {
+          localStorage.setItem("milan_profile", JSON.stringify(p));
+        } catch {}
+      };
+      r.readAsDataURL(f);
+    } catch {}
+    try {
+      if (e && e.target) e.target.value = "";
+    } catch {}
+  };
 
   // Matching
-  function startSearch(type){
-    if(isSearching||connectingRef.current) return;
-    connectingRef.current=true;
-    setIsSearching(true); setShowLoader(true);
-    setStatusMessage(type==="video"?"🎥 Searching for a Video Chat partner...":"💬 Searching for a Text Chat partner...");
-    try{
-      if(!socketRef.current||!socketRef.current.connected){
-        socketRef.current=io(backendUrl,{transports:["websocket","polling"],reconnection:true,reconnectionAttempts:10,reconnectionDelay:800});
+  function startSearch(type) {
+    if (isSearching || connectingRef.current) return;
+    connectingRef.current = true;
+    setIsSearching(true);
+    setShowLoader(true);
+    setStatusMessage(
+      type === "video"
+        ? "🎥 Searching for a Video Chat partner..."
+        : "💬 Searching for a Text Chat partner..."
+    );
+    try {
+      if (!socketRef.current || !socketRef.current.connected) {
+        socketRef.current = io(backendUrl, {
+          transports: ["websocket", "polling"],
+          reconnection: true,
+          reconnectionAttempts: 10,
+          reconnectionDelay: 800,
+        });
       }
-      const token=localStorage.getItem("token")||"";
-      socketRef.current.off&&socketRef.current.off("partnerFound");
-      socketRef.current.off&&socketRef.current.off("partnerDisconnected");
-      socketRef.current.off&&socketRef.current.off("connect_error");
-      socketRef.current.emit("lookingForPartner",{type,token});
+      const token = (typeof window !== "undefined" && localStorage.getItem("token")) || "";
+      if (socketRef.current && socketRef.current.off) {
+        socketRef.current.off("partnerFound");
+        socketRef.current.off("partnerDisconnected");
+        socketRef.current.off("connect_error");
+      }
+      socketRef.current.emit("lookingForPartner", { type, token });
 
-      socketRef.current.on("partnerFound",(data)=>{
-        try{
-          const roomCode=data?.roomCode||""; partnerRef.current=data?.partner||{};
-          if(!roomCode){ setTimeout(()=>stopSearch(),800); return; }
-          sessionStorage.setItem("partnerData",JSON.stringify(partnerRef.current));
-          sessionStorage.setItem("roomCode",roomCode);
-          localStorage.setItem("lastRoomCode",roomCode);
+      socketRef.current.on("partnerFound", (data) => {
+        try {
+          const roomCode = data && data.roomCode ? data.roomCode : "";
+          partnerRef.current = data && data.partner ? data.partner : {};
+          if (!roomCode) {
+            setTimeout(() => stopSearch(), 800);
+            return;
+          }
+          sessionStorage.setItem(
+            "partnerData",
+            JSON.stringify(partnerRef.current)
+          );
+          sessionStorage.setItem("roomCode", roomCode);
+          localStorage.setItem("lastRoomCode", roomCode);
           setStatusMessage("💖 Milan Successful!");
-          setTimeout(()=>{ window.location.href = type==="video"?"/video":"/chat"; },120);
-        }catch(e){ setTimeout(()=>stopSearch(),500); }
+          setTimeout(() => {
+            window.location.href = type === "video" ? "/video" : "/chat";
+          }, 120);
+        } catch (e) {
+          setTimeout(() => stopSearch(), 500);
+        }
       });
-      socketRef.current.on("partnerDisconnected",()=>{ alert("Partner disconnected."); stopSearch(); });
-      socketRef.current.on("connect_error",()=>{ alert("Connection error. Please try again."); stopSearch(); });
-    }catch(e){ alert("Something went wrong starting the search."); stopSearch(); }
-    finally{ setTimeout(()=>{ connectingRef.current=false; },300); }
-  }
-  function stopSearch(){
-    if(socketRef.current){
-      try{ socketRef.current.emit("disconnectByUser"); socketRef.current.disconnect(); }catch{}
-      try{ socketRef.current.removeAllListeners && socketRef.current.removeAllListeners(); }catch{}
-      socketRef.current=null;
+      socketRef.current.on("partnerDisconnected", () => {
+        alert("Partner disconnected.");
+        stopSearch();
+      });
+      socketRef.current.on("connect_error", () => {
+        alert("Connection error. Please try again.");
+        stopSearch();
+      });
+    } catch (e) {
+      alert("Something went wrong starting the search.");
+      stopSearch();
+    } finally {
+      setTimeout(() => {
+        connectingRef.current = false;
+      }, 300);
     }
-    setIsSearching(false); setShowLoader(false);
+  }
+  function stopSearch() {
+    if (socketRef.current) {
+      try {
+        socketRef.current.emit("disconnectByUser");
+        socketRef.current.disconnect();
+      } catch {}
+      try {
+        socketRef.current.removeAllListeners &&
+          socketRef.current.removeAllListeners();
+      } catch {}
+      socketRef.current = null;
+    }
+    setIsSearching(false);
+    setShowLoader(false);
     setStatusMessage("❤️ जहाँ दिल मिले, वहीं होती है शुरुआत Milan की…");
   }
 
-  function completeness(p=profile){
-    let s=0; if(p.name) s+=18; if(p.contact) s+=12; if(p.age) s+=10; if(p.city) s+=10; if(p.language) s+=10; if(p.bio) s+=15;
-    if((p.interests||[]).length) s+=15; if((p.photoDataUrls||[]).length) s+=Math.min(10, p.photoDataUrls.length*4);
-    return Math.min(100,Math.round(s));
+  function completeness(p = profile) {
+    let s = 0;
+    if (p.name) s += 18;
+    if (p.contact) s += 12;
+    if (p.age) s += 10;
+    if (p.city) s += 10;
+    if (p.language) s += 10;
+    if (p.bio) s += 15;
+    if ((p.interests || []).length) s += 15;
+    if ((p.photoDataUrls || []).length)
+      s += Math.min(10, p.photoDataUrls.length * 4);
+    return Math.min(100, Math.round(s));
   }
   const percent = completeness(profile);
 
@@ -148,66 +341,98 @@ export default function ConnectPage() {
     <>
       <Head>
         <title>Milan — Connect</title>
-        <link rel="preconnect" href="https://fonts.googleapis.com"/>
-        <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="anonymous"/>
-        <link href="https://fonts.googleapis.com/css2?family=Great+Vibes&family=Poppins:wght@300;400;600;700;900&display=swap" rel="stylesheet"/>
+        <link rel="preconnect" href="https://fonts.googleapis.com" />
+        <link
+          rel="preconnect"
+          href="https://fonts.gstatic.com"
+          crossOrigin="anonymous"
+        />
+        <link
+          href="https://fonts.googleapis.com/css2?family=Great+Vibes&family=Poppins:wght@300;400;600;700;900&display=swap"
+          rel="stylesheet"
+        />
       </Head>
 
       {/* Frame */}
       <div className="frame" aria-hidden />
 
       {/* Backgrounds */}
-      <canvas id="heartsCanvas"/>
-      <canvas id="fxCanvas" style={{position:'fixed',inset:0,zIndex:0,pointerEvents:'none'}}/>
+      <canvas id="heartsCanvas" />
+      <canvas
+        id="fxCanvas"
+        style={{ position: "fixed", inset: 0, zIndex: 0, pointerEvents: "none" }}
+      />
       <audio id="bellAudio" preload="auto">
-        <source src="https://cdn.pixabay.com/download/audio/2022/03/15/audio_4c76d6de8a.mp3?filename=soft-bell-ambient-10473.mp3" type="audio/mpeg"/>
+        <source
+          src="https://cdn.pixabay.com/download/audio/2022/03/15/audio_4c76d6de8a.mp3?filename=soft-bell-ambient-10473.mp3"
+          type="audio/mpeg"
+        />
       </audio>
 
       {/* Sidebar (desktop only) */}
       <aside className="sidebar">
         <div className="profileTop">
-          <div className="avatarWrap"><Avatar /></div>
+          <div className="avatarWrap">
+            <Avatar />
+          </div>
           <div className="name">{profile.name || "Pinky"}</div>
-          <div className="meter"><div className="bar" style={{width:`${percent}%`}}/></div>
-          <label htmlFor="photoPick" className="photoPick">Change / Add Photo</label>
-          <input id="photoPick" type="file" accept="image/*" style={{display:'none'}}
-            onChange={(e)=>{
-              const f=e.target.files?.[0]; if(!f) return; const r=new FileReader();
-              r.onload={(ev)=>{
-                const du=ev.target?.result; const next=[...(profile.photoDataUrls||[])];
-                if(next.length>=3) return alert('Max 3 photos');
-                next.push(du); const p={...profile, photoDataUrls:next};
-                setProfile(p); localStorage.setItem('milan_profile', JSON.stringify(p));
-              }; r.readAsDataURL(f); e.target.value='';
-            }}/>
+          <div className="meter">
+            <div className="bar" style={{ width: `${percent}%` }} />
+          </div>
+          <label htmlFor="photoPick" className="photoPick">
+            Change / Add Photo
+          </label>
+          <input
+            id="photoPick"
+            type="file"
+            accept="image/*"
+            style={{ display: "none" }}
+            onChange={handlePhotoPick}
+          />
         </div>
         <ul className="nav">
           <li>👤 Profile Info</li>
           <li>🔒 Security</li>
           <li>💘 Love Calculator</li>
-          <li onClick={()=>{ localStorage.clear(); window.location.href='/login'; }}>🚪 Logout</li>
+          <li
+            onClick={() => {
+              try { localStorage.clear(); } catch {}
+              window.location.href = "/login";
+            }}
+          >
+            🚪 Logout
+          </li>
         </ul>
       </aside>
 
       {/* Brand */}
       <div className="brandBlock">
         <div className="heroBrand">Milan</div>
-        <div className="brandTagline">Where hearts connect <span aria-hidden>❤️</span></div>
+        <div className="brandTagline">
+          Where hearts connect <span aria-hidden>❤️</span>
+        </div>
       </div>
 
       {/* Center section */}
       <main className="heroWrap">
         <p className="miniGreeting">
-          🌟 Wishing you a sparkling Diwali full of love, light, and unforgettable connections – from all of us at Milan 💞
+          🌟 Wishing you a sparkling Diwali full of love, light, and unforgettable
+          connections – from all of us at Milan 💞
         </p>
 
-        <section className="featuresGrid" role="navigation" aria-label="Choose a mode">
+        <section
+          className="featuresGrid"
+          role="navigation"
+          aria-label="Choose a mode"
+        >
           <article className="featureCard text">
             <header>
               <h3>Text Chat</h3>
               <p>Say hello. Trade vibes. Let the story find you.</p>
             </header>
-            <button className="cta ghost" onClick={()=>startSearch('text')}>💬 Start Text Chat</button>
+            <button className="cta ghost" onClick={() => startSearch("text")}>
+              💬 Start Text Chat
+            </button>
           </article>
 
           <article className="featureCard video">
@@ -215,7 +440,9 @@ export default function ConnectPage() {
               <h3>Video Chat</h3>
               <p>Face-to-face chemistry. Zero setup, all spark.</p>
             </header>
-            <button className="cta primary" onClick={()=>startSearch('video')}>🎥 Start Video Chat</button>
+            <button className="cta primary" onClick={() => startSearch("video")}>
+              🎥 Start Video Chat
+            </button>
           </article>
 
           <article className="featureCard studio">
@@ -223,7 +450,9 @@ export default function ConnectPage() {
               <h3>Milan AI Studio</h3>
               <p>Create dreamy prompts & reels—love, but make it aesthetic.</p>
             </header>
-            <a href="/ai" className="cta outline">🎨 Open AI Studio</a>
+            <a href="/ai" className="cta outline">
+              🎨 Open AI Studio
+            </a>
           </article>
 
           <article className="featureCard celebrate">
@@ -231,11 +460,30 @@ export default function ConnectPage() {
               <h3>Festive Spark</h3>
               <p>Light up the sky & your heart—Diwali vibes on tap.</p>
             </header>
-            <button className="cta gold" onClick={()=>{
-              const a=document.getElementById("bellAudio"); try{ a.currentTime=0; a.play(); }catch{}
-              const {burst}=fwRef.current; const x=innerWidth/2,y=innerHeight*0.58;
-              for(let i=0;i<6;i++) setTimeout(()=>burst(x+(Math.random()*260-130),y+(Math.random()*140-70)),i*120);
-            }}>🎆 Let’s Celebrate</button>
+            <button
+              className="cta gold"
+              onClick={() => {
+                const a = document.getElementById("bellAudio");
+                try {
+                  a.currentTime = 0;
+                  a.play();
+                } catch {}
+                const { burst } = fwRef.current;
+                const x = innerWidth / 2,
+                  y = innerHeight * 0.58;
+                for (let i = 0; i < 6; i++)
+                  setTimeout(
+                    () =>
+                      burst(
+                        x + (Math.random() * 260 - 130),
+                        y + (Math.random() * 140 - 70)
+                      ),
+                    i * 120
+                  );
+              }}
+            >
+              🎆 Let’s Celebrate
+            </button>
           </article>
         </section>
 
@@ -245,8 +493,12 @@ export default function ConnectPage() {
         <div className="diyas" aria-hidden>
           {Array.from({ length: diyaCount }).map((_, i) => (
             <div key={i} className="diya">
-              <div className="bowl"/><div className="oil"/>
-              <div className="flame" style={{animationDuration: `${1.2 + (i % 4) * 0.2}s`}}/>
+              <div className="bowl" />
+              <div className="oil" />
+              <div
+                className="flame"
+                style={{ animationDuration: `${1.2 + (i % 4) * 0.2}s` }}
+              />
             </div>
           ))}
         </div>
@@ -366,7 +618,7 @@ export default function ConnectPage() {
         .status{ font-weight:800; color:#fff; animation:blink 1s infinite; }
         @keyframes blink{0%{opacity:.3}50%{opacity:1}100%{opacity:.3}}
 
-        /* Diyas — keep behind content to avoid overlap */
+        /* Diyas — fixed at bottom, behind content */
         .diyas{ position:fixed; left:0; right:0; bottom:12px; display:flex; gap:22px; justify-content:center; align-items:flex-end; pointer-events:none; z-index:1; flex-wrap:wrap; }
         .diya{ position:relative; width:64px; height:42px; filter: drop-shadow(0 6px 14px rgba(255,128,0,.35)); }
         .bowl{ position:absolute; inset:auto 0 0 0; height:30px; border-radius:0 0 36px 36px / 0 0 22px 22px; background:radial-gradient(120% 140% at 50% -10%, #ffb86b, #8b2c03 60%); border-top:2px solid rgba(255,255,255,.25); }
@@ -389,17 +641,16 @@ export default function ConnectPage() {
           .featuresGrid{ width:min(980px, calc(100vw - 48px)); grid-template-columns:1fr 1fr; }
         }
         @media(max-width:560px){
-          :root{ --brandH: 0px; --bottomH: 160px; }  /* bottom space bigger so diyas never cover buttons */
-          html,body{ overflow:auto; }                /* enable page scroll */
-          .brandBlock{                               
-            position:static;                         /* brand is now PART of page flow */
-            transform:none; top:auto; margin:16px 0 4px;
+          :root{ --brandH: 0px; --bottomH: 160px; }  /* more bottom space so diyas don't cover CTAs */
+          html,body{ overflow:auto; }                /* enable scroll on mobile */
+          .brandBlock{
+            position:static; transform:none; top:auto; margin:16px 0 4px;
             pointer-events:none; text-align:center;
           }
           .heroBrand{ font-size:64px; }
           .brandTagline{ font-size:15px; }
           .heroWrap{
-            padding: 8px 12px var(--bottomH);        /* top spacing small because brand sits above */
+            padding: 8px 12px var(--bottomH);
             justify-content:flex-start; gap:14px;
           }
           .featuresGrid{ grid-template-columns:1fr; width:min(980px, calc(100vw - 28px)); }
@@ -411,16 +662,63 @@ export default function ConnectPage() {
   );
 }
 
-function Avatar(){
-  const [profile,setProfile]=useState(null);
-  useEffect(()=>{ (async()=>{ try{
-    const uid=localStorage.getItem('uid'); const token=localStorage.getItem('token');
-    if(!uid||!token) return; const res=await fetch(`/api/profile/${uid}`,{ headers:{ Authorization:`Bearer ${token}` } });
-    if(!res.ok) throw new Error('fail'); const data=await res.json(); setProfile(data);
-  }catch(e){ setProfile({name: localStorage.getItem('registered_name')||'M'}) } })(); },[]);
-  if(!profile) return <div>Loading...</div>;
-  const first=(profile.name?.trim()?.charAt(0).toUpperCase())||'M';
-  return profile.avatar
-    ? <img src={profile.avatar} alt="avatar" style={{width:70,height:70,borderRadius:'50%',objectFit:'cover'}}/>
-    : <div style={{width:70,height:70,borderRadius:'50%',background:'#ec4899',display:'flex',alignItems:'center',justifyContent:'center',fontSize:28,fontWeight:700,color:'#fff'}}>{first}</div>;
+function Avatar() {
+  const [profile, setProfile] = useState(null);
+  useEffect(() => {
+    (async () => {
+      try {
+        const uid =
+          (typeof window !== "undefined" && localStorage.getItem("uid")) || "";
+        const token =
+          (typeof window !== "undefined" && localStorage.getItem("token")) ||
+          "";
+        if (!uid || !token) return;
+        const res = await fetch(`/api/profile/${uid}`, {
+          headers: { Authorization: `Bearer ${token}` },
+        });
+        if (!res.ok) throw new Error("fail");
+        const data = await res.json();
+        setProfile(data);
+      } catch (e) {
+        setProfile({
+          name:
+            (typeof window !== "undefined" &&
+              localStorage.getItem("registered_name")) ||
+            "M",
+        });
+      }
+    })();
+  }, []);
+  if (!profile) return <div>Loading...</div>;
+  const first =
+    (profile.name && profile.name.trim().charAt(0).toUpperCase()) || "M";
+  return profile.avatar ? (
+    <img
+      src={profile.avatar}
+      alt="avatar"
+      style={{
+        width: 70,
+        height: 70,
+        borderRadius: "50%",
+        objectFit: "cover",
+      }}
+    />
+  ) : (
+    <div
+      style={{
+        width: 70,
+        height: 70,
+        borderRadius: "50%",
+        background: "#ec4899",
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "center",
+        fontSize: 28,
+        fontWeight: 700,
+        color: "#fff",
+      }}
+    >
+      {first}
+    </div>
+  );
 }
