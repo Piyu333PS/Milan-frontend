@@ -4,6 +4,7 @@ import Head from "next/head";
 import io from "socket.io-client";
 
 export default function ConnectPage() {
+  // ===== STATE =====
   const [profile, setProfile] = useState({
     name: "", contact: "", photoDataUrls: [], interests: [],
     age: "", city: "", language: "", bio: ""
@@ -22,7 +23,7 @@ export default function ConnectPage() {
     []
   );
 
-  // Load profile
+  // ===== PROFILE LOAD =====
   useEffect(() => {
     try {
       const saved = localStorage.getItem("milan_profile");
@@ -39,7 +40,7 @@ export default function ConnectPage() {
     } catch {}
   }, []);
 
-  // Hearts BG
+  // ===== HEARTS BG =====
   useEffect(() => {
     const cvs = document.getElementById("heartsCanvas");
     if (!cvs) return; const ctx = cvs.getContext("2d"); if (!ctx) return;
@@ -58,7 +59,7 @@ export default function ConnectPage() {
     return ()=>{ cancelAnimationFrame(rafId); removeEventListener("resize", resize); };
   }, []);
 
-  // Fireworks
+  // ===== FIREWORKS =====
   useEffect(() => { startFireworks(); return stopFireworks; }, []);
   function startFireworks(){
     const cvs=document.getElementById("fxCanvas"); if(!cvs) return;
@@ -85,7 +86,7 @@ export default function ConnectPage() {
   }
   function stopFireworks(){ fwRef.current.cleanup && fwRef.current.cleanup(); }
 
-  // Matching
+  // ===== MATCHING =====
   function startSearch(type){
     if(isSearching||connectingRef.current) return;
     connectingRef.current=true;
@@ -127,7 +128,7 @@ export default function ConnectPage() {
     setStatusMessage("❤️ जहाँ दिल मिले, वहीं होती है शुरुआत Milan की…");
   }
 
-  // Completeness meter
+  // ===== COMPLETENESS =====
   function completeness(p=profile){
     let s=0; if(p.name) s+=18; if(p.contact) s+=12; if(p.age) s+=10; if(p.city) s+=10; if(p.language) s+=10; if(p.bio) s+=15;
     if((p.interests||[]).length) s+=15; if((p.photoDataUrls||[]).length) s+=Math.min(10, p.photoDataUrls.length*4);
@@ -135,10 +136,14 @@ export default function ConnectPage() {
   }
   const percent = completeness(profile);
 
-  // Diyas count
+  // ===== DIYAS COUNT =====
   useEffect(() => {
-    function setCount() { const w=window.innerWidth; setDiyaCount(w>1200?9:w>760?7:5); }
-    setCount(); window.addEventListener("resize", setCount);
+    function setCount() {
+      const w = window.innerWidth;
+      setDiyaCount(w > 1200 ? 9 : w > 760 ? 7 : 5);
+    }
+    setCount();
+    window.addEventListener("resize", setCount);
     return () => window.removeEventListener("resize", setCount);
   }, []);
 
@@ -151,7 +156,7 @@ export default function ConnectPage() {
         <link href="https://fonts.googleapis.com/css2?family=Great+Vibes&family=Poppins:wght@300;400;600;700;900&display=swap" rel="stylesheet"/>
       </Head>
 
-      {/* Frame */}
+      {/* Gold frame */}
       <div className="frame" aria-hidden />
 
       {/* Backgrounds */}
@@ -187,15 +192,15 @@ export default function ConnectPage() {
         </ul>
       </aside>
 
-      {/* Brand — kept fixed; slightly lower than before */}
+      {/* Brand fixed at top */}
       <div className="brandBlock">
         <div className="heroBrand">Milan</div>
         <div className="brandTagline">Where hearts connect <span aria-hidden>❤️</span></div>
       </div>
 
-      {/* Main — perfectly centered card */}
+      {/* Main — card centered BETWEEN brand & diyas */}
       <main className="heroWrap">
-        <section className="heroCard">
+        <section className="heroCard" role="region" aria-label="Festival greeting and actions">
           <h2 className="diwaliHead">
             🌟 Wishing you a sparkling Diwali full of love, light, and unforgettable connections – from all of us at Milan 💞
           </h2>
@@ -223,7 +228,7 @@ export default function ConnectPage() {
         </section>
 
         {/* Diyas */}
-        <div className="diyas">
+        <div className="diyas" aria-hidden>
           {Array.from({ length: diyaCount }).map((_, i) => (
             <div key={i} className="diya">
               <div className="bowl"/><div className="oil"/>
@@ -233,8 +238,14 @@ export default function ConnectPage() {
         </div>
       </main>
 
+      {/* ===== STYLES ===== */}
       <style>{`
-        :root{ --bg:#07070c; --rose:#ff6ea7; --rose2:#ff9fb0; --gold:#ffd166; }
+        :root{
+          --bg:#07070c; --rose:#ff6ea7; --rose2:#ff9fb0; --gold:#ffd166;
+          /* layout constants (desktop) */
+          --brandH: 170px;     /* brand + tagline block approximate height */
+          --bottomH: 120px;    /* space for diyas + breathing */
+        }
         html,body{ margin:0; padding:0; height:100%; overflow:hidden;
           background:
             radial-gradient(1200px 600px at 20% 10%, rgba(255,110,167,.10), transparent 60%),
@@ -264,12 +275,11 @@ export default function ConnectPage() {
         .nav{ list-style:none; padding:0; width:100%; margin-top:18px; }
         .nav li{ padding:10px 14px; margin:6px 12px; border-radius:12px; background:rgba(255,255,255,.04); cursor:pointer; font-weight:700; }
 
-        /* BRAND — slightly LOWER so it doesn't crowd the card */
+        /* BRAND — fixed top */
         .brandBlock{
           position:fixed;
           left:50%; transform:translateX(-50%);
-          top:120px;  /* lowered a bit */
-          text-align:center; z-index:4; pointer-events:none;
+          top:120px; text-align:center; z-index:4; pointer-events:none;
         }
         .heroBrand{
           font-family:'Great Vibes', cursive; font-size:116px; line-height:1.02;
@@ -283,39 +293,39 @@ export default function ConnectPage() {
           font-style: italic; position:relative; display:inline-block;
         }
         .brandTagline:after{
-          content:""; display:block; height:2px; margin:8px auto 0;
-          width:160px; border-radius:999px;
+          content:""; display:block; height:2px; margin:8px auto 0; width:160px; border-radius:999px;
           background:linear-gradient(90deg, rgba(255,182,193,0), #ffd166, rgba(255,182,193,0));
           box-shadow:0 0 12px rgba(255,209,102,.45);
         }
 
-        /* MAIN — center the card between brand & diyas */
+        /* MAIN — centers the card in the available viewport
+           (below brand and above diyas) */
         .heroWrap{
-          position:relative; margin-left:200px; z-index:3; height:100vh;
-          display:flex; flex-direction:column; align-items:center; justify-content:center;
-          padding:240px 12px 120px; /* top space for brand, bottom for diyas */
+          position:relative; margin-left:200px; z-index:3;
+          min-height:100vh;
+          display:flex; align-items:center; justify-content:center;
+          padding: calc(var(--brandH) + 20px) 12px var(--bottomH);
+          box-sizing:border-box;
         }
 
-        /* CARD — bigger & balanced */
+        /* CARD — AUTO height, responsive width, no overflow outside frame */
         .heroCard{
           width:min(980px, calc(100vw - 260px));
-          min-height: clamp(420px, 50vh, 640px);  /* bigger transparent box */
+          max-height: calc(100vh - var(--brandH) - var(--bottomH) - 40px); /* safety */
           background:rgba(16, 13, 22, .48);
           border:1px solid rgba(255,255,255,.08);
           border-radius:18px; padding:28px 22px 24px;
-          box-shadow:
-            0 20px 60px rgba(0,0,0,.45),
-            inset 0 0 0 1px rgba(255,209,102,.10);
+          box-shadow: 0 20px 60px rgba(0,0,0,.45), inset 0 0 0 1px rgba(255,209,102,.10);
           backdrop-filter: blur(8px);
           text-align:center;
-          display:flex; flex-direction:column; justify-content:center; gap:10px;
+          overflow:auto; /* if very small screens, content scrolls INSIDE */
         }
 
         .diwaliHead{
-          margin:0; font-size:30px; font-weight:900; color:#ffe9ac;
+          margin:0 0 8px 0; font-size:30px; font-weight:900; color:#ffe9ac;
           text-shadow:0 0 18px rgba(255,209,102,.22); letter-spacing:.3px;
         }
-        .lead{ max-width:880px; margin:0 auto; color:#e9e5ef; opacity:.95; font-weight:600; }
+        .lead{ max-width:880px; margin:0 auto 10px; color:#e9e5ef; opacity:.95; font-weight:600; }
 
         .ctaRow{ display:flex; gap:14px; margin-top:8px; flex-wrap:wrap; justify-content:center; align-items:flex-end; }
         .cta{ padding:14px 18px; border-radius:14px; font-weight:900; border:0;
@@ -335,7 +345,7 @@ export default function ConnectPage() {
         .status{ margin-top:6px; font-weight:800; color:#fff; animation:blink 1s infinite; }
         @keyframes blink{0%{opacity:.3}50%{opacity:1}100%{opacity:.3}}
 
-        /* Diyas */
+        /* DIYAS */
         .diyas{ position:fixed; left:0; right:0; bottom:12px; display:flex; gap:22px; justify-content:center; align-items:flex-end; pointer-events:none; z-index:4; flex-wrap:wrap; }
         .diya{ position:relative; width:64px; height:42px; filter: drop-shadow(0 6px 14px rgba(255,128,0,.35)); }
         .bowl{ position:absolute; inset:auto 0 0 0; height:30px; border-radius:0 0 36px 36px / 0 0 22px 22px; background:radial-gradient(120% 140% at 50% -10%, #ffb86b, #8b2c03 60%); border-top:2px solid rgba(255,255,255,.25); }
@@ -343,23 +353,26 @@ export default function ConnectPage() {
         .flame{ position:absolute; left:50%; bottom:26px; width:18px; height:26px; transform:translateX(-50%); background: radial-gradient(50% 65% at 50% 60%, #fff7cc 0%, #ffd166 55%, #ff8c00 75%, rgba(255,0,0,0) 80%); border-radius: 12px 12px 14px 14px / 18px 18px 8px 8px; animation: flicker 1.4s infinite ease-in-out; box-shadow: 0 0 18px 6px rgba(255,173,51,.45), 0 0 36px 12px rgba(255,140,0,.15); }
         .flame:before{ content:""; position:absolute; inset:4px; border-radius:inherit; background: radial-gradient(circle at 50% 70%, #fffbe6, rgba(255,255,255,0) 66%); filter: blur(1px); }
 
-        /* Responsive */
+        /* RESPONSIVE TWEAKS */
         @media(max-width:1024px){
+          :root{ --brandH: 160px; --bottomH: 110px; }
           .frame{ left:12px; right:12px; }
-          .brandBlock{ top:128px; }
           .heroBrand{ font-size:96px; }
+          .brandBlock{ top:118px; }
         }
         @media(max-width:860px){
+          :root{ --brandH: 150px; --bottomH: 110px; }
           .sidebar{display:none;}
           .frame{ left:12px; right:12px; }
-          .brandBlock{ top:146px; }
-          .heroWrap{ margin-left:0; padding:220px 12px 110px; }
-          .heroCard{ width:min(980px, calc(100vw - 48px)); min-height: clamp(420px, 56vh, 640px); }
+          .heroWrap{ margin-left:0; }
+          .brandBlock{ top:126px; }
+          .heroCard{ width:min(980px, calc(100vw - 48px)); }
         }
         @media(max-width:520px){
+          :root{ --brandH: 138px; --bottomH: 100px; }
           .heroBrand{ font-size:72px; }
           .brandTagline{ font-size:16px; }
-          .brandBlock{ top:156px; }
+          .brandBlock{ top:120px; }
           .diwaliHead{font-size:22px;}
           .cta{width:100%;}
         }
@@ -368,6 +381,7 @@ export default function ConnectPage() {
   );
 }
 
+/* ===== Avatar ===== */
 function Avatar(){
   const [profile,setProfile]=useState(null);
   useEffect(()=>{ (async()=>{ try{
