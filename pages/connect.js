@@ -5,10 +5,6 @@ import io from "socket.io-client";
 
 export default function ConnectPage() {
   // ====== STATE ======
-  const [showProfile, setShowProfile] = useState(false);
-  const [showSecurity, setShowSecurity] = useState(false);
-  const [showLoveCalc, setShowLoveCalc] = useState(false);
-
   const [profile, setProfile] = useState({
     name: "", contact: "", photoDataUrls: [], interests: [],
     age: "", city: "", language: "", bio: ""
@@ -17,6 +13,7 @@ export default function ConnectPage() {
   const [showLoader, setShowLoader] = useState(false);
   const [statusMessage, setStatusMessage] = useState("❤️ जहाँ दिल मिले, वहीं होती है शुरुआत Milan की…");
 
+  // sockets + fx
   const fwRef = useRef({ raf: null, burst: () => {}, cleanup: null });
   const socketRef = useRef(null);
   const partnerRef = useRef(null);
@@ -26,7 +23,7 @@ export default function ConnectPage() {
     []
   );
 
-  // ====== LOAD PROFILE ======
+  // ====== INIT PROFILE ======
   useEffect(() => {
     try {
       const saved = localStorage.getItem("milan_profile");
@@ -60,7 +57,7 @@ export default function ConnectPage() {
     return ()=>{ cancelAnimationFrame(rafId); removeEventListener("resize", resize); };
   }, []);
 
-  // ====== FIREWORKS (across full page) ======
+  // ====== FIREWORKS (full spread) ======
   useEffect(() => { startFireworks(); return stopFireworks; }, []);
   function startFireworks(){
     const cvs=document.getElementById("fxCanvas"); if(!cvs) return;
@@ -75,7 +72,6 @@ export default function ConnectPage() {
       } }
     function tick(){
       ctx.fillStyle="rgba(10,7,16,.22)"; ctx.fillRect(0,0,W,H);
-      // spread across almost full canvas (top to bottom)
       if(Math.random()<0.02) burst(rand(W*.05,W*.95),rand(H*.12,H*.9));
       ents=ents.filter(p=>((p.age+=0.016),p.age<p.life));
       for(const p of ents){ p.vy+=0.5*0.016; p.x+=p.vx; p.y+=p.vy; const a=1-p.age/p.life;
@@ -130,13 +126,6 @@ export default function ConnectPage() {
     setStatusMessage("❤️ जहाँ दिल मिले, वहीं होती है शुरुआत Milan की…");
   }
 
-  // ====== CELEBRATE ======
-  function celebrate(){
-    const a=document.getElementById("bellAudio"); try{ a.currentTime=0; a.play(); }catch{}
-    const {burst}=fwRef.current; const x=innerWidth/2,y=innerHeight*0.5;
-    for(let i=0;i<5;i++) setTimeout(()=>burst(x+(Math.random()*220-110),y+(Math.random()*120-60)),i*140);
-  }
-
   // ====== UI HELPERS ======
   function completeness(p=profile){
     let s=0; if(p.name) s+=18; if(p.contact) s+=12; if(p.age) s+=10; if(p.city) s+=10; if(p.language) s+=10; if(p.bio) s+=15;
@@ -154,8 +143,9 @@ export default function ConnectPage() {
         <link href="https://fonts.googleapis.com/css2?family=Great+Vibes&family=Poppins:wght@300;400;600;700;900&display=swap" rel="stylesheet"/>
       </Head>
 
-      {/* Gold frame */}
+      {/* Gold frame (sidebar offset fixed) */}
       <div className="frame" aria-hidden />
+
       {/* Backgrounds */}
       <canvas id="heartsCanvas"/>
       <canvas id="fxCanvas" style={{position:'fixed',inset:0,zIndex:1,pointerEvents:'none'}}/>
@@ -184,31 +174,43 @@ export default function ConnectPage() {
             }}/>
         </div>
         <ul className="nav">
-          <li onClick={()=>{setShowProfile(true); setShowSecurity(false); setShowLoveCalc(false);}}>👤 Profile Info</li>
-          <li onClick={()=>{setShowSecurity(true); setShowProfile(false); setShowLoveCalc(false);}}>🔒 Security</li>
-          <li onClick={()=>{setShowLoveCalc(true); setShowProfile(false); setShowSecurity(false);}}>💘 Love Calculator</li>
+          <li>👤 Profile Info</li>
+          <li>🔒 Security</li>
+          <li>💘 Love Calculator</li>
           <li onClick={()=>{ localStorage.clear(); window.location.href='/login'; }}>🚪 Logout</li>
         </ul>
       </aside>
 
-      {/* Sticky topbar brand — appears on every page */}
+      {/* Sticky brand bar */}
       <header className="topbar">
         <a href="/" className="brandLogo">Milan</a>
       </header>
 
-      {/* HERO — full screen center */}
+      {/* HERO — static no-scroll */}
       <main className="heroWrap">
-        <h2 className="diwaliHead">Wish you a very Happy Diwali!</h2>
+        {/* Big stylish brand (moves into the “red box” area) */}
+        <div className="heroBrand">Milan</div>
+
+        <h2 className="diwaliHead">Milan ki taraf se aapko Diwali ki dher saari shubhkamnaye ✨</h2>
         <p className="lead">
           “Diye ki roshni jaise andheron ko mita deti hai, waise hi <b>Milan</b> aapke dil ki tanhayi mita dega.
-          Is Diwali, connect karo aur ek nayi kahani shuru karo.” ✨
+          Is Diwali, connect karo aur ek nayi kahani shuru karo.”
         </p>
 
         <div className="ctaRow">
           <button className="cta ghost"   onClick={()=>startSearch('text')}>💬 Start Text Chat</button>
           <button className="cta primary" onClick={()=>startSearch('video')}>🎥 Start Video Chat</button>
-          <a href="/studio" className="cta ghost">🎨 Milan AI Studio</a>
-          <button className="cta gold"    onClick={celebrate}>🥳 Let’s Celebrate Diwali</button>
+          <a href="/studio" className="cta outline">🎨 Milan AI Studio</a>
+
+          {/* Celebrate with badge */}
+          <div className="celeBox">
+            <span className="pill">🪔 Diwali Special</span>
+            <button className="cta gold" onClick={()=>{
+              const a=document.getElementById("bellAudio"); try{ a.currentTime=0; a.play(); }catch{}
+              const {burst}=fwRef.current; const x=innerWidth/2,y=innerHeight*0.55;
+              for(let i=0;i<5;i++) setTimeout(()=>burst(x+(Math.random()*220-110),y+(Math.random()*120-60)),i*140);
+            }}>🎆 Let’s Celebrate Diwali</button>
+          </div>
         </div>
 
         {showLoader && <div className="status">{statusMessage}</div>}
@@ -225,20 +227,32 @@ export default function ConnectPage() {
       {/* STYLES */}
       <style>{`
         :root{ --bg:#07070c; --rose:#ff6ea7; --rose2:#ff9fb0; --gold:#ffd166; }
-        html,body{ margin:0; padding:0; height:100%; background:
-          radial-gradient(1200px 600px at 20% 10%, rgba(255,110,167,.10), transparent 60%),
-          radial-gradient(900px 500px at 90% 20%, rgba(255,110,167,.06), transparent 60%),
-          #08060c; color:#f7f7fb; font-family:Poppins, system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, sans-serif; }
+        html,body{ margin:0; padding:0; height:100%; overflow:hidden;
+          background:
+            radial-gradient(1200px 600px at 20% 10%, rgba(255,110,167,.10), transparent 60%),
+            radial-gradient(900px 500px at 90% 20%, rgba(255,110,167,.06), transparent 60%),
+            #08060c; color:#f7f7fb; font-family:Poppins, system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, sans-serif; }
         #heartsCanvas,#fxCanvas{ position:fixed; inset:0; pointer-events:none; z-index:1; }
 
-        /* Gold frame */
-        .frame{ position:fixed; inset:10px; border:2px solid rgba(255,209,102,.65); border-radius:16px; pointer-events:none; z-index:2; box-shadow:0 0 18px rgba(255,209,102,.25) inset; }
+        /* Gold frame — thicker, dual line, glow; left offset after sidebar */
+        .frame{ position:fixed; top:10px; bottom:10px; right:10px; left:210px; z-index:2; pointer-events:none; }
+        .frame::before, .frame::after{
+          content:""; position:absolute; inset:0; border-radius:18px;
+        }
+        .frame::before{
+          padding:2px; background:linear-gradient(135deg, rgba(255,209,102,.85), rgba(255,209,102,.35) 40%, rgba(255,110,167,.5), rgba(255,209,102,.85));
+          -webkit-mask:linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
+          -webkit-mask-composite:xor; mask-composite:exclude; box-shadow:0 0 24px rgba(255,209,102,.28), 0 0 46px rgba(255,110,167,.18);
+          border-radius:18px;
+        }
+        .frame::after{ inset:8px; border:2px solid rgba(255,209,102,.55); border-radius:14px; box-shadow:0 0 20px rgba(255,209,102,.25) inset; }
 
-        .topbar{ position:fixed; left:200px; right:10px; top:10px; height:52px; z-index:6; display:flex; align-items:center; justify-content:flex-start;
+        .topbar{ position:fixed; left:210px; right:22px; top:16px; height:50px; z-index:6; display:flex; align-items:center; justify-content:flex-start;
           background:linear-gradient(180deg, rgba(255,255,255,.05), rgba(255,255,255,.02)); border:1px solid rgba(255,255,255,.10); border-radius:12px; padding:0 16px; backdrop-filter: blur(10px); }
-        .brandLogo{ font-family:'Great Vibes', cursive; font-size:32px; color:#ffe9ac; text-decoration:none; text-shadow:0 0 18px rgba(255,209,102,.3); }
+        .brandLogo{ font-family:'Great Vibes', cursive; font-size:28px; color:#ffe9ac; text-decoration:none; text-shadow:0 0 18px rgba(255,209,102,.3); }
 
-        .sidebar{ position:fixed; left:0; top:0; bottom:0; width:200px; background:rgba(255,255,255,.04); backdrop-filter:blur(8px); border-right:1px solid rgba(255,255,255,.06); z-index:5; display:flex; flex-direction:column; align-items:center; padding-top:18px; }
+        .sidebar{ position:fixed; left:0; top:0; bottom:0; width:200px; background:rgba(255,255,255,.04);
+          backdrop-filter:blur(8px); border-right:1px solid rgba(255,255,255,.06); z-index:5; display:flex; flex-direction:column; align-items:center; padding-top:18px; }
         .avatarWrap{ width:70px; height:70px; border-radius:50%; overflow:hidden; box-shadow:0 6px 18px rgba(0,0,0,.35); }
         .name{ margin-top:8px; font-weight:800; }
         .meter{ width:140px; height:8px; background:rgba(255,255,255,.1); border-radius:8px; margin-top:6px; overflow:hidden; }
@@ -247,22 +261,31 @@ export default function ConnectPage() {
         .nav{ list-style:none; padding:0; width:100%; margin-top:18px; }
         .nav li{ padding:10px 14px; margin:6px 12px; border-radius:12px; background:rgba(255,255,255,.04); cursor:pointer; font-weight:700; }
 
-        /* Full-screen hero */
+        /* Full-height hero — CENTER everything, no scroll */
         .heroWrap{ position:relative; margin-left:200px; z-index:3;
-          min-height:100vh; display:flex; flex-direction:column; align-items:center; justify-content:center; padding:80px 12px 120px; gap:10px; }
-        .diwaliHead{ margin:0; font-size:42px; font-weight:900; color:#ffe9ac; text-shadow:0 0 18px rgba(255,209,102,.22); letter-spacing:.5px; }
+          height:100vh; display:flex; flex-direction:column; align-items:center; justify-content:center; padding:0 12px 96px; gap:14px; }
+        .heroBrand{ position:absolute; top:84px; font-family:'Great Vibes', cursive; font-size:80px; color:#ffe9ac;
+          text-shadow:0 0 24px rgba(255,209,102,.35), 0 0 42px rgba(255,110,167,.18); }
+        .diwaliHead{ margin:0; font-size:34px; font-weight:900; color:#ffe9ac; text-shadow:0 0 18px rgba(255,209,102,.22); letter-spacing:.3px; text-align:center; }
         .lead{ max-width:880px; text-align:center; color:#e9e5ef; opacity:.95; font-weight:600; }
-        .ctaRow{ display:flex; gap:14px; margin-top:10px; flex-wrap:wrap; justify-content:center; }
-        .cta{ padding:14px 18px; border-radius:14px; font-weight:900; border:0; cursor:pointer; display:inline-flex; align-items:center; justify-content:center; text-decoration:none; }
-        .cta.primary{ background:linear-gradient(90deg,var(--rose),var(--rose2)); color:#0a0b12; box-shadow:0 12px 40px rgba(255,110,167,.22); }
-        .cta.gold{ background:rgba(255,209,102,.18); color:#ffe9ac; border:1px solid rgba(255,209,102,.4); box-shadow:0 12px 36px rgba(255,209,102,.18); }
-        .cta.ghost{ background:rgba(255,255,255,.07); color:#fff; border:1px solid rgba(255,255,255,.14); }
 
-        .status{ margin-top:10px; font-weight:800; color:#fff; animation:blink 1s infinite; }
+        .ctaRow{ display:flex; gap:14px; margin-top:6px; flex-wrap:wrap; justify-content:center; align-items:flex-end; }
+        .cta{ padding:14px 18px; border-radius:14px; font-weight:900; border:0; cursor:pointer; display:inline-flex; align-items:center; justify-content:center; text-decoration:none; transition:transform .15s ease, box-shadow .15s ease; }
+        .cta:hover{ transform: translateY(-2px); }
+        .cta.primary{ background:linear-gradient(90deg,var(--rose),var(--rose2)); color:#0a0b12; box-shadow:0 10px 34px rgba(255,110,167,.25); }
+        .cta.ghost{ background:rgba(255,255,255,.07); color:#fff; border:1px solid rgba(255,255,255,.14); }
+        .cta.outline{ background:transparent; color:#fff; border:2px solid rgba(255,110,167,.45); box-shadow:0 0 0 2px rgba(255,110,167,.12) inset; }
+        .cta.gold{ background:rgba(255,209,102,.18); color:#ffe9ac; border:1px solid rgba(255,209,102,.4); box-shadow:0 12px 36px rgba(255,209,102,.18); }
+
+        .celeBox{ display:flex; flex-direction:column; align-items:center; gap:6px; }
+        .pill{ font-size:11px; font-weight:800; letter-spacing:.06em; text-transform:uppercase; color:#2a1a00;
+          background:linear-gradient(90deg,#ffd166,#ffe9ac); padding:5px 10px; border-radius:999px; box-shadow:0 6px 18px rgba(255,209,102,.25); }
+
+        .status{ margin-top:6px; font-weight:800; color:#fff; animation:blink 1s infinite; }
         @keyframes blink{0%{opacity:.3}50%{opacity:1}100%{opacity:.3}}
 
         /* Diyas */
-        .diyas{ position:fixed; left:0; right:0; bottom:16px; display:flex; gap:28px; justify-content:center; align-items:flex-end; pointer-events:none; z-index:4; }
+        .diyas{ position:fixed; left:0; right:0; bottom:12px; display:flex; gap:28px; justify-content:center; align-items:flex-end; pointer-events:none; z-index:4; }
         .diya{ position:relative; width:70px; height:44px; filter: drop-shadow(0 6px 14px rgba(255,128,0,.35)); }
         .bowl{ position:absolute; inset:auto 0 0 0; height:32px; border-radius:0 0 36px 36px / 0 0 24px 24px; background:radial-gradient(120% 140% at 50% -10%, #ffb86b, #8b2c03 60%); border-top:2px solid rgba(255,255,255,.25); }
         .oil{ position:absolute; left:8px; right:8px; bottom:18px; height:8px; border-radius:6px; background: linear-gradient(#5a1b00,#2b0a00); }
@@ -270,14 +293,18 @@ export default function ConnectPage() {
         .flame:before{ content:""; position:absolute; inset:4px; border-radius:inherit; background: radial-gradient(circle at 50% 70%, #fffbe6, rgba(255,255,255,0) 66%); filter: blur(1px); }
 
         /* MOBILE */
-        @media(max-width:1024px){ .topbar{left:10px;} }
+        @media(max-width:1024px){
+          .topbar{left:12px; right:12px;}
+          .frame{ left:12px; right:12px; }
+          .heroBrand{ top:92px; font-size:64px; }
+        }
         @media(max-width:860px){
-          .sidebar{position:static; width:100%; height:auto; flex-direction:row; gap:10px; justify-content:center; border:0; background:transparent;}
-          .nav{display:none;} .photoPick{display:none;} .meter{display:none;}
-          .heroWrap{margin-left:0; padding-top:90px;}
+          .sidebar{display:none;} /* mobile me clean hero */
+          .heroWrap{ margin-left:0; }
         }
         @media(max-width:520px){
-          .diwaliHead{font-size:32px;} .cta{width:100%;}
+          .diwaliHead{font-size:24px;} .cta{width:100%;}
+          .heroBrand{ font-size:54px; top:86px; }
         }
       `}</style>
     </>
