@@ -8,7 +8,6 @@ export default function ConnectPage() {
   const [showProfile, setShowProfile] = useState(false);
   const [showSecurity, setShowSecurity] = useState(false);
   const [showLoveCalc, setShowLoveCalc] = useState(false);
-  const [showLogoutConfirm, setShowLogoutConfirm] = useState(false);
 
   const [profile, setProfile] = useState({
     name: "", contact: "", photoDataUrls: [], interests: [],
@@ -16,18 +15,9 @@ export default function ConnectPage() {
   });
   const [isSearching, setIsSearching] = useState(false);
   const [showLoader, setShowLoader] = useState(false);
-  const [modeText, setModeText] = useState("");
   const [statusMessage, setStatusMessage] = useState("❤️ जहाँ दिल मिले, वहीं होती है शुरुआत Milan की…");
 
-  // Diwali wish modal (kept)
-  const [showWish, setShowWish] = useState(false);
-  const [wishDone, setWishDone] = useState(false);
-  const [wish, setWish] = useState("");
-
-  // BG
   const fwRef = useRef({ raf: null, burst: () => {}, cleanup: null });
-
-  // backend/socket
   const socketRef = useRef(null);
   const partnerRef = useRef(null);
   const connectingRef = useRef(false);
@@ -36,7 +26,7 @@ export default function ConnectPage() {
     []
   );
 
-  // ====== EFFECTS ======
+  // ====== LOAD PROFILE ======
   useEffect(() => {
     try {
       const saved = localStorage.getItem("milan_profile");
@@ -51,34 +41,27 @@ export default function ConnectPage() {
     } catch {}
   }, []);
 
-  // hearts background
+  // ====== HEARTS BG ======
   useEffect(() => {
     const cvs = document.getElementById("heartsCanvas");
     if (!cvs) return; const ctx = cvs.getContext("2d"); if (!ctx) return;
     let W, H, rafId, dpr = Math.max(1, window.devicePixelRatio || 1), items = [];
     function resize(){ W=cvs.width=Math.round(innerWidth*dpr); H=cvs.height=Math.round(innerHeight*dpr); cvs.style.width=innerWidth+"px"; cvs.style.height=innerHeight+"px"; ctx.setTransform(dpr,0,0,dpr,0,0); } resize();
     addEventListener("resize", resize);
-    function spawn(){ const small=innerWidth<760; const size=(small?6:10)+Math.random()*(small?16:22); items.push({x:Math.random()*innerWidth,y:innerHeight+size,s:size,v:(small?0.5:0.9)+Math.random()*(small?0.6:0.9),c:["#ff6b81","#ff9fb0","#ff4d6d","#e6005c"][Math.floor(Math.random()*4)]}); }
-    function draw(){ ctx.clearRect(0,0,W,H); items.forEach(h=>{ ctx.save(); ctx.globalAlpha=.95; ctx.translate(h.x,h.y); ctx.rotate(Math.sin(h.y/40)*.03); ctx.fillStyle=h.c; const s=h.s; ctx.beginPath(); ctx.moveTo(0,0); ctx.bezierCurveTo(s/2,-s,s*1.5,s/3,0,s); ctx.bezierCurveTo(-s*1.5,s/3,-s/2,-s,0,0); ctx.fill(); ctx.restore(); h.y-=h.v; }); items=items.filter(h=>h.y+h.s>-40); if(Math.random()<(innerWidth<760?0.06:0.12)) spawn(); rafId=requestAnimationFrame(draw); } draw();
+    function spawn(){ const small=innerWidth<760; const size=(small?6:10)+Math.random()*(small?16:22);
+      items.push({x:Math.random()*innerWidth,y:innerHeight+size,s:size,v:(small?0.5:0.9)+Math.random()*(small?0.6:0.9),c:["#ff6ea7","#ff8fb7","#ff4d6d","#e6007a"][Math.floor(Math.random()*4)]});
+    }
+    function draw(){ ctx.clearRect(0,0,W,H);
+      items.forEach(h=>{ ctx.save(); ctx.globalAlpha=.9; ctx.translate(h.x,h.y); ctx.rotate(Math.sin(h.y/40)*.03);
+        ctx.fillStyle=h.c; const s=h.s; ctx.beginPath(); ctx.moveTo(0,0); ctx.bezierCurveTo(s/2,-s,s*1.5,s/3,0,s); ctx.bezierCurveTo(-s*1.5,s/3,-s/2,-s,0,0); ctx.fill(); ctx.restore(); h.y-=h.v; });
+      items=items.filter(h=>h.y+h.s>-40);
+      if(Math.random()<(innerWidth<760?0.06:0.12)) spawn(); rafId=requestAnimationFrame(draw);
+    } draw();
     return ()=>{ cancelAnimationFrame(rafId); removeEventListener("resize", resize); };
   }, []);
 
-  // fireworks
+  // ====== FIREWORKS (across full page) ======
   useEffect(() => { startFireworks(); return stopFireworks; }, []);
-
-  // guard searching tab hidden
-  useEffect(() => {
-    const onVis = () => {
-      if (document.visibilityState === "hidden" && socketRef.current && isSearching) {
-        try { socketRef.current.emit("disconnectByUser"); socketRef.current.disconnect(); } catch {}
-        socketRef.current = null; setIsSearching(false); setShowLoader(false); setModeText("");
-      }
-    };
-    document.addEventListener("visibilitychange", onVis);
-    return () => document.removeEventListener("visibilitychange", onVis);
-  }, [isSearching]);
-
-  // ====== BG FIREWORKS ======
   function startFireworks(){
     const cvs=document.getElementById("fxCanvas"); if(!cvs) return;
     const ctx=cvs.getContext("2d"); let W,H,ents=[];
@@ -92,7 +75,8 @@ export default function ConnectPage() {
       } }
     function tick(){
       ctx.fillStyle="rgba(10,7,16,.22)"; ctx.fillRect(0,0,W,H);
-      if(Math.random()<0.012) burst(rand(W*.1,W*.9),rand(H*.15,H*.55));
+      // spread across almost full canvas (top to bottom)
+      if(Math.random()<0.02) burst(rand(W*.05,W*.95),rand(H*.12,H*.9));
       ents=ents.filter(p=>((p.age+=0.016),p.age<p.life));
       for(const p of ents){ p.vy+=0.5*0.016; p.x+=p.vx; p.y+=p.vy; const a=1-p.age/p.life;
         ctx.beginPath(); ctx.arc(p.x,p.y,p.r,0,Math.PI*2);
@@ -104,12 +88,11 @@ export default function ConnectPage() {
   }
   function stopFireworks(){ fwRef.current.cleanup && fwRef.current.cleanup(); }
 
-  // ====== SEARCH / SOCKET ======
+  // ====== MATCHING ======
   function startSearch(type){
     if(isSearching||connectingRef.current) return;
     connectingRef.current=true;
     setIsSearching(true); setShowLoader(true);
-    setModeText(type==="video"?"Video Chat":"Text Chat");
     setStatusMessage(type==="video"?"🎥 Searching for a Video Chat partner...":"💬 Searching for a Text Chat partner...");
     try{
       if(!socketRef.current||!socketRef.current.connected){
@@ -124,17 +107,17 @@ export default function ConnectPage() {
       socketRef.current.on("partnerFound",(data)=>{
         try{
           const roomCode=data?.roomCode||""; partnerRef.current=data?.partner||{};
-          if(!roomCode){ setStatusMessage("Partner found but room creation failed. Trying again..."); setTimeout(()=>stopSearch(),800); return; }
+          if(!roomCode){ setTimeout(()=>stopSearch(),800); return; }
           sessionStorage.setItem("partnerData",JSON.stringify(partnerRef.current));
           sessionStorage.setItem("roomCode",roomCode);
           localStorage.setItem("lastRoomCode",roomCode);
           setStatusMessage("💖 Milan Successful!");
           setTimeout(()=>{ window.location.href = type==="video"?"/video":"/chat"; },120);
-        }catch(e){ console.error(e); setTimeout(()=>stopSearch(),500); }
+        }catch(e){ setTimeout(()=>stopSearch(),500); }
       });
       socketRef.current.on("partnerDisconnected",()=>{ alert("Partner disconnected."); stopSearch(); });
       socketRef.current.on("connect_error",()=>{ alert("Connection error. Please try again."); stopSearch(); });
-    }catch(e){ console.error(e); alert("Something went wrong starting the search."); stopSearch(); }
+    }catch(e){ alert("Something went wrong starting the search."); stopSearch(); }
     finally{ setTimeout(()=>{ connectingRef.current=false; },300); }
   }
   function stopSearch(){
@@ -143,18 +126,16 @@ export default function ConnectPage() {
       try{ socketRef.current.removeAllListeners && socketRef.current.removeAllListeners(); }catch{}
       socketRef.current=null;
     }
-    setIsSearching(false); setShowLoader(false); setModeText("");
+    setIsSearching(false); setShowLoader(false);
     setStatusMessage("❤️ जहाँ दिल मिले, वहीं होती है शुरुआत Milan की…");
   }
 
-  // ====== DIWALI ACTIONS ======
+  // ====== CELEBRATE ======
   function celebrate(){
     const a=document.getElementById("bellAudio"); try{ a.currentTime=0; a.play(); }catch{}
-    const {burst}=fwRef.current; const x=innerWidth/2,y=innerHeight*0.3;
-    for(let i=0;i<4;i++) setTimeout(()=>burst(x+(Math.random()*160-80),y+(Math.random()*80-40)),i*140);
+    const {burst}=fwRef.current; const x=innerWidth/2,y=innerHeight*0.5;
+    for(let i=0;i<5;i++) setTimeout(()=>burst(x+(Math.random()*220-110),y+(Math.random()*120-60)),i*140);
   }
-  function lightDiya(){ setWish(""); setWishDone(false); setShowWish(true); }
-  function submitWish(){ setWishDone(true); const {burst}=fwRef.current; burst&&burst(innerHeight*.5, innerHeight*.32); }
 
   // ====== UI HELPERS ======
   function completeness(p=profile){
@@ -167,11 +148,14 @@ export default function ConnectPage() {
   return (
     <>
       <Head>
+        <title>Milan — Connect</title>
         <link rel="preconnect" href="https://fonts.googleapis.com"/>
         <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="anonymous"/>
         <link href="https://fonts.googleapis.com/css2?family=Great+Vibes&family=Poppins:wght@300;400;600;700;900&display=swap" rel="stylesheet"/>
       </Head>
 
+      {/* Gold frame */}
+      <div className="frame" aria-hidden />
       {/* Backgrounds */}
       <canvas id="heartsCanvas"/>
       <canvas id="fxCanvas" style={{position:'fixed',inset:0,zIndex:1,pointerEvents:'none'}}/>
@@ -203,15 +187,17 @@ export default function ConnectPage() {
           <li onClick={()=>{setShowProfile(true); setShowSecurity(false); setShowLoveCalc(false);}}>👤 Profile Info</li>
           <li onClick={()=>{setShowSecurity(true); setShowProfile(false); setShowLoveCalc(false);}}>🔒 Security</li>
           <li onClick={()=>{setShowLoveCalc(true); setShowProfile(false); setShowSecurity(false);}}>💘 Love Calculator</li>
-          <li onClick={()=>setShowLogoutConfirm(true)}>🚪 Logout</li>
+          <li onClick={()=>{ localStorage.clear(); window.location.href='/login'; }}>🚪 Logout</li>
         </ul>
       </aside>
 
-      {/* Main hero (clean badges + Hinglish quote) */}
+      {/* Sticky topbar brand — appears on every page */}
+      <header className="topbar">
+        <a href="/" className="brandLogo">Milan</a>
+      </header>
+
+      {/* HERO — full screen center */}
       <main className="heroWrap">
-        <div className="festiveHeader">🪔 Diwali Celebration with Milan 💖</div>
-        <h1 className="brand">Milan</h1>
-        <div className="divider"/>
         <h2 className="diwaliHead">Wish you a very Happy Diwali!</h2>
         <p className="lead">
           “Diye ki roshni jaise andheron ko mita deti hai, waise hi <b>Milan</b> aapke dil ki tanhayi mita dega.
@@ -221,19 +207,13 @@ export default function ConnectPage() {
         <div className="ctaRow">
           <button className="cta ghost"   onClick={()=>startSearch('text')}>💬 Start Text Chat</button>
           <button className="cta primary" onClick={()=>startSearch('video')}>🎥 Start Video Chat</button>
-
-          {/* NEW: Milan AI Studio (goes to /studio) */}
           <a href="/studio" className="cta ghost">🎨 Milan AI Studio</a>
-
           <button className="cta gold"    onClick={celebrate}>🥳 Let’s Celebrate Diwali</button>
         </div>
 
         {showLoader && <div className="status">{statusMessage}</div>}
 
-        {/* Inline AI section removed as per spec */}
-        {/* <DiwaliAiStudio /> */}
-
-        {/* Bottom diyas */}
+        {/* Diyas bottom */}
         <div className="diyas">
           <div className="diya"><div className="bowl"/><div className="oil"/><div className="flame"/></div>
           <div className="diya"><div className="bowl"/><div className="oil"/><div className="flame" style={{animationDuration:'1.2s'}}/></div>
@@ -242,31 +222,21 @@ export default function ConnectPage() {
         </div>
       </main>
 
-      {/* Wish Modal (unchanged) */}
-      {showWish && (
-        <div className="modalBack" onClick={(e)=>{ if(e.target.classList.contains('modalBack')) setShowWish(false); }}>
-          <div className="modal">
-            <h3>🪔 Make a Wish</h3>
-            {!wishDone ? (<>
-              <p>Close your eyes, type your wish, then light the diya. May it come true ✨</p>
-              <textarea value={wish} onChange={(e)=>setWish(e.target.value)} placeholder="Type your Diwali wish..."/>
-              <div className="actions">
-                <button className="btn ghost" onClick={()=>setShowWish(false)}>Cancel</button>
-                <button className="btn primary" onClick={submitWish}>Light the Diya</button>
-              </div>
-            </>) : (<>
-              <p>Diya is lit 🔥 Your wish is released to the universe. Ab connection sachha mile! 💖</p>
-              <div className="actions"><button className="btn primary" onClick={()=>setShowWish(false)}>Close</button></div>
-            </>)}
-          </div>
-        </div>
-      )}
-
-      {/* Styles */}
+      {/* STYLES */}
       <style>{`
-        :root{ --bg:#0a0b12; --rose:#ff6ea7; --rose2:#ff9fb0; --gold:#ffd166; }
-        html,body{ margin:0; padding:0; height:100%; background:#0b0a12; color:#eef2ff; font-family:Poppins, system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, sans-serif; }
-        #heartsCanvas,#fxCanvas{ position:fixed; inset:0; pointer-events:none; }
+        :root{ --bg:#07070c; --rose:#ff6ea7; --rose2:#ff9fb0; --gold:#ffd166; }
+        html,body{ margin:0; padding:0; height:100%; background:
+          radial-gradient(1200px 600px at 20% 10%, rgba(255,110,167,.10), transparent 60%),
+          radial-gradient(900px 500px at 90% 20%, rgba(255,110,167,.06), transparent 60%),
+          #08060c; color:#f7f7fb; font-family:Poppins, system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, sans-serif; }
+        #heartsCanvas,#fxCanvas{ position:fixed; inset:0; pointer-events:none; z-index:1; }
+
+        /* Gold frame */
+        .frame{ position:fixed; inset:10px; border:2px solid rgba(255,209,102,.65); border-radius:16px; pointer-events:none; z-index:2; box-shadow:0 0 18px rgba(255,209,102,.25) inset; }
+
+        .topbar{ position:fixed; left:200px; right:10px; top:10px; height:52px; z-index:6; display:flex; align-items:center; justify-content:flex-start;
+          background:linear-gradient(180deg, rgba(255,255,255,.05), rgba(255,255,255,.02)); border:1px solid rgba(255,255,255,.10); border-radius:12px; padding:0 16px; backdrop-filter: blur(10px); }
+        .brandLogo{ font-family:'Great Vibes', cursive; font-size:32px; color:#ffe9ac; text-decoration:none; text-shadow:0 0 18px rgba(255,209,102,.3); }
 
         .sidebar{ position:fixed; left:0; top:0; bottom:0; width:200px; background:rgba(255,255,255,.04); backdrop-filter:blur(8px); border-right:1px solid rgba(255,255,255,.06); z-index:5; display:flex; flex-direction:column; align-items:center; padding-top:18px; }
         .avatarWrap{ width:70px; height:70px; border-radius:50%; overflow:hidden; box-shadow:0 6px 18px rgba(0,0,0,.35); }
@@ -277,17 +247,17 @@ export default function ConnectPage() {
         .nav{ list-style:none; padding:0; width:100%; margin-top:18px; }
         .nav li{ padding:10px 14px; margin:6px 12px; border-radius:12px; background:rgba(255,255,255,.04); cursor:pointer; font-weight:700; }
 
-        .heroWrap{ position:relative; margin-left:200px; min-height:100vh; display:flex; flex-direction:column; align-items:center; justify-content:flex-start; padding:24px 12px 120px; z-index:3; }
-        .festiveHeader{ margin-top:8px; color:#ffe9ac; font-weight:800; letter-spacing:.12em; text-transform:uppercase; font-size:12px; opacity:.95; }
-        .brand{ font-family:'Great Vibes', cursive; font-size:84px; margin:10px 0 6px; text-shadow:0 0 24px rgba(255,209,102,.35), 0 0 42px rgba(255,110,167,.18); }
-        .divider{ width:min(760px,82vw); height:2px; background:linear-gradient(90deg, transparent, rgba(255,209,102,.65), transparent); margin:12px auto; }
-        .diwaliHead{ margin:12px 0 6px; font-size:36px; font-weight:900; color:#ffe9ac; text-shadow:0 0 16px rgba(255,209,102,.22); }
-        .lead{ max-width:820px; text-align:center; color:#cbd5e1; font-weight:600; }
-        .ctaRow{ display:flex; gap:12px; margin-top:16px; flex-wrap:wrap; justify-content:center; }
-        .cta{ padding:12px 16px; border-radius:12px; font-weight:900; border:0; cursor:pointer; display:inline-flex; align-items:center; justify-content:center; text-decoration:none; }
-        .cta.primary{ background:linear-gradient(90deg,var(--rose),var(--rose2)); color:#0a0b12; box-shadow:0 12px 40px rgba(255,110,167,.18); }
-        .cta.gold{ background:rgba(255,209,102,.18); color:#ffe9ac; border:1px solid rgba(255,209,102,.35); box-shadow:0 12px 36px rgba(255,209,102,.18); }
-        .cta.ghost{ background:rgba(255,255,255,.06); color:#fff; border:1px solid rgba(255,255,255,.12); }
+        /* Full-screen hero */
+        .heroWrap{ position:relative; margin-left:200px; z-index:3;
+          min-height:100vh; display:flex; flex-direction:column; align-items:center; justify-content:center; padding:80px 12px 120px; gap:10px; }
+        .diwaliHead{ margin:0; font-size:42px; font-weight:900; color:#ffe9ac; text-shadow:0 0 18px rgba(255,209,102,.22); letter-spacing:.5px; }
+        .lead{ max-width:880px; text-align:center; color:#e9e5ef; opacity:.95; font-weight:600; }
+        .ctaRow{ display:flex; gap:14px; margin-top:10px; flex-wrap:wrap; justify-content:center; }
+        .cta{ padding:14px 18px; border-radius:14px; font-weight:900; border:0; cursor:pointer; display:inline-flex; align-items:center; justify-content:center; text-decoration:none; }
+        .cta.primary{ background:linear-gradient(90deg,var(--rose),var(--rose2)); color:#0a0b12; box-shadow:0 12px 40px rgba(255,110,167,.22); }
+        .cta.gold{ background:rgba(255,209,102,.18); color:#ffe9ac; border:1px solid rgba(255,209,102,.4); box-shadow:0 12px 36px rgba(255,209,102,.18); }
+        .cta.ghost{ background:rgba(255,255,255,.07); color:#fff; border:1px solid rgba(255,255,255,.14); }
+
         .status{ margin-top:10px; font-weight:800; color:#fff; animation:blink 1s infinite; }
         @keyframes blink{0%{opacity:.3}50%{opacity:1}100%{opacity:.3}}
 
@@ -299,8 +269,16 @@ export default function ConnectPage() {
         .flame{ position:absolute; left:50%; bottom:28px; width:18px; height:28px; transform:translateX(-50%); background: radial-gradient(50% 65% at 50% 60%, #fff7cc 0%, #ffd166 55%, #ff8c00 75%, rgba(255,0,0,0) 80%); border-radius: 12px 12px 14px 14px / 18px 18px 8px 8px; animation: flicker 1.4s infinite ease-in-out; box-shadow: 0 0 18px 6px rgba(255,173,51,.45), 0 0 36px 12px rgba(255,140,0,.15); }
         .flame:before{ content:""; position:absolute; inset:4px; border-radius:inherit; background: radial-gradient(circle at 50% 70%, #fffbe6, rgba(255,255,255,0) 66%); filter: blur(1px); }
 
-        @media(max-width:860px){ .brand{font-size:64px;} .lead{padding:0 12px;} }
-        @media(max-width:720px){ .sidebar{position:static; width:100%; height:auto; flex-direction:row; gap:10px; justify-content:center; border:0; background:transparent;} .heroWrap{margin-left:0;} .nav{display:none;} .photoPick{display:none;} .meter{display:none;} }
+        /* MOBILE */
+        @media(max-width:1024px){ .topbar{left:10px;} }
+        @media(max-width:860px){
+          .sidebar{position:static; width:100%; height:auto; flex-direction:row; gap:10px; justify-content:center; border:0; background:transparent;}
+          .nav{display:none;} .photoPick{display:none;} .meter{display:none;}
+          .heroWrap{margin-left:0; padding-top:90px;}
+        }
+        @media(max-width:520px){
+          .diwaliHead{font-size:32px;} .cta{width:100%;}
+        }
       `}</style>
     </>
   );
