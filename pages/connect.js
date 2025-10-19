@@ -32,9 +32,6 @@ export default function ConnectPage() {
     []
   );
 
-  // ===== Smoke mark: badge so you know this build is live =====
-  const BUILD_TAG = "CONNECT v4 (no diyas) ✅";
-
   // Load profile (SSR-safe)
   useEffect(() => {
     try {
@@ -374,8 +371,6 @@ export default function ConnectPage() {
         />
       </Head>
 
-      <div className="devBadge">{BUILD_TAG}</div>
-
       {/* Frame */}
       <div className="frame" aria-hidden />
 
@@ -519,24 +514,24 @@ export default function ConnectPage() {
       </main>
 
       <style>{`
-        /* Hard reset helpers */
-        :root{ --brandH: 170px; --bottomH: 60px; } /* reduced since diyas removed */
+        :root{ --brandH: 170px; --bottomH: 60px; } /* smaller bottom gap now that diyas are gone */
         *,*::before,*::after{ box-sizing: border-box; min-width:0; }
         html,body{ margin:0; padding:0; height:100%; background:#08060c; color:#f7f7fb; font-family:Poppins,system-ui,-apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif; }
         body{ overflow:hidden; } /* desktop */
         #heartsCanvas{ position:fixed; inset:0; z-index:0; pointer-events:none; }
         #fxCanvas{ position:fixed; inset:0; z-index:0; pointer-events:none; }
 
-        .devBadge{ position:fixed; top:8px; left:8px; z-index:10; background:#111; border:1px solid rgba(255,255,255,.2); padding:6px 10px; border-radius:10px; font-weight:800; }
-
         .frame{ position:fixed; top:10px; bottom:10px; right:10px; left:210px; z-index:2; pointer-events:none; }
         .frame::before,.frame::after{ content:""; position:absolute; inset:0; border-radius:18px; }
-        .frame::before{ padding:2px; background:linear-gradient(135deg, rgba(255,209,102,.9), rgba(255,209,102,.45) 40%, rgba(255,110,167,.55), rgba(255,209,102,.9));
+        .frame::before{
+          padding:2px; background:linear-gradient(135deg, rgba(255,209,102,.9), rgba(255,209,102,.45) 40%, rgba(255,110,167,.55), rgba(255,209,102,.9));
           -webkit-mask:linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
-          -webkit-mask-composite:xor; mask-composite:exclude; border-radius:18px; box-shadow:0 0 24px rgba(255,209,102,.32), 0 0 46px rgba(255,110,167,.2); }
+          -webkit-mask-composite:xor; mask-composite:exclude; border-radius:18px; box-shadow:0 0 24px rgba(255,209,102,.32), 0 0 46px rgba(255,110,167,.2);
+        }
         .frame::after{ inset:8px; border:2px solid rgba(255,209,102,.6); border-radius:14px; box-shadow:0 0 20px rgba(255,209,102,.28) inset; }
 
-        .sidebar{ position:fixed; left:0; top:0; bottom:0; width:200px; background:rgba(255,255,255,.04); backdrop-filter:blur(8px); border-right:1px solid rgba(255,255,255,.06); z-index:3; display:flex; flex-direction:column; align-items:center; padding-top:18px; }
+        .sidebar{ position:fixed; left:0; top:0; bottom:0; width:200px; background:rgba(255,255,255,.04);
+          backdrop-filter:blur(8px); border-right:1px solid rgba(255,255,255,.06); z-index:3; display:flex; flex-direction:column; align-items:center; padding-top:18px; }
         .avatarWrap{ width:70px; height:70px; border-radius:50%; overflow:hidden; box-shadow:0 6px 18px rgba(0,0,0,.35); }
         .name{ margin-top:8px; font-weight:800; }
         .meter{ width:140px; height:8px; background:rgba(255,255,255,.1); border-radius:8px; margin-top:6px; overflow:hidden; }
@@ -594,8 +589,8 @@ export default function ConnectPage() {
           .featuresGrid{ width:min(980px, calc(100vw - 48px)); grid-template-columns:1fr 1fr; }
         }
         @media(max-width:560px){
-          :root{ --brandH: 0px; --bottomH: 80px; }  /* small safe space for bottom shadow */
-          html,body{ overflow:auto; }                /* enable scroll on mobile */
+          :root{ --brandH: 0px; --bottomH: 80px; }
+          html,body{ overflow:auto; }  /* enable scroll */
           .brandBlock{
             position:static; transform:none; top:auto; margin:16px 0 4px;
             pointer-events:none; text-align:center;
