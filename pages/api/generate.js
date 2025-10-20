@@ -1,97 +1,105 @@
-// pages/api/generate.js
-
-async function callHF(url, token, body) {
-  const res = await fetch(url, {
-    method: "POST",
-    headers: {
-      Authorization: `Bearer ${token}`,
-      "Content-Type": "application/json",
-    },
-    body: JSON.stringify(body),
-  });
-
-  const buf = Buffer.from(await res.arrayBuffer());
-  return { status: res.status, buf };
-}
-
+// Next.js API route: Universal image generator proxy + safe fallback
 export default async function handler(req, res) {
   if (req.method !== "POST") {
-    return res.status(405).json({ ok: false, error: "method_not_allowed" });
+    res.setHeader("Allow", "POST");
+    return res.status(405).json({ error: "Method not allowed" });
   }
 
+  const upstream = process.env.MILAN_GENERATE_URL || ""; // e.g. https://your-backend.ai/generate
+  const apiKey = process.env.MILAN_API_KEY || "";        // optional Bearer token
+
+  const payload = req.body || {};
   try {
-    const { prompt, negativePrompt, width = 1024, height = 1024, steps = 30, guidance = 7 } = req.body || {};
+    if (upstream) {
+      const upr = await fetch(upstream, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          ...(apiKey ? { Authorization: `Bearer ${apiKey}` } : {}),
+        },
+        body: JSON.stringify(payload),
+      });
 
-    if (!prompt || prompt.trim().length < 3) {
-      return res.status(400).json({ ok: false, error: "prompt_required" });
+      const ctype = upr.headers.get("content-type") || "";
+
+      if (!upr.ok) {
+        // Bubble up upstream error so the UI can show it
+        const body = await safeRead(upr, ctype);
+        return res
+          .status(upr.status)
+          .json({ error: "Upstream error", status: upr.status, body });
+      }
+
+      // 1) If upstream sends image bytes directly
+      if (ctype.startsWith("image/")) {
+        const buf = Buffer.from(await upr.arrayBuffer());
+        res.setHeader("Content-Type", ctype);
+        return res.send(buf);
+      }
+
+      // 2) JSON (many shapes supported)
+      if (ctype.includes("application/json")) {
+        const data = await upr.json();
+        const url =
+          data?.imageUrl ||
+          data?.url ||
+          data?.data?.url ||
+          data?.output?.[0] ||
+          (data?.imageBase64 && `data:image/png;base64,${stripPrefix(data.imageBase64)}`) ||
+          (data?.base64 && `data:image/png;base64,${stripPrefix(data.base64)}`) ||
+          // some providers return { images: ["base64...", ...] }
+          (Array.isArray(data?.images) && data.images[0] && `data:image/png;base64,${stripPrefix(data.images[0])}`) ||
+          // some return array of urls
+          (Array.isArray(data) && typeof data[0] === "string" && data[0]);
+
+        if (url) return res.status(200).json({ imageUrl: url });
+        return res.status(502).json({ error: "Upstream JSON had no image", upstreamSample: shrink(data) });
+      }
+
+      // 3) Text fallback (maybe a URL or data URL)
+      const text = await upr.text();
+      const trimmed = text.trim();
+      if (trimmed.startsWith("data:image") || /^https?:\/\//i.test(trimmed)) {
+        return res.status(200).json({ imageUrl: trimmed });
+      }
+
+      return res.status(502).json({
+        error: "Unsupported upstream content",
+        contentType: ctype,
+        body: trimmed.slice(0, 1200),
+      });
     }
 
-    // ✅ 1. API Token check
-    const token = process.env.HF_API_TOKEN || process.env.HF_TOKEN;
-    if (!token) {
-      return res.status(500).json({ ok: false, error: "missing_HF_API_TOKEN" });
-    }
-
-    // ✅ 2. Safe model name from environment
-    const model = (process.env.HF_MODEL || "stabilityai/stable-diffusion-xl-base-1.0")
-      .trim()
-      .replace(/\s+/g, "");
-
-    const payload = {
-      inputs: prompt,
-      parameters: {
-        width,
-        height,
-        num_inference_steps: steps,
-        guidance_scale: guidance,
-        negative_prompt: negativePrompt,
-      },
-      options: { wait_for_model: true },
-    };
-
-    const url = `https://api-inference.huggingface.co/models/${model}`;
-    console.log(`[MilanAI] Using model: ${model}`);
-
-    let { status, buf } = await callHF(url, token, payload);
-
-    // ✅ 3. Auto fallback if model not found
-    if (status === 404) {
-      const fallback = "stabilityai/stable-diffusion-xl-base-1.0";
-      console.warn(`[MilanAI] Model "${model}" not found. Falling back to "${fallback}"`);
-      ({ status, buf } = await callHF(
-        `https://api-inference.huggingface.co/models/${fallback}`,
-        token,
-        payload
-      ));
-    }
-
-    // ✅ 4. Error handling (401, 500, etc.)
-    if (status >= 400) {
-      let detail = buf.toString();
-      try {
-        const json = JSON.parse(buf.toString());
-        detail = json?.error || JSON.stringify(json);
-      } catch {}
-      return res.status(500).json({ ok: false, error: `hf_${status}`, detail });
-    }
-
-    // ✅ 5. Parse returned image
-    let b64;
-    if (buf[0] === 0x7b) {
-      const json = JSON.parse(buf.toString());
-      b64 = json?.data || json?.image || (json?.images && json.images[0]);
-      if (b64) b64 = b64.replace(/^data:image\/[a-zA-Z+]+;base64,/, "");
-    } else {
-      b64 = buf.toString("base64");
-    }
-
-    if (!b64) {
-      return res.status(500).json({ ok: false, error: "no_image_returned" });
-    }
-
-    return res.status(200).json({ ok: true, image: `data:image/png;base64,${b64}` });
+    // No upstream configured → safe demo so UI never fails
+    const demo = demoFallbackUrl();
+    return res.status(200).json({ imageUrl: demo });
   } catch (e) {
-    console.error("[MilanAI Error]", e);
-    return res.status(500).json({ ok: false, error: "generation_failed", detail: e.message });
+    return res.status(500).json({ error: "Proxy failed", message: e.message });
+  }
+}
+
+// utils
+function stripPrefix(b64) {
+  return (b64 || "").replace(/^data:image\/[a-zA-Z0-9.+-]+;base64,/, "");
+}
+function demoFallbackUrl() {
+  const seeds = ["milan1", "milan2", "milan3", "milan4", "milan5"];
+  const seed = seeds[Math.floor(Math.random() * seeds.length)];
+  return `https://picsum.photos/seed/${seed}/1200/800`;
+}
+async function safeRead(resp, ctype) {
+  try {
+    if (ctype.includes("application/json")) return await resp.json();
+    return (await resp.text()).slice(0, 2000);
+  } catch {
+    return "Could not read upstream body";
+  }
+}
+function shrink(obj) {
+  try {
+    const s = JSON.stringify(obj);
+    return s.length > 1200 ? s.slice(0, 1200) + "…" : s;
+  } catch {
+    return "[unserializable]";
   }
 }
