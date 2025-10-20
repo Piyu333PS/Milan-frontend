@@ -1,8 +1,32 @@
+// pages/index.js
 "use client";
+import Head from "next/head";
 import { useEffect, useState, useRef } from "react";
 
 export default function HomePage() {
   const API_BASE = "https://milan-j9u9.onrender.com";
+
+  // --- HARD SCROLL-UNLOCK: prevents mobile freeze (body/html overflow locks) ---
+  useEffect(() => {
+    const html = document.documentElement;
+    const body = document.body;
+
+    const unlock = () => {
+      html.style.overflowY = "auto";
+      body.style.overflowY = "auto";
+      html.style.height = "auto";
+      body.style.height = "auto";
+      body.style.touchAction = "pan-y";
+      body.style.webkitOverflowScrolling = "touch";
+      body.style.overscrollBehaviorY = "auto";
+    };
+    unlock();
+
+    // In case any runtime script re-locks scroll
+    const i = setInterval(unlock, 500);
+    return () => clearInterval(i);
+  }, []);
+  // ---------------------------------------------------------------------------
 
   // Auth views
   const [showLogin, setShowLogin] = useState(false);
@@ -44,7 +68,7 @@ export default function HomePage() {
     setEnableHearts(true);
     startHearts();
     startFireworks();
-    startRockets(); // NEW: rockets
+    startRockets();
 
     const t = setInterval(() => {
       const diff = offerEndsAt - Date.now();
@@ -63,7 +87,7 @@ export default function HomePage() {
     return () => {
       stopHearts();
       stopFireworks();
-      stopRockets(); // NEW cleanup
+      stopRockets();
       clearInterval(t);
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -152,22 +176,26 @@ export default function HomePage() {
       return a + Math.random() * (b - a);
     }
     function hsv(h, s, v) {
-      const f = (n, k = (n + h / 60) % 6) => v - v * s * Math.max(Math.min(k, 4 - k, 1), 0);
+      const f = (n, k = (n + h / 60) % 6) =>
+        v - v * s * Math.max(Math.min(k, 4 - k, 1), 0);
       return `rgb(${(f(5) * 255) | 0},${(f(3) * 255) | 0},${(f(1) * 255) | 0})`;
     }
 
     function burst(x, y) {
-      const n = 60 + (Math.random() * 40) | 0;
+      const n = (60 + Math.random() * 40) | 0;
       const hue = Math.random() * 360;
       for (let i = 0; i < n; i++) {
         const speed = rand(1.2, 3.2);
-        const ang = (Math.PI * 2) * i / n + rand(-0.03, 0.03);
+        const ang = ((Math.PI * 2) * i) / n + rand(-0.03, 0.03);
         ents.push({
-          x, y,
+          x,
+          y,
           vx: Math.cos(ang) * speed,
           vy: Math.sin(ang) * speed - rand(0.2, 0.6),
-          life: rand(0.9, 1.4), age: 0,
-          color: hsv(hue + rand(-20, 20), 0.9, 1), r: rand(1, 2.2)
+          life: rand(0.9, 1.4),
+          age: 0,
+          color: hsv(hue + rand(-20, 20), 0.9, 1),
+          r: rand(1, 2.2),
         });
       }
     }
@@ -175,14 +203,19 @@ export default function HomePage() {
     function tick() {
       ctx.fillStyle = "rgba(10,7,16,0.22)";
       ctx.fillRect(0, 0, W, H);
-      if (Math.random() < 0.015) burst(rand(W * 0.1, W * 0.9), rand(H * 0.1, H * 0.6));
+      if (Math.random() < 0.015)
+        burst(rand(W * 0.1, W * 0.9), rand(H * 0.1, H * 0.6));
       ents = ents.filter((p) => (p.age += 0.016) < p.life);
       for (const p of ents) {
         p.vy += 0.5 * 0.016;
-        p.x += p.vx; p.y += p.vy;
+        p.x += p.vx;
+        p.y += p.vy;
         const a = 1 - p.age / p.life;
-        ctx.beginPath(); ctx.arc(p.x, p.y, p.r, 0, Math.PI * 2);
-        ctx.fillStyle = p.color.replace("rgb", "rgba").replace(")", `,${a.toFixed(2)})`);
+        ctx.beginPath();
+        ctx.arc(p.x, p.y, p.r, 0, Math.PI * 2);
+        ctx.fillStyle = p.color
+          .replace("rgb", "rgba")
+          .replace(")", `,${a.toFixed(2)})`);
         ctx.fill();
       }
       fwRef.current.raf = requestAnimationFrame(tick);
@@ -228,7 +261,6 @@ export default function HomePage() {
 
     // launch cadence
     const launcher = setInterval(() => {
-      // slightly higher rate on desktop
       const launches = window.innerWidth > 768 ? 2 : 1;
       for (let i = 0; i < launches; i++) spawnRocket();
     }, 900);
@@ -237,7 +269,7 @@ export default function HomePage() {
       ctx.clearRect(0, 0, W, H);
       rockets.forEach((r) => {
         // physics
-        r.vy += 0.008;   // small drag
+        r.vy += 0.008; // small drag
         r.x += r.vx;
         r.y += r.vy;
 
@@ -321,7 +353,10 @@ export default function HomePage() {
   // Register & flows
   function onRegisterClick(e) {
     rippleEffect(e);
-    if (!consentAccepted) { setShowConsent(true); return; }
+    if (!consentAccepted) {
+      setShowConsent(true);
+      return;
+    }
     registerUser();
   }
   async function registerUser() {
@@ -336,14 +371,23 @@ export default function HomePage() {
 
     if (!name || !gender || !contact || !password || !dob || !city || !reason)
       return showError("Please fill all required fields!");
-    if (!termsAccepted) return showError("Please accept Terms & Conditions to continue.");
+    if (!termsAccepted)
+      return showError("Please accept Terms & Conditions to continue.");
     const userAge = calculateAge(dob);
     if (isNaN(userAge)) return showError("Please enter a valid Date of Birth.");
     if (userAge < 18) return showError("Milan is strictly 18+ only.");
 
     try {
       setLoadingRegister(true);
-      const payload = { emailOrMobile: contact, password, name, gender, dob, city, reason };
+      const payload = {
+        emailOrMobile: contact,
+        password,
+        name,
+        gender,
+        dob,
+        city,
+        reason,
+      };
       if (giftAccepted) payload.diwaliGift = true;
       const res = await fetch(`${API_BASE}/register`, {
         method: "POST",
@@ -367,7 +411,8 @@ export default function HomePage() {
     rippleEffect(e);
     const contact = document.getElementById("loginContact")?.value.trim();
     const password = document.getElementById("loginPassword")?.value.trim();
-    if (!contact || !password) return showError("Enter Email/Mobile and Password");
+    if (!contact || !password)
+      return showError("Enter Email/Mobile and Password");
     try {
       setLoadingLogin(true);
       const res = await fetch(`${API_BASE}/login`, {
@@ -428,44 +473,95 @@ export default function HomePage() {
   function celebrateDiwali(e) {
     rippleEffect(e);
     const audio = document.getElementById("diwaliChime");
-    try { audio.currentTime = 0; audio.play(); } catch {}
+    try {
+      audio.currentTime = 0;
+      audio.play();
+    } catch {}
     const { burst } = fwRef.current;
     if (burst) {
-      const x = window.innerWidth / 2, y = window.innerHeight * 0.3;
-      for (let i = 0; i < 4; i++) setTimeout(() => burst(x + (Math.random()*160-80), y + (Math.random()*80-40)), i*140);
+      const x = window.innerWidth / 2,
+        y = window.innerHeight * 0.3;
+      for (let i = 0; i < 4; i++)
+        setTimeout(
+          () =>
+            burst(
+              x + (Math.random() * 160 - 80),
+              y + (Math.random() * 80 - 40)
+            ),
+          i * 140
+        );
     }
   }
 
-  // Wish CTA (neutral, no diya mention)
-  function openWish(e){ rippleEffect(e); setShowWish(true); setWishDone(false); setWishText(""); }
+  // Wish CTA
+  function openWish(e) {
+    rippleEffect(e);
+    setShowWish(true);
+    setWishDone(false);
+    setWishText("");
+  }
   function submitWish() {
     setWishDone(true);
     const { burst } = fwRef.current;
     if (burst) {
-      const x = window.innerWidth * 0.5, y = window.innerHeight * 0.32;
-      burst(x, y); setTimeout(() => burst(x + 60, y - 20), 180);
+      const x = window.innerWidth * 0.5,
+        y = window.innerHeight * 0.32;
+      burst(x, y);
+      setTimeout(() => burst(x + 60, y - 20), 180);
     }
   }
 
   // Gift Box
-  function openGift() { setShowGift(true); }
+  function openGift() {
+    setShowGift(true);
+  }
   function acceptGift() {
     setGiftAccepted(true);
     setShowGift(false);
-    try { localStorage.setItem("milan_diwali_gift", "accepted"); } catch {}
-    setShowReset(false); setShowLogin(true);
-    setTimeout(() => { try { const el = document.getElementById("loginContact"); el && el.focus({ preventScroll: true }); el && el.scrollIntoView({ behavior: "smooth", block: "center" }); } catch {} }, 150);
+    try {
+      localStorage.setItem("milan_diwali_gift", "accepted");
+    } catch {}
+    setShowReset(false);
+    setShowLogin(true);
+    setTimeout(() => {
+      try {
+        const el = document.getElementById("loginContact");
+        el && el.focus({ preventScroll: true });
+        el &&
+          el.scrollIntoView({ behavior: "smooth", block: "center" });
+      } catch {}
+    }, 150);
   }
 
   return (
     <>
+      <Head>
+        <title>Milan — Happy Diwali</title>
+        <meta
+          name="viewport"
+          content="width=device-width, initial-scale=1, viewport-fit=cover"
+        />
+        <meta name="theme-color" content="#0b1220" />
+      </Head>
+
       {/* Background layers */}
-      <div className="rangoli-bg" aria-hidden /> {/* NEW: subtle rangoli watermark */}
+      <div className="rangoli-bg" aria-hidden />
       <canvas id="heartsCanvas" aria-hidden={!enableHearts}></canvas>
-      <canvas id="rocketsCanvas" style={{ position: 'fixed', inset: 0, zIndex: 1, pointerEvents: 'none' }} />
-      <canvas id="fireworksCanvas" style={{ position: 'fixed', inset: 0, zIndex: 0, pointerEvents: 'none' }} />
-      <audio id="diwaliChime" preload="auto"><source src="https://cdn.pixabay.com/download/audio/2022/03/15/audio_4c76d6de8a.mp3?filename=soft-bell-ambient-10473.mp3" type="audio/mpeg"/></audio>
-      <div id="errorMessage" style={{ display: 'none' }} role="alert"></div>
+      <canvas
+        id="rocketsCanvas"
+        style={{ position: "fixed", inset: 0, zIndex: 1, pointerEvents: "none" }}
+      />
+      <canvas
+        id="fireworksCanvas"
+        style={{ position: "fixed", inset: 0, zIndex: 0, pointerEvents: "none" }}
+      />
+      <audio id="diwaliChime" preload="auto">
+        <source
+          src="https://cdn.pixabay.com/download/audio/2022/03/15/audio_4c76d6de8a.mp3?filename=soft-bell-ambient-10473.mp3"
+          type="audio/mpeg"
+        />
+      </audio>
+      <div id="errorMessage" style={{ display: "none" }} role="alert"></div>
 
       <div className="page-wrap">
         <div className="container">
@@ -473,22 +569,55 @@ export default function HomePage() {
             <div className="welcome-box" role="region" aria-label="Welcome to Milan">
               <div className="welcome-row">
                 <h1 className="welcome-title">Milan</h1>
-                <span className="pulse-heart" aria-hidden>❤</span>
+                <span className="pulse-heart" aria-hidden>
+                  ❤
+                </span>
               </div>
               <h3 className="festive-wish">Happy Diwali! ✨</h3>
-              <p className="welcome-text">“Love recognizes no barriers. It jumps hurdles, leaps fences, penetrates walls to arrive at its destination full of hope.”</p>
+              <p className="welcome-text">
+                “Love recognizes no barriers. It jumps hurdles, leaps fences,
+                penetrates walls to arrive at its destination full of hope.”
+              </p>
               <p className="age-note">🔞 Milan is strictly for 18+ users.</p>
 
               <div className="why-grid">
-                <div className="why-card"><div className="why-emoji">🔒</div><h4>Safe & Moderated</h4><p>Profiles monitored, community guidelines & reporting tools keep things safe.</p></div>
-                <div className="why-card"><div className="why-emoji">🌹</div><h4>Romantic Vibes</h4><p>Romantic UI, soft animations and a gentle atmosphere for real connections.</p></div>
-                <div className="why-card"><div className="why-emoji">🕶️</div><h4>Anonymous & Fun</h4><p>Chat anonymously, express freely — it's light, friendly & playful.</p></div>
+                <div className="why-card">
+                  <div className="why-emoji">🔒</div>
+                  <h4>Safe & Moderated</h4>
+                  <p>
+                    Profiles monitored, community guidelines & reporting tools keep
+                    things safe.
+                  </p>
+                </div>
+                <div className="why-card">
+                  <div className="why-emoji">🌹</div>
+                  <h4>Romantic Vibes</h4>
+                  <p>
+                    Romantic UI, soft animations and a gentle atmosphere for real
+                    connections.
+                  </p>
+                </div>
+                <div className="why-card">
+                  <div className="why-emoji">🕶️</div>
+                  <h4>Anonymous & Fun</h4>
+                  <p>Chat anonymously, express freely — it's light, friendly & playful.</p>
+                </div>
               </div>
 
               <div className="cta-row">
-                <button className="celebrate-btn" onClick={celebrateDiwali} onMouseDown={rippleEffect}>🎉 Celebrate Diwali</button>
-                <button className="ghost-btn" onClick={openWish} onMouseDown={rippleEffect}>✨ Make a Wish</button>
-                <button className="gift-btn" onClick={openGift} onMouseDown={rippleEffect}>🎁 Open Diwali Gift</button>
+                <button
+                  className="celebrate-btn"
+                  onClick={celebrateDiwali}
+                  onMouseDown={rippleEffect}
+                >
+                  🎉 Celebrate Diwali
+                </button>
+                <button className="ghost-btn" onClick={openWish} onMouseDown={rippleEffect}>
+                  ✨ Make a Wish
+                </button>
+                <button className="gift-btn" onClick={openGift} onMouseDown={rippleEffect}>
+                  🎁 Open Diwali Gift
+                </button>
               </div>
             </div>
           </div>
@@ -498,20 +627,49 @@ export default function HomePage() {
               {!showLogin && !showReset && (
                 <div id="registerForm">
                   <h2>Create Your Account</h2>
-                  <label>Name <span className="star">*</span></label>
+                  <label>
+                    Name <span className="star">*</span>
+                  </label>
                   <input id="name" placeholder="Your name or nickname" />
-                  <label>Gender <span className="star">*</span></label>
-                  <select id="gender"><option value="">Select Gender</option><option value="Male">Male</option><option value="Female">Female</option><option value="Other">Other</option></select>
-                  <label>Email or Mobile <span className="star">*</span></label>
+                  <label>
+                    Gender <span className="star">*</span>
+                  </label>
+                  <select id="gender">
+                    <option value="">Select Gender</option>
+                    <option value="Male">Male</option>
+                    <option value="Female">Female</option>
+                    <option value="Other">Other</option>
+                  </select>
+                  <label>
+                    Email or Mobile <span className="star">*</span>
+                  </label>
                   <input id="contact" placeholder="Email or 10-digit Mobile number" />
-                  <label>Password <span className="star">*</span></label>
+                  <label>
+                    Password <span className="star">*</span>
+                  </label>
                   <input type="password" id="password" placeholder="Enter password" />
-                  <label>Date of Birth <span className="star">*</span></label>
-                  <input type="date" id="dob" max={new Date().toISOString().split('T')[0]} />
-                  <label>City/Country <span className="star">*</span></label>
+                  <label>
+                    Date of Birth <span className="star">*</span>
+                  </label>
+                  <input
+                    type="date"
+                    id="dob"
+                    max={new Date().toISOString().split("T")[0]}
+                  />
+                  <label>
+                    City/Country <span className="star">*</span>
+                  </label>
                   <input id="city" placeholder="City / Country" />
-                  <label>Reason for Joining <span className="star">*</span></label>
-                  <select id="reason" onChange={(e)=> (document.getElementById('otherReason').style.display = e.target.value==='Other' ? 'block':'none') }>
+                  <label>
+                    Reason for Joining <span className="star">*</span>
+                  </label>
+                  <select
+                    id="reason"
+                    onChange={(e) =>
+                      (document.getElementById("otherReason").style.display =
+                        e.target.value === "Other" ? "block" : "none")
+                    }
+                  >
                     <option value="">Select reason</option>
                     <option value="Looking for Love">Looking for Love ❤️</option>
                     <option value="Friendship">Friendship 🤗</option>
@@ -519,16 +677,43 @@ export default function HomePage() {
                     <option value="Exploring">Exploring 🌎</option>
                     <option value="Other">Other</option>
                   </select>
-                  <textarea id="otherReason" placeholder="If other, please describe" style={{ display:'none' }} />
+                  <textarea
+                    id="otherReason"
+                    placeholder="If other, please describe"
+                    style={{ display: "none" }}
+                  />
                   <div className="terms-container">
                     <input type="checkbox" id="terms" />
-                    <label htmlFor="terms" style={{ marginLeft:8 }}>I agree to the <a href="/terms.html" target="_blank" rel="noreferrer">Terms & Conditions</a>,<a href="/privacy.html" target="_blank" rel="noreferrer"> Privacy Policy</a> and <a href="/guidelines.html" target="_blank" rel="noreferrer">Community Guidelines</a></label>
+                    <label htmlFor="terms" style={{ marginLeft: 8 }}>
+                      I agree to the{" "}
+                      <a href="/terms.html" target="_blank" rel="noreferrer">
+                        Terms & Conditions
+                      </a>
+                      ,
+                      <a href="/privacy.html" target="_blank" rel="noreferrer">
+                        {" "}
+                        Privacy Policy
+                      </a>{" "}
+                      and{" "}
+                      <a href="/guidelines.html" target="_blank" rel="noreferrer">
+                        Community Guidelines
+                      </a>
+                    </label>
                   </div>
-                  <button className="primary-btn" onClick={onRegisterClick} disabled={loadingRegister} aria-disabled={loadingRegister} aria-busy={loadingRegister} onMouseDown={rippleEffect}>
+                  <button
+                    className="primary-btn"
+                    onClick={onRegisterClick}
+                    disabled={loadingRegister}
+                    aria-disabled={loadingRegister}
+                    aria-busy={loadingRegister}
+                    onMouseDown={rippleEffect}
+                  >
                     {loadingRegister ? <span className="btn-loader" aria-hidden></span> : null}
                     Register & Start
                   </button>
-                  <p className="link-text" onClick={()=> setShowLogin(true)}>Already Registered? Login here</p>
+                  <p className="link-text" onClick={() => setShowLogin(true)}>
+                    Already Registered? Login here
+                  </p>
                 </div>
               )}
 
@@ -539,12 +724,23 @@ export default function HomePage() {
                   <input id="loginContact" placeholder="Enter Email/Mobile" />
                   <label>Password</label>
                   <input type="password" id="loginPassword" placeholder="Enter password" />
-                  <button className="primary-btn" onClick={handleLogin} disabled={loadingLogin} aria-disabled={loadingLogin} aria-busy={loadingLogin} onMouseDown={rippleEffect}>
-                    {loadingLogin ? <span className="btn-loader"/> : null}
+                  <button
+                    className="primary-btn"
+                    onClick={handleLogin}
+                    disabled={loadingLogin}
+                    aria-disabled={loadingLogin}
+                    aria-busy={loadingLogin}
+                    onMouseDown={rippleEffect}
+                  >
+                    {loadingLogin ? <span className="btn-loader" /> : null}
                     Login
                   </button>
-                  <p className="link-text" onClick={()=> setShowLogin(false)}>New User? Register here</p>
-                  <p className="reset-link" onClick={()=> setShowReset(true)}>Forgot Password?</p>
+                  <p className="link-text" onClick={() => setShowLogin(false)}>
+                    New User? Register here
+                  </p>
+                  <p className="reset-link" onClick={() => setShowReset(true)}>
+                    Forgot Password?
+                  </p>
                 </div>
               )}
 
@@ -555,11 +751,19 @@ export default function HomePage() {
                   <input id="resetContact" placeholder="Enter your Email/Mobile" />
                   <label>New Password</label>
                   <input type="password" id="newPassword" placeholder="Enter new password" />
-                  <button className="primary-btn" onClick={handleReset} disabled={loadingLogin} aria-disabled={loadingLogin} onMouseDown={rippleEffect}>
-                    {loadingLogin ? <span className="btn-loader"/> : null}
+                  <button
+                    className="primary-btn"
+                    onClick={handleReset}
+                    disabled={loadingLogin}
+                    aria-disabled={loadingLogin}
+                    onMouseDown={rippleEffect}
+                  >
+                    {loadingLogin ? <span className="btn-loader" /> : null}
                     Reset Password
                   </button>
-                  <p className="link-text" onClick={()=> { setShowReset(false); setShowLogin(true); }}>Back to Login</p>
+                  <p className="link-text" onClick={() => { setShowReset(false); setShowLogin(true); }}>
+                    Back to Login
+                  </p>
                 </div>
               )}
             </div>
@@ -567,9 +771,18 @@ export default function HomePage() {
         </div>
 
         <footer className="footer-section" role="contentinfo">
-          <div className="footer-links"><a href="/terms.html" target="_blank" rel="noreferrer">Terms & Conditions</a><a href="/privacy.html" target="_blank" rel="noreferrer">Privacy Policy</a><a href="/guidelines.html" target="_blank" rel="noreferrer">Community Guidelines</a></div>
-          <p className="support-text">For any support, contact us at <a href="mailto:Support@milanlove.in">Support@milanlove.in</a></p>
-          <p className="copyright">© {new Date().getFullYear()} Milan. All rights reserved</p>
+          <div className="footer-links">
+            <a href="/terms.html" target="_blank" rel="noreferrer">Terms & Conditions</a>
+            <a href="/privacy.html" target="_blank" rel="noreferrer">Privacy Policy</a>
+            <a href="/guidelines.html" target="_blank" rel="noreferrer">Community Guidelines</a>
+          </div>
+          <p className="support-text">
+            For any support, contact us at{" "}
+            <a href="mailto:Support@milanlove.in">Support@milanlove.in</a>
+          </p>
+          <p className="copyright">
+            © {new Date().getFullYear()} Milan. All rights reserved
+          </p>
         </footer>
       </div>
 
@@ -577,9 +790,23 @@ export default function HomePage() {
         <div className="modal-back" role="dialog" aria-modal>
           <div className="modal">
             <h3>Before you continue — A quick consent</h3>
-            <p className="modal-desc">By continuing you agree to Milan's Terms & Privacy. We value your safety — we moderate content, do not share personal data, and provide reporting tools.</p>
-            <ul className="modal-list"><li>We moderate chats & profiles.</li><li>We do not share your email/mobile with strangers.</li><li>You can report/block anyone from the profile options.</li></ul>
-            <div className="modal-actions"><button className="ghost-btn" onClick={()=>{setShowConsent(false)}} onMouseDown={rippleEffect}>Cancel</button><button className="primary-btn" onClick={acceptConsent} onMouseDown={rippleEffect}>I Accept & Continue</button></div>
+            <p className="modal-desc">
+              By continuing you agree to Milan's Terms & Privacy. We value your safety —
+              we moderate content, do not share personal data, and provide reporting tools.
+            </p>
+            <ul className="modal-list">
+              <li>We moderate chats & profiles.</li>
+              <li>We do not share your email/mobile with strangers.</li>
+              <li>You can report/block anyone from the profile options.</li>
+            </ul>
+            <div className="modal-actions">
+              <button className="ghost-btn" onClick={() => { setShowConsent(false); }} onMouseDown={rippleEffect}>
+                Cancel
+              </button>
+              <button className="primary-btn" onClick={acceptConsent} onMouseDown={rippleEffect}>
+                I Accept & Continue
+              </button>
+            </div>
           </div>
         </div>
       )}
@@ -590,14 +817,32 @@ export default function HomePage() {
             <h3>✨ Make a Wish</h3>
             {!wishDone ? (
               <>
-                <p className="modal-desc">Close your eyes for a second, type your wish below, and release it to the universe. May it come true this Diwali ✨</p>
-                <textarea value={wishText} onChange={(e)=> setWishText(e.target.value)} placeholder="Type your Diwali wish here..."/>
-                <div className="modal-actions"><button className="ghost-btn" onClick={()=> setShowWish(false)} onMouseDown={rippleEffect}>Cancel</button><button className="primary-btn" onClick={submitWish} onMouseDown={rippleEffect}>Make it Happen</button></div>
+                <p className="modal-desc">
+                  Close your eyes for a second, type your wish below, and release it to the
+                  universe. May it come true this Diwali ✨
+                </p>
+                <textarea
+                  value={wishText}
+                  onChange={(e) => setWishText(e.target.value)}
+                  placeholder="Type your Diwali wish here..."
+                />
+                <div className="modal-actions">
+                  <button className="ghost-btn" onClick={() => setShowWish(false)} onMouseDown={rippleEffect}>
+                    Cancel
+                  </button>
+                  <button className="primary-btn" onClick={submitWish} onMouseDown={rippleEffect}>
+                    Make it Happen
+                  </button>
+                </div>
               </>
             ) : (
               <>
                 <p className="modal-desc">Wish sent! Now go meet someone special on Milan 💖</p>
-                <div className="modal-actions"><button className="primary-btn" onClick={()=> setShowWish(false)} onMouseDown={rippleEffect}>Close</button></div>
+                <div className="modal-actions">
+                  <button className="primary-btn" onClick={() => setShowWish(false)} onMouseDown={rippleEffect}>
+                    Close
+                  </button>
+                </div>
               </>
             )}
           </div>
@@ -608,17 +853,39 @@ export default function HomePage() {
         <div className="modal-back" role="dialog" aria-modal>
           <div className="modal">
             <h3>🎁 Diwali Gift Box</h3>
-            <p className="modal-desc">Unlock special perks when you register before <b>31 Oct 2025</b>:</p>
+            <p className="modal-desc">
+              Unlock special perks when you register before <b>31 Oct 2025</b>:
+            </p>
             <ul className="modal-list">
               <li>✨ <b>3-day Spotlight</b> — your profile gets top visibility</li>
               <li>💘 <b>1 Priority Match</b> — we’ll boost you to someone highly compatible</li>
               <li>🏷️ <b>Festival Badge</b> — "Diwali ’25" on your profile (limited)</li>
             </ul>
             <p className="countdown">⏳ Offer ends in: <b>{countdown}</b></p>
-            <div className="modal-actions"><button className="ghost-btn" onClick={()=> setShowGift(false)} onMouseDown={rippleEffect}>Maybe later</button><button className="primary-btn" onClick={acceptGift} onMouseDown={rippleEffect}>Add Gift to My Account</button></div>
+            <div className="modal-actions">
+              <button className="ghost-btn" onClick={() => setShowGift(false)} onMouseDown={rippleEffect}>
+                Maybe later
+              </button>
+              <button className="primary-btn" onClick={acceptGift} onMouseDown={rippleEffect}>
+                Add Gift to My Account
+              </button>
+            </div>
           </div>
         </div>
       )}
+
+      {/* GLOBAL overrides: ensure scroll works on all mobiles */}
+      <style jsx global>{`
+        html, body {
+          overflow-y: auto !important;
+          height: auto !important;
+          -webkit-overflow-scrolling: touch !important;
+          overscroll-behavior-y: auto !important;
+          touch-action: pan-y !important;
+          background: #0b1220;
+        }
+        #__next { min-height: 100%; }
+      `}</style>
 
       <style>{`
         :root{ --bg-1:#0b1220; --bg-2:#0f2030; --accent1:#ff6b81; --accent2:#ff9fb0; --muted:#c7d7ea; --gold:#ffd166; }
@@ -635,7 +902,7 @@ export default function HomePage() {
           mask-image: radial-gradient(circle at 50% 70%, rgba(0,0,0,1), rgba(0,0,0,0) 70%);
         }
 
-        .page-wrap{ position:relative; z-index:5; min-height:100vh; display:flex; flex-direction:column; justify-content:space-between; padding-bottom:24px; }
+        .page-wrap{ position:relative; z-index:5; min-height:100svh; display:flex; flex-direction:column; justify-content:space-between; padding-bottom:24px; }
         .container{ width:100%; max-width:1200px; margin:28px auto 6px; display:flex; gap:34px; padding:18px; align-items:flex-start; justify-content:space-between; flex-wrap:wrap; }
         .left{ flex:1 1 560px; min-width:320px; display:flex; align-items:center; justify-content:center; }
         .right{ flex:0 0 420px; min-width:300px; display:flex; align-items:flex-start; justify-content:center; }
