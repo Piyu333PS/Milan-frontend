@@ -1,370 +1,602 @@
-// pages/ai.js — FIXED for mobile tap/overlay + 100vh
-
 import { useEffect, useMemo, useRef, useState } from "react";
 
-/* ---------- LocalStorage helpers ---------- */
-const LS = {
-  HISTORY: "milan_ai_history",
-  SAVED: "milan_ai_saved",
-  SETTINGS: "milan_ai_settings",
-  THEME: "milan_ai_theme",
-};
-const readLS = (k, v=null)=> (typeof window==="undefined"?v: (()=>{try{return JSON.parse(localStorage.getItem(k))??v;}catch{return v;}})());
-const writeLS = (k,v)=>{ if(typeof window==="undefined") return; try{ localStorage.setItem(k, JSON.stringify(v)); }catch{} };
+// ————————————————————————————————————————
+// Milan AI Studio — Fully reworked UI (mobile-first, glassy romantic theme)
+// Drop this file at: /pages/ai.js  (Next.js pages router)
+// TailwindCSS required. No external UI deps. Works dark/light. Saved items persisted.
+// It calls POST /api/generate — return { imageUrl } from your backend. Fallback demo image if it fails.
+// ————————————————————————————————————————
 
-/* ---------- Tiny bits ---------- */
-const Chip = ({ active, children, onClick }) => (
-  <button className={`chip ${active ? "active" : ""}`} onClick={onClick}>{children}</button>
-);
+const MODES = [
+  {
+    key: "romantic",
+    label: "Romantic",
+    desc: "Warm tones, depth, soft bokeh.",
+    badge: "💖",
+    preset:
+      "romantic cinematic portrait, warm tones, soft bokeh, masterpiece, ultra detail, volumetric light",
+  },
+  {
+    key: "realistic",
+    label: "Realistic",
+    desc: "Photographic, true-to-life.",
+    badge: "📸",
+    preset:
+      "highly detailed, photorealistic, 35mm, natural lighting, film grain, masterpiece",
+  },
+  {
+    key: "anime",
+    label: "Anime",
+    desc: "Ghibli / anime vibe.",
+    badge: "🌸",
+    preset:
+      "ghibli style, vibrant colors, crisp line art, anime style, dynamic composition, cinematic",
+  },
+  {
+    key: "product",
+    label: "Product",
+    desc: "Studio, e‑commerce.",
+    badge: "🛍️",
+    preset:
+      "studio product photo, soft light, seamless background, crisp shadows, highly detailed",
+  },
+];
 
-const SectionTitle = ({ children }) => (
-  <div className="sect"><h4>{children}</h4></div>
-);
+const SIZES = ["768x768", "1024x1024", "1024x1536", "1536x1024"];
 
-const ImageCard = ({ src, onSave, onDownload }) => (
-  <figure className="card">
-    <img src={src} alt="milan" />
-    <div className="actions">
-      <button onClick={onSave}>❤ Save</button>
-      <button onClick={onDownload}>⬇ Download</button>
-    </div>
-    <style jsx>{`
-      .card { position:relative; border:1px solid var(--border); border-radius:14px; overflow:hidden; background:var(--panel); }
-      img { width:100%; display:block; }
-      .actions { position:absolute; right:8px; bottom:8px; display:flex; gap:8px; }
-      .actions button { background:#ffffffdd; color:#0b0f1a; font-weight:800; border:0; border-radius:10px; padding:6px 10px; cursor:pointer; }
-    `}</style>
-  </figure>
-);
+const defaultNegative =
+  "text, watermark, blurry, low quality, jpeg artifacts, extra fingers, missing limbs";
 
-/* ---------- Page ---------- */
-export default function MilanAIStudio() {
-  // theme
-  const [theme, setTheme] = useState(()=> readLS(LS.THEME, "dark"));
-  useEffect(()=> {
-    writeLS(LS.THEME, theme);
-    if (typeof document !== "undefined") document.documentElement.dataset.theme = theme;
-  }, [theme]);
-
-  // ✅ Mobile 100vh fix
-  useEffect(() => {
-    const setVh = () => {
-      document.documentElement.style.setProperty("--vh", `${window.innerHeight * 0.01}px`);
-    };
-    setVh();
-    window.addEventListener("resize", setVh);
-    window.addEventListener("orientationchange", setVh);
-    return () => {
-      window.removeEventListener("resize", setVh);
-      window.removeEventListener("orientationchange", setVh);
-    };
-  }, []);
-
-  // main state
-  const [prompt, setPrompt] = useState("romantic cinematic portrait, warm tones, soft bokeh, masterpiece");
-  const [negative, setNegative] = useState("");
-  const [size, setSize] = useState("1024");
+export default function AIStudioPage() {
+  const [theme, setTheme] = useDarkTheme();
+  const [mode, setMode] = useState("romantic");
+  const [prompt, setPrompt] = useState("");
+  const [negative, setNegative] = useState(defaultNegative);
+  const [size, setSize] = useState("1024x1024");
   const [steps, setSteps] = useState(25);
   const [guidance, setGuidance] = useState(7);
-  const [images, setImages] = useState([]);
+  const [advancedOpen, setAdvancedOpen] = useState(false);
+
+  const [history, setHistory] = useLocalStorageArray("milan:ai:history", []);
+  const [saved, setSaved] = useLocalStorageArray("milan:ai:saved", []);
+
   const [loading, setLoading] = useState(false);
-  const [err, setErr] = useState(null);
-  const taRef = useRef(null);
+  const [imageUrl, setImageUrl] = useState(null);
+  const [error, setError] = useState("");
+  const [compareUrls, setCompareUrls] = useState([]);
 
-  // left rail
-  const [history, setHistory] = useState(()=> readLS(LS.HISTORY, []));
-  const [saved, setSaved]     = useState(()=> readLS(LS.SAVED, []));
-  const [mode, setMode]       = useState("txt2img");
+  // Prefill prompt when mode changes (only if empty)
+  useEffect(() => {
+    if (!prompt?.trim()) {
+      const m = MODES.find((m) => m.key === mode);
+      if (m) setPrompt(m.preset);
+    }
+  }, [mode]);
 
-  // mobile drawer
-  const [drawer, setDrawer]   = useState(false);
+  const onInspire = () => {
+    const bank = [
+      "Radha and Krishna under moonlit garden, soft mist, intricate embroidery, cinematic, masterpiece",
+      "Royal bridal portrait in warm candle light, shallow depth of field, detailed jewelry, photorealistic",
+      "Cozy coffee shop rain window, bokeh lights, reflective table, moody cinematic frame",
+      "Premium perfume bottle on marble slab with water droplets, studio lighting, hero shot",
+    ];
+    setPrompt(bank[Math.floor(Math.random() * bank.length)]);
+  };
 
-  const presets = useMemo(()=>[
-    { k:"Romantic", v:"romantic cinematic portrait, golden hour, soft bokeh, masterpiece" },
-    { k:"Realistic", v:"ultra realistic photo, 85mm lens, shallow depth of field, detailed skin, natural light" },
-    { k:"Anime",    v:"anime, ghibli style, soft watercolor shading, dreamy colors, whimsical, highly detailed" },
-    { k:"Product",  v:"studio shot of a perfume bottle on reflective black surface, editorial lighting, high detail" },
-  ],[]);
+  const onTemplates = (k) => {
+    const t = {
+      romantic:
+        "Close-up romantic portrait, golden hour, glowing skin, soft lens flare, pastel color grading",
+      realistic:
+        "Natural light portrait, 85mm lens, true-to-life textures, subtle film grain, balanced exposure",
+      anime:
+        "Anime couple in blooming garden, floating petals, dynamic composition, vibrant palette",
+      product:
+        "Minimal product lay flat, soft shadow, seamless cyc wall, glossy reflections, editorial style",
+    };
+    setPrompt(t[k] || "");
+  };
 
-  useEffect(()=>writeLS(LS.HISTORY, history.slice(0,50)),[history]);
-  useEffect(()=>writeLS(LS.SAVED, saved.slice(0,100)),[saved]);
-  useEffect(()=>writeLS(LS.SETTINGS,{size,steps,guidance}),[size,steps,guidance]);
-  useEffect(()=>{
-    const s = readLS(LS.SETTINGS,null);
-    if(s){ setSize(String(s.size??"1024")); setSteps(s.steps??25); setGuidance(s.guidance??7); }
-    if (typeof document !== "undefined") document.documentElement.dataset.theme = theme;
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  },[]);
+  const onGenerate = async () => {
+    const finalPrompt = prompt?.trim();
+    if (!finalPrompt) return;
+    setLoading(true);
+    setError("");
 
-  async function onGenerate(){
-    if(!prompt.trim()) return;
-    setLoading(true); setErr(null);
-    try{
-      const dim = parseInt(size,10);
-      const r = await fetch("/api/generate",{
-        method:"POST",
-        headers:{"Content-Type":"application/json"},
-        body: JSON.stringify({ prompt, negativePrompt: negative||undefined, width:dim, height:dim, steps, guidance })
+    // Add to history (de-dup, keep latest first)
+    setHistory((prev) => {
+      const next = [
+        {
+          ts: Date.now(),
+          prompt: finalPrompt,
+          negative,
+          mode,
+          size,
+          steps,
+          guidance,
+        },
+        ...prev.filter((h) => h.prompt !== finalPrompt).slice(0, 49),
+      ];
+      return next;
+    });
+
+    try {
+      const res = await fetch("/api/generate", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          prompt: finalPrompt,
+          negative,
+          mode,
+          size,
+          steps,
+          guidance,
+        }),
       });
-      const j = await r.json();
-      if(!j?.ok) throw new Error(j?.error || "failed");
-      setImages(prev=>[j.image,...prev]);
-      setHistory(prev=>[{p:prompt,t:Date.now()},...prev.filter(x=>x.p!==prompt)].slice(0,50));
-      if(drawer) setDrawer(false);
-    }catch(e){ setErr(String(e.message||e)); } finally{ setLoading(false); }
-  }
-  function onDownload(src){ const a=document.createElement("a"); a.href=src; a.download="milan-ai.png"; a.click(); }
-  const onSave = (src)=> setSaved(prev=>[src,...prev.filter(s=>s!==src)]);
-  function onKeyDown(e){ if((e.metaKey||e.ctrlKey)&&e.key==="Enter") onGenerate(); }
+
+      if (!res.ok) throw new Error("Generation failed");
+      const data = await res.json();
+      const url = data?.imageUrl || demoFallbackUrl();
+      setImageUrl(url);
+      setCompareUrls((prev) => [url, ...prev].slice(0, 4));
+    } catch (e) {
+      setImageUrl(demoFallbackUrl());
+      setError(
+        "Generation service unreachable. Showing a demo image so your flow stays smooth. Configure /api/generate to go live."
+      );
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const onSave = () => {
+    if (!imageUrl) return;
+    setSaved((prev) => [
+      { url: imageUrl, prompt, mode, ts: Date.now() },
+      ...prev,
+    ]);
+  };
+
+  const onDownload = () => {
+    if (!imageUrl) return;
+    const a = document.createElement("a");
+    a.href = imageUrl;
+    a.download = `milan-${Date.now()}.png`;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+  };
+
+  const onShare = async () => {
+    if (!imageUrl) return;
+    try {
+      if (navigator.share) {
+        await navigator.share({
+          title: "Milan AI Studio",
+          text: prompt,
+          url: imageUrl,
+        });
+      } else {
+        await navigator.clipboard.writeText(imageUrl);
+        alert("Link copied! Paste anywhere to share.");
+      }
+    } catch {
+      /* ignore */
+    }
+  };
 
   return (
-    <div className="page">
-      {/* App bar */}
-      <div className="appbar">
-<button
-  className="icon"
-  aria-label="Toggle menu"
-  aria-expanded={drawer}
-  onClick={()=>setDrawer(d => !d)}
->
-  ☰
-</button>
-        <div className="title">💖 Milan Studio</div>
-        <a className="pill" href="/connect">← Back to Dashboard</a>
-      </div>
-
-      <div className="layout">
-        {/* Sidebar (drawer on mobile) */}
-        <aside className={`rail ${drawer ? "open" : ""}`}>
-          <div className="rail-inner">
-            <div className="rail-head">
-              <div className="brand"><span>💖</span><strong>Milan Studio</strong></div>
-              <button className="close icon" onClick={()=>setDrawer(false)}>✕</button>
-            </div>
-
-            <div className="modes">
-              <div className="modes-badge">MODES</div>
-              <button className={`mode-btn ${mode==="txt2img"?"active":""}`} onClick={()=>setMode("txt2img")}><span>✍️</span> Text → Image</button>
-              <button className={`mode-btn ${mode==="img2img"?"active":""}`} onClick={()=>alert("Image → Image coming soon!")}><span>🖼️</span> Image → Image</button>
-              <button className={`mode-btn ${mode==="prompter"?"active":""}`} onClick={()=>alert("Prompt Helper coming soon!")}><span>🧠</span> Prompt Helper</button>
-            </div>
-
-            <SectionTitle>Theme</SectionTitle>
-            <div className="theme-row">
-              <label className={`theme-pill ${theme==="dark"?"active":""}`} onClick={()=>setTheme("dark")}>🌙 Dark</label>
-              <label className={`theme-pill ${theme==="light"?"active":""}`} onClick={()=>setTheme("light")}>🌤️ Light</label>
-            </div>
-
-            <SectionTitle>History</SectionTitle>
-            <div className="list">
-              {history.length===0 ? <div className="empty">No prompts yet</div> :
-                history.map((h,i)=>(
-                  <button key={i} className="row" onClick={()=>{setPrompt(h.p); setDrawer(false);}} title={h.p}>{h.p}</button>
-                ))
-              }
-            </div>
-
-            <SectionTitle>Saved</SectionTitle>
-            <div className="saved">
-              {saved.length===0 ? <div className="empty">No saved images</div> :
-                saved.map((s,i)=>(<img key={i} src={s} alt="saved" onClick={()=>onDownload(s)} />))
-              }
-            </div>
-          </div>
-          {/* Overlay (only outside the drawer) */}
-          <div className="overlay" onClick={()=>setDrawer(false)} />
-        </aside>
-
-        {/* Main Canvas */}
-        <main className="main">
-          <header className="top">
-            <h1>💖 Milan AI Studio — Text → Image</h1>
-          </header>
-          <p className="sub">Describe your image below and hit generate.</p>
-
-          <div className="chips">
-            {presets.map(c=> <Chip key={c.k} onClick={()=>setPrompt(c.v)}>{c.k}</Chip>)}
+    <div className={tw(
+      "min-h-screen w-full",
+      theme === "dark" ? "bg-[#0b0e13] text-white" : "bg-white text-slate-900"
+    )}>
+      {/* Top Bar */}
+      <header className="sticky top-0 z-30 backdrop-blur bg-black/20 supports-[backdrop-filter]:bg-black/10 border-b border-white/5">
+        <div className="mx-auto max-w-7xl px-4 sm:px-6 py-3 flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            <span className="text-2xl">💘</span>
+            <h1 className="font-semibold tracking-tight">Milan AI Studio</h1>
           </div>
 
-          <textarea
-            ref={taRef}
-            value={prompt}
-            onChange={(e)=>setPrompt(e.target.value)}
-            onKeyDown={onKeyDown}
-            placeholder="Describe your image… (Cmd/Ctrl + Enter to generate)"
-          />
-
-          <div className="adv">
-            <select value={size} onChange={(e)=>setSize(e.target.value)} title="Size">
-              <option value="512">512 × 512</option>
-              <option value="768">768 × 768</option>
-              <option value="1024">1024 × 1024</option>
-            </select>
-
-            <label>Steps
-              <input type="range" min={4} max={50} value={steps} onChange={(e)=>setSteps(+e.target.value)} />
-              <span>{steps}</span>
-            </label>
-
-            <label>Guidance
-              <input type="range" min={1} max={12} step={0.5} value={guidance} onChange={(e)=>setGuidance(+e.target.value)} />
-              <span>{guidance}</span>
-            </label>
-
-            <input className="neg" value={negative} onChange={(e)=>setNegative(e.target.value)}
-              placeholder="Negative prompt (e.g., text, watermark, blurry, low quality)" />
-          </div>
-
-          <div className="actions">
-            <button className="primary" disabled={loading} onClick={onGenerate}>
-              {loading ? "Generating…" : "✨ Create with Milan"}
+          <div className="flex items-center gap-2">
+            <button
+              onClick={() => setTheme(theme === "dark" ? "light" : "dark")}
+              className="px-3 py-1.5 text-sm rounded-full border border-white/10 hover:border-white/30 transition"
+            >
+              {theme === "dark" ? "🌙 Dark" : "☀️ Light"}
             </button>
-            {images[0] && <button className="ghost" onClick={()=>onDownload(images[0])}>⬇ Download</button>}
+            <a
+              href="/dashboard"
+              className="hidden sm:inline-flex px-3 py-1.5 text-sm rounded-full border border-pink-300/30 bg-pink-500/10 hover:bg-pink-500/20 transition"
+            >
+              ← Back to Dashboard
+            </a>
           </div>
+        </div>
+      </header>
 
-          {err && (
-            <div className="error">
-              ⚠️ {err.includes("hf_401") ? "Auth error (check HF token)." :
-                   err.includes("hf_403") ? "Access denied (try a public model)." :
-                   err.includes("hf_404") ? "Model not found (check model id)." :
-                   err}
+      {/* Hero */}
+      <section className="mx-auto max-w-7xl px-4 sm:px-6 pt-8 pb-4">
+        <div className="grid lg:grid-cols-3 gap-6 items-center">
+          <div className="lg:col-span-2">
+            <h2 className="text-2xl sm:text-3xl font-bold tracking-tight">
+              Turn your imagination into reality ✨
+            </h2>
+            <p className="mt-2 text-sm opacity-80">
+              Generate romantic, anime, realistic or product‑grade images with one prompt. Clean UI, pro controls, mobile‑friendly.
+            </p>
+            <div className="mt-4 flex flex-wrap gap-2">
+              {MODES.map((m) => (
+                <ModePill
+                  key={m.key}
+                  active={mode === m.key}
+                  onClick={() => setMode(m.key)}
+                  badge={m.badge}
+                  label={m.label}
+                  desc={m.desc}
+                />)
+              )}
+              <button
+                onClick={() => onTemplates(mode)}
+                className="px-3 py-1.5 rounded-full border border-white/10 hover:border-white/30 text-xs"
+                title="Fill a starter prompt for the selected mode"
+              >
+                🪄 Use Template
+              </button>
+              <button
+                onClick={onInspire}
+                className="px-3 py-1.5 rounded-full border border-white/10 hover:border-white/30 text-xs"
+              >
+                💡 Inspire Me
+              </button>
             </div>
-          )}
-
-          <div className="grid">
-            {images.map((src,idx)=>(
-              <ImageCard key={idx} src={src} onSave={()=>setSaved([src,...saved])} onDownload={()=>onDownload(src)} />
-            ))}
           </div>
-        </main>
+
+          {/* Quick History (last search) */}
+          <div className="lg:justify-self-end w-full">
+            <HistoryCompact history={history} onPick={(h)=>{
+              setPrompt(h.prompt);
+              setNegative(h.negative||defaultNegative);
+              setMode(h.mode||"romantic");
+              setSize(h.size||"1024x1024");
+              setSteps(h.steps||25);
+              setGuidance(h.guidance||7);
+            }} />
+          </div>
+        </div>
+      </section>
+
+      {/* Main */}
+      <main className="mx-auto max-w-7xl px-4 sm:px-6 pb-24">
+        <div className="grid lg:grid-cols-3 gap-6">
+          {/* Left: Controls */}
+          <div className="lg:col-span-1 space-y-4">
+            {/* Prompt */}
+            <div className={card()}>
+              <label className="text-sm opacity-80">Your Prompt</label>
+              <div className="mt-2 relative">
+                <textarea
+                  className="w-full rounded-xl bg-white/5 border border-white/10 focus:border-pink-400/50 outline-none p-3 min-h-[120px]"
+                  placeholder="Describe your dream image…"
+                  value={prompt}
+                  onChange={(e) => setPrompt(e.target.value)}
+                />
+                <div className="absolute right-2 bottom-2 text-xs opacity-60">
+                  {prompt.length} chars
+                </div>
+              </div>
+            </div>
+
+            {/* Advanced */}
+            <div className={card()}>
+              <button
+                onClick={() => setAdvancedOpen((v) => !v)}
+                className="w-full flex items-center justify-between"
+              >
+                <span className="text-sm">⚙️ Advanced Settings</span>
+                <span className="text-xs opacity-70">{advancedOpen ? "Hide" : "Show"}</span>
+              </button>
+
+              {advancedOpen && (
+                <div className="mt-3 space-y-4">
+                  <div className="grid grid-cols-2 gap-3">
+                    <Select label="Size" value={size} setValue={setSize} options={SIZES} />
+                    <NumberRange label="Steps" value={steps} setValue={setSteps} min={10} max={50} />
+                  </div>
+                  <NumberRange label="Guidance" value={guidance} setValue={setGuidance} min={1} max={20} />
+
+                  <div>
+                    <label className="text-xs opacity-80">Negative Prompt</label>
+                    <input
+                      className="mt-1 w-full rounded-lg bg-white/5 border border-white/10 focus:border-pink-400/50 outline-none p-2"
+                      value={negative}
+                      onChange={(e) => setNegative(e.target.value)}
+                      placeholder="Unwanted elements (e.g., text, watermark)"
+                    />
+                  </div>
+                </div>
+              )}
+            </div>
+
+            {/* Saved Gallery */}
+            <div className={card()}>
+              <div className="flex items-center justify-between">
+                <span className="text-sm">📁 Saved</span>
+                {saved?.length > 0 && (
+                  <button
+                    className="text-xs opacity-70 hover:opacity-100"
+                    onClick={() => setSaved([])}
+                  >
+                    Clear
+                  </button>
+                )}
+              </div>
+              {saved?.length === 0 ? (
+                <p className="mt-2 text-xs opacity-60">Nothing saved yet. Generate and hit “Save”.</p>
+              ) : (
+                <div className="mt-3 grid grid-cols-3 gap-2">
+                  {saved.map((s, i) => (
+                    <button key={s.ts+"-"+i} onClick={()=>setImageUrl(s.url)} className="group relative rounded-lg overflow-hidden">
+                      <img src={s.url} alt="saved" className="w-full h-24 object-cover" />
+                      <div className="absolute inset-0 bg-black/0 group-hover:bg-black/30 transition" />
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
+          </div>
+
+          {/* Right: Preview */}
+          <div className="lg:col-span-2 space-y-4">
+            <div className={card("p-0 overflow-hidden")}> 
+              {/* Toolbar */}
+              <div className="flex items-center justify-between px-3 py-2 border-b border-white/10">
+                <div className="text-sm opacity-80 flex items-center gap-2">
+                  <span className="hidden sm:inline">Preview</span>
+                  {imageUrl && <span className="text-xs opacity-60">{size} — {mode}</span>}
+                </div>
+                <div className="flex items-center gap-2">
+                  <button onClick={onSave} disabled={!imageUrl} className={btn("ghost")}>Save</button>
+                  <button onClick={onDownload} disabled={!imageUrl} className={btn("ghost")}>Download</button>
+                  <button onClick={onShare} disabled={!imageUrl} className={btn("ghost")}>Share</button>
+                </div>
+              </div>
+
+              {/* Canvas */}
+              <div className="aspect-square sm:aspect-[16/10] w-full relative bg-white/5">
+                {loading ? (
+                  <LoaderOverlay />
+                ) : imageUrl ? (
+                  // Image
+                  <img
+                    src={imageUrl}
+                    alt="result"
+                    className="w-full h-full object-contain"
+                  />
+                ) : (
+                  <div className="absolute inset-0 flex items-center justify-center text-sm opacity-60 text-center p-6">
+                    Your image will appear here. Add a prompt and hit Create.
+                  </div>
+                )}
+              </div>
+
+              {error && (
+                <div className="px-3 py-2 text-xs text-yellow-300/90 bg-yellow-500/10 border-t border-yellow-500/20">
+                  {error}
+                </div>
+              )}
+            </div>
+
+            {/* Compare strip */}
+            {compareUrls?.length > 0 && (
+              <div className={card()}>
+                <div className="text-sm opacity-80">Recent Results</div>
+                <div className="mt-2 grid grid-cols-2 sm:grid-cols-4 gap-2">
+                  {compareUrls.map((u, i) => (
+                    <button key={u+"-"+i} onClick={()=>setImageUrl(u)} className="rounded-lg overflow-hidden border border-white/10">
+                      <img src={u} alt="recent" className="w-full h-28 object-cover" />
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
+          </div>
+        </div>
+      </main>
+
+      {/* Sticky mobile Create */}
+      <div className="fixed bottom-0 inset-x-0 z-40 sm:hidden">
+        <div className="mx-3 mb-3 rounded-2xl shadow-lg overflow-hidden">
+          <button
+            onClick={onGenerate}
+            disabled={loading || !prompt.trim()}
+            className={tw(
+              "w-full py-4 text-base font-semibold",
+              "bg-gradient-to-r from-pink-500 to-rose-500 text-white",
+              "disabled:opacity-60 disabled:cursor-not-allowed"
+            )}
+          >
+            {loading ? "Creating…" : "Create with Milan"}
+          </button>
+        </div>
       </div>
 
-      <style jsx>{`
-        :global(html){ box-sizing:border-box; } :global(*, *:before, *:after){ box-sizing:inherit; }
-        :global(body){ margin:0; background:var(--bg); color:var(--text); -webkit-tap-highlight-color:transparent; }
-
-        /* THEME TOKENS */
-        :global(:root[data-theme="dark"]){
-          --bg:#0b0f1a; --panel:#0e1323; --text:#fff; --muted:#cfe1ff;
-          --border:#1e2741; --chip:#121a30; --chip-border:#354266; --chip-active:#26334f; --chip-active-border:#44537a;
-          --input:#0f1320; --input-border:#3a4157;
-        }
-        :global(:root[data-theme="light"]){
-          --bg:#f6f8ff; --panel:#ffffff; --text:#0b0f1a; --muted:#243050;
-          --border:#d6def5; --chip:#f0f3ff; --chip-border:#c9d5ff; --chip-active:#dfe8ff; --chip-active-border:#afc3ff;
-          --input:#ffffff; --input-border:#c9d5ff;
-        }
-
-        .page{ min-height:calc(var(--vh, 1vh) * 100); }
-
-        /* App bar */
-        .appbar{
-          position:sticky; top:0; z-index:40;
-          display:flex; align-items:center; gap:10px;
-          padding:10px 14px; background:var(--panel); border-bottom:1px solid var(--border);
-          touch-action: manipulation;
-        }
-        .icon{ background:var(--chip); color:var(--muted); border:1px solid var(--chip-border); border-radius:10px; padding:8px 10px; cursor:pointer; }
-        .title{ font-weight:900; letter-spacing:.02em; flex:1; color:var(--text); }
-        .pill{ border:1px solid #394a75; background:#11162a; color:#cfe1ff; text-decoration:none; padding:6px 10px; border-radius:999px; }
-        :global(:root[data-theme="light"]) .pill{ background:#eef3ff; color:#10204a; border-color:#c9d5ff; }
-
-        /* Layout grid */
-        .layout{ display:grid; grid-template-columns: 300px 1fr; max-width:1400px; margin:0 auto; overflow:hidden; position:relative; z-index:10; }
-        @media (max-width: 1024px){ .layout{ grid-template-columns: 1fr; } }
-
-        /* Sidebar / Drawer */
-        .rail{ position:relative; }
-        .rail .overlay{ display:none; }
-        .rail-inner{
-          background:var(--panel); border-right:1px solid var(--border); padding:18px;
-          position:sticky; top:54px; height:calc((var(--vh, 1vh) * 100) - 54px); overflow:auto;
-        }
-        .rail-head{ display:flex; align-items:center; justify-content:space-between; }
-        .brand{ display:flex; gap:8px; align-items:center; font-weight:900; letter-spacing:.02em; color:var(--text); }
-        .close{ display:none; }
-
-        /* True drawer on small screens (fixed) */
-        @media (max-width: 1024px){
-          /* ❗ Closed state MUST NOT block taps */
-          .rail{ position:fixed; inset:0; z-index:60; pointer-events:none; }
-          .rail.open{ pointer-events:auto; } /* only clickable when open */
-
-          .rail-inner{
-            position:absolute; left:-100vw; top:0; height:calc(var(--vh, 1vh) * 100); width:86vw; max-width:360px;
-            border-right:1px solid var(--border); background:var(--panel); padding:16px;
-            transition:left .25s ease; z-index:2; /* above overlay */
-            pointer-events:auto; /* drawer itself clickable */
-          }
-          .rail.open .rail-inner{ left:0; }
-
-          /* Overlay only outside drawer so taps on drawer work */
-          .rail .overlay{
-            position:absolute; top:0; right:0; bottom:0; left:86vw;
-            background:rgba(0,0,0,.45); opacity:0; transition:opacity .25s ease;
-            pointer-events:none; z-index:1;
-          }
-          .rail.open .overlay{ opacity:1; pointer-events:auto; }
-
-          .close{ display:inline-block; }
-        }
-
-        .modes{ margin-top:12px; }
-        .modes-badge{ display:inline-block; font-size:11px; letter-spacing:.14em; padding:6px 10px; border:1px solid var(--chip-active-border); border-radius:999px; background:var(--chip); color:var(--muted); margin-bottom:10px; }
-        .mode-btn{
-          width:100%; display:flex; align-items:center; gap:10px;
-          font-weight:700; font-size:14px; letter-spacing:.01em;
-          padding:12px 12px; margin:6px 0; background:var(--chip); color:var(--text);
-          border:1px solid var(--chip-border); border-radius:12px; cursor:pointer; transition:transform .06s ease, background .2s ease;
-          touch-action: manipulation;
-        }
-        .mode-btn span{ font-size:18px; }
-        .mode-btn:hover{ background:var(--chip-active); transform:translateY(-1px); }
-        .mode-btn.active{ background:var(--chip-active); border-color:var(--chip-active-border); }
-
-        .theme-row{ display:flex; gap:10px; }
-        .theme-pill{ cursor:pointer; padding:8px 10px; border-radius:999px; border:1px solid var(--chip-border); background:var(--chip); color:var(--text); font-size:13px; }
-        .theme-pill.active{ background:var(--chip-active); border-color:var(--chip-active-border); }
-
-        .list{ display:flex; flex-direction:column; gap:6px; }
-        .row{ text-align:left; background:var(--chip); color:var(--muted); border:1px solid var(--chip-border); padding:10px 12px; border-radius:10px; cursor:pointer; overflow:hidden; white-space:nowrap; text-overflow:ellipsis; font-size:13px; }
-
-        .saved{ display:grid; grid-template-columns:repeat(2,1fr); gap:8px; }
-        .saved img{ width:100%; border-radius:8px; border:1px solid var(--chip-border); cursor:pointer; }
-
-        /* Main */
-        .main{ padding:20px 24px 36px; overflow-x:hidden; position:relative; z-index:10; }
-        @media (max-width:640px){ .main{ padding:16px; } }
-        .top{ display:flex; align-items:center; justify-content:space-between; gap:10px; margin-bottom:4px; }
-        .top h1{ font-size:20px; margin:0; color:var(--text); }
-        .sub{ opacity:.85; margin:4px 0 14px; }
-
-        .chips{ display:flex; flex-wrap:wrap; gap:8px; margin-bottom:10px; }
-        .chip{ border:1px solid var(--chip-border); background:var(--chip); color:var(--muted); border-radius:999px; padding:6px 10px; font-size:12px; cursor:pointer; touch-action: manipulation; }
-        .chip.active{ background:var(--chip-active); border-color:var(--chip-active-border); }
-
-        textarea{
-          width:100%; background:var(--input); border:1px solid var(--input-border); color:var(--text);
-          border-radius:12px; padding:12px; min-height:110px; display:block;
-        }
-
-        .adv{ display:flex; gap:10px; align-items:center; flex-wrap:wrap; margin:12px 0 6px; }
-        .adv select{ background:var(--input); border:1px solid var(--input-border); color:var(--text); border-radius:10px; padding:8px 10px; }
-        .adv label{ display:flex; align-items:center; gap:8px; background:var(--input); border:1px solid var(--input-border); border-radius:10px; padding:4px 8px; font-size:12px; }
-        .adv input[type="range"]{ accent-color:#e91e63; }
-        .adv .neg{ flex:1; min-width:220px; background:var(--input); border:1px solid var(--input-border); color:var(--text); border-radius:10px; padding:8px 10px; }
-        @media (max-width:640px){ .adv select, .adv .neg{ width:100%; min-width:100%; } }
-
-        .actions{ display:flex; gap:10px; margin:12px 0 8px; flex-wrap:wrap; }
-        .primary{ padding:12px 16px; border-radius:12px; font-weight:900; border:0; background:linear-gradient(90deg,#ff6ea7,#ff9fb0); color:#0b0a12; box-shadow:0 10px 30px rgba(255,110,167,.2); cursor:pointer; touch-action: manipulation; }
-        .ghost{ padding:12px 16px; border-radius:12px; background:#2f3a55; border:1px solid var(--input-border); color:#fff; cursor:pointer; touch-action: manipulation; }
-        :global(:root[data-theme="light"]) .ghost{ background:#e9eeff; color:#0b0f1a; }
-
-        .error{ background:#3a2030; border:1px solid #5a2a3a; padding:10px; border-radius:10px; margin:8px 0; color:#ffd7de; }
-        :global(:root[data-theme="light"]) .error{ background:#ffe6ea; border-color:#ffc5cf; color:#4b0c18; }
-
-        .grid{ display:grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap:12px; margin-top:12px; }
-      `}</style>
+      {/* Desktop CTA */}
+      <div className="hidden sm:block border-t border-white/5">
+        <div className="mx-auto max-w-7xl px-4 sm:px-6 py-6 flex justify-end">
+          <button
+            onClick={onGenerate}
+            disabled={loading || !prompt.trim()}
+            className={btn("primary")}
+          >
+            {loading ? "Creating…" : "Create with Milan"}
+          </button>
+        </div>
+      </div>
     </div>
   );
+}
+
+// ———— UI Bits ————
+function LoaderOverlay() {
+  return (
+    <div className="absolute inset-0 grid place-items-center">
+      <div className="flex flex-col items-center gap-3">
+        <div className="w-12 h-12 rounded-full border-2 border-white/20 border-t-white/70 animate-spin" />
+        <div className="text-sm opacity-80">✨ Creating magic…</div>
+      </div>
+    </div>
+  );
+}
+
+function ModePill({ active, onClick, badge, label, desc }) {
+  return (
+    <button
+      onClick={onClick}
+      className={tw(
+        "px-3 py-2 rounded-2xl border text-left",
+        active
+          ? "border-pink-400/40 bg-pink-500/10"
+          : "border-white/10 hover:border-white/30"
+      )}
+    >
+      <div className="text-sm flex items-center gap-2">
+        <span className="text-lg leading-none">{badge}</span>
+        <span className="font-medium">{label}</span>
+      </div>
+      <div className="text-[11px] opacity-60 mt-0.5">{desc}</div>
+    </button>
+  );
+}
+
+function Select({ label, value, setValue, options }) {
+  return (
+    <div>
+      <label className="text-xs opacity-80">{label}</label>
+      <select
+        className="mt-1 w-full rounded-lg bg-white/5 border border-white/10 focus:border-pink-400/50 outline-none p-2"
+        value={value}
+        onChange={(e) => setValue(e.target.value)}
+      >
+        {options.map((o) => (
+          <option key={o} value={o}>
+            {o}
+          </option>
+        ))}
+      </select>
+    </div>
+  );
+}
+
+function NumberRange({ label, value, setValue, min = 0, max = 100 }) {
+  return (
+    <div>
+      <div className="flex items-center justify-between">
+        <label className="text-xs opacity-80">{label}</label>
+        <div className="text-xs opacity-70">{value}</div>
+      </div>
+      <input
+        type="range"
+        className="w-full accent-pink-500"
+        value={value}
+        min={min}
+        max={max}
+        onChange={(e) => setValue(parseInt(e.target.value, 10))}
+      />
+    </div>
+  );
+}
+
+function HistoryCompact({ history, onPick }) {
+  if (!history?.length) return (
+    <div className={card()}>
+      <div className="text-sm opacity-80">Recent Prompt</div>
+      <div className="mt-2 text-xs opacity-60">Your latest prompt will appear here.</div>
+    </div>
+  );
+
+  const h = history[0];
+  return (
+    <div className={card()}>
+      <div className="text-sm opacity-80">Recent Prompt</div>
+      <button
+        onClick={() => onPick(h)}
+        className="mt-2 text-xs opacity-80 hover:opacity-100 text-left"
+        title="Click to reuse"
+      >
+        {truncate(h.prompt, 140)}
+      </button>
+    </div>
+  );
+}
+
+// ———— Hooks & Utils ————
+function useLocalStorageArray(key, initial) {
+  const [state, setState] = useState(initial);
+  useEffect(() => {
+    try {
+      const raw = localStorage.getItem(key);
+      if (raw) setState(JSON.parse(raw));
+    } catch {}
+  }, [key]);
+  useEffect(() => {
+    try {
+      localStorage.setItem(key, JSON.stringify(state));
+    } catch {}
+  }, [key, state]);
+  return [state, setState];
+}
+
+function useDarkTheme() {
+  const [theme, setTheme] = useState("dark");
+  useEffect(() => {
+    const saved = localStorage.getItem("milan:theme");
+    if (saved === "dark" || saved === "light") setTheme(saved);
+  }, []);
+  useEffect(() => {
+    try { localStorage.setItem("milan:theme", theme); } catch {}
+    if (typeof document !== "undefined") {
+      if (theme === "dark") document.documentElement.classList.add("dark");
+      else document.documentElement.classList.remove("dark");
+    }
+  }, [theme]);
+  return [theme, setTheme];
+}
+
+function demoFallbackUrl() {
+  // Public demo fallback (won't block). Replace with your static asset if you like.
+  const demos = [
+    "https://images.unsplash.com/photo-1542124521-92172c1f1cdb?q=80&w=1200&auto=format&fit=crop",
+    "https://images.unsplash.com/photo-1519681393784-d120267933ba?q=80&w=1200&auto=format&fit=crop",
+    "https://images.unsplash.com/photo-1518837695005-2083093ee35b?q=80&w=1200&auto=format&fit=crop",
+  ];
+  return demos[Math.floor(Math.random() * demos.length)];
+}
+
+function btn(variant) {
+  const base =
+    "px-4 py-2 rounded-xl border transition disabled:opacity-60 disabled:cursor-not-allowed";
+  if (variant === "primary")
+    return (
+      base +
+      " bg-gradient-to-r from-pink-500 to-rose-500 text-white border-pink-400/40 hover:shadow-lg hover:shadow-rose-500/20"
+    );
+  if (variant === "ghost")
+    return base + " border-white/10 hover:border-white/30";
+  return base;
+}
+
+function card(extra = "") {
+  return (
+    "rounded-2xl p-3 sm:p-4 border border-white/10 bg-white/5 " + extra
+  );
+}
+
+function truncate(str, n) {
+  if (!str) return "";
+  return str.length > n ? str.slice(0, n - 1) + "…" : str;
+}
+
+function tw(...cls) {
+  return cls.filter(Boolean).join(" ");
 }
