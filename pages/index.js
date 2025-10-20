@@ -18,10 +18,13 @@ export default function HomePage() {
   const [enableHearts, setEnableHearts] = useState(true);
   const heartsRef = useRef({ raf: null, smallMode: false, cleanup: null });
 
-  // Fireworks
+  // Fireworks (bursts)
   const fwRef = useRef({ ents: [], raf: null, burst: () => {}, cleanup: null });
 
-  // Diya Wish
+  // Rockets (niche se upar)
+  const rocketsRef = useRef({ ents: [], raf: null, cleanup: null });
+
+  // Wish modal
   const [showWish, setShowWish] = useState(false);
   const [wishText, setWishText] = useState("");
   const [wishDone, setWishDone] = useState(false);
@@ -41,6 +44,7 @@ export default function HomePage() {
     setEnableHearts(true);
     startHearts();
     startFireworks();
+    startRockets(); // NEW: rockets
 
     const t = setInterval(() => {
       const diff = offerEndsAt - Date.now();
@@ -59,6 +63,7 @@ export default function HomePage() {
     return () => {
       stopHearts();
       stopFireworks();
+      stopRockets(); // NEW cleanup
       clearInterval(t);
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -129,7 +134,7 @@ export default function HomePage() {
     heartsRef.current.cleanup && heartsRef.current.cleanup();
   }
 
-  /** FIREWORKS */
+  /** FIREWORKS (bursts) */
   function startFireworks() {
     const cvs = document.getElementById("fireworksCanvas");
     if (!cvs) return;
@@ -192,6 +197,90 @@ export default function HomePage() {
   }
   function stopFireworks() {
     fwRef.current.cleanup && fwRef.current.cleanup();
+  }
+
+  /** ROCKETS (bottom → top, with trail + optional burst) */
+  function startRockets() {
+    const cvs = document.getElementById("rocketsCanvas");
+    if (!cvs) return;
+    const ctx = cvs.getContext("2d");
+    let W, H;
+    let rockets = [];
+
+    function resize() {
+      W = cvs.width = window.innerWidth;
+      H = cvs.height = window.innerHeight;
+    }
+    window.addEventListener("resize", resize);
+    resize();
+
+    function spawnRocket() {
+      rockets.push({
+        x: Math.random() * W * 0.9 + W * 0.05,
+        y: H + 20,
+        vx: (Math.random() - 0.5) * 0.8,
+        vy: -(3.8 + Math.random() * 1.6),
+        life: 0,
+        hue: Math.random() * 360,
+        trail: [],
+      });
+    }
+
+    // launch cadence
+    const launcher = setInterval(() => {
+      // slightly higher rate on desktop
+      const launches = window.innerWidth > 768 ? 2 : 1;
+      for (let i = 0; i < launches; i++) spawnRocket();
+    }, 900);
+
+    function tick() {
+      ctx.clearRect(0, 0, W, H);
+      rockets.forEach((r) => {
+        // physics
+        r.vy += 0.008;   // small drag
+        r.x += r.vx;
+        r.y += r.vy;
+
+        // trail
+        r.trail.push({ x: r.x, y: r.y, a: 1 });
+        if (r.trail.length > 24) r.trail.shift();
+
+        // draw trail
+        for (let i = 0; i < r.trail.length; i++) {
+          const t = r.trail[i];
+          t.a *= 0.94;
+          ctx.beginPath();
+          ctx.arc(t.x, t.y, 2 + i * 0.05, 0, Math.PI * 2);
+          ctx.fillStyle = `rgba(255, 220, 160, ${t.a})`;
+          ctx.fill();
+        }
+
+        // draw rocket head
+        ctx.beginPath();
+        ctx.arc(r.x, r.y, 3.2, 0, Math.PI * 2);
+        ctx.fillStyle = `hsl(${r.hue}, 95%, 60%)`;
+        ctx.fill();
+
+        // burst when high enough
+        if (r.vy > -0.2 || r.y < H * 0.28) {
+          fwRef.current.burst && fwRef.current.burst(r.x, r.y);
+          r.life = -1; // mark for removal
+        }
+      });
+
+      rockets = rockets.filter((r) => r.life !== -1 && r.y > -40);
+      rocketsRef.current.raf = requestAnimationFrame(tick);
+    }
+    tick();
+
+    rocketsRef.current.cleanup = () => {
+      cancelAnimationFrame(rocketsRef.current.raf);
+      window.removeEventListener("resize", resize);
+      clearInterval(launcher);
+    };
+  }
+  function stopRockets() {
+    rocketsRef.current.cleanup && rocketsRef.current.cleanup();
   }
 
   // Toast
@@ -347,8 +436,8 @@ export default function HomePage() {
     }
   }
 
-  // Light a Diya
-  function lightDiyaCTA(e) { rippleEffect(e); setShowWish(true); setWishDone(false); setWishText(""); }
+  // Wish CTA (neutral, no diya mention)
+  function openWish(e){ rippleEffect(e); setShowWish(true); setWishDone(false); setWishText(""); }
   function submitWish() {
     setWishDone(true);
     const { burst } = fwRef.current;
@@ -370,8 +459,10 @@ export default function HomePage() {
 
   return (
     <>
-      {/* Background */}
+      {/* Background layers */}
+      <div className="rangoli-bg" aria-hidden /> {/* NEW: subtle rangoli watermark */}
       <canvas id="heartsCanvas" aria-hidden={!enableHearts}></canvas>
+      <canvas id="rocketsCanvas" style={{ position: 'fixed', inset: 0, zIndex: 1, pointerEvents: 'none' }} />
       <canvas id="fireworksCanvas" style={{ position: 'fixed', inset: 0, zIndex: 0, pointerEvents: 'none' }} />
       <audio id="diwaliChime" preload="auto"><source src="https://cdn.pixabay.com/download/audio/2022/03/15/audio_4c76d6de8a.mp3?filename=soft-bell-ambient-10473.mp3" type="audio/mpeg"/></audio>
       <div id="errorMessage" style={{ display: 'none' }} role="alert"></div>
@@ -396,7 +487,7 @@ export default function HomePage() {
 
               <div className="cta-row">
                 <button className="celebrate-btn" onClick={celebrateDiwali} onMouseDown={rippleEffect}>🎉 Celebrate Diwali</button>
-                <button className="ghost-btn" onClick={lightDiyaCTA} onMouseDown={rippleEffect}>🪔 Light a Diya & Make a Wish</button>
+                <button className="ghost-btn" onClick={openWish} onMouseDown={rippleEffect}>✨ Make a Wish</button>
                 <button className="gift-btn" onClick={openGift} onMouseDown={rippleEffect}>🎁 Open Diwali Gift</button>
               </div>
             </div>
@@ -480,13 +571,6 @@ export default function HomePage() {
           <p className="support-text">For any support, contact us at <a href="mailto:Support@milanlove.in">Support@milanlove.in</a></p>
           <p className="copyright">© {new Date().getFullYear()} Milan. All rights reserved</p>
         </footer>
-
-        <div className="diyas-row" aria-hidden>
-          <div className="diya"><div className="bowl"></div><div className="oil"></div><div className="flame"></div></div>
-          <div className="diya"><div className="bowl"></div><div className="oil"></div><div className="flame" style={{ animationDuration:'1.2s' }}></div></div>
-          <div className="diya"><div className="bowl"></div><div className="oil"></div><div className="flame" style={{ animationDuration:'1.6s' }}></div></div>
-          <div className="diya"><div className="bowl"></div><div className="oil"></div><div className="flame" style={{ animationDuration:'1.3s' }}></div></div>
-        </div>
       </div>
 
       {showConsent && (
@@ -495,7 +579,7 @@ export default function HomePage() {
             <h3>Before you continue — A quick consent</h3>
             <p className="modal-desc">By continuing you agree to Milan's Terms & Privacy. We value your safety — we moderate content, do not share personal data, and provide reporting tools.</p>
             <ul className="modal-list"><li>We moderate chats & profiles.</li><li>We do not share your email/mobile with strangers.</li><li>You can report/block anyone from the profile options.</li></ul>
-            <div className="modal-actions"><button className="ghost-btn" onClick={cancelConsent} onMouseDown={rippleEffect}>Cancel</button><button className="primary-btn" onClick={acceptConsent} onMouseDown={rippleEffect}>I Accept & Continue</button></div>
+            <div className="modal-actions"><button className="ghost-btn" onClick={()=>{setShowConsent(false)}} onMouseDown={rippleEffect}>Cancel</button><button className="primary-btn" onClick={acceptConsent} onMouseDown={rippleEffect}>I Accept & Continue</button></div>
           </div>
         </div>
       )}
@@ -503,16 +587,16 @@ export default function HomePage() {
       {showWish && (
         <div className="modal-back" role="dialog" aria-modal>
           <div className="modal">
-            <h3>🪔 Make a Wish</h3>
+            <h3>✨ Make a Wish</h3>
             {!wishDone ? (
               <>
-                <p className="modal-desc">Close your eyes for a second, type your wish below, then light the diya. May it come true this Diwali ✨</p>
+                <p className="modal-desc">Close your eyes for a second, type your wish below, and release it to the universe. May it come true this Diwali ✨</p>
                 <textarea value={wishText} onChange={(e)=> setWishText(e.target.value)} placeholder="Type your Diwali wish here..."/>
-                <div className="modal-actions"><button className="ghost-btn" onClick={()=> setShowWish(false)} onMouseDown={rippleEffect}>Cancel</button><button className="primary-btn" onClick={submitWish} onMouseDown={rippleEffect}>Light the Diya</button></div>
+                <div className="modal-actions"><button className="ghost-btn" onClick={()=> setShowWish(false)} onMouseDown={rippleEffect}>Cancel</button><button className="primary-btn" onClick={submitWish} onMouseDown={rippleEffect}>Make it Happen</button></div>
               </>
             ) : (
               <>
-                <p className="modal-desc">Diya is lit 🔥 Your wish is released to the universe. Now go meet someone special on Milan 💖</p>
+                <p className="modal-desc">Wish sent! Now go meet someone special on Milan 💖</p>
                 <div className="modal-actions"><button className="primary-btn" onClick={()=> setShowWish(false)} onMouseDown={rippleEffect}>Close</button></div>
               </>
             )}
@@ -526,7 +610,7 @@ export default function HomePage() {
             <h3>🎁 Diwali Gift Box</h3>
             <p className="modal-desc">Unlock special perks when you register before <b>31 Oct 2025</b>:</p>
             <ul className="modal-list">
-              <li>✨ <b>3‑day Spotlight</b> — your profile gets top visibility</li>
+              <li>✨ <b>3-day Spotlight</b> — your profile gets top visibility</li>
               <li>💘 <b>1 Priority Match</b> — we’ll boost you to someone highly compatible</li>
               <li>🏷️ <b>Festival Badge</b> — "Diwali ’25" on your profile (limited)</li>
             </ul>
@@ -538,11 +622,20 @@ export default function HomePage() {
 
       <style>{`
         :root{ --bg-1:#0b1220; --bg-2:#0f2030; --accent1:#ff6b81; --accent2:#ff9fb0; --muted:#c7d7ea; --gold:#ffd166; }
-        html,body{ margin:0; padding:0; font-family:Poppins, "Segoe UI", Roboto, sans-serif; background: linear-gradient(180deg,var(--bg-1) 0%, var(--bg-2) 100%); color:#eef6ff; }
+        html,body{ margin:0; padding:0; font-family:Poppins, "Segoe UI", Roboto, sans-serif; background: radial-gradient(1200px circle at 10% 0%, #0e1526 0%, var(--bg-1) 35%, var(--bg-2) 100%); color:#eef6ff; }
         #heartsCanvas{ position:fixed; inset:0; z-index:0; pointer-events:none; }
         #errorMessage{ position:fixed; top:18px; left:50%; transform:translateX(-50%); background:rgba(0,0,0,0.7); color:#fff; padding:10px 14px; border-radius:8px; display:none; z-index:9999; font-weight:700; }
 
-        .page-wrap{ position:relative; z-index:5; min-height:100vh; display:flex; flex-direction:column; justify-content:space-between; padding-bottom:56px; }
+        /* Rangoli watermark (subtle, center) */
+        .rangoli-bg{
+          position: fixed; inset: 0; z-index: 0; pointer-events: none; opacity: .18;
+          background:
+            radial-gradient(closest-side, rgba(255,215,170,.25), rgba(255,215,170,0) 70%) no-repeat 50% 72% / 900px 900px,
+            repeating-conic-gradient(from 0deg, rgba(255,209,102,.28) 0 8deg, rgba(255,209,102,0) 8deg 16deg) no-repeat 50% 72% / 900px 900px;
+          mask-image: radial-gradient(circle at 50% 70%, rgba(0,0,0,1), rgba(0,0,0,0) 70%);
+        }
+
+        .page-wrap{ position:relative; z-index:5; min-height:100vh; display:flex; flex-direction:column; justify-content:space-between; padding-bottom:24px; }
         .container{ width:100%; max-width:1200px; margin:28px auto 6px; display:flex; gap:34px; padding:18px; align-items:flex-start; justify-content:space-between; flex-wrap:wrap; }
         .left{ flex:1 1 560px; min-width:320px; display:flex; align-items:center; justify-content:center; }
         .right{ flex:0 0 420px; min-width:300px; display:flex; align-items:flex-start; justify-content:center; }
@@ -598,14 +691,6 @@ export default function HomePage() {
         .footer-links a{ color:#ffd54d; text-decoration:none; font-weight:600; }
         .support-text{ font-size:14px; color:#cdd6e6; margin:6px 0; }
         .support-text a{ color:#ff9fb0; font-weight:700; text-decoration:none; }
-
-        .diyas-row{ position: fixed; left: 0; right: 0; bottom: 16px; display: flex; gap: 28px; justify-content: center; align-items: flex-end; pointer-events: none; z-index: 4; }
-        .diya{ position: relative; width: 70px; height: 44px; filter: drop-shadow(0 6px 14px rgba(255,128,0,.35)); }
-        .diya .bowl{ position: absolute; inset: auto 0 0 0; height: 32px; border-radius: 0 0 36px 36px / 0 0 24px 24px; background: radial-gradient(120% 140% at 50% -10%, #ffb86b, #8b2c03 60%); border-top: 2px solid rgba(255,255,255,.25); }
-        .diya .oil{ position: absolute; left: 8px; right: 8px; bottom: 18px; height: 8px; border-radius: 6px; background: linear-gradient(#5a1b00,#2b0a00); }
-        .flame{ position: absolute; left: 50%; bottom: 28px; width: 18px; height: 28px; transform: translateX(-50%); background: radial-gradient(50% 65% at 50% 60%, #fff7cc 0%, #ffd166 55%, #ff8c00 75%, rgba(255,0,0,.0) 80%); border-radius: 12px 12px 14px 14px / 18px 18px 8px 8px; animation: flicker 1.4s infinite ease-in-out; box-shadow: 0 0 18px 6px rgba(255,173,51,.45), 0 0 36px 12px rgba(255,140,0,.15); }
-        .flame:before{ content: ""; position: absolute; inset: 4px; border-radius: inherit; background: radial-gradient(circle at 50% 70%, #fffbe6, rgba(255,255,255,.0) 66%); filter: blur(1px); }
-        @keyframes flicker{ 0%{ transform:translateX(-50%) scale(1) rotate(-2deg); opacity:.95 } 40%{ transform:translateX(calc(-50% + 1px)) scale(1.05) rotate(2deg); opacity:.85 } 70%{ transform:translateX(calc(-50% - 1px)) scale(.98) rotate(-1deg); opacity:.92 } 100%{ transform:translateX(-50%) scale(1) rotate(0deg); opacity:.95 }
 
         @media (max-width:768px){
           .container{ flex-direction:column; align-items:center; padding:12px; gap:16px; margin-top:10px; }
