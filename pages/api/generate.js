@@ -1,141 +1,129 @@
 // pages/api/generate.js
-// Milan AI Studio — Hugging Face text-to-image (binary safe + timeouts + clear errors)
-
 export const config = {
-  api: {
-    bodyParser: { sizeLimit: "1mb" },
-    responseLimit: false, // allow returning base64
-  },
+  api: { bodyParser: { sizeLimit: "1mb" } }, // small, safe
 };
 
-const DEFAULT_MODEL = process.env.HF_MODEL || "black-forest-labs/FLUX.1-schnell";
-const HF_TOKEN = process.env.HF_TOKEN;
+const DEFAULT_MODELS = {
+  romantic: "stabilityai/stable-diffusion-2-1",
+  realistic: "SG161222/Realistic_Vision_V5.1_noVAE",
+  anime: "Linaqruf/anything-v3.0",
+  product: "stabilityai/stable-diffusion-2-1",
+};
 
-/** Small helper to abort long HF calls (prevents 504 on Vercel) */
-function fetchWithTimeout(url, opts = {}, ms = 9000) {
-  const controller = new AbortController();
-  const id = setTimeout(() => controller.abort(), ms);
-  return fetch(url, { ...opts, signal: controller.signal }).finally(() => clearTimeout(id));
-}
+const MAX_STEPS = 50;
 
 export default async function handler(req, res) {
-  if (req.method !== "POST") {
-    res.setHeader("Allow", "POST");
-    return res.status(405).json({ error: "Method not allowed" });
-  }
-
-  const {
-    prompt = "",
-    negative = "",
-    size = "1024x1024",
-    steps,
-    guidance,
-    mode,
-    model = DEFAULT_MODEL,
-  } = req.body || {};
-
-  // Safety: empty prompt → early exit
-  if (!prompt.trim()) {
-    return res.status(400).json({ error: "Prompt is required" });
-  }
-
-  // If token missing → do not hard fail; front-end will show demo fallback
-  if (!HF_TOKEN) {
-    return res.status(200).json({
-      imageUrl: null,
-      note: "HF_TOKEN missing on server. Frontend should use demo fallback.",
-      source: "server",
-    });
-  }
-
-  // Parse size
-  const [w, h] = (size || "1024x1024")
-    .split("x")
-    .map((n) => parseInt(n, 10))
-    .map((n) => (Number.isFinite(n) ? n : 1024));
-
-  // HF payload — works for FLUX / SD-Turbo style text2img
-  const payload = {
-    inputs: prompt,
-    parameters: {
-      width: w,
-      height: h,
-      negative_prompt: negative || undefined,
-      num_inference_steps: steps || undefined,
-      guidance_scale: guidance || undefined,
-    },
-    options: {
-      wait_for_model: true, // queue until model is warm (prevents 503)
-      use_cache: true,
-    },
-  };
-
-  const url = `https://api-inference.huggingface.co/models/${encodeURIComponent(model)}`;
-
   try {
-    const hfRes = await fetchWithTimeout(
-      url,
-      {
+    if (req.method !== "POST") {
+      res.setHeader("Allow", "POST");
+      return res.status(405).json({ error: "Method not allowed" });
+    }
+
+    const {
+      prompt = "",
+      negative = "text, watermark, low quality, jpeg artifacts, extra fingers, missing limbs",
+      mode = "romantic",
+      size = "1024x1024",
+      steps = 25,
+      guidance = 7,
+    } = req.body || {};
+
+    const HF_TOKEN = process.env.HF_TOKEN;
+    const OVERRIDE_MODEL = process.env.HF_MODEL; // optional
+
+    if (!HF_TOKEN) {
+      return res.status(500).json({
+        error:
+          "HF_TOKEN is missing. Add your Hugging Face token in Vercel → Settings → Environment Variables.",
+      });
+    }
+
+    const [width, height] = String(size)
+      .split("x")
+      .map((n) => Math.max(256, Math.min(1536, parseInt(n, 10) || 1024)));
+
+    const model =
+      OVERRIDE_MODEL ||
+      DEFAULT_MODELS[String(mode)] ||
+      DEFAULT_MODELS.romantic;
+
+    const payload = {
+      inputs: prompt?.trim(),
+      parameters: {
+        negative_prompt: negative || "",
+        num_inference_steps: Math.min(MAX_STEPS, Math.max(10, Number(steps) || 25)),
+        guidance_scale: Math.max(1, Math.min(20, Number(guidance) || 7)),
+        width,
+        height,
+      },
+      options: { wait_for_model: true }, // prefer image on first go
+    };
+
+    // function to call HF, handling 409 warmup by polling
+    const callHF = async (tries = 0) => {
+      const r = await fetch(`https://api-inference.huggingface.co/models/${encodeURIComponent(model)}`, {
         method: "POST",
         headers: {
           Authorization: `Bearer ${HF_TOKEN}`,
           "Content-Type": "application/json",
+          Accept: "image/png", // force binary image
         },
         body: JSON.stringify(payload),
-      },
-      9000 // 9s; Vercel serverless default limit ~10s → avoid 504
-    );
+      });
 
-    const ctype = (hfRes.headers.get("content-type") || "").toLowerCase();
-
-    // HF sometimes returns JSON object with error/queue info
-    if (ctype.includes("application/json")) {
-      const j = await hfRes.json().catch(() => ({}));
-
-      // Common gated/queued/errors from HF
-      if (j.error) {
-        // Surface the real reason back to UI
-        return res.status(502).json({
-          error: "Hugging Face generation failed",
-          details: j.error,
-          hint:
-            "If the model is gated, open it on Hugging Face and click ‘Agree and access’. Or switch to a public model in HF_MODEL.",
-        });
+      // Model still loading
+      if (r.status === 409 && tries < 6) {
+        // wait then retry (exponential-ish)
+        await new Promise((s) => setTimeout(s, 1200 + tries * 500));
+        return callHF(tries + 1);
       }
-      // Unexpected JSON shape
-      return res.status(502).json({
-        error: "Unexpected JSON response from model",
-        details: j,
+      return r;
+    };
+
+    const resp = await callHF();
+
+    const ctype = resp.headers.get("content-type") || "";
+
+    // If HF returns an error JSON
+    if (!resp.ok && ctype.includes("application/json")) {
+      const j = await resp.json().catch(() => ({}));
+      return res
+        .status(resp.status)
+        .json({ error: j.error || `HF error ${resp.status}`, details: j });
+    }
+
+    // If HF returns HTML (e.g., auth/URL wrong)
+    if (ctype.includes("text/html")) {
+      const text = await resp.text();
+      return res.status(400).json({
+        error:
+          "Upstream returned HTML instead of an image. Check HF token/model or headers.",
+        snippet: text.slice(0, 300),
       });
     }
 
-    // Image bytes path
+    // Success: Binary image
     if (ctype.startsWith("image/")) {
-      const ab = await hfRes.arrayBuffer();
-      const b64 = Buffer.from(ab).toString("base64");
-      const mime = ctype || "image/png";
-      return res.status(200).json({
-        imageUrl: `data:${mime};base64,${b64}`,
-        mode,
-        size: `${w}x${h}`,
-        model,
-      });
+      const buf = Buffer.from(await resp.arrayBuffer());
+      res.setHeader("Content-Type", ctype);
+      res.setHeader("Cache-Control", "no-store");
+      return res.status(200).send(buf);
     }
 
-    // Neither JSON nor image → bail out clearly
-    const text = await hfRes.text().catch(() => "");
-    return res.status(502).json({
-      error: "Unexpected response from Hugging Face",
-      status: hfRes.status,
-      contentType: ctype || "unknown",
-      body: text.slice(0, 4000),
-    });
+    // Fallback: try to parse as JSON or text
+    const txt = await resp.text();
+    try {
+      const j = JSON.parse(txt);
+      return res
+        .status(resp.ok ? 200 : resp.status || 500)
+        .json(j);
+    } catch {
+      return res.status(resp.ok ? 200 : 500).json({
+        error: "Unrecognized response from model.",
+        snippet: txt.slice(0, 300),
+      });
+    }
   } catch (err) {
-    // AbortError or network → clean message so UI can show fallback
-    const isAbort = `${err?.name}`.includes("Abort");
-    return res.status(isAbort ? 504 : 500).json({
-      error: isAbort ? "Timeout waiting for model" : "Server error while generating image",
-      details: `${err}`,
-    });
+    return res.status(500).json({ error: String(err?.message || err) });
   }
 }
