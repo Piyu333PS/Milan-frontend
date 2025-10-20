@@ -465,6 +465,24 @@ export default function ConnectPage() {
             </button>
           </article>
 
+          {/* 🔗 NEW: Invite Link (Zero-DB) — Quick Direct Connect */}
+          <article className="featureCard invite">
+            <header>
+              <h3>Invite Link (Zero-DB)</h3>
+              <p>Share a link. Partner clicks. You’re connected.</p>
+            </header>
+            <button
+              className="cta outline"
+              onClick={() => {
+                const rid = Math.random().toString(36).slice(2, 8); // short id
+                const mode = "text"; // change to "video" for video default
+                window.location.href = `/invite/${rid}?mode=${mode}`;
+              }}
+            >
+              🔗 Create Invite Link
+            </button>
+          </article>
+
           <article className="featureCard studio">
             <header>
               <h3>Milan AI Studio</h3>
@@ -558,6 +576,7 @@ export default function ConnectPage() {
         .featureCard:hover{ transform: translateY(-4px); box-shadow:0 18px 56px rgba(0,0,0,.45); }
         .featureCard.text{ border-color:rgba(255,110,167,.22); }
         .featureCard.video{ border-color:rgba(255,110,167,.18); }
+        .featureCard.invite{ border-color:rgba(160, 220, 255, .28); } /* light blue hint for invite */
         .featureCard.studio{ border-color:rgba(140,150,255,.22); }
         .featureCard.celebrate{ border-color:rgba(255,209,102,.35); }
 
