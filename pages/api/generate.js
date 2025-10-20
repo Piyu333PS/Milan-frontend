@@ -1,6 +1,6 @@
-// Hugging Face (text-to-image) → returns an image directly
+// ✅ Hugging Face Text → Image API Integration
 export const config = {
-  api: { bodyParser: { sizeLimit: "1mb" } }, // small JSON only
+  api: { bodyParser: { sizeLimit: "1mb" } }, // allow JSON only
 };
 
 export default async function handler(req, res) {
@@ -13,33 +13,43 @@ export default async function handler(req, res) {
   const HF_MODEL = process.env.HF_MODEL || "stabilityai/sdxl-turbo";
 
   if (!HF_TOKEN) {
-    // Fall back so UI doesn’t break (but tells you why)
-    return res
-      .status(200)
-      .json({ imageUrl: demoFallbackUrl(), source: "demo", note: "HF_TOKEN missing" });
+    return res.status(200).json({
+      imageUrl: demoFallbackUrl(),
+      source: "demo",
+      note: "⚠️ HF_TOKEN missing — add it in environment variables.",
+    });
   }
 
   try {
-    const { prompt = "", negative = "", size = "1024x1024", steps, guidance } =
-      (req.body || {});
+    const {
+      prompt = "",
+      negative = "",
+      size = "1024x1024",
+      steps,
+      guidance,
+    } = req.body || {};
 
-    const [w, h] = parseSize(size);
-    // Build HF payload — most models ignore unsupported keys safely
+    if (!prompt || prompt.trim().length < 3) {
+      return res.status(400).json({ error: "Prompt is required" });
+    }
+
+    const [width, height] = parseSize(size);
+
+    // ✅ Build payload for Hugging Face API
     const payload = {
       inputs: prompt,
       options: { wait_for_model: true },
       parameters: {
-        width: w,
-        height: h,
+        width,
+        height,
         negative_prompt: negative || undefined,
-        // SDXL Turbo is designed for very few steps; leave undefined if not sure
         num_inference_steps: steps || undefined,
         guidance_scale: guidance || undefined,
       },
     };
 
-    const r = await fetch(
-      `https://api-inference.huggingface.co/models/${encodeURIComponent(HF_MODEL)}`,
+    const response = await fetch(
+      `https://api-inference.huggingface.co/models/${HF_MODEL}`,
       {
         method: "POST",
         headers: {
@@ -51,68 +61,56 @@ export default async function handler(req, res) {
       }
     );
 
-    const ct = r.headers.get("content-type") || "";
-    if (!r.ok) {
-      // HF often returns JSON error bodies
-      let body;
-      try {
-        body = ct.includes("application/json") ? await r.json() : await r.text();
-      } catch {
-        body = "Unparsable error";
-      }
-      return res.status(502).json({ error: "HF generation failed", status: r.status, body });
+    const contentType = response.headers.get("content-type") || "";
+
+    // ✅ If the response is image data
+    if (response.ok && contentType.startsWith("image/")) {
+      const buffer = Buffer.from(await response.arrayBuffer());
+      const base64 = buffer.toString("base64");
+      return res.status(200).json({
+        imageUrl: `data:${contentType};base64,${base64}`,
+        source: "huggingface",
+      });
     }
 
-    // Success → HF returns raw image bytes
-    if (ct.startsWith("image/")) {
-      const buf = Buffer.from(await r.arrayBuffer());
-      res.setHeader("Content-Type", ct);
-      // cache a bit to speed up re-opens (optional)
-      res.setHeader("Cache-Control", "public, max-age=60");
-      return res.send(buf);
+    // ❌ If HF returns JSON error
+    let errorBody;
+    try {
+      errorBody = await response.json();
+    } catch {
+      errorBody = await response.text();
     }
 
-    // Some models may return JSON with base64 (rare for this endpoint)
-    if (ct.includes("application/json")) {
-      const data = await r.json();
-      const b64 =
-        data?.b64_json ||
-        data?.imageBase64 ||
-        (Array.isArray(data?.images) && data.images[0]);
-      if (b64) return res.status(200).json({ imageUrl: `data:image/png;base64,${stripPrefix(b64)}` });
-      return res.status(502).json({ error: "No image in HF JSON response", dataSample: shrink(data) });
-    }
-
-    // Unexpected content
-    const text = await r.text();
-    return res.status(502).json({ error: "Unsupported HF response", contentType: ct, body: text.slice(0, 1000) });
-  } catch (e) {
-    return res.status(500).json({ error: "Server error", message: e.message });
+    return res.status(502).json({
+      error: "Hugging Face generation failed",
+      details: errorBody,
+    });
+  } catch (error) {
+    return res.status(500).json({
+      error: "Server error while generating image",
+      message: error.message,
+    });
   }
 }
 
-/* utils */
-function parseSize(s) {
-  const [w, h] = String(s || "1024x1024").split("x").map((n) => parseInt(n, 10));
-  return [clamp(w, 512, 1536), clamp(h, 512, 1536)];
+/* ===== Helpers ===== */
+
+function parseSize(size) {
+  const [w, h] = String(size || "1024x1024")
+    .toLowerCase()
+    .split("x")
+    .map((v) => parseInt(v, 10));
+  return [
+    Math.min(Math.max(w || 1024, 512), 1536),
+    Math.min(Math.max(h || 1024, 512), 1536),
+  ];
 }
-function clamp(n, lo, hi) {
-  const v = Number.isFinite(n) ? n : 1024;
-  return Math.min(hi, Math.max(lo, v));
-}
-function stripPrefix(b64) {
-  return (b64 || "").replace(/^data:image\/[a-zA-Z0-9.+-]+;base64,/, "");
-}
-function shrink(obj) {
-  try {
-    const s = JSON.stringify(obj);
-    return s.length > 1200 ? s.slice(0, 1200) + "…" : s;
-  } catch {
-    return "[unserializable]";
-  }
-}
+
 function demoFallbackUrl() {
-  const seeds = ["milan1", "milan2", "milan3", "milan4", "milan5"];
-  const seed = seeds[Math.floor(Math.random() * seeds.length)];
-  return `https://picsum.photos/seed/${seed}/1200/800`;
+  const demos = [
+    "https://picsum.photos/seed/milan1/800/800",
+    "https://picsum.photos/seed/milan2/800/800",
+    "https://picsum.photos/seed/milan3/800/800",
+  ];
+  return demos[Math.floor(Math.random() * demos.length)];
 }
