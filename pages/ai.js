@@ -1,7 +1,15 @@
 import { useEffect, useState } from "react";
 
-// Milan AI Studio — Vanilla CSS (no Tailwind)
-// Updated to address: clear selected state, template picker sheet, inspire vs template, fixed preview box, full mobile responsiveness, solid light theme.
+/** Milan AI Studio — Vanilla CSS (no Tailwind)
+ * Fixes:
+ * - Single CTA (mobile vs desktop)
+ * - Clear selected mode (badge + left bar)
+ * - Full-page scroll (no 50% clipping)
+ * - Reliable demo image (no 404)
+ * - Safe download (blob) to avoid cross-site 404
+ * - “Back” goes to home (no missing /dashboard route)
+ * - Template picker panel with multiple options per mode
+ */
 
 const MODES = [
   { key: "romantic", label: "Romantic", desc: "Warm tones, depth, soft bokeh.", icon: "💖",
@@ -10,7 +18,7 @@ const MODES = [
     preset: "highly detailed, photorealistic, 35mm, natural lighting, film grain, masterpiece" },
   { key: "anime", label: "Anime", desc: "Ghibli / anime vibe.", icon: "🌸",
     preset: "ghibli style, vibrant colors, crisp line art, anime style, dynamic composition, cinematic" },
-  { key: "product", label: "Product", desc: "Studio, e‑commerce.", icon: "🛍️",
+  { key: "product", label: "Product", desc: "Studio, e-commerce.", icon: "🛍️",
     preset: "studio product photo, soft light, seamless background, crisp shadows, highly detailed" },
 ];
 
@@ -19,25 +27,25 @@ const TEMPLATES = {
     "Golden hour couple portrait, soft backlight, pastel grading, dreamy",
     "Rainy street umbrella moment, reflections, bokeh lights, cinematic",
     "Candle-lit indoor close-up, luminous skin, shallow DOF, warm tones",
-    "Beach sunset silhouette, lens flare, gentle wind, emotional"
+    "Beach sunset silhouette, lens flare, gentle wind, emotional",
   ],
   realistic: [
     "Natural light portrait, 85mm lens, subtle film grain, skin texture",
     "Street candid, Kodak Porta look, high dynamic range, tack sharp",
     "Editorial studio portrait, Rembrandt lighting, seamless background",
-    "Landscape at blue hour, long exposure, crisp details"
+    "Landscape at blue hour, long exposure, crisp details",
   ],
   anime: [
     "Anime couple in blooming garden, floating petals, dynamic composition, vibrant palette",
     "Ghibli-style temple under cherry blossoms, soft diffuse light",
     "City rooftop at dusk, neon signs, energetic pose, manga lines",
-    "Forest spirits glowing, whimsical, painterly brushwork"
+    "Forest spirits glowing, whimsical, painterly brushwork",
   ],
   product: [
     "Minimal product lay flat, soft shadow, seamless cyc wall, glossy reflections, editorial style",
     "Cosmetics bottle on wet marble, water droplets, studio rim light",
     "Sneaker levitating with motion blur, gradient backdrop, hero shot",
-    "Watch macro on brushed steel, specular highlights, premium"
+    "Watch macro on brushed steel, specular highlights, premium",
   ],
 };
 
@@ -73,12 +81,12 @@ export default function AIStudioPage() {
   }, [mode]);
 
   const onInspire = () => {
-    // Fully random, independent of mode
+    // Random ideas, independent of mode
     const bank = [
       "Moonlit riverside, soft fog, glowing lanterns, reflective water, cinematic",
-      "Old library with sunbeams, dust motes, warm wood, cozy vibe",
-      "Neon alley, rain slick streets, reflections, cyberpunk framing",
-      "Premium perfume bottle on marble slab with water droplets, studio lighting, hero shot",
+      "Old library with golden sunbeams, dust motes, warm wood, cozy vibe",
+      "Neon alley, rain-slick streets, reflections, cyberpunk framing",
+      "Art deco hotel lobby, marble floor reflections, wide angle, dramatic",
     ];
     setPrompt(bank[Math.floor(Math.random() * bank.length)]);
   };
@@ -89,7 +97,7 @@ export default function AIStudioPage() {
     setLoading(true);
     setError("");
 
-    // Add to history
+    // Save search in history
     setHistory((prev) => [
       { ts: Date.now(), prompt: finalPrompt, negative, mode, size, steps, guidance },
       ...prev.filter((h) => h.prompt !== finalPrompt).slice(0, 49),
@@ -106,8 +114,9 @@ export default function AIStudioPage() {
       const url = data?.imageUrl || demoFallbackUrl();
       setImageUrl(url);
       setCompareUrls((prev) => [url, ...prev].slice(0, 4));
-    } catch (e) {
-      setImageUrl(demoFallbackUrl());
+    } catch {
+      const url = demoFallbackUrl(); // reliable placeholder
+      setImageUrl(url);
       setError("Generation service unreachable. Showing a demo image. Configure /api/generate to go live.");
     } finally {
       setLoading(false);
@@ -116,20 +125,32 @@ export default function AIStudioPage() {
 
   const onSave = () => {
     if (!imageUrl) return;
-    setSaved((prev) => [
-      { url: imageUrl, prompt, mode, ts: Date.now() },
-      ...prev,
-    ]);
+    setSaved((prev) => [{ url: imageUrl, prompt, mode, ts: Date.now() }, ...prev]);
   };
 
-  const onDownload = () => {
+  // Safer download that fetches as blob (avoids 404 on some hosts)
+  const onDownload = async () => {
     if (!imageUrl) return;
-    const a = document.createElement("a");
-    a.href = imageUrl;
-    a.download = `milan-${Date.now()}.png`;
-    document.body.appendChild(a);
-    a.click();
-    a.remove();
+    try {
+      const resp = await fetch(imageUrl, { mode: "cors" });
+      const blob = await resp.blob();
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `milan-${Date.now()}.png`;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      URL.revokeObjectURL(url);
+    } catch {
+      // fallback to direct link if blob fails
+      const a = document.createElement("a");
+      a.href = imageUrl;
+      a.download = `milan-${Date.now()}.png`;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+    }
   };
 
   const onShare = async () => {
@@ -145,22 +166,22 @@ export default function AIStudioPage() {
   };
 
   return (
-    <div className={`milan-root ${theme === 'dark' ? 'milan-dark' : 'milan-light'}`}>
-      {/* Top Bar */}
+    <div className={`milan-root ${theme === "dark" ? "milan-dark" : "milan-light"}`}>
+      {/* Header */}
       <header className="milan-header">
         <div className="milan-header__left">
           <span className="milan-logo">💘</span>
           <h1>Milan AI Studio</h1>
         </div>
-
         <div className="milan-header__right">
           <button
-            onClick={() => setTheme(theme === 'dark' ? 'light' : 'dark')}
+            onClick={() => setTheme(theme === "dark" ? "light" : "dark")}
             className="milan-btn milan-btn--ghost"
           >
-            {theme === 'dark' ? '🌙 Dark' : '🌞 Light'}
+            {theme === "dark" ? "🌙 Dark" : "🌞 Light"}
           </button>
-          <a href="/dashboard" className="milan-btn milan-btn--ghost milan-hide-sm">← Back to Dashboard</a>
+          {/* Avoid 404: send to homepage unless you actually have /dashboard */}
+          <a href="/" className="milan-btn milan-btn--ghost milan-hide-sm">← Back to Home</a>
         </div>
       </header>
 
@@ -168,28 +189,27 @@ export default function AIStudioPage() {
       <section className="milan-hero">
         <div className="milan-hero__text">
           <h2>Turn your imagination into reality ✨</h2>
-          <p>Generate romantic, anime, realistic or product‑grade images with one prompt. Clean UI, pro controls, mobile‑friendly.</p>
+          <p>Generate romantic, anime, realistic or product-grade images with one prompt. Clean UI, pro controls, mobile-friendly.</p>
 
-          {/* Modes */}
           <div className="milan-modes" role="tablist" aria-label="Generation modes">
             {MODES.map((m) => (
               <button
                 key={m.key}
-                className={`milan-mode ${mode===m.key?'is-active':''}`}
-                aria-pressed={mode===m.key}
-                onClick={()=>setMode(m.key)}
+                className={`milan-mode ${mode === m.key ? "is-active" : ""}`}
+                aria-pressed={mode === m.key}
+                aria-selected={mode === m.key}
+                onClick={() => setMode(m.key)}
               >
-                <div className="milan-mode__title">{m.icon} {m.label}</div>
+                <div className="milan-mode__title">
+                  {m.icon} {m.label} {mode === m.key ? "✓" : ""}
+                </div>
                 <div className="milan-mode__desc">{m.desc}</div>
               </button>
             ))}
           </div>
 
           <div className="milan-helpers">
-            <button
-              onClick={()=>setTemplatesOpen(true)}
-              className="milan-btn milan-btn--ghost"
-            >
+            <button onClick={() => setTemplatesOpen(true)} className="milan-btn milan-btn--ghost">
               🧰 Use Template
             </button>
             <button
@@ -207,12 +227,20 @@ export default function AIStudioPage() {
           <div className="milan-card">
             <div className="milan-card__title">Recent Prompt</div>
             {history?.length ? (
-              <button className="milan-link" onClick={()=>{
-                const h=history[0];
-                setPrompt(h.prompt); setNegative(h.negative||defaultNegative);
-                setMode(h.mode||'romantic'); setSize(h.size||'1024x1024');
-                setSteps(h.steps||25); setGuidance(h.guidance||7);
-              }}>{truncate(history[0].prompt,140)}</button>
+              <button
+                className="milan-link"
+                onClick={() => {
+                  const h = history[0];
+                  setPrompt(h.prompt);
+                  setNegative(h.negative || defaultNegative);
+                  setMode(h.mode || "romantic");
+                  setSize(h.size || "1024x1024");
+                  setSteps(h.steps || 25);
+                  setGuidance(h.guidance || 7);
+                }}
+              >
+                {truncate(history[0].prompt, 140)}
+              </button>
             ) : (
               <div className="milan-muted">Your latest prompt will appear here.</div>
             )}
@@ -239,47 +267,82 @@ export default function AIStudioPage() {
             </div>
 
             <div className="milan-card">
-              <button
-                className="milan-accordion"
-                onClick={()=>setAdvancedOpen(v=>!v)}
-              >
+              <button className="milan-accordion" onClick={() => setAdvancedOpen((v) => !v)}>
                 <span>⚙️ Advanced Settings</span>
-                <span className="milan-muted">{advancedOpen? 'Hide':'Show'}</span>
+                <span className="milan-muted">{advancedOpen ? "Hide" : "Show"}</span>
               </button>
               {advancedOpen && (
                 <div className="milan-adv">
                   <div className="milan-row">
                     <div className="milan-field">
                       <label className="milan-label">Size</label>
-                      <select className="milan-input" value={size} onChange={(e)=>setSize(e.target.value)}>
-                        {SIZES.map(s=> <option key={s} value={s}>{s}</option>)}
+                      <select
+                        className="milan-input"
+                        value={size}
+                        onChange={(e) => setSize(e.target.value)}
+                      >
+                        {SIZES.map((s) => (
+                          <option key={s} value={s}>
+                            {s}
+                          </option>
+                        ))}
                       </select>
                     </div>
                     <div className="milan-field">
-                      <label className="milan-label">Steps <span className="milan-note">{steps}</span></label>
-                      <input type="range" min={10} max={50} value={steps} onChange={(e)=>setSteps(parseInt(e.target.value,10))} className="milan-range" />
+                      <label className="milan-label">
+                        Steps <span className="milan-note">{steps}</span>
+                      </label>
+                      <input
+                        type="range"
+                        min={10}
+                        max={50}
+                        value={steps}
+                        onChange={(e) => setSteps(parseInt(e.target.value, 10))}
+                        className="milan-range"
+                      />
                     </div>
                   </div>
                   <div className="milan-field">
-                    <label className="milan-label">Guidance <span className="milan-note">{guidance}</span></label>
-                    <input type="range" min={1} max={20} value={guidance} onChange={(e)=>setGuidance(parseInt(e.target.value,10))} className="milan-range" />
+                    <label className="milan-label">
+                      Guidance <span className="milan-note">{guidance}</span>
+                    </label>
+                    <input
+                      type="range"
+                      min={1}
+                      max={20}
+                      value={guidance}
+                      onChange={(e) => setGuidance(parseInt(e.target.value, 10))}
+                      className="milan-range"
+                    />
                   </div>
                   <div className="milan-field">
                     <label className="milan-label">Negative Prompt</label>
-                    <input className="milan-input" value={negative} onChange={(e)=>setNegative(e.target.value)} placeholder="Unwanted elements (e.g., text, watermark)" />
+                    <input
+                      className="milan-input"
+                      value={negative}
+                      onChange={(e) => setNegative(e.target.value)}
+                      placeholder="Unwanted elements (e.g., text, watermark)"
+                    />
                   </div>
                 </div>
               )}
             </div>
 
             <div className="milan-card">
-              <div className="milan-card__title">📁 Saved {saved?.length ? <button className="milan-link milan-right" onClick={()=>setSaved([])}>Clear</button> : null}</div>
+              <div className="milan-card__title">
+                📁 Saved{" "}
+                {saved?.length ? (
+                  <button className="milan-link milan-right" onClick={() => setSaved([])}>
+                    Clear
+                  </button>
+                ) : null}
+              </div>
               {saved?.length === 0 ? (
                 <div className="milan-muted">Nothing saved yet. Generate and hit “Save”.</div>
               ) : (
                 <div className="milan-gallery">
-                  {saved.map((s,i)=> (
-                    <button key={s.ts+"-"+i} onClick={()=>setImageUrl(s.url)} className="milan-thumb">
+                  {saved.map((s, i) => (
+                    <button key={s.ts + "-" + i} onClick={() => setImageUrl(s.url)} className="milan-thumb">
                       <img src={s.url} alt="saved" />
                     </button>
                   ))}
@@ -292,11 +355,17 @@ export default function AIStudioPage() {
           <div className="milan-col milan-col--wide">
             <div className="milan-card milan-card--noPad">
               <div className="milan-toolbar">
-                <div className="milan-muted">{imageUrl? `${size} — ${mode}` : 'Preview'}</div>
+                <div className="milan-muted">{imageUrl ? `${size} — ${mode}` : "Preview"}</div>
                 <div className="milan-toolbar__btns">
-                  <button className="milan-btn milan-btn--ghost" onClick={onSave} disabled={!imageUrl}>Save</button>
-                  <button className="milan-btn milan-btn--ghost" onClick={onDownload} disabled={!imageUrl}>Download</button>
-                  <button className="milan-btn milan-btn--ghost" onClick={onShare} disabled={!imageUrl}>Share</button>
+                  <button className="milan-btn milan-btn--ghost" onClick={onSave} disabled={!imageUrl}>
+                    Save
+                  </button>
+                  <button className="milan-btn milan-btn--ghost" onClick={onDownload} disabled={!imageUrl}>
+                    Download
+                  </button>
+                  <button className="milan-btn milan-btn--ghost" onClick={onShare} disabled={!imageUrl}>
+                    Share
+                  </button>
                 </div>
               </div>
 
@@ -313,9 +382,7 @@ export default function AIStudioPage() {
                 )}
               </div>
 
-              {error && (
-                <div className="milan-alert">{error}</div>
-              )}
+              {error && <div className="milan-alert">{error}</div>}
             </div>
 
             {compareUrls?.length > 0 && (
@@ -323,7 +390,7 @@ export default function AIStudioPage() {
                 <div className="milan-card__title">Recent Results</div>
                 <div className="milan-compare">
                   {compareUrls.map((u, i) => (
-                    <button key={u+"-"+i} onClick={()=>setImageUrl(u)} className="milan-thumb">
+                    <button key={u + "-" + i} onClick={() => setImageUrl(u)} className="milan-thumb">
                       <img src={u} alt="recent" />
                     </button>
                   ))}
@@ -334,45 +401,38 @@ export default function AIStudioPage() {
         </div>
       </main>
 
-      {/* Sticky mobile Create */}
-      <div className="milan-sticky sm-hide">
-        <button
-          onClick={onGenerate}
-          disabled={loading || !prompt.trim()}
-          className="milan-btn milan-btn--primary"
-        >
+      {/* CTA — show ONE button: mobile-only OR desktop-only */}
+      <div className="milan-sticky sm-only">
+        <button onClick={onGenerate} disabled={loading || !prompt.trim()} className="milan-btn milan-btn--primary">
           {loading ? "Creating…" : "Create with Milan"}
         </button>
       </div>
 
-      {/* Desktop CTA */}
-      <div className="milan-desktop-cta sm-show">
-        <button
-          onClick={onGenerate}
-          disabled={loading || !prompt.trim()}
-          className="milan-btn milan-btn--primary"
-        >
+      <div className="milan-desktop-cta lg-only">
+        <button onClick={onGenerate} disabled={loading || !prompt.trim()} className="milan-btn milan-btn--primary">
           {loading ? "Creating…" : "Create with Milan"}
         </button>
       </div>
 
-      {/* Template Picker Sheet */}
+      {/* Template Picker */}
       {templatesOpen && (
         <div className="milan-sheet" role="dialog" aria-modal="true">
           <div className="milan-sheet__panel">
             <div className="milan-sheet__head">
               <div className="milan-sheet__title">Choose a template — {mode}</div>
-              <button className="milan-btn milan-btn--ghost" onClick={()=>setTemplatesOpen(false)}>Close</button>
+              <button className="milan-btn milan-btn--ghost" onClick={() => setTemplatesOpen(false)}>
+                Close
+              </button>
             </div>
             <div className="milan-templates">
-              {(TEMPLATES[mode]||[]).map((t,i)=> (
-                <button key={i} className="milan-template" onClick={()=>{ setPrompt(t); setTemplatesOpen(false); }}>
+              {(TEMPLATES[mode] || []).map((t, i) => (
+                <button key={i} className="milan-template" onClick={() => { setPrompt(t); setTemplatesOpen(false); }}>
                   {t}
                 </button>
               ))}
             </div>
           </div>
-          <div className="milan-sheet__backdrop" onClick={()=>setTemplatesOpen(false)} />
+          <div className="milan-sheet__backdrop" onClick={() => setTemplatesOpen(false)} />
         </div>
       )}
     </div>
@@ -387,17 +447,16 @@ function useLocalStorageArray(key, initial) {
   return [state, setState];
 }
 function useDarkTheme() {
-  const [theme, setTheme] = useState('dark');
-  useEffect(() => { const saved = localStorage.getItem('milan:theme'); if (saved==='dark'||saved==='light') setTheme(saved); }, []);
-  useEffect(() => { try { localStorage.setItem('milan:theme', theme); } catch {} }, [theme]);
+  const [theme, setTheme] = useState("dark");
+  useEffect(() => { const saved = localStorage.getItem("milan:theme"); if (saved === "dark" || saved === "light") setTheme(saved); }, []);
+  useEffect(() => { try { localStorage.setItem("milan:theme", theme); } catch {} }, [theme]);
   return [theme, setTheme];
 }
-function truncate(str, n){ if(!str) return ''; return str.length>n? str.slice(0,n-1)+'…':str; }
-function demoFallbackUrl(){
-  const demos=[
-    'https://images.unsplash.com/photo-1542124521-92172c1f1cdb?q=80&w=1200&auto=format&fit=crop',
-    'https://images.unsplash.com/photo-1519681393784-d120267933ba?q=80&w=1200&auto=format&fit=crop',
-    'https://images.unsplash.com/photo-1518837695005-2083093ee35b?q=80&w=1200&auto=format&fit=crop',
-  ];
-  return demos[Math.floor(Math.random()*demos.length)];
+function truncate(str, n) { if (!str) return ""; return str.length > n ? str.slice(0, n - 1) + "…" : str; }
+// Use a reliable placeholder service to avoid 404s
+function demoFallbackUrl() {
+  const seeds = ["milan1","milan2","milan3","milan4"];
+  const seed = seeds[Math.floor(Math.random()*seeds.length)];
+  // picsum is very reliable for demo images
+  return `https://picsum.photos/seed/${seed}/1200/800`;
 }
