@@ -1,16 +1,12 @@
 import { useEffect, useState } from "react";
 
 /** Milan AI Studio — Robust Frontend (no Tailwind)
- * Fixes:
- * - Create CTA placed right under Prompt (no sticky footer, no duplicates)
- * - Clear selected mode (✓ + left pink bar)
- * - Full-page scroll (handled via CSS .milan-root overflow-y:auto)
- * - Handles ALL backend response styles:
- *    - JSON { imageUrl | url | data.url | imageBase64 | base64 }
- *    - Raw image binary (Content-Type: image/*)
- *    - Plain text direct URL or data URL
- * - Blob download to avoid cross-site 404
- * - Reliable demo fallback if API fails
+ * - Create CTA under Prompt
+ * - Clear selected mode
+ * - Full-page scroll (CSS side)
+ * - Handles all API response styles (URL, base64, raw bytes, text)
+ * - Blob download
+ * - Reliable demo fallback
  */
 
 const MODES = [
@@ -91,14 +87,13 @@ export default function AIStudioPage() {
   };
 
   async function parseImageFromResponse(res) {
-    // 1) If server sent image bytes
     const ctype = res.headers.get("content-type") || "";
+    // Raw image bytes
     if (ctype.startsWith("image/")) {
       const blob = await res.blob();
       return URL.createObjectURL(blob);
     }
-
-    // 2) Try JSON
+    // JSON shapes
     if (ctype.includes("application/json")) {
       const data = await res.json();
       const url =
@@ -111,13 +106,11 @@ export default function AIStudioPage() {
       if (url) return url;
       throw new Error("No image URL in JSON");
     }
-
-    // 3) Fallback: text (maybe a direct URL or data URL)
+    // Text fallback: maybe URL or data URL
     const txt = await res.text();
     const trimmed = txt.trim();
     if (trimmed.startsWith("data:image")) return trimmed;
     if (/^https?:\/\//i.test(trimmed)) return trimmed;
-
     throw new Error("Unrecognized response");
   }
 
@@ -139,11 +132,10 @@ export default function AIStudioPage() {
         body: JSON.stringify({ prompt: finalPrompt, negative, mode, size, steps, guidance }),
       });
       if (!res.ok) throw new Error("Generation failed");
-
       const url = await parseImageFromResponse(res);
       setImageUrl(url);
       setCompareUrls((prev) => [url, ...prev].slice(0, 6));
-    } catch (e) {
+    } catch {
       setImageUrl(demoFallbackUrl());
       setError("Generation failed or response format unexpected. Showing a demo image for now.");
     } finally {
@@ -156,10 +148,10 @@ export default function AIStudioPage() {
     setSaved((prev) => [{ url: imageUrl, prompt, mode, ts: Date.now() }, ...prev]);
   };
 
+  // Safe blob download
   const onDownload = async () => {
     if (!imageUrl) return;
     try {
-      // If it's already a data URL, download directly
       if (imageUrl.startsWith("data:image")) {
         const a = document.createElement("a");
         a.href = imageUrl;
@@ -221,7 +213,7 @@ export default function AIStudioPage() {
       <section className="milan-hero">
         <div className="milan-hero__text">
           <h2>Turn your imagination into reality ✨</h2>
-          <p>Generate romantic, anime, realistic or product-grade images with one prompt. Clean UI, pro controls, mobile-friendly.</p>
+        <p>Generate romantic, anime, realistic or product-grade images with one prompt. Clean UI, pro controls, mobile-friendly.</p>
 
           <div className="milan-modes" role="tablist" aria-label="Generation modes">
             {MODES.map((m) => (
@@ -285,8 +277,6 @@ export default function AIStudioPage() {
                 />
                 <div className="milan-counter">{prompt.length} chars</div>
               </div>
-
-              {/* NEW: primary CTA placed right under prompt */}
               <div style={{ marginTop: 10 }}>
                 <button onClick={onGenerate} disabled={loading || !prompt.trim()} className="milan-btn milan-btn--primary" style={{ width: "100%" }}>
                   {loading ? "Creating…" : "Create with Milan"}
@@ -424,7 +414,8 @@ function useDarkTheme() {
   return [theme, setTheme];
 }
 function truncate(str, n) { if (!str) return ""; return str.length > n ? str.slice(0, n - 1) + "…" : str; }
-function stripPrefix(b64){ return (b64 || "").replace(/^data:image\\/[a-zA-Z0-9.+-]+;base64,/, ""); }
+// ✅ FIX: regex literal must be `\/` (not `\\\/`)
+function stripPrefix(b64){ return (b64 || "").replace(/^data:image\/[a-zA-Z0-9.+-]+;base64,/, ""); }
 function demoFallbackUrl() {
   const seeds = ["milan1","milan2","milan3","milan4","milan5"];
   const seed = seeds[Math.floor(Math.random()*seeds.length)];
