@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 
-/** Milan AI Studio — Robust Frontend (no Tailwind) */
+/** Milan AI Studio — Mobile-first Responsive (no Tailwind) */
 
 const MODES = [
   { key: "romantic", label: "Romantic", desc: "Warm tones, depth, soft bokeh.", icon: "💖",
@@ -62,6 +62,16 @@ export default function AIStudioPage() {
   const [compareUrls, setCompareUrls] = useState([]);
   const [templatesOpen, setTemplatesOpen] = useState(false);
 
+  // --- mobile 100vh fix (and notch safe areas) ---
+  useEffect(() => {
+    const setVh = () => {
+      document.documentElement.style.setProperty("--vh", `${window.innerHeight * 0.01}px`);
+    };
+    setVh();
+    window.addEventListener("resize", setVh);
+    return () => window.removeEventListener("resize", setVh);
+  }, []);
+
   useEffect(() => {
     if (!prompt?.trim()) {
       const m = MODES.find((m) => m.key === mode);
@@ -115,11 +125,6 @@ export default function AIStudioPage() {
 
       if (ctype.includes("application/json")) {
         const data = await res.json();
-        if (data?.ok && data?.imageUrl) {
-          setImageUrl(data.imageUrl);
-          setCompareUrls((prev) => [data.imageUrl, ...prev].slice(0, 6));
-          return;
-        }
         if (data?.imageUrl) {
           setImageUrl(data.imageUrl);
           setCompareUrls((prev) => [data.imageUrl, ...prev].slice(0, 6));
@@ -140,19 +145,13 @@ export default function AIStudioPage() {
 
       const txt = await res.text();
       const trimmed = txt.trim();
-      if (trimmed.startsWith("data:image")) {
-        setImageUrl(trimmed);
-        setCompareUrls((prev) => [trimmed, ...prev].slice(0, 6));
-        return;
-      }
-      if (/^https?:\/\//i.test(trimmed)) {
+      if (trimmed.startsWith("data:image") || /^https?:\/\//i.test(trimmed)) {
         setImageUrl(trimmed);
         setCompareUrls((prev) => [trimmed, ...prev].slice(0, 6));
         return;
       }
       setImageUrl(null);
       setError("Unrecognized response from server.");
-
     } catch (e) {
       setImageUrl(null);
       setError(`Network error: ${e.message}`);
@@ -230,6 +229,7 @@ export default function AIStudioPage() {
           <h2>Turn your imagination into reality ✨</h2>
           <p>Generate romantic, anime, realistic or product-grade images with one prompt. Clean UI, pro controls, mobile-friendly.</p>
 
+          {/* Modes: chips on mobile, stacked on desktop */}
           <div className="milan-modes" role="tablist" aria-label="Generation modes">
             {MODES.map((m) => (
               <button
@@ -238,11 +238,9 @@ export default function AIStudioPage() {
                 aria-pressed={mode === m.key}
                 aria-selected={mode === m.key}
                 onClick={() => setMode(m.key)}
+                title={m.desc}
               >
-                <div className="milan-mode__title">
-                  {m.icon} {m.label} {mode === m.key ? "✓" : ""}
-                </div>
-                <div className="milan-mode__desc">{m.desc}</div>
+                <span className="milan-mode__title">{m.icon} {m.label}</span>
               </button>
             ))}
           </div>
@@ -277,6 +275,7 @@ export default function AIStudioPage() {
 
       <main className="milan-main">
         <div className="milan-grid">
+          {/* LEFT: prompt & controls */}
           <div className="milan-col">
             <div className="milan-card">
               <label className="milan-label">Your Prompt</label>
@@ -286,11 +285,17 @@ export default function AIStudioPage() {
                   placeholder="Describe your dream image…"
                   value={prompt}
                   onChange={(e) => setPrompt(e.target.value)}
+                  rows={6}
                 />
                 <div className="milan-counter">{prompt.length} chars</div>
               </div>
-              <div style={{ marginTop: 10 }}>
-                <button onClick={onGenerate} disabled={loading || !prompt.trim()} className="milan-btn milan-btn--primary" style={{ width: "100%" }}>
+
+              <div className="milan-create-row">
+                <button
+                  onClick={onGenerate}
+                  disabled={loading || !prompt.trim()}
+                  className="milan-btn milan-btn--primary milan-btn--full"
+                >
                   {loading ? "Creating…" : "Create with Milan"}
                 </button>
               </div>
@@ -301,6 +306,7 @@ export default function AIStudioPage() {
                 <span>⚙️ Advanced Settings</span>
                 <span className="milan-muted">{advancedOpen ? "Hide" : "Show"}</span>
               </button>
+
               {advancedOpen && (
                 <div className="milan-adv">
                   <div className="milan-row">
@@ -315,10 +321,12 @@ export default function AIStudioPage() {
                       <input type="range" min={10} max={50} value={steps} onChange={(e) => setSteps(parseInt(e.target.value, 10))} className="milan-range" />
                     </div>
                   </div>
+
                   <div className="milan-field">
                     <label className="milan-label">Guidance <span className="milan-note">{guidance}</span></label>
                     <input type="range" min={1} max={20} value={guidance} onChange={(e) => setGuidance(parseInt(e.target.value, 10))} className="milan-range" />
                   </div>
+
                   <div className="milan-field">
                     <label className="milan-label">Negative Prompt</label>
                     <input className="milan-input" value={negative} onChange={(e) => setNegative(e.target.value)} placeholder="Unwanted elements (e.g., text, watermark)" />
@@ -345,6 +353,7 @@ export default function AIStudioPage() {
             </div>
           </div>
 
+          {/* RIGHT: preview & recent */}
           <div className="milan-col milan-col--wide">
             <div className="milan-card milan-card--noPad">
               <div className="milan-toolbar">
@@ -388,6 +397,7 @@ export default function AIStudioPage() {
         </div>
       </main>
 
+      {/* Templates Bottom Sheet */}
       {templatesOpen && (
         <div className="milan-sheet" role="dialog" aria-modal="true">
           <div className="milan-sheet__panel">
@@ -406,6 +416,183 @@ export default function AIStudioPage() {
           <div className="milan-sheet__backdrop" onClick={() => setTemplatesOpen(false)} />
         </div>
       )}
+
+      {/* Component-scoped responsive styles */}
+      <style jsx>{`
+        :root { --radius: 14px; --gap: 16px; }
+        .milan-root {
+          min-height: calc(var(--vh, 1vh) * 100);
+          padding: env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left);
+          background: radial-gradient(1200px 800px at 20% -10%, rgba(255,105,180,0.06), transparent 60%),
+                      radial-gradient(1200px 800px at 120% 0%, rgba(135,206,250,0.05), transparent 60%);
+          color: #e8e8ec;
+        }
+        .milan-dark { background-color: #0e1217; }
+        .milan-light { background-color: #f6f7fb; color: #121316; }
+
+        .milan-header {
+          position: sticky; top: 0; z-index: 40;
+          display: flex; align-items: center; justify-content: space-between;
+          padding: 12px 16px; backdrop-filter: blur(8px);
+          background: rgba(12,14,18,0.6);
+          border-bottom: 1px solid rgba(255,255,255,0.08);
+        }
+        .milan-light .milan-header { background: rgba(255,255,255,0.7); border-color: rgba(0,0,0,0.06); }
+        .milan-logo { font-size: 20px; margin-right: 8px; }
+        .milan-header__left { display:flex; align-items:center; gap:8px; }
+        .milan-header__right { display:flex; gap:8px; align-items:center; }
+        .milan-hide-sm { display:none; }
+        @media (min-width: 768px){ .milan-hide-sm { display:inline-flex; } }
+
+        .milan-hero {
+          display:grid; gap: var(--gap);
+          grid-template-columns: 1fr;
+          padding: 12px 16px 4px;
+        }
+        @media (min-width: 1024px){
+          .milan-hero { grid-template-columns: 2fr 1fr; align-items:start; }
+        }
+        .milan-hero__text h2 { margin: 4px 0 6px; font-size: 22px; }
+        @media (min-width:768px){ .milan-hero__text h2 { font-size: 26px; } }
+        .milan-hero__text p { margin: 0 0 10px; opacity: 0.85; }
+
+        /* Modes: chips on mobile, stack on desktop */
+        .milan-modes { display:flex; gap:8px; overflow-x:auto; padding: 6px 0; scrollbar-width: none; }
+        .milan-modes::-webkit-scrollbar{ display:none; }
+        .milan-mode {
+          flex: 0 0 auto; padding: 10px 12px; border-radius: 999px;
+          border: 1px solid rgba(255,255,255,0.12); background: rgba(255,255,255,0.03);
+          font-size: 14px; line-height: 1; white-space: nowrap;
+        }
+        .milan-mode.is-active { border-color: #ff6ea6; box-shadow: 0 0 0 2px rgba(255,110,166,0.2) inset; }
+        @media (min-width: 1024px){
+          .milan-modes { flex-direction: column; overflow: visible; }
+          .milan-mode { border-radius: var(--radius); padding: 12px 14px; white-space: normal; }
+        }
+
+        .milan-helpers { display:flex; gap:8px; flex-wrap:wrap; margin-top: 8px; }
+
+        .milan-main { padding: 8px 16px 24px; }
+        .milan-grid {
+          display:grid; gap: var(--gap);
+          grid-template-columns: 1fr;
+        }
+        @media (min-width: 1024px){
+          .milan-grid { grid-template-columns: 2fr 3fr; }
+        }
+        .milan-col { display: grid; gap: var(--gap); align-content: start; }
+        .milan-col--wide { min-width: 0; }
+
+        .milan-card {
+          background: rgba(255,255,255,0.04);
+          border: 1px solid rgba(255,255,255,0.08);
+          border-radius: var(--radius);
+          padding: 12px;
+        }
+        .milan-light .milan-card { background: rgba(0,0,0,0.02); border-color: rgba(0,0,0,0.08); }
+        .milan-card--noPad { padding: 0; overflow: hidden; }
+
+        .milan-card__title { font-weight: 600; margin-bottom: 8px; }
+        .milan-label { font-size: 13px; opacity: 0.9; display:block; margin-bottom: 6px; }
+        .milan-input, .milan-textarea, select {
+          width: 100%; border-radius: 10px; border: 1px solid rgba(255,255,255,0.12);
+          background: rgba(255,255,255,0.02); color: inherit; padding: 10px 12px;
+        }
+        .milan-light .milan-input, .milan-light .milan-textarea, .milan-light select {
+          background: #fff; border-color: rgba(0,0,0,0.12); color: #111;
+        }
+        .milan-textarea { min-height: 120px; resize: vertical; }
+        .milan-textarea-wrap { position: relative; }
+        .milan-counter {
+          position: absolute; right: 8px; bottom: 8px; font-size: 12px; opacity: 0.7;
+          background: rgba(0,0,0,0.35); padding: 2px 6px; border-radius: 999px;
+        }
+        .milan-light .milan-counter { background: rgba(0,0,0,0.08); }
+
+        .milan-btn {
+          display:inline-flex; align-items:center; justify-content:center; gap:8px;
+          height: 40px; padding: 0 14px; border-radius: 12px; cursor: pointer;
+          border: 1px solid rgba(255,255,255,0.14); background: rgba(255,255,255,0.06); color: inherit;
+        }
+        .milan-btn[disabled] { opacity: 0.5; cursor: not-allowed; }
+        .milan-btn--primary { border-color: #ff6ea6; background: linear-gradient(180deg,#ff6ea6,#ff3e7f); color: #fff; }
+        .milan-btn--ghost { background: transparent; }
+        .milan-btn--full { width: 100%; }
+
+        /* Sticky create button on mobile */
+        .milan-create-row { margin-top: 10px; }
+        @media (max-width: 767px){
+          .milan-create-row { position: sticky; bottom: 8px; z-index: 20; }
+          .milan-create-row .milan-btn--primary { box-shadow: 0 8px 24px rgba(255,62,127,0.35); }
+        }
+
+        .milan-accordion {
+          width: 100%; display:flex; justify-content: space-between; align-items:center;
+          background: transparent; border: none; color: inherit; padding: 4px 2px; cursor: pointer;
+        }
+        .milan-adv { display:grid; gap: 10px; padding-top: 8px; }
+        .milan-row { display:grid; gap: 10px; grid-template-columns: 1fr; }
+        @media (min-width: 640px){ .milan-row { grid-template-columns: 1fr 1fr; } }
+        .milan-field { display:grid; gap: 6px; }
+        .milan-range { width: 100%; }
+        .milan-note { opacity: 0.7; font-weight: 500; margin-left: 6px; }
+
+        .milan-toolbar {
+          display:flex; align-items:center; justify-content:space-between; gap: 8px;
+          padding: 10px 12px; border-bottom: 1px solid rgba(255,255,255,0.08);
+          background: rgba(255,255,255,0.02);
+          flex-wrap: wrap;
+        }
+        .milan-toolbar__btns { display:flex; gap: 6px; flex-wrap: wrap; }
+
+        .milan-canvas {
+          position: relative; display:flex; align-items:center; justify-content:center;
+          padding: 10px; min-height: 260px; aspect-ratio: 4/3; /* responsive preview box */
+          background: rgba(0,0,0,0.25);
+        }
+        .milan-result { max-width: 100%; max-height: 100%; object-fit: contain; border-radius: 10px; }
+        .milan-empty { opacity: 0.7; text-align: center; padding: 24px; }
+
+        .milan-loader { display:flex; flex-direction:column; align-items:center; gap: 10px; }
+        .milan-spinner { width: 24px; height: 24px; border-radius: 50%; border: 3px solid rgba(255,255,255,0.25); border-top-color: #ff6ea6; animation: spin 1s linear infinite; }
+        @keyframes spin { to { transform: rotate(360deg); } }
+
+        .milan-alert {
+          margin: 10px; border-radius: 10px; padding: 10px 12px;
+          background: rgba(255,80,80,0.1); border: 1px solid rgba(255,80,80,0.3);
+        }
+
+        .milan-gallery, .milan-compare {
+          display:flex; flex-wrap: wrap; gap: 8px;
+        }
+        .milan-thumb {
+          width: 88px; height: 88px; border-radius: 10px; overflow:hidden;
+          border: 1px solid rgba(255,255,255,0.1); background: rgba(255,255,255,0.03);
+        }
+        .milan-thumb img { width: 100%; height: 100%; object-fit: cover; display:block; }
+
+        .milan-link { color: #80bfff; text-decoration: underline; background: none; border: 0; cursor: pointer; }
+        .milan-muted { opacity: 0.75; }
+        .milan-right { float: right; }
+
+        /* Bottom sheet */
+        .milan-sheet { position: fixed; inset: 0; z-index: 70; }
+        .milan-sheet__backdrop { position:absolute; inset:0; background: rgba(0,0,0,0.5); }
+        .milan-sheet__panel {
+          position: absolute; left: 0; right: 0; bottom: 0; max-height: 80vh; overflow: auto;
+          background: rgba(30,32,39,1); border-top-left-radius: 18px; border-top-right-radius: 18px;
+          border: 1px solid rgba(255,255,255,0.1);
+        }
+        .milan-light .milan-sheet__panel { background: #fff; }
+        .milan-sheet__head { display:flex; align-items:center; justify-content:space-between; padding: 12px; border-bottom: 1px solid rgba(255,255,255,0.08); }
+        .milan-sheet__title { font-weight: 600; }
+        .milan-templates { display:grid; gap: 8px; padding: 12px; }
+        .milan-template { text-align: left; padding: 10px 12px; border-radius: 12px; border: 1px solid rgba(255,255,255,0.12); background: rgba(255,255,255,0.04); color: inherit; }
+
+        /* Light mode tweaks */
+        .milan-light .milan-mode { border-color: rgba(0,0,0,0.12); background: rgba(0,0,0,0.03); }
+        .milan-light .milan-mode.is-active { box-shadow: 0 0 0 2px rgba(255,110,166,0.25) inset; }
+      `}</style>
     </div>
   );
 }
