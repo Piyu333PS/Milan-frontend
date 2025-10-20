@@ -1,14 +1,14 @@
-// Hugging Face text->image (SDXL Turbo) with safe error parsing
+// pages/api/generate.js
 export const config = { api: { bodyParser: { sizeLimit: "1mb" } } };
 
 export default async function handler(req, res) {
   if (req.method !== "POST") {
     res.setHeader("Allow", "POST");
-    return res.status(405).json({ error: "Method not allowed" });
+    return res.status(405).json({ ok: false, error: "Method not allowed" });
   }
 
   const HF_TOKEN = process.env.HF_TOKEN;
-  const HF_MODEL = process.env.HF_MODEL || "stabilityai/sdxl-turbo";
+  const HF_MODEL = process.env.HF_MODEL || "black-forest-labs/FLUX.1-schnell";
   if (!HF_TOKEN) {
     return res.status(400).json({ ok: false, error: "HF_TOKEN missing" });
   }
@@ -32,19 +32,23 @@ export default async function handler(req, res) {
       },
     };
 
-    // one request (no re-read of same body)
-    const resp = await fetch(`https://api-inference.huggingface.co/models/${encodeURIComponent(HF_MODEL)}`, {
-      method: "POST",
-      headers: {
-        Authorization: `Bearer ${HF_TOKEN}`,
-        "Content-Type": "application/json",
-        Accept: "image/png",
-      },
-      body: JSON.stringify(payload),
-    });
+    const resp = await fetch(
+      `https://api-inference.huggingface.co/models/${encodeURIComponent(HF_MODEL)}`,
+      {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${HF_TOKEN}`,
+          "Content-Type": "application/json",
+          // JPEG ya PNG dono accept, model jaisa bheje
+          Accept: "image/png,image/jpeg",
+        },
+        body: JSON.stringify(payload),
+      }
+    );
 
     const ct = resp.headers.get("content-type") || "";
 
+    // ✅ Success: raw image bytes → base64 data URL
     if (resp.ok && ct.startsWith("image/")) {
       const buf = Buffer.from(await resp.arrayBuffer());
       const b64 = buf.toString("base64");
@@ -56,13 +60,13 @@ export default async function handler(req, res) {
       });
     }
 
-    // SAFELY read error body: use a clone so we don't hit "already been read"
-    const body = await safeReadClone(resp);
+    // ❌ Error: read body safely once (no “already been read”)
+    const details = await readOnce(resp);
     return res.status(resp.status || 502).json({
       ok: false,
       error: "Hugging Face generation failed",
       status: resp.status,
-      details: body,
+      details,
     });
 
   } catch (e) {
@@ -70,13 +74,13 @@ export default async function handler(req, res) {
   }
 }
 
-/* utils */
+// helpers
 function parseSize(s) {
   const [w, h] = String(s || "1024x1024").toLowerCase().split("x").map(n => parseInt(n, 10));
   return [clamp(w, 512, 1536), clamp(h, 512, 1536)];
 }
-function clamp(n, lo, hi){ const x = Number.isFinite(n) ? n : 1024; return Math.min(hi, Math.max(lo, x)); }
-async function safeReadClone(resp) {
+function clamp(n, lo, hi) { const x = Number.isFinite(n) ? n : 1024; return Math.min(hi, Math.max(lo, x)); }
+async function readOnce(resp) {
   try {
     const r = resp.clone();
     const ct = r.headers.get("content-type") || "";
