@@ -1,13 +1,6 @@
 import { useEffect, useState } from "react";
 
-/** Milan AI Studio — Robust Frontend (no Tailwind)
- * - Create CTA under Prompt
- * - Clear selected mode
- * - Full-page scroll (CSS side)
- * - Handles API JSON ({ok,imageUrl}) + raw image bytes
- * - Proper error surfacing (status + details)
- * - Safe blob download
- */
+/** Milan AI Studio — Robust Frontend (no Tailwind) */
 
 const MODES = [
   { key: "romantic", label: "Romantic", desc: "Warm tones, depth, soft bokeh.", icon: "💖",
@@ -86,7 +79,6 @@ export default function AIStudioPage() {
     setPrompt(bank[Math.floor(Math.random() * bank.length)]);
   };
 
-  // Helper: turn a Response with image body into an object URL
   async function imageUrlFromImageResponse(res) {
     const blob = await res.blob();
     return URL.createObjectURL(blob);
@@ -112,7 +104,6 @@ export default function AIStudioPage() {
 
       const ctype = res.headers.get("content-type") || "";
 
-      // ❌ Server returned an error → read the body once and surface it
       if (!res.ok) {
         let bodyText = "";
         try { bodyText = ctype.includes("application/json") ? JSON.stringify(await res.json()) : await res.text(); }
@@ -122,7 +113,6 @@ export default function AIStudioPage() {
         return;
       }
 
-      // ✅ Our API returns JSON: { ok, imageUrl, error? }
       if (ctype.includes("application/json")) {
         const data = await res.json();
         if (data?.ok && data?.imageUrl) {
@@ -141,7 +131,6 @@ export default function AIStudioPage() {
         return;
       }
 
-      // ✅ If (rarely) server streams raw image bytes
       if (ctype.startsWith("image/")) {
         const url = await imageUrlFromImageResponse(res);
         setImageUrl(url);
@@ -149,7 +138,6 @@ export default function AIStudioPage() {
         return;
       }
 
-      // ❓ Unexpected content type
       const txt = await res.text();
       const trimmed = txt.trim();
       if (trimmed.startsWith("data:image")) {
@@ -166,7 +154,6 @@ export default function AIStudioPage() {
       setError("Unrecognized response from server.");
 
     } catch (e) {
-      // Pure network failure → no fake demo unless you want it
       setImageUrl(null);
       setError(`Network error: ${e.message}`);
     } finally {
@@ -179,7 +166,6 @@ export default function AIStudioPage() {
     setSaved((prev) => [{ url: imageUrl, prompt, mode, ts: Date.now() }, ...prev]);
   };
 
-  // Safe blob download
   const onDownload = async () => {
     if (!imageUrl) return;
     try {
@@ -226,7 +212,6 @@ export default function AIStudioPage() {
 
   return (
     <div className={`milan-root ${theme === "dark" ? "milan-dark" : "milan-light"}`}>
-      {/* Header */}
       <header className="milan-header">
         <div className="milan-header__left">
           <span className="milan-logo">💘</span>
@@ -240,7 +225,6 @@ export default function AIStudioPage() {
         </div>
       </header>
 
-      {/* Hero */}
       <section className="milan-hero">
         <div className="milan-hero__text">
           <h2>Turn your imagination into reality ✨</h2>
@@ -269,7 +253,6 @@ export default function AIStudioPage() {
           </div>
         </div>
 
-        {/* Recent Prompt */}
         <div className="milan-hero__aside">
           <div className="milan-card">
             <div className="milan-card__title">Recent Prompt</div>
@@ -292,10 +275,8 @@ export default function AIStudioPage() {
         </div>
       </section>
 
-      {/* Main */}
       <main className="milan-main">
         <div className="milan-grid">
-          {/* Left: Controls */}
           <div className="milan-col">
             <div className="milan-card">
               <label className="milan-label">Your Prompt</label>
@@ -364,7 +345,6 @@ export default function AIStudioPage() {
             </div>
           </div>
 
-          {/* Right: Preview */}
           <div className="milan-col milan-col--wide">
             <div className="milan-card milan-card--noPad">
               <div className="milan-toolbar">
@@ -408,7 +388,6 @@ export default function AIStudioPage() {
         </div>
       </main>
 
-      {/* Template Picker */}
       {templatesOpen && (
         <div className="milan-sheet" role="dialog" aria-modal="true">
           <div className="milan-sheet__panel">
@@ -445,10 +424,3 @@ function useDarkTheme() {
   return [theme, setTheme];
 }
 function truncate(str, n) { if (!str) return ""; return str.length > n ? str.slice(0, n - 1) + "…" : str; }
-// keep regex literal as `\/`
-function stripPrefix(b64){ return (b64 || "").replace(/^data:image\/[a-zA-Z0-9.+-]+;base64,/, ""); }
-function demoFallbackUrl() {
-  const seeds = ["milan1","milan2","milan3","milan4","milan5"];
-  const seed = seeds[Math.floor(Math.random()*seeds.length)];
-  return `https://picsum.photos/seed/${seed}/1200/800`;
-}
