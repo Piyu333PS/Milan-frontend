@@ -2,19 +2,9 @@
 import { useEffect, useRef } from "react";
 import io from "socket.io-client";
 
-/**
- * Milan Threads — Design-First Chat (Scoped styles, NO global overrides)
- * - Heart Threads (center pulse path)
- * - Reaction Orbs (❤️ 🔥 ✨ 🌙)
- * - Reaction Trails (Delivered / Seen)
- * - Avatar Whisper Space (small interactions)
- *
- * Safe with AI Studio: No edits to _app.js or globals.css
- */
-
 export default function ChatPage() {
   const socketRef = useRef(null);
-  const lastPartnerMessageAt = useRef(0);
+  const menuRef = useRef(null);
 
   useEffect(() => {
     const socket = io("https://milan-j9u9.onrender.com");
@@ -28,14 +18,11 @@ export default function ChatPage() {
     const partnerNameEl = document.getElementById("partnerName");
     const partnerAvatarEl = document.getElementById("partnerAvatar");
     const welcomeMessageEl = document.getElementById("welcomeMessage");
-    const disconnectBtn = document.getElementById("disconnectBtn");
-    const fileBtn = document.getElementById("fileBtn");
-    const fileInput = document.getElementById("fileInput");
-    const reportBtn = document.getElementById("reportBtn");
+    const kebabBtn = document.getElementById("kebabBtn");
 
-    // Session data (same as your current file)
+    // Session
     let partnerData = null;
-    try { partnerData = JSON.parse(sessionStorage.getItem("partnerData")); } catch { partnerData = null; }
+    try { partnerData = JSON.parse(sessionStorage.getItem("partnerData")); } catch {}
     if (!partnerData || !sessionStorage.getItem("roomCode")) {
       alert("Partner info missing. Redirecting...");
       window.location.href = "/";
@@ -53,49 +40,72 @@ export default function ChatPage() {
 
     // Welcome banner
     welcomeMessageEl.classList.remove("isHidden");
-    setTimeout(() => welcomeMessageEl.classList.add("isHidden"), 3000);
+    setTimeout(() => welcomeMessageEl.classList.add("isHidden"), 2500);
 
     // Helpers
     function formatTime() {
-      const time = new Date();
-      const h12 = time.getHours() % 12 || 12;
-      const m = time.getMinutes().toString().padStart(2, "0");
-      const ampm = time.getHours() >= 12 ? "PM" : "AM";
+      const t = new Date();
+      const h12 = t.getHours() % 12 || 12;
+      const m = t.getMinutes().toString().padStart(2, "0");
+      const ampm = t.getHours() >= 12 ? "PM" : "AM";
       return `${h12}:${m} ${ampm}`;
     }
+    function escapeHTML(str) {
+      return (str || "")
+        .replaceAll("&", "&amp;")
+        .replaceAll("<", "&lt;")
+        .replaceAll(">", "&gt;");
+    }
+    function cryptoRandom() {
+      if (typeof crypto !== "undefined" && crypto.getRandomValues) {
+        const buf = new Uint32Array(1); crypto.getRandomValues(buf); return String(buf[0]);
+      }
+      return String(Math.floor(Math.random()*1e9));
+    }
 
+    // Create one message node
     function makeMessageNode({ from, htmlContent, isSelf }) {
       const wrap = document.createElement("div");
       wrap.className = `msg ${isSelf ? "self" : "partner"} trail--pending`;
 
-      // Node bubble
       const bubble = document.createElement("div");
       bubble.className = "bubble";
       bubble.innerHTML = `
         <div class="bubble__meta">
-          <strong class="bubble__from">${from}</strong>
-          <span class="bubble__time">${formatTime()}</span>
+          <div class="meta__who">
+            <strong class="bubble__from">${from}</strong>
+            <span class="bubble__time">${formatTime()}</span>
+          </div>
+          <button class="reactBtn" title="React">✨</button>
         </div>
         <div class="bubble__text">${htmlContent}</div>
         <div class="bubble__status">
           <span class="statusDot"></span>
           <span class="statusText">Delivered</span>
         </div>
-        <div class="reactions">
-          <button class="orb orb--heart" title="Love">❤️</button>
-          <button class="orb orb--fire"  title="Fire">🔥</button>
-          <button class="orb orb--spark" title="Sparkle">✨</button>
-          <button class="orb orb--moon"  title="Calm">🌙</button>
+        <div class="reactPopover">
+          <button class="reactItem">❤️</button>
+          <button class="reactItem">🔥</button>
+          <button class="reactItem">✨</button>
+          <button class="reactItem">🌙</button>
         </div>
       `;
 
-      // Attach reaction handlers
-      bubble.querySelectorAll(".orb").forEach((btn) => {
-        btn.addEventListener("click", () => {
-          // tiny orbit burst
-          bubble.classList.add("bubble--reacted");
+      // Small reaction flow
+      const reactBtn = bubble.querySelector(".reactBtn");
+      const pop = bubble.querySelector(".reactPopover");
+      reactBtn.addEventListener("click", (e) => {
+        e.stopPropagation();
+        closeAllPopovers();
+        pop.classList.toggle("open");
+      });
+      bubble.querySelectorAll(".reactItem").forEach((btn) => {
+        btn.addEventListener("click", (e) => {
+          e.stopPropagation();
           bubble.setAttribute("data-react", btn.textContent);
+          bubble.classList.add("bubble--reacted");
           setTimeout(() => bubble.classList.remove("bubble--reacted"), 800);
+          pop.classList.remove("open");
         });
       });
 
@@ -103,7 +113,7 @@ export default function ChatPage() {
       messagesContainer.appendChild(wrap);
       messagesContainer.scrollTop = messagesContainer.scrollHeight;
 
-      // Reaction Trail: mark delivered instantly (animate glow trail)
+      // Trail: delivered glow
       requestAnimationFrame(() => {
         wrap.classList.remove("trail--pending");
         wrap.classList.add("trail--delivered");
@@ -112,11 +122,25 @@ export default function ChatPage() {
       return wrap;
     }
 
+    function closeAllPopovers() {
+      document.querySelectorAll(".reactPopover.open").forEach((el) => el.classList.remove("open"));
+    }
+    document.addEventListener("click", (e) => {
+      if (!(e.target.closest && e.target.closest(".reactPopover")) &&
+          !(e.target.closest && e.target.closest(".reactBtn"))) {
+        closeAllPopovers();
+      }
+      // close kebab menu if clicked outside
+      if (!(e.target.closest && e.target.closest(".kebabWrap"))) {
+        document.querySelector(".kebabMenu")?.classList.remove("open");
+      }
+    });
+
+    // Send text
     function sendText() {
       const text = msgInput.value.trim();
       if (!text) return;
       socket.emit("message", { text, roomCode, senderId: socket.id });
-      // local render
       const node = makeMessageNode({
         from: "You",
         htmlContent: escapeHTML(text),
@@ -124,52 +148,17 @@ export default function ChatPage() {
       });
       node.dataset.localId = cryptoRandom();
       msgInput.value = "";
-      // Avatar whisper (you)
       whisper("you");
     }
 
-    function sendFile(file) {
-      const reader = new FileReader();
-      reader.onload = () => {
-        socket.emit("fileMessage", {
-          fileName: file.name,
-          fileType: file.type,
-          fileData: reader.result,
-          roomCode,
-        });
-        const preview =
-          file.type && file.type.startsWith("image/")
-            ? `<a href="${reader.result}" target="_blank" class="file"><img src="${reader.result}" alt="${file.name}"/></a>`
-            : `<a href="${reader.result}" download="${file.name}" class="file">${file.name}</a>`;
-
-        const node = makeMessageNode({
-          from: "You",
-          htmlContent: `sent a file<br/>${preview}`,
-          isSelf: true,
-        });
-        node.dataset.localId = cryptoRandom();
-        whisper("you");
-      };
-      reader.readAsDataURL(file);
-    }
-
     function whisper(who) {
-      // subtle avatar animation
       const you = document.getElementById("youAvatar");
       const them = document.getElementById("themAvatar");
-      if (who === "you") {
-        you.classList.remove("avatar--pulse");
-        void you.offsetWidth;
-        you.classList.add("avatar--pulse");
-      } else {
-        them.classList.remove("avatar--pulse");
-        void them.offsetWidth;
-        them.classList.add("avatar--pulse");
-      }
+      const tgt = who === "you" ? you : them;
+      tgt.classList.remove("avatar--pulse"); void tgt.offsetWidth; tgt.classList.add("avatar--pulse");
     }
 
     function markSeenForLastSelfMessage() {
-      // local “seen” when partner sends next message
       const nodes = messagesContainer.querySelectorAll(".msg.self.trail--delivered");
       if (!nodes.length) return;
       const last = nodes[nodes.length - 1];
@@ -180,63 +169,38 @@ export default function ChatPage() {
       }
     }
 
-    // Events
+    // UI events
     sendBtn.addEventListener("click", sendText);
     msgInput.addEventListener("keypress", (e) => { if (e.key === "Enter") sendText(); });
     msgInput.addEventListener("input", () => socket.emit("typing", { roomCode }));
 
-    fileBtn.addEventListener("click", () => fileInput.click());
-    fileInput.addEventListener("change", () => {
-      const f = fileInput.files[0];
-      if (f) sendFile(f);
-      fileInput.value = "";
+    // Kebab menu actions
+    kebabBtn.addEventListener("click", (e) => {
+      e.stopPropagation();
+      document.querySelector(".kebabMenu")?.classList.toggle("open");
     });
-
-    disconnectBtn.addEventListener("click", () => {
+    menuRef.current = document.querySelector(".kebabMenu");
+    menuRef.current.querySelector(".menuReport").addEventListener("click", () => {
+      alert("Partner reported.");
+      socket.emit("reportPartner", { roomCode });
+      document.querySelector(".kebabMenu")?.classList.remove("open");
+    });
+    menuRef.current.querySelector(".menuDisconnect").addEventListener("click", () => {
       socket.emit("disconnectByUser");
       socket.disconnect();
       window.location.href = "/";
-    });
-
-    reportBtn.addEventListener("click", () => {
-      alert("🚩 Partner reported. Thank you for keeping Milan safe!");
-      socket.emit("reportPartner", { roomCode });
     });
 
     // Socket listeners
     socket.on("message", (msg) => {
       if (!msg) return;
       const isSelf = msg.senderId === socket.id;
-      const textHtml = escapeHTML(msg.text || "");
-      makeMessageNode({
+      const node = makeMessageNode({
         from: isSelf ? "You" : partnerData.name,
-        htmlContent: textHtml,
+        htmlContent: (msg.text && escapeHTML(msg.text)) || "",
         isSelf,
       });
-
       if (!isSelf) {
-        lastPartnerMessageAt.current = Date.now();
-        whisper("them");
-        // mark previous self as seen
-        markSeenForLastSelfMessage();
-      }
-    });
-
-    socket.on("fileMessage", (msg) => {
-      const isSelf = msg.senderId === socket.id;
-      const preview =
-        msg.fileType && msg.fileType.startsWith("image/")
-          ? `<a href="${msg.fileData}" target="_blank" class="file"><img src="${msg.fileData}" alt="${msg.fileName}"/></a>`
-          : `<a href="${msg.fileData}" download="${msg.fileName}" class="file">${msg.fileName}</a>`;
-
-      makeMessageNode({
-        from: isSelf ? "You" : partnerData.name,
-        htmlContent: `sent a file<br/>${preview}`,
-        isSelf,
-      });
-
-      if (!isSelf) {
-        lastPartnerMessageAt.current = Date.now();
         whisper("them");
         markSeenForLastSelfMessage();
       }
@@ -253,9 +217,7 @@ export default function ChatPage() {
       window.location.href = "/";
     });
 
-    return () => {
-      try { socket.disconnect(); } catch {}
-    };
+    return () => { try { socket.disconnect(); } catch {} };
   }, []);
 
   return (
@@ -264,24 +226,29 @@ export default function ChatPage() {
         {/* Header */}
         <div className="header">
           <div className="header__left">
-            <img id="partnerAvatar" className="avatar" src="partner-avatar.png" alt="Partner"/>
+            <div className="avatarWrap">
+              <img id="partnerAvatar" className="avatar" src="partner-avatar.png" alt="Partner"/>
+            </div>
             <div className="who">
               <span id="partnerName" className="who__name">Partner</span>
               <span id="typingIndicator" className="who__typing isHidden">typing…</span>
             </div>
           </div>
-          <div className="header__right">
-            <button id="reportBtn" className="btn btn--ghost">🚩 Report</button>
-            <button id="disconnectBtn" className="btn btn--danger">Disconnect</button>
+
+          <div className="header__right kebabWrap">
+            <button id="kebabBtn" className="kebabBtn" aria-haspopup="true" aria-expanded="false">⋮</button>
+            <div className="kebabMenu">
+              <button className="kItem menuReport">Report</button>
+              <button className="kItem menuDisconnect">Disconnect</button>
+            </div>
           </div>
         </div>
 
-        {/* Avatar Whisper Space */}
+        {/* Avatar Whisper + Heart line */}
         <div className="whisper">
           <div className="whisper__lane">
             <img id="themAvatar" className="miniAvatar" src="partner-avatar.png" alt="Them"/>
             <div className="lane__mid">
-              {/* Heart Threads line */}
               <div className="pulseLine">
                 <span className="beat beat--l" />
                 <span className="beat beat--c" />
@@ -298,19 +265,18 @@ export default function ChatPage() {
           You are now connected to a Romantic Stranger 💌
         </div>
 
-        {/* Messages Thread on Heart Line */}
+        {/* Messages */}
         <div id="messages" className="thread" />
 
         {/* Composer */}
         <div className="composer">
-          <input type="file" id="fileInput" style={{ display:"none" }} />
-          <button id="fileBtn" className="icon" title="Attach">📎</button>
+          <button className="mic" title="Voice note (coming soon)">🎙️</button>
           <input id="msgInput" className="input" placeholder="Type a message…" />
           <button id="sendBtn" className="send" title="Send">➤</button>
         </div>
       </div>
 
-      {/* SCOPED styles only */}
+      {/* SCOPED styles */}
       <style jsx>{`
         .milanChat{
           width:100%;
@@ -318,11 +284,9 @@ export default function ChatPage() {
           height:100dvh;
           margin:0 auto;
           display:flex; flex-direction:column;
-          background:rgba(255,255,255,.06);
-          border:1px solid rgba(255,255,255,.12);
-          border-radius:16px;
-          backdrop-filter:blur(10px);
-          overflow:hidden;
+          background:#0f172a;
+          border:1px solid rgba(255,255,255,.08);
+          border-radius:16px; overflow:hidden;
         }
 
         /* Header */
@@ -331,23 +295,43 @@ export default function ChatPage() {
           padding:10px 12px;
           background:linear-gradient(90deg,#ec4899,#fb7185);
           color:#fff;
+          position:relative;
         }
-        .header__left{ display:flex; align-items:center; gap:8px; }
-        .avatar{ width:42px; height:42px; border-radius:999px; object-fit:cover; }
+        .header__left{ display:flex; align-items:center; gap:10px; }
+        .avatarWrap{
+          width:46px; height:46px; border-radius:999px;
+          border:3px solid rgba(255,255,255,.6);
+          display:flex; align-items:center; justify-content:center;
+          background:rgba(255,255,255,.25);
+          overflow:hidden;
+        }
+        .avatar{ width:100%; height:100%; object-fit:cover; border-radius:999px; }
         .who{ display:flex; flex-direction:column; line-height:1.1; }
-        .who__name{ font-weight:700; font-size:14px; }
+        .who__name{ font-weight:800; font-size:14px; }
         .who__typing{ font-size:12px; opacity:.9; }
         .isHidden{ display:none; }
 
-        .btn{
-          border:none; border-radius:10px; padding:8px 10px; font-weight:700; cursor:pointer;
-          background:#fff; color:#ec4899;
+        /* Kebab */
+        .kebabBtn{
+          width:38px; height:38px; border-radius:10px; border:none;
+          background:#ffffff; color:#ec4899; font-size:20px; cursor:pointer;
         }
-        .btn--danger{ color:#fff; background:#1f2937; }
-        .btn--ghost{ background:#fff; color:#ef4444; }
+        .kebabMenu{
+          position:absolute; right:10px; top:56px;
+          background:#ffffff; color:#1f2937; border-radius:12px; box-shadow:0 10px 30px rgba(0,0,0,.25);
+          overflow:hidden; transform:scale(0.95); opacity:0; pointer-events:none; transition:.15s;
+          min-width:150px;
+        }
+        .kebabMenu.open{ transform:scale(1); opacity:1; pointer-events:auto; }
+        .kItem{
+          display:block; width:100%; text-align:left; padding:10px 14px; background:#fff; border:none; cursor:pointer;
+        }
+        .kItem:hover{ background:#f3f4f6; }
+        .menuReport{ color:#ef4444; font-weight:700; }
+        .menuDisconnect{ color:#111827; }
 
-        /* Whisper space + Heart Threads pulse line */
-        .whisper{ padding:8px 12px; background:rgba(0,0,0,.05); }
+        /* Whisper space + Heart line */
+        .whisper{ padding:8px 12px; background:#0b1224; }
         .whisper__lane{ display:flex; align-items:center; justify-content:space-between; gap:10px; }
         .miniAvatar{
           width:34px; height:34px; border-radius:999px; object-fit:cover; border:2px solid rgba(255,255,255,.6);
@@ -358,7 +342,7 @@ export default function ChatPage() {
         .lane__mid{ flex:1; position:relative; height:38px; display:flex; align-items:center; }
         .pulseLine{
           position:relative; width:100%; height:2px; background:linear-gradient(90deg,#f9a8d4,#93c5fd);
-          border-radius:999px; overflow:visible;
+          border-radius:999px;
         }
         .beat{ position:absolute; top:-6px; width:10px; height:10px; border-radius:999px; background:#fff; opacity:.9; }
         .beat--l{ left:15%; animation:beat 1.3s infinite ease-in-out; }
@@ -366,63 +350,69 @@ export default function ChatPage() {
         .beat--r{ left:82%; animation:beat 1.3s .4s infinite ease-in-out; }
         @keyframes beat{ 0%,100%{ transform:translateY(0) scale(1); } 50%{ transform:translateY(-6px) scale(1.1); } }
 
-        /* Messages thread */
+        /* Messages */
         .thread{
           position:relative; flex:1; overflow:auto; padding:12px;
-          background:radial-gradient(1200px 300px at 50% 0%, rgba(236,72,153,.10), transparent),
-                     linear-gradient(180deg, rgba(255,255,255,.02), rgba(0,0,0,.08));
+          background:linear-gradient(180deg,#0f172a,#0b1224);
         }
-        .msg{
-          position:relative;
-          display:flex; margin:10px 0;
-        }
+        .msg{ display:flex; margin:12px 0; }
         .msg.partner{ justify-content:flex-start; }
         .msg.self{ justify-content:flex-end; }
         .bubble{
-          max-width:72%;
-          position:relative;
+          max-width:72%; position:relative;
           padding:10px 12px; border-radius:16px;
           background:#fff; color:#1f2937;
           box-shadow:0 4px 16px rgba(0,0,0,.12);
         }
         .msg.self .bubble{
           background:linear-gradient(90deg,#ec4899,#fb7185); color:#fff;
-          border-bottom-right-radius:4px;
+          border-bottom-right-radius:6px;
         }
         .msg.partner .bubble{
-          background:rgba(255,255,255,.92); color:#1f2937;
-          border-bottom-left-radius:4px;
+          background:rgba(255,255,255,.95); color:#111827;
+          border-bottom-left-radius:6px;
         }
-        .bubble__meta{ display:flex; align-items:center; justify-content:space-between; font-size:12px; opacity:.85; margin-bottom:4px; }
+        .bubble__meta{
+          display:flex; align-items:center; justify-content:space-between; gap:8px; margin-bottom:4px;
+          font-size:12px; opacity:.85;
+        }
+        .meta__who{ display:flex; align-items:baseline; gap:10px; }
         .bubble__text{ line-height:1.45; word-break:break-word; }
-        .file img{ max-width:180px; max-height:120px; border-radius:10px; display:block; }
+        .bubble .bubble__status{ display:flex; align-items:center; gap:6px; margin-top:6px; font-size:11px; opacity:.85; }
+        .statusDot{ width:8px; height:8px; border-radius:999px; background:#10b981; box-shadow:0 0 8px #10b981; }
 
-        /* Reactions — Bubble Universe */
-        .reactions{
+        /* Tiny reaction button + popover */
+        .reactBtn{
+          border:none; background:transparent; color:inherit; cursor:pointer;
+          font-size:16px; line-height:1; opacity:.9; padding:2px 6px; border-radius:8px;
+        }
+        .reactBtn:hover{ background:rgba(0,0,0,.06); }
+        .msg.self .reactBtn:hover{ background:rgba(255,255,255,.15); }
+
+        .reactPopover{
           position:absolute; inset:auto auto 100% 50%;
-          transform:translateX(-50%);
-          display:flex; gap:6px; pointer-events:auto; padding:6px 8px;
-          background:rgba(0,0,0,.06); border-radius:999px; backdrop-filter:blur(6px);
-          opacity:0; transition:.2s; margin-bottom:8px;
+          transform:translateX(-50%) translateY(-6px) scale(.96);
+          display:flex; gap:6px; padding:6px 8px; border-radius:999px;
+          background:rgba(0,0,0,.7); color:#fff; backdrop-filter:blur(6px);
+          opacity:0; pointer-events:none; transition:.15s;
         }
-        .bubble:hover .reactions{ opacity:1; }
-        .orb{
+        .reactPopover.open{ opacity:1; pointer-events:auto; transform:translateX(-50%) translateY(-6px) scale(1); }
+        .reactItem{
           border:none; background:transparent; cursor:pointer; font-size:16px; line-height:1;
-          padding:4px 6px; border-radius:8px; transition:transform .15s;
+          padding:2px 4px; border-radius:8px;
         }
-        .orb:active{ transform:scale(0.9); }
+        .reactItem:active{ transform:scale(.92); }
+
         .bubble--reacted::after{
           content:attr(data-react);
-          position:absolute; right:-8px; bottom:-8px; font-size:16px;
+          position:absolute; right:-8px; bottom:-10px; font-size:16px;
           animation:reactPop .6s ease;
         }
         @keyframes reactPop{ 0%{ transform:scale(.3); opacity:.2 } 60%{ transform:scale(1.2); opacity:1 } 100%{ transform:scale(1); opacity:1 } }
 
-        /* Reaction Trails — Delivered / Seen */
+        /* Trails */
         .trail--pending .bubble{ box-shadow:0 0 0 0 rgba(236,72,153,0); }
-        .trail--delivered .bubble{
-          animation:deliveredGlow 800ms ease;
-        }
+        .trail--delivered .bubble{ animation:deliveredGlow 800ms ease; }
         @keyframes deliveredGlow{
           0%{ box-shadow:0 0 0 0 rgba(236,72,153,0.0); }
           100%{ box-shadow:0 0 16px 2px rgba(236,72,153,.45); }
@@ -432,39 +422,24 @@ export default function ChatPage() {
           background-size:200% 100%;
           animation:seenAurora 1.2s ease forwards;
         }
-        @keyframes seenAurora{
-          0%{ background-position:0% 0%; }
-          100%{ background-position:100% 0%; }
-        }
-        .bubble .bubble__status{
-          display:flex; align-items:center; gap:6px; margin-top:6px; font-size:11px; opacity:.85;
-        }
-        .statusDot{
-          width:8px; height:8px; border-radius:999px; background:#10b981; box-shadow:0 0 8px #10b981;
-        }
+        @keyframes seenAurora{ 0%{ background-position:0% 0%; } 100%{ background-position:100% 0%; } }
 
         /* Composer */
         .composer{
           display:flex; align-items:center; gap:8px;
-          padding:8px; border-top:1px solid rgba(255,255,255,.12);
-          background:rgba(0,0,0,.04);
+          padding:10px; border-top:1px solid rgba(255,255,255,.08);
+          background:#0b1224;
         }
-        .icon{
-          width:38px; height:38px; border-radius:999px; border:none; background:#fff; cursor:pointer;
+        .mic{
+          width:40px; height:40px; border-radius:999px; border:none; background:#111827; color:#fff; cursor:pointer;
         }
         .input{
-          flex:1; padding:10px 12px; border-radius:999px; border:1px solid rgba(0,0,0,.15);
-          outline:none;
+          flex:1; padding:12px 14px; border-radius:999px; border:1px solid rgba(255,255,255,.2);
+          background:#111827; color:#e5e7eb; outline:none;
         }
         .send{
           width:44px; height:44px; border-radius:999px; border:none; cursor:pointer;
           background:linear-gradient(90deg,#ec4899,#fb7185); color:#fff; font-weight:900;
-        }
-
-        /* Welcome banner */
-        .welcome{
-          text-align:center; padding:8px; color:#ec4899; font-weight:700;
-          background:rgba(255,255,255,.6);
         }
 
         /* Responsive */
@@ -474,18 +449,4 @@ export default function ChatPage() {
       `}</style>
     </>
   );
-}
-
-/* ---------- utils ---------- */
-function escapeHTML(str) {
-  return (str || "")
-    .replaceAll("&", "&amp;")
-    .replaceAll("<", "&lt;")
-    .replaceAll(">", "&gt;");
-}
-function cryptoRandom() {
-  if (typeof crypto !== "undefined" && crypto.getRandomValues) {
-    const buf = new Uint32Array(1); crypto.getRandomValues(buf); return String(buf[0]);
-  }
-  return String(Math.floor(Math.random()*1e9));
 }
