@@ -39,7 +39,6 @@ export default async function handler(req, res) {
         headers: {
           Authorization: `Bearer ${HF_TOKEN}`,
           "Content-Type": "application/json",
-          // JPEG ya PNG dono accept, model jaisa bheje
           Accept: "image/png,image/jpeg",
         },
         body: JSON.stringify(payload),
@@ -48,7 +47,7 @@ export default async function handler(req, res) {
 
     const ct = resp.headers.get("content-type") || "";
 
-    // ✅ Success: raw image bytes → base64 data URL
+    // success → image bytes → base64 data URL
     if (resp.ok && ct.startsWith("image/")) {
       const buf = Buffer.from(await resp.arrayBuffer());
       const b64 = buf.toString("base64");
@@ -60,7 +59,7 @@ export default async function handler(req, res) {
       });
     }
 
-    // ❌ Error: read body safely once (no “already been read”)
+    // error → read once, return details
     const details = await readOnce(resp);
     return res.status(resp.status || 502).json({
       ok: false,
