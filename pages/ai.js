@@ -1,19 +1,45 @@
 import { useEffect, useState } from "react";
 
 // Milan AI Studio — Vanilla CSS (no Tailwind)
-// Drop at: /pages/ai.js
-// Expects POST /api/generate => { imageUrl }
+// Updated to address: clear selected state, template picker sheet, inspire vs template, fixed preview box, full mobile responsiveness, solid light theme.
 
 const MODES = [
-  { key: "romantic", label: "Romantic", desc: "Warm tones, depth, soft bokeh.", badge: "💖",
+  { key: "romantic", label: "Romantic", desc: "Warm tones, depth, soft bokeh.", icon: "💖",
     preset: "romantic cinematic portrait, warm tones, soft bokeh, masterpiece, ultra detail, volumetric light" },
-  { key: "realistic", label: "Realistic", desc: "Photographic, true-to-life.", badge: "📸",
+  { key: "realistic", label: "Realistic", desc: "Photographic, true-to-life.", icon: "📸",
     preset: "highly detailed, photorealistic, 35mm, natural lighting, film grain, masterpiece" },
-  { key: "anime", label: "Anime", desc: "Ghibli / anime vibe.", badge: "🌸",
+  { key: "anime", label: "Anime", desc: "Ghibli / anime vibe.", icon: "🌸",
     preset: "ghibli style, vibrant colors, crisp line art, anime style, dynamic composition, cinematic" },
-  { key: "product", label: "Product", desc: "Studio, e-commerce.", badge: "🛍️",
+  { key: "product", label: "Product", desc: "Studio, e‑commerce.", icon: "🛍️",
     preset: "studio product photo, soft light, seamless background, crisp shadows, highly detailed" },
 ];
+
+const TEMPLATES = {
+  romantic: [
+    "Golden hour couple portrait, soft backlight, pastel grading, dreamy",
+    "Rainy street umbrella moment, reflections, bokeh lights, cinematic",
+    "Candle-lit indoor close-up, luminous skin, shallow DOF, warm tones",
+    "Beach sunset silhouette, lens flare, gentle wind, emotional"
+  ],
+  realistic: [
+    "Natural light portrait, 85mm lens, subtle film grain, skin texture",
+    "Street candid, Kodak Porta look, high dynamic range, tack sharp",
+    "Editorial studio portrait, Rembrandt lighting, seamless background",
+    "Landscape at blue hour, long exposure, crisp details"
+  ],
+  anime: [
+    "Anime couple in blooming garden, floating petals, dynamic composition, vibrant palette",
+    "Ghibli-style temple under cherry blossoms, soft diffuse light",
+    "City rooftop at dusk, neon signs, energetic pose, manga lines",
+    "Forest spirits glowing, whimsical, painterly brushwork"
+  ],
+  product: [
+    "Minimal product lay flat, soft shadow, seamless cyc wall, glossy reflections, editorial style",
+    "Cosmetics bottle on wet marble, water droplets, studio rim light",
+    "Sneaker levitating with motion blur, gradient backdrop, hero shot",
+    "Watch macro on brushed steel, specular highlights, premium"
+  ],
+};
 
 const SIZES = ["768x768", "1024x1024", "1024x1536", "1536x1024"];
 const defaultNegative =
@@ -36,7 +62,9 @@ export default function AIStudioPage() {
   const [imageUrl, setImageUrl] = useState(null);
   const [error, setError] = useState("");
   const [compareUrls, setCompareUrls] = useState([]);
+  const [templatesOpen, setTemplatesOpen] = useState(false);
 
+  // Prefill prompt when mode changes (only if empty)
   useEffect(() => {
     if (!prompt?.trim()) {
       const m = MODES.find((m) => m.key === mode);
@@ -44,21 +72,12 @@ export default function AIStudioPage() {
     }
   }, [mode]);
 
-  const onTemplates = (k) => {
-    const t = {
-      romantic: "Close-up romantic portrait, golden hour, glowing skin, soft lens flare, pastel color grading",
-      realistic: "Natural light portrait, 85mm lens, true-to-life textures, subtle film grain, balanced exposure",
-      anime: "Anime couple in blooming garden, floating petals, dynamic composition, vibrant palette",
-      product: "Minimal product lay flat, soft shadow, seamless cyc wall, glossy reflections, editorial style",
-    };
-    setPrompt(t[k] || "");
-  };
-
   const onInspire = () => {
+    // Fully random, independent of mode
     const bank = [
-      "Radha and Krishna under moonlit garden, soft mist, intricate embroidery, cinematic, masterpiece",
-      "Royal bridal portrait in warm candle light, shallow depth of field, detailed jewelry, photorealistic",
-      "Cozy coffee shop rain window, bokeh lights, reflective table, moody cinematic frame",
+      "Moonlit riverside, soft fog, glowing lanterns, reflective water, cinematic",
+      "Old library with sunbeams, dust motes, warm wood, cozy vibe",
+      "Neon alley, rain slick streets, reflections, cyberpunk framing",
       "Premium perfume bottle on marble slab with water droplets, studio lighting, hero shot",
     ];
     setPrompt(bank[Math.floor(Math.random() * bank.length)]);
@@ -70,6 +89,7 @@ export default function AIStudioPage() {
     setLoading(true);
     setError("");
 
+    // Add to history
     setHistory((prev) => [
       { ts: Date.now(), prompt: finalPrompt, negative, mode, size, steps, guidance },
       ...prev.filter((h) => h.prompt !== finalPrompt).slice(0, 49),
@@ -85,7 +105,7 @@ export default function AIStudioPage() {
       const data = await res.json();
       const url = data?.imageUrl || demoFallbackUrl();
       setImageUrl(url);
-      setCompareUrls((p) => [url, ...p].slice(0, 4));
+      setCompareUrls((prev) => [url, ...prev].slice(0, 4));
     } catch (e) {
       setImageUrl(demoFallbackUrl());
       setError("Generation service unreachable. Showing a demo image. Configure /api/generate to go live.");
@@ -96,7 +116,10 @@ export default function AIStudioPage() {
 
   const onSave = () => {
     if (!imageUrl) return;
-    setSaved((prev) => [{ url: imageUrl, prompt, mode, ts: Date.now() }, ...prev]);
+    setSaved((prev) => [
+      { url: imageUrl, prompt, mode, ts: Date.now() },
+      ...prev,
+    ]);
   };
 
   const onDownload = () => {
@@ -112,22 +135,30 @@ export default function AIStudioPage() {
   const onShare = async () => {
     if (!imageUrl) return;
     try {
-      if (navigator.share) await navigator.share({ title: "Milan AI Studio", text: prompt, url: imageUrl });
-      else { await navigator.clipboard.writeText(imageUrl); alert("Link copied!"); }
+      if (navigator.share) {
+        await navigator.share({ title: "Milan AI Studio", text: prompt, url: imageUrl });
+      } else {
+        await navigator.clipboard.writeText(imageUrl);
+        alert("Link copied! Paste anywhere to share.");
+      }
     } catch {}
   };
 
   return (
     <div className={`milan-root ${theme === 'dark' ? 'milan-dark' : 'milan-light'}`}>
-      {/* Header */}
+      {/* Top Bar */}
       <header className="milan-header">
         <div className="milan-header__left">
           <span className="milan-logo">💘</span>
           <h1>Milan AI Studio</h1>
         </div>
+
         <div className="milan-header__right">
-          <button className="milan-btn milan-btn--ghost" onClick={() => setTheme(theme === 'dark' ? 'light' : 'dark')}>
-            {theme === 'dark' ? '🌙 Dark' : '☀️ Light'}
+          <button
+            onClick={() => setTheme(theme === 'dark' ? 'light' : 'dark')}
+            className="milan-btn milan-btn--ghost"
+          >
+            {theme === 'dark' ? '🌙 Dark' : '🌞 Light'}
           </button>
           <a href="/dashboard" className="milan-btn milan-btn--ghost milan-hide-sm">← Back to Dashboard</a>
         </div>
@@ -137,19 +168,41 @@ export default function AIStudioPage() {
       <section className="milan-hero">
         <div className="milan-hero__text">
           <h2>Turn your imagination into reality ✨</h2>
-          <p>Generate romantic, anime, realistic or product-grade images with one prompt. Clean UI, pro controls, mobile-friendly.</p>
-          <div className="milan-modes">
+          <p>Generate romantic, anime, realistic or product‑grade images with one prompt. Clean UI, pro controls, mobile‑friendly.</p>
+
+          {/* Modes */}
+          <div className="milan-modes" role="tablist" aria-label="Generation modes">
             {MODES.map((m) => (
-              <button key={m.key} className={`milan-mode ${mode===m.key?'is-active':''}`} onClick={()=>setMode(m.key)}>
-                <div className="milan-mode__title">{m.badge} {m.label}</div>
+              <button
+                key={m.key}
+                className={`milan-mode ${mode===m.key?'is-active':''}`}
+                aria-pressed={mode===m.key}
+                onClick={()=>setMode(m.key)}
+              >
+                <div className="milan-mode__title">{m.icon} {m.label}</div>
                 <div className="milan-mode__desc">{m.desc}</div>
               </button>
             ))}
-            <button className="milan-btn milan-btn--ghost" onClick={()=>onTemplates(mode)} title="Fill template for current mode">🪄 Use Template</button>
-            <button className="milan-btn milan-btn--ghost" onClick={onInspire}>💡 Inspire Me</button>
+          </div>
+
+          <div className="milan-helpers">
+            <button
+              onClick={()=>setTemplatesOpen(true)}
+              className="milan-btn milan-btn--ghost"
+            >
+              🧰 Use Template
+            </button>
+            <button
+              onClick={onInspire}
+              className="milan-btn milan-btn--ghost"
+              title="Gives a random creative idea irrespective of mode"
+            >
+              💡 Inspire Me
+            </button>
           </div>
         </div>
 
+        {/* Recent Prompt */}
         <div className="milan-hero__aside">
           <div className="milan-card">
             <div className="milan-card__title">Recent Prompt</div>
@@ -170,18 +223,26 @@ export default function AIStudioPage() {
       {/* Main */}
       <main className="milan-main">
         <div className="milan-grid">
-          {/* Controls */}
+          {/* Left: Controls */}
           <div className="milan-col">
             <div className="milan-card">
               <label className="milan-label">Your Prompt</label>
               <div className="milan-textarea-wrap">
-                <textarea className="milan-textarea" placeholder="Describe your dream image…" value={prompt} onChange={(e)=>setPrompt(e.target.value)} />
+                <textarea
+                  className="milan-textarea"
+                  placeholder="Describe your dream image…"
+                  value={prompt}
+                  onChange={(e) => setPrompt(e.target.value)}
+                />
                 <div className="milan-counter">{prompt.length} chars</div>
               </div>
             </div>
 
             <div className="milan-card">
-              <button className="milan-accordion" onClick={()=>setAdvancedOpen(v=>!v)}>
+              <button
+                className="milan-accordion"
+                onClick={()=>setAdvancedOpen(v=>!v)}
+              >
                 <span>⚙️ Advanced Settings</span>
                 <span className="milan-muted">{advancedOpen? 'Hide':'Show'}</span>
               </button>
@@ -227,7 +288,7 @@ export default function AIStudioPage() {
             </div>
           </div>
 
-          {/* Preview */}
+          {/* Right: Preview */}
           <div className="milan-col milan-col--wide">
             <div className="milan-card milan-card--noPad">
               <div className="milan-toolbar">
@@ -252,14 +313,16 @@ export default function AIStudioPage() {
                 )}
               </div>
 
-              {error && <div className="milan-alert">{error}</div>}
+              {error && (
+                <div className="milan-alert">{error}</div>
+              )}
             </div>
 
-            {compareUrls?.length>0 && (
+            {compareUrls?.length > 0 && (
               <div className="milan-card">
                 <div className="milan-card__title">Recent Results</div>
                 <div className="milan-compare">
-                  {compareUrls.map((u,i)=> (
+                  {compareUrls.map((u, i) => (
                     <button key={u+"-"+i} onClick={()=>setImageUrl(u)} className="milan-thumb">
                       <img src={u} alt="recent" />
                     </button>
@@ -271,19 +334,47 @@ export default function AIStudioPage() {
         </div>
       </main>
 
-      {/* Sticky mobile CTA */}
+      {/* Sticky mobile Create */}
       <div className="milan-sticky sm-hide">
-        <button className="milan-btn milan-btn--primary" onClick={onGenerate} disabled={loading || !prompt.trim()}>
-          {loading? 'Creating…' : 'Create with Milan'}
+        <button
+          onClick={onGenerate}
+          disabled={loading || !prompt.trim()}
+          className="milan-btn milan-btn--primary"
+        >
+          {loading ? "Creating…" : "Create with Milan"}
         </button>
       </div>
 
       {/* Desktop CTA */}
       <div className="milan-desktop-cta sm-show">
-        <button className="milan-btn milan-btn--primary" onClick={onGenerate} disabled={loading || !prompt.trim()}>
-          {loading? 'Creating…' : 'Create with Milan'}
+        <button
+          onClick={onGenerate}
+          disabled={loading || !prompt.trim()}
+          className="milan-btn milan-btn--primary"
+        >
+          {loading ? "Creating…" : "Create with Milan"}
         </button>
       </div>
+
+      {/* Template Picker Sheet */}
+      {templatesOpen && (
+        <div className="milan-sheet" role="dialog" aria-modal="true">
+          <div className="milan-sheet__panel">
+            <div className="milan-sheet__head">
+              <div className="milan-sheet__title">Choose a template — {mode}</div>
+              <button className="milan-btn milan-btn--ghost" onClick={()=>setTemplatesOpen(false)}>Close</button>
+            </div>
+            <div className="milan-templates">
+              {(TEMPLATES[mode]||[]).map((t,i)=> (
+                <button key={i} className="milan-template" onClick={()=>{ setPrompt(t); setTemplatesOpen(false); }}>
+                  {t}
+                </button>
+              ))}
+            </div>
+          </div>
+          <div className="milan-sheet__backdrop" onClick={()=>setTemplatesOpen(false)} />
+        </div>
+      )}
     </div>
   );
 }
@@ -291,17 +382,17 @@ export default function AIStudioPage() {
 // Hooks & utils
 function useLocalStorageArray(key, initial) {
   const [state, setState] = useState(initial);
-  useEffect(()=>{ try{ const raw = localStorage.getItem(key); if(raw) setState(JSON.parse(raw)); }catch{} },[key]);
-  useEffect(()=>{ try{ localStorage.setItem(key, JSON.stringify(state)); }catch{} },[key, state]);
+  useEffect(() => { try { const raw = localStorage.getItem(key); if (raw) setState(JSON.parse(raw)); } catch {} }, [key]);
+  useEffect(() => { try { localStorage.setItem(key, JSON.stringify(state)); } catch {} }, [key, state]);
   return [state, setState];
 }
-function useDarkTheme(){
-  const [theme,setTheme]=useState('dark');
-  useEffect(()=>{ const saved=localStorage.getItem('milan:theme'); if(saved==='dark'||saved==='light') setTheme(saved); },[]);
-  useEffect(()=>{ try{localStorage.setItem('milan:theme',theme);}catch{} },[theme]);
-  return [theme,setTheme];
+function useDarkTheme() {
+  const [theme, setTheme] = useState('dark');
+  useEffect(() => { const saved = localStorage.getItem('milan:theme'); if (saved==='dark'||saved==='light') setTheme(saved); }, []);
+  useEffect(() => { try { localStorage.setItem('milan:theme', theme); } catch {} }, [theme]);
+  return [theme, setTheme];
 }
-function truncate(str,n){ if(!str) return ''; return str.length>n? str.slice(0,n-1)+'…':str; }
+function truncate(str, n){ if(!str) return ''; return str.length>n? str.slice(0,n-1)+'…':str; }
 function demoFallbackUrl(){
   const demos=[
     'https://images.unsplash.com/photo-1542124521-92172c1f1cdb?q=80&w=1200&auto=format&fit=crop',
