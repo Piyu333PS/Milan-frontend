@@ -1,49 +1,21 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useState } from "react";
 
-// ————————————————————————————————————————
-// Milan AI Studio — Fully reworked UI (mobile-first, glassy romantic theme)
-// Drop this file at: /pages/ai.js  (Next.js pages router)
-// TailwindCSS required. No external UI deps. Works dark/light. Saved items persisted.
-// It calls POST /api/generate — return { imageUrl } from your backend. Fallback demo image if it fails.
-// ————————————————————————————————————————
+// Milan AI Studio — Vanilla CSS (no Tailwind)
+// Drop at: /pages/ai.js
+// Expects POST /api/generate => { imageUrl }
 
 const MODES = [
-  {
-    key: "romantic",
-    label: "Romantic",
-    desc: "Warm tones, depth, soft bokeh.",
-    badge: "💖",
-    preset:
-      "romantic cinematic portrait, warm tones, soft bokeh, masterpiece, ultra detail, volumetric light",
-  },
-  {
-    key: "realistic",
-    label: "Realistic",
-    desc: "Photographic, true-to-life.",
-    badge: "📸",
-    preset:
-      "highly detailed, photorealistic, 35mm, natural lighting, film grain, masterpiece",
-  },
-  {
-    key: "anime",
-    label: "Anime",
-    desc: "Ghibli / anime vibe.",
-    badge: "🌸",
-    preset:
-      "ghibli style, vibrant colors, crisp line art, anime style, dynamic composition, cinematic",
-  },
-  {
-    key: "product",
-    label: "Product",
-    desc: "Studio, e‑commerce.",
-    badge: "🛍️",
-    preset:
-      "studio product photo, soft light, seamless background, crisp shadows, highly detailed",
-  },
+  { key: "romantic", label: "Romantic", desc: "Warm tones, depth, soft bokeh.", badge: "💖",
+    preset: "romantic cinematic portrait, warm tones, soft bokeh, masterpiece, ultra detail, volumetric light" },
+  { key: "realistic", label: "Realistic", desc: "Photographic, true-to-life.", badge: "📸",
+    preset: "highly detailed, photorealistic, 35mm, natural lighting, film grain, masterpiece" },
+  { key: "anime", label: "Anime", desc: "Ghibli / anime vibe.", badge: "🌸",
+    preset: "ghibli style, vibrant colors, crisp line art, anime style, dynamic composition, cinematic" },
+  { key: "product", label: "Product", desc: "Studio, e-commerce.", badge: "🛍️",
+    preset: "studio product photo, soft light, seamless background, crisp shadows, highly detailed" },
 ];
 
 const SIZES = ["768x768", "1024x1024", "1024x1536", "1536x1024"];
-
 const defaultNegative =
   "text, watermark, blurry, low quality, jpeg artifacts, extra fingers, missing limbs";
 
@@ -65,13 +37,22 @@ export default function AIStudioPage() {
   const [error, setError] = useState("");
   const [compareUrls, setCompareUrls] = useState([]);
 
-  // Prefill prompt when mode changes (only if empty)
   useEffect(() => {
     if (!prompt?.trim()) {
       const m = MODES.find((m) => m.key === mode);
       if (m) setPrompt(m.preset);
     }
   }, [mode]);
+
+  const onTemplates = (k) => {
+    const t = {
+      romantic: "Close-up romantic portrait, golden hour, glowing skin, soft lens flare, pastel color grading",
+      realistic: "Natural light portrait, 85mm lens, true-to-life textures, subtle film grain, balanced exposure",
+      anime: "Anime couple in blooming garden, floating petals, dynamic composition, vibrant palette",
+      product: "Minimal product lay flat, soft shadow, seamless cyc wall, glossy reflections, editorial style",
+    };
+    setPrompt(t[k] || "");
+  };
 
   const onInspire = () => {
     const bank = [
@@ -83,67 +64,31 @@ export default function AIStudioPage() {
     setPrompt(bank[Math.floor(Math.random() * bank.length)]);
   };
 
-  const onTemplates = (k) => {
-    const t = {
-      romantic:
-        "Close-up romantic portrait, golden hour, glowing skin, soft lens flare, pastel color grading",
-      realistic:
-        "Natural light portrait, 85mm lens, true-to-life textures, subtle film grain, balanced exposure",
-      anime:
-        "Anime couple in blooming garden, floating petals, dynamic composition, vibrant palette",
-      product:
-        "Minimal product lay flat, soft shadow, seamless cyc wall, glossy reflections, editorial style",
-    };
-    setPrompt(t[k] || "");
-  };
-
   const onGenerate = async () => {
     const finalPrompt = prompt?.trim();
     if (!finalPrompt) return;
     setLoading(true);
     setError("");
 
-    // Add to history (de-dup, keep latest first)
-    setHistory((prev) => {
-      const next = [
-        {
-          ts: Date.now(),
-          prompt: finalPrompt,
-          negative,
-          mode,
-          size,
-          steps,
-          guidance,
-        },
-        ...prev.filter((h) => h.prompt !== finalPrompt).slice(0, 49),
-      ];
-      return next;
-    });
+    setHistory((prev) => [
+      { ts: Date.now(), prompt: finalPrompt, negative, mode, size, steps, guidance },
+      ...prev.filter((h) => h.prompt !== finalPrompt).slice(0, 49),
+    ]);
 
     try {
       const res = await fetch("/api/generate", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          prompt: finalPrompt,
-          negative,
-          mode,
-          size,
-          steps,
-          guidance,
-        }),
+        body: JSON.stringify({ prompt: finalPrompt, negative, mode, size, steps, guidance }),
       });
-
       if (!res.ok) throw new Error("Generation failed");
       const data = await res.json();
       const url = data?.imageUrl || demoFallbackUrl();
       setImageUrl(url);
-      setCompareUrls((prev) => [url, ...prev].slice(0, 4));
+      setCompareUrls((p) => [url, ...p].slice(0, 4));
     } catch (e) {
       setImageUrl(demoFallbackUrl());
-      setError(
-        "Generation service unreachable. Showing a demo image so your flow stays smooth. Configure /api/generate to go live."
-      );
+      setError("Generation service unreachable. Showing a demo image. Configure /api/generate to go live.");
     } finally {
       setLoading(false);
     }
@@ -151,10 +96,7 @@ export default function AIStudioPage() {
 
   const onSave = () => {
     if (!imageUrl) return;
-    setSaved((prev) => [
-      { url: imageUrl, prompt, mode, ts: Date.now() },
-      ...prev,
-    ]);
+    setSaved((prev) => [{ url: imageUrl, prompt, mode, ts: Date.now() }, ...prev]);
   };
 
   const onDownload = () => {
@@ -170,175 +112,114 @@ export default function AIStudioPage() {
   const onShare = async () => {
     if (!imageUrl) return;
     try {
-      if (navigator.share) {
-        await navigator.share({
-          title: "Milan AI Studio",
-          text: prompt,
-          url: imageUrl,
-        });
-      } else {
-        await navigator.clipboard.writeText(imageUrl);
-        alert("Link copied! Paste anywhere to share.");
-      }
-    } catch {
-      /* ignore */
-    }
+      if (navigator.share) await navigator.share({ title: "Milan AI Studio", text: prompt, url: imageUrl });
+      else { await navigator.clipboard.writeText(imageUrl); alert("Link copied!"); }
+    } catch {}
   };
 
   return (
-    <div className={tw(
-      "min-h-screen w-full",
-      theme === "dark" ? "bg-[#0b0e13] text-white" : "bg-white text-slate-900"
-    )}>
-      {/* Top Bar */}
-      <header className="sticky top-0 z-30 backdrop-blur bg-black/20 supports-[backdrop-filter]:bg-black/10 border-b border-white/5">
-        <div className="mx-auto max-w-7xl px-4 sm:px-6 py-3 flex items-center justify-between">
-          <div className="flex items-center gap-2">
-            <span className="text-2xl">💘</span>
-            <h1 className="font-semibold tracking-tight">Milan AI Studio</h1>
-          </div>
-
-          <div className="flex items-center gap-2">
-            <button
-              onClick={() => setTheme(theme === "dark" ? "light" : "dark")}
-              className="px-3 py-1.5 text-sm rounded-full border border-white/10 hover:border-white/30 transition"
-            >
-              {theme === "dark" ? "🌙 Dark" : "☀️ Light"}
-            </button>
-            <a
-              href="/dashboard"
-              className="hidden sm:inline-flex px-3 py-1.5 text-sm rounded-full border border-pink-300/30 bg-pink-500/10 hover:bg-pink-500/20 transition"
-            >
-              ← Back to Dashboard
-            </a>
-          </div>
+    <div className={`milan-root ${theme === 'dark' ? 'milan-dark' : 'milan-light'}`}>
+      {/* Header */}
+      <header className="milan-header">
+        <div className="milan-header__left">
+          <span className="milan-logo">💘</span>
+          <h1>Milan AI Studio</h1>
+        </div>
+        <div className="milan-header__right">
+          <button className="milan-btn milan-btn--ghost" onClick={() => setTheme(theme === 'dark' ? 'light' : 'dark')}>
+            {theme === 'dark' ? '🌙 Dark' : '☀️ Light'}
+          </button>
+          <a href="/dashboard" className="milan-btn milan-btn--ghost milan-hide-sm">← Back to Dashboard</a>
         </div>
       </header>
 
       {/* Hero */}
-      <section className="mx-auto max-w-7xl px-4 sm:px-6 pt-8 pb-4">
-        <div className="grid lg:grid-cols-3 gap-6 items-center">
-          <div className="lg:col-span-2">
-            <h2 className="text-2xl sm:text-3xl font-bold tracking-tight">
-              Turn your imagination into reality ✨
-            </h2>
-            <p className="mt-2 text-sm opacity-80">
-              Generate romantic, anime, realistic or product‑grade images with one prompt. Clean UI, pro controls, mobile‑friendly.
-            </p>
-            <div className="mt-4 flex flex-wrap gap-2">
-              {MODES.map((m) => (
-                <ModePill
-                  key={m.key}
-                  active={mode === m.key}
-                  onClick={() => setMode(m.key)}
-                  badge={m.badge}
-                  label={m.label}
-                  desc={m.desc}
-                />)
-              )}
-              <button
-                onClick={() => onTemplates(mode)}
-                className="px-3 py-1.5 rounded-full border border-white/10 hover:border-white/30 text-xs"
-                title="Fill a starter prompt for the selected mode"
-              >
-                🪄 Use Template
+      <section className="milan-hero">
+        <div className="milan-hero__text">
+          <h2>Turn your imagination into reality ✨</h2>
+          <p>Generate romantic, anime, realistic or product-grade images with one prompt. Clean UI, pro controls, mobile-friendly.</p>
+          <div className="milan-modes">
+            {MODES.map((m) => (
+              <button key={m.key} className={`milan-mode ${mode===m.key?'is-active':''}`} onClick={()=>setMode(m.key)}>
+                <div className="milan-mode__title">{m.badge} {m.label}</div>
+                <div className="milan-mode__desc">{m.desc}</div>
               </button>
-              <button
-                onClick={onInspire}
-                className="px-3 py-1.5 rounded-full border border-white/10 hover:border-white/30 text-xs"
-              >
-                💡 Inspire Me
-              </button>
-            </div>
+            ))}
+            <button className="milan-btn milan-btn--ghost" onClick={()=>onTemplates(mode)} title="Fill template for current mode">🪄 Use Template</button>
+            <button className="milan-btn milan-btn--ghost" onClick={onInspire}>💡 Inspire Me</button>
           </div>
+        </div>
 
-          {/* Quick History (last search) */}
-          <div className="lg:justify-self-end w-full">
-            <HistoryCompact history={history} onPick={(h)=>{
-              setPrompt(h.prompt);
-              setNegative(h.negative||defaultNegative);
-              setMode(h.mode||"romantic");
-              setSize(h.size||"1024x1024");
-              setSteps(h.steps||25);
-              setGuidance(h.guidance||7);
-            }} />
+        <div className="milan-hero__aside">
+          <div className="milan-card">
+            <div className="milan-card__title">Recent Prompt</div>
+            {history?.length ? (
+              <button className="milan-link" onClick={()=>{
+                const h=history[0];
+                setPrompt(h.prompt); setNegative(h.negative||defaultNegative);
+                setMode(h.mode||'romantic'); setSize(h.size||'1024x1024');
+                setSteps(h.steps||25); setGuidance(h.guidance||7);
+              }}>{truncate(history[0].prompt,140)}</button>
+            ) : (
+              <div className="milan-muted">Your latest prompt will appear here.</div>
+            )}
           </div>
         </div>
       </section>
 
       {/* Main */}
-      <main className="mx-auto max-w-7xl px-4 sm:px-6 pb-24">
-        <div className="grid lg:grid-cols-3 gap-6">
-          {/* Left: Controls */}
-          <div className="lg:col-span-1 space-y-4">
-            {/* Prompt */}
-            <div className={card()}>
-              <label className="text-sm opacity-80">Your Prompt</label>
-              <div className="mt-2 relative">
-                <textarea
-                  className="w-full rounded-xl bg-white/5 border border-white/10 focus:border-pink-400/50 outline-none p-3 min-h-[120px]"
-                  placeholder="Describe your dream image…"
-                  value={prompt}
-                  onChange={(e) => setPrompt(e.target.value)}
-                />
-                <div className="absolute right-2 bottom-2 text-xs opacity-60">
-                  {prompt.length} chars
-                </div>
+      <main className="milan-main">
+        <div className="milan-grid">
+          {/* Controls */}
+          <div className="milan-col">
+            <div className="milan-card">
+              <label className="milan-label">Your Prompt</label>
+              <div className="milan-textarea-wrap">
+                <textarea className="milan-textarea" placeholder="Describe your dream image…" value={prompt} onChange={(e)=>setPrompt(e.target.value)} />
+                <div className="milan-counter">{prompt.length} chars</div>
               </div>
             </div>
 
-            {/* Advanced */}
-            <div className={card()}>
-              <button
-                onClick={() => setAdvancedOpen((v) => !v)}
-                className="w-full flex items-center justify-between"
-              >
-                <span className="text-sm">⚙️ Advanced Settings</span>
-                <span className="text-xs opacity-70">{advancedOpen ? "Hide" : "Show"}</span>
+            <div className="milan-card">
+              <button className="milan-accordion" onClick={()=>setAdvancedOpen(v=>!v)}>
+                <span>⚙️ Advanced Settings</span>
+                <span className="milan-muted">{advancedOpen? 'Hide':'Show'}</span>
               </button>
-
               {advancedOpen && (
-                <div className="mt-3 space-y-4">
-                  <div className="grid grid-cols-2 gap-3">
-                    <Select label="Size" value={size} setValue={setSize} options={SIZES} />
-                    <NumberRange label="Steps" value={steps} setValue={setSteps} min={10} max={50} />
+                <div className="milan-adv">
+                  <div className="milan-row">
+                    <div className="milan-field">
+                      <label className="milan-label">Size</label>
+                      <select className="milan-input" value={size} onChange={(e)=>setSize(e.target.value)}>
+                        {SIZES.map(s=> <option key={s} value={s}>{s}</option>)}
+                      </select>
+                    </div>
+                    <div className="milan-field">
+                      <label className="milan-label">Steps <span className="milan-note">{steps}</span></label>
+                      <input type="range" min={10} max={50} value={steps} onChange={(e)=>setSteps(parseInt(e.target.value,10))} className="milan-range" />
+                    </div>
                   </div>
-                  <NumberRange label="Guidance" value={guidance} setValue={setGuidance} min={1} max={20} />
-
-                  <div>
-                    <label className="text-xs opacity-80">Negative Prompt</label>
-                    <input
-                      className="mt-1 w-full rounded-lg bg-white/5 border border-white/10 focus:border-pink-400/50 outline-none p-2"
-                      value={negative}
-                      onChange={(e) => setNegative(e.target.value)}
-                      placeholder="Unwanted elements (e.g., text, watermark)"
-                    />
+                  <div className="milan-field">
+                    <label className="milan-label">Guidance <span className="milan-note">{guidance}</span></label>
+                    <input type="range" min={1} max={20} value={guidance} onChange={(e)=>setGuidance(parseInt(e.target.value,10))} className="milan-range" />
+                  </div>
+                  <div className="milan-field">
+                    <label className="milan-label">Negative Prompt</label>
+                    <input className="milan-input" value={negative} onChange={(e)=>setNegative(e.target.value)} placeholder="Unwanted elements (e.g., text, watermark)" />
                   </div>
                 </div>
               )}
             </div>
 
-            {/* Saved Gallery */}
-            <div className={card()}>
-              <div className="flex items-center justify-between">
-                <span className="text-sm">📁 Saved</span>
-                {saved?.length > 0 && (
-                  <button
-                    className="text-xs opacity-70 hover:opacity-100"
-                    onClick={() => setSaved([])}
-                  >
-                    Clear
-                  </button>
-                )}
-              </div>
+            <div className="milan-card">
+              <div className="milan-card__title">📁 Saved {saved?.length ? <button className="milan-link milan-right" onClick={()=>setSaved([])}>Clear</button> : null}</div>
               {saved?.length === 0 ? (
-                <p className="mt-2 text-xs opacity-60">Nothing saved yet. Generate and hit “Save”.</p>
+                <div className="milan-muted">Nothing saved yet. Generate and hit “Save”.</div>
               ) : (
-                <div className="mt-3 grid grid-cols-3 gap-2">
-                  {saved.map((s, i) => (
-                    <button key={s.ts+"-"+i} onClick={()=>setImageUrl(s.url)} className="group relative rounded-lg overflow-hidden">
-                      <img src={s.url} alt="saved" className="w-full h-24 object-cover" />
-                      <div className="absolute inset-0 bg-black/0 group-hover:bg-black/30 transition" />
+                <div className="milan-gallery">
+                  {saved.map((s,i)=> (
+                    <button key={s.ts+"-"+i} onClick={()=>setImageUrl(s.url)} className="milan-thumb">
+                      <img src={s.url} alt="saved" />
                     </button>
                   ))}
                 </div>
@@ -346,55 +227,41 @@ export default function AIStudioPage() {
             </div>
           </div>
 
-          {/* Right: Preview */}
-          <div className="lg:col-span-2 space-y-4">
-            <div className={card("p-0 overflow-hidden")}> 
-              {/* Toolbar */}
-              <div className="flex items-center justify-between px-3 py-2 border-b border-white/10">
-                <div className="text-sm opacity-80 flex items-center gap-2">
-                  <span className="hidden sm:inline">Preview</span>
-                  {imageUrl && <span className="text-xs opacity-60">{size} — {mode}</span>}
-                </div>
-                <div className="flex items-center gap-2">
-                  <button onClick={onSave} disabled={!imageUrl} className={btn("ghost")}>Save</button>
-                  <button onClick={onDownload} disabled={!imageUrl} className={btn("ghost")}>Download</button>
-                  <button onClick={onShare} disabled={!imageUrl} className={btn("ghost")}>Share</button>
+          {/* Preview */}
+          <div className="milan-col milan-col--wide">
+            <div className="milan-card milan-card--noPad">
+              <div className="milan-toolbar">
+                <div className="milan-muted">{imageUrl? `${size} — ${mode}` : 'Preview'}</div>
+                <div className="milan-toolbar__btns">
+                  <button className="milan-btn milan-btn--ghost" onClick={onSave} disabled={!imageUrl}>Save</button>
+                  <button className="milan-btn milan-btn--ghost" onClick={onDownload} disabled={!imageUrl}>Download</button>
+                  <button className="milan-btn milan-btn--ghost" onClick={onShare} disabled={!imageUrl}>Share</button>
                 </div>
               </div>
 
-              {/* Canvas */}
-              <div className="aspect-square sm:aspect-[16/10] w-full relative bg-white/5">
+              <div className="milan-canvas">
                 {loading ? (
-                  <LoaderOverlay />
-                ) : imageUrl ? (
-                  // Image
-                  <img
-                    src={imageUrl}
-                    alt="result"
-                    className="w-full h-full object-contain"
-                  />
-                ) : (
-                  <div className="absolute inset-0 flex items-center justify-center text-sm opacity-60 text-center p-6">
-                    Your image will appear here. Add a prompt and hit Create.
+                  <div className="milan-loader">
+                    <div className="milan-spinner" />
+                    <div className="milan-muted">✨ Creating magic…</div>
                   </div>
+                ) : imageUrl ? (
+                  <img src={imageUrl} alt="result" className="milan-result" />
+                ) : (
+                  <div className="milan-empty">Your image will appear here. Add a prompt and hit Create.</div>
                 )}
               </div>
 
-              {error && (
-                <div className="px-3 py-2 text-xs text-yellow-300/90 bg-yellow-500/10 border-t border-yellow-500/20">
-                  {error}
-                </div>
-              )}
+              {error && <div className="milan-alert">{error}</div>}
             </div>
 
-            {/* Compare strip */}
-            {compareUrls?.length > 0 && (
-              <div className={card()}>
-                <div className="text-sm opacity-80">Recent Results</div>
-                <div className="mt-2 grid grid-cols-2 sm:grid-cols-4 gap-2">
-                  {compareUrls.map((u, i) => (
-                    <button key={u+"-"+i} onClick={()=>setImageUrl(u)} className="rounded-lg overflow-hidden border border-white/10">
-                      <img src={u} alt="recent" className="w-full h-28 object-cover" />
+            {compareUrls?.length>0 && (
+              <div className="milan-card">
+                <div className="milan-card__title">Recent Results</div>
+                <div className="milan-compare">
+                  {compareUrls.map((u,i)=> (
+                    <button key={u+"-"+i} onClick={()=>setImageUrl(u)} className="milan-thumb">
+                      <img src={u} alt="recent" />
                     </button>
                   ))}
                 </div>
@@ -404,199 +271,42 @@ export default function AIStudioPage() {
         </div>
       </main>
 
-      {/* Sticky mobile Create */}
-      <div className="fixed bottom-0 inset-x-0 z-40 sm:hidden">
-        <div className="mx-3 mb-3 rounded-2xl shadow-lg overflow-hidden">
-          <button
-            onClick={onGenerate}
-            disabled={loading || !prompt.trim()}
-            className={tw(
-              "w-full py-4 text-base font-semibold",
-              "bg-gradient-to-r from-pink-500 to-rose-500 text-white",
-              "disabled:opacity-60 disabled:cursor-not-allowed"
-            )}
-          >
-            {loading ? "Creating…" : "Create with Milan"}
-          </button>
-        </div>
+      {/* Sticky mobile CTA */}
+      <div className="milan-sticky sm-hide">
+        <button className="milan-btn milan-btn--primary" onClick={onGenerate} disabled={loading || !prompt.trim()}>
+          {loading? 'Creating…' : 'Create with Milan'}
+        </button>
       </div>
 
       {/* Desktop CTA */}
-      <div className="hidden sm:block border-t border-white/5">
-        <div className="mx-auto max-w-7xl px-4 sm:px-6 py-6 flex justify-end">
-          <button
-            onClick={onGenerate}
-            disabled={loading || !prompt.trim()}
-            className={btn("primary")}
-          >
-            {loading ? "Creating…" : "Create with Milan"}
-          </button>
-        </div>
+      <div className="milan-desktop-cta sm-show">
+        <button className="milan-btn milan-btn--primary" onClick={onGenerate} disabled={loading || !prompt.trim()}>
+          {loading? 'Creating…' : 'Create with Milan'}
+        </button>
       </div>
     </div>
   );
 }
 
-// ———— UI Bits ————
-function LoaderOverlay() {
-  return (
-    <div className="absolute inset-0 grid place-items-center">
-      <div className="flex flex-col items-center gap-3">
-        <div className="w-12 h-12 rounded-full border-2 border-white/20 border-t-white/70 animate-spin" />
-        <div className="text-sm opacity-80">✨ Creating magic…</div>
-      </div>
-    </div>
-  );
-}
-
-function ModePill({ active, onClick, badge, label, desc }) {
-  return (
-    <button
-      onClick={onClick}
-      className={tw(
-        "px-3 py-2 rounded-2xl border text-left",
-        active
-          ? "border-pink-400/40 bg-pink-500/10"
-          : "border-white/10 hover:border-white/30"
-      )}
-    >
-      <div className="text-sm flex items-center gap-2">
-        <span className="text-lg leading-none">{badge}</span>
-        <span className="font-medium">{label}</span>
-      </div>
-      <div className="text-[11px] opacity-60 mt-0.5">{desc}</div>
-    </button>
-  );
-}
-
-function Select({ label, value, setValue, options }) {
-  return (
-    <div>
-      <label className="text-xs opacity-80">{label}</label>
-      <select
-        className="mt-1 w-full rounded-lg bg-white/5 border border-white/10 focus:border-pink-400/50 outline-none p-2"
-        value={value}
-        onChange={(e) => setValue(e.target.value)}
-      >
-        {options.map((o) => (
-          <option key={o} value={o}>
-            {o}
-          </option>
-        ))}
-      </select>
-    </div>
-  );
-}
-
-function NumberRange({ label, value, setValue, min = 0, max = 100 }) {
-  return (
-    <div>
-      <div className="flex items-center justify-between">
-        <label className="text-xs opacity-80">{label}</label>
-        <div className="text-xs opacity-70">{value}</div>
-      </div>
-      <input
-        type="range"
-        className="w-full accent-pink-500"
-        value={value}
-        min={min}
-        max={max}
-        onChange={(e) => setValue(parseInt(e.target.value, 10))}
-      />
-    </div>
-  );
-}
-
-function HistoryCompact({ history, onPick }) {
-  if (!history?.length) return (
-    <div className={card()}>
-      <div className="text-sm opacity-80">Recent Prompt</div>
-      <div className="mt-2 text-xs opacity-60">Your latest prompt will appear here.</div>
-    </div>
-  );
-
-  const h = history[0];
-  return (
-    <div className={card()}>
-      <div className="text-sm opacity-80">Recent Prompt</div>
-      <button
-        onClick={() => onPick(h)}
-        className="mt-2 text-xs opacity-80 hover:opacity-100 text-left"
-        title="Click to reuse"
-      >
-        {truncate(h.prompt, 140)}
-      </button>
-    </div>
-  );
-}
-
-// ———— Hooks & Utils ————
+// Hooks & utils
 function useLocalStorageArray(key, initial) {
   const [state, setState] = useState(initial);
-  useEffect(() => {
-    try {
-      const raw = localStorage.getItem(key);
-      if (raw) setState(JSON.parse(raw));
-    } catch {}
-  }, [key]);
-  useEffect(() => {
-    try {
-      localStorage.setItem(key, JSON.stringify(state));
-    } catch {}
-  }, [key, state]);
+  useEffect(()=>{ try{ const raw = localStorage.getItem(key); if(raw) setState(JSON.parse(raw)); }catch{} },[key]);
+  useEffect(()=>{ try{ localStorage.setItem(key, JSON.stringify(state)); }catch{} },[key, state]);
   return [state, setState];
 }
-
-function useDarkTheme() {
-  const [theme, setTheme] = useState("dark");
-  useEffect(() => {
-    const saved = localStorage.getItem("milan:theme");
-    if (saved === "dark" || saved === "light") setTheme(saved);
-  }, []);
-  useEffect(() => {
-    try { localStorage.setItem("milan:theme", theme); } catch {}
-    if (typeof document !== "undefined") {
-      if (theme === "dark") document.documentElement.classList.add("dark");
-      else document.documentElement.classList.remove("dark");
-    }
-  }, [theme]);
-  return [theme, setTheme];
+function useDarkTheme(){
+  const [theme,setTheme]=useState('dark');
+  useEffect(()=>{ const saved=localStorage.getItem('milan:theme'); if(saved==='dark'||saved==='light') setTheme(saved); },[]);
+  useEffect(()=>{ try{localStorage.setItem('milan:theme',theme);}catch{} },[theme]);
+  return [theme,setTheme];
 }
-
-function demoFallbackUrl() {
-  // Public demo fallback (won't block). Replace with your static asset if you like.
-  const demos = [
-    "https://images.unsplash.com/photo-1542124521-92172c1f1cdb?q=80&w=1200&auto=format&fit=crop",
-    "https://images.unsplash.com/photo-1519681393784-d120267933ba?q=80&w=1200&auto=format&fit=crop",
-    "https://images.unsplash.com/photo-1518837695005-2083093ee35b?q=80&w=1200&auto=format&fit=crop",
+function truncate(str,n){ if(!str) return ''; return str.length>n? str.slice(0,n-1)+'…':str; }
+function demoFallbackUrl(){
+  const demos=[
+    'https://images.unsplash.com/photo-1542124521-92172c1f1cdb?q=80&w=1200&auto=format&fit=crop',
+    'https://images.unsplash.com/photo-1519681393784-d120267933ba?q=80&w=1200&auto=format&fit=crop',
+    'https://images.unsplash.com/photo-1518837695005-2083093ee35b?q=80&w=1200&auto=format&fit=crop',
   ];
-  return demos[Math.floor(Math.random() * demos.length)];
-}
-
-function btn(variant) {
-  const base =
-    "px-4 py-2 rounded-xl border transition disabled:opacity-60 disabled:cursor-not-allowed";
-  if (variant === "primary")
-    return (
-      base +
-      " bg-gradient-to-r from-pink-500 to-rose-500 text-white border-pink-400/40 hover:shadow-lg hover:shadow-rose-500/20"
-    );
-  if (variant === "ghost")
-    return base + " border-white/10 hover:border-white/30";
-  return base;
-}
-
-function card(extra = "") {
-  return (
-    "rounded-2xl p-3 sm:p-4 border border-white/10 bg-white/5 " + extra
-  );
-}
-
-function truncate(str, n) {
-  if (!str) return "";
-  return str.length > n ? str.slice(0, n - 1) + "…" : str;
-}
-
-function tw(...cls) {
-  return cls.filter(Boolean).join(" ");
+  return demos[Math.floor(Math.random()*demos.length)];
 }
