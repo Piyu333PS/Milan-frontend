@@ -4,9 +4,9 @@ import { useEffect, useState } from "react";
  * - Create CTA under Prompt
  * - Clear selected mode
  * - Full-page scroll (CSS side)
- * - Handles all API response styles (URL, base64, raw bytes, text)
- * - Blob download
- * - Reliable demo fallback
+ * - Handles API JSON ({ok,imageUrl}) + raw image bytes
+ * - Proper error surfacing (status + details)
+ * - Safe blob download
  */
 
 const MODES = [
@@ -86,32 +86,10 @@ export default function AIStudioPage() {
     setPrompt(bank[Math.floor(Math.random() * bank.length)]);
   };
 
-  async function parseImageFromResponse(res) {
-    const ctype = res.headers.get("content-type") || "";
-    // Raw image bytes
-    if (ctype.startsWith("image/")) {
-      const blob = await res.blob();
-      return URL.createObjectURL(blob);
-    }
-    // JSON shapes
-    if (ctype.includes("application/json")) {
-      const data = await res.json();
-      const url =
-        data?.imageUrl ||
-        data?.url ||
-        data?.data?.url ||
-        data?.output?.[0] ||
-        (data?.imageBase64 && `data:image/png;base64,${stripPrefix(data.imageBase64)}`) ||
-        (data?.base64 && `data:image/png;base64,${stripPrefix(data.base64)}`);
-      if (url) return url;
-      throw new Error("No image URL in JSON");
-    }
-    // Text fallback: maybe URL or data URL
-    const txt = await res.text();
-    const trimmed = txt.trim();
-    if (trimmed.startsWith("data:image")) return trimmed;
-    if (/^https?:\/\//i.test(trimmed)) return trimmed;
-    throw new Error("Unrecognized response");
+  // Helper: turn a Response with image body into an object URL
+  async function imageUrlFromImageResponse(res) {
+    const blob = await res.blob();
+    return URL.createObjectURL(blob);
   }
 
   const onGenerate = async () => {
@@ -131,13 +109,66 @@ export default function AIStudioPage() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ prompt: finalPrompt, negative, mode, size, steps, guidance }),
       });
-      if (!res.ok) throw new Error("Generation failed");
-      const url = await parseImageFromResponse(res);
-      setImageUrl(url);
-      setCompareUrls((prev) => [url, ...prev].slice(0, 6));
-    } catch {
-      setImageUrl(demoFallbackUrl());
-      setError("Generation failed or response format unexpected. Showing a demo image for now.");
+
+      const ctype = res.headers.get("content-type") || "";
+
+      // ❌ Server returned an error → read the body once and surface it
+      if (!res.ok) {
+        let bodyText = "";
+        try { bodyText = ctype.includes("application/json") ? JSON.stringify(await res.json()) : await res.text(); }
+        catch { bodyText = "Unknown server error"; }
+        setImageUrl(null);
+        setError(`Generation failed (${res.status}). ${truncate(String(bodyText), 300)}`);
+        return;
+      }
+
+      // ✅ Our API returns JSON: { ok, imageUrl, error? }
+      if (ctype.includes("application/json")) {
+        const data = await res.json();
+        if (data?.ok && data?.imageUrl) {
+          setImageUrl(data.imageUrl);
+          setCompareUrls((prev) => [data.imageUrl, ...prev].slice(0, 6));
+          return;
+        }
+        if (data?.imageUrl) {
+          setImageUrl(data.imageUrl);
+          setCompareUrls((prev) => [data.imageUrl, ...prev].slice(0, 6));
+          if (data?.error) setError(truncate(String(data.error), 240));
+          return;
+        }
+        setImageUrl(null);
+        setError(truncate(String(data?.error || "No image returned by API."), 240));
+        return;
+      }
+
+      // ✅ If (rarely) server streams raw image bytes
+      if (ctype.startsWith("image/")) {
+        const url = await imageUrlFromImageResponse(res);
+        setImageUrl(url);
+        setCompareUrls((prev) => [url, ...prev].slice(0, 6));
+        return;
+      }
+
+      // ❓ Unexpected content type
+      const txt = await res.text();
+      const trimmed = txt.trim();
+      if (trimmed.startsWith("data:image")) {
+        setImageUrl(trimmed);
+        setCompareUrls((prev) => [trimmed, ...prev].slice(0, 6));
+        return;
+      }
+      if (/^https?:\/\//i.test(trimmed)) {
+        setImageUrl(trimmed);
+        setCompareUrls((prev) => [trimmed, ...prev].slice(0, 6));
+        return;
+      }
+      setImageUrl(null);
+      setError("Unrecognized response from server.");
+
+    } catch (e) {
+      // Pure network failure → no fake demo unless you want it
+      setImageUrl(null);
+      setError(`Network error: ${e.message}`);
     } finally {
       setLoading(false);
     }
@@ -213,7 +244,7 @@ export default function AIStudioPage() {
       <section className="milan-hero">
         <div className="milan-hero__text">
           <h2>Turn your imagination into reality ✨</h2>
-        <p>Generate romantic, anime, realistic or product-grade images with one prompt. Clean UI, pro controls, mobile-friendly.</p>
+          <p>Generate romantic, anime, realistic or product-grade images with one prompt. Clean UI, pro controls, mobile-friendly.</p>
 
           <div className="milan-modes" role="tablist" aria-label="Generation modes">
             {MODES.map((m) => (
@@ -414,7 +445,7 @@ function useDarkTheme() {
   return [theme, setTheme];
 }
 function truncate(str, n) { if (!str) return ""; return str.length > n ? str.slice(0, n - 1) + "…" : str; }
-// ✅ FIX: regex literal must be `\/` (not `\\\/`)
+// keep regex literal as `\/`
 function stripPrefix(b64){ return (b64 || "").replace(/^data:image\/[a-zA-Z0-9.+-]+;base64,/, ""); }
 function demoFallbackUrl() {
   const seeds = ["milan1","milan2","milan3","milan4","milan5"];
