@@ -220,7 +220,8 @@ export default function AIStudioPage() {
           <button onClick={() => setTheme(theme === "dark" ? "light" : "dark")} className="milan-btn milan-btn--ghost">
             {theme === "dark" ? "🌙 Dark" : "🌞 Light"}
           </button>
-          <a href="/" className="milan-btn milan-btn--ghost milan-hide-sm">← Back to Home</a>
+          {/* Updated: Go to /connect instead of / */}
+          <a href="/connect" className="milan-btn milan-btn--ghost milan-hide-sm">← Back to Dashboard</a>
         </div>
       </header>
 
