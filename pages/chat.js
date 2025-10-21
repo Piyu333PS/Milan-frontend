@@ -38,8 +38,8 @@ export default function ChatPage() {
   const fileRef = useRef(null);
   const listRef = useRef(null);
   const messageRefs = useRef({}); // id -> row DOM (scrolling)
-  const bubbleRefs = useRef({});   // ✅ id -> bubble DOM (highlighting)
-  const originalHTML = useRef({}); // ✅ id -> original innerHTML (restore)
+  const bubbleRefs = useRef({});   // id -> bubble DOM (highlighting)
+  const originalHTML = useRef({}); // id -> original innerHTML (restore)
 
   // ===== Utils =====
   const timeNow = () => {
@@ -390,9 +390,10 @@ export default function ChatPage() {
               ref={(el) => (messageRefs.current[m.id] = el)}
             >
               <div className="msg-wrap" style={{ position: "relative" }}>
+                {/* ref for highlight: */}
                 <div
                   className="bubble"
-                  ref={(el) => (bubbleRefs.current[m.id] = el)} {/* ✅ ref for highlight */}
+                  ref={(el) => (bubbleRefs.current[m.id] = el)}
                   dangerouslySetInnerHTML={{ __html: m.html }}
                 />
                 <div className="meta">
@@ -403,7 +404,6 @@ export default function ChatPage() {
                     </span>
                   )}
                 </div>
-                {/* NOTE: Reaction bar removed as requested */}
               </div>
             </div>
           ))}
@@ -499,7 +499,7 @@ export default function ChatPage() {
         .you .bubble{ background:var(--bubble-you); border-color:var(--bubble-you-b); border-top-left-radius:4px; }
         .bubble :global(img){ max-width:220px; border-radius:10px; display:block; }
         .bubble :global(video){ max-width:220px; border-radius:10px; display:block; }
-        .bubble :global(mark){ background:#ffe0f2; color:#1f2330; padding:0 .12rem; border-radius:.2rem; } /* ✅ highlight style */
+        .bubble :global(mark){ background:#ffe0f2; color:#1f2330; padding:0 .12rem; border-radius:.2rem; }
 
         .meta{ display:flex; align-items:center; gap:.35rem; margin-top:.28rem; font-size:.72rem; color:#7f8aa3; }
         .ticks{ font-size:.9rem; line-height:1; }
