@@ -6,11 +6,13 @@ import io from "socket.io-client";
 const BACKEND_URL =
   process.env.NEXT_PUBLIC_BACKEND_URL || "https://milan-j9u9.onrender.com";
 
-// Notes:
-// - UI layout/style mirrors chat.html (romantic header/menu/welcome/footer).
-// - Logic comes from your React version: sockets, typing, reactions, file share.
-// - CSS expected at: /styles/chat.css
-// - Avatar at: /partner-avatar.png
+// helper to pick avatar by gender
+const getAvatarForGender = (g) => {
+  const key = String(g || "").toLowerCase();
+  if (key === "male") return "/partner-avatar-male.png";
+  if (key === "female") return "/partner-avatar-female.png";
+  return "/partner-avatar.png"; // neutral fallback
+};
 
 export default function ChatPage() {
   // ---- State ----
@@ -20,6 +22,7 @@ export default function ChatPage() {
       : "theme-romantic"
   );
   const [partnerName, setPartnerName] = useState("Partner");
+  const [partnerAvatarSrc, setPartnerAvatarSrc] = useState("/partner-avatar.png");
   const [typing, setTyping] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
   const [welcome, setWelcome] = useState(true);
@@ -84,20 +87,33 @@ export default function ChatPage() {
     try {
       partnerData = JSON.parse(sessionStorage.getItem("partnerData") || "null");
     } catch {}
+
     if (!partnerData || !partnerData.roomCode) {
       // fallback for direct visit
       partnerData = {
         roomCode: "DEMO-" + Math.random().toString(36).slice(2, 6),
         name: "Partner",
+        gender: "unknown",
       };
       sessionStorage.setItem("partnerData", JSON.stringify(partnerData));
     }
+
     setPartnerName(partnerData.name || "Partner");
+
+    // avatar priority: explicit avatar URL -> gender-based -> neutral
+    const chosen =
+      (partnerData.avatar && String(partnerData.avatar)) ||
+      getAvatarForGender(partnerData.gender);
+    setPartnerAvatarSrc(chosen);
 
     const socket = io(BACKEND_URL, { transports: ["websocket"] });
     socketRef.current = socket;
 
-    socket.emit("userInfo", { name: partnerData.name, avatar: partnerData.avatar });
+    socket.emit("userInfo", {
+      name: partnerData.name,
+      avatar: partnerData.avatar || chosen,
+      gender: partnerData.gender,
+    });
     socket.emit("joinRoom", { roomCode: partnerData.roomCode });
 
     // incoming text
@@ -268,7 +284,7 @@ export default function ChatPage() {
         {/* Header */}
         <header className="chat-header">
           <div className="header-left">
-            <img id="partnerAvatar" src="/partner-avatar.png" alt="DP" />
+            <img id="partnerAvatar" src={partnerAvatarSrc} alt="DP" />
             <div className="partner-info">
               <span id="partnerName">{partnerName}</span>
               <span
