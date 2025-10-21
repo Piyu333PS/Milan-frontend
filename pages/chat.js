@@ -3,11 +3,9 @@ import { useEffect, useRef, useState } from "react";
 import Head from "next/head";
 import io from "socket.io-client";
 
-// Keep your backend URL logic
 const BACKEND_URL =
   process.env.NEXT_PUBLIC_BACKEND_URL || "https://milan-j9u9.onrender.com";
 
-// helper to pick avatar by gender (same idea as your current file)
 const getAvatarForGender = (g) => {
   const key = String(g || "").toLowerCase();
   if (key === "male") return "/partner-avatar-male.png";
@@ -22,14 +20,24 @@ export default function ChatPage() {
   const [typing, setTyping] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
 
-  // Message shape: { id, self, kind:'text'|'file', html, time, status?:'sent'|'delivered'|'seen', reactions? }
-  const [msgs, setMsgs] = useState([]);
+  const [msgs, setMsgs] = useState([]); // {id,self,kind:'text'|'file',html,time,status?}
+
+  // Search UI
+  const [searchOpen, setSearchOpen] = useState(false);
+  const [searchQuery, setSearchQuery] = useState("");
+  const [matchIds, setMatchIds] = useState([]); // ids that match
+  const [matchIndex, setMatchIndex] = useState(0);
+
+  // Emoji picker
+  const [emojiOpen, setEmojiOpen] = useState(false);
+  const EMOJIS = ["😊", "❤️", "😂", "👍", "🔥", "😍", "🤗", "😘", "😎", "🥰"];
 
   // ===== Refs =====
   const socketRef = useRef(null);
   const msgRef = useRef(null);
   const fileRef = useRef(null);
   const listRef = useRef(null);
+  const messageRefs = useRef({}); // id -> DOM
 
   // ===== Utils =====
   const timeNow = () => {
@@ -43,20 +51,20 @@ export default function ChatPage() {
     s.replace(/[&<>"']/g, (m) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[m]));
   const linkify = (text = "") =>
     text.replace(/(https?:\/\/[^\s]+)/g, '<a href="$1" target="_blank" rel="noopener">$1</a>');
-  const scrollToBottom = () => requestAnimationFrame(() => {
-    if (listRef.current) listRef.current.scrollTop = listRef.current.scrollHeight;
-  });
+  const stripHtml = (s = "") => s.replace(/<[^>]*>/g, "");
+  const scrollToBottom = () =>
+    requestAnimationFrame(() => {
+      if (listRef.current) listRef.current.scrollTop = listRef.current.scrollHeight;
+    });
 
   // ===== Socket lifecycle =====
   useEffect(() => {
-    // pull partner/session data prepared earlier (roomCode, name, gender, avatar)
     let partnerData = null;
     try {
       partnerData = JSON.parse(sessionStorage.getItem("partnerData") || "null");
     } catch {}
 
     if (!partnerData || !partnerData.roomCode) {
-      // fallback so the page still works if someone lands directly
       partnerData = {
         roomCode: "DEMO-" + Math.random().toString(36).slice(2, 6),
         name: "Partner",
@@ -69,11 +77,9 @@ export default function ChatPage() {
     const chosen = (partnerData.avatar && String(partnerData.avatar)) || getAvatarForGender(partnerData.gender);
     setPartnerAvatarSrc(chosen);
 
-    // connect socket
     const socket = io(BACKEND_URL, { transports: ["websocket"] });
     socketRef.current = socket;
 
-    // same events you already used earlier (joinRoom + userInfo). :contentReference[oaicite:2]{index=2}
     socket.emit("userInfo", {
       name: partnerData.name,
       avatar: partnerData.avatar || chosen,
@@ -81,7 +87,6 @@ export default function ChatPage() {
     });
     socket.emit("joinRoom", { roomCode: partnerData.roomCode });
 
-    // inbound text message (event name kept as 'message'). :contentReference[oaicite:3]{index=3}
     socket.on("message", (msg) => {
       const isSelf = socket.id === msg.senderId;
       setMsgs((p) => [
@@ -97,7 +102,6 @@ export default function ChatPage() {
       scrollToBottom();
     });
 
-    // inbound file (event name kept as 'fileMessage'). :contentReference[oaicite:4]{index=4}
     socket.on("fileMessage", (msg) => {
       const isSelf = socket.id === msg.senderId;
       const t = (msg.fileType || "").toLowerCase();
@@ -115,29 +119,24 @@ export default function ChatPage() {
       scrollToBottom();
     });
 
-    // typing indicator (partnerTyping) and sender typing emit (typing). :contentReference[oaicite:5]{index=5}
     socket.on("partnerTyping", () => {
       setTyping(true);
       clearTimeout(socketRef.current?._typingTimer);
       socketRef.current._typingTimer = setTimeout(() => setTyping(false), 1500);
     });
 
-    // reactions (reaction). :contentReference[oaicite:6]{index=6}
-    socket.on("reaction", ({ messageId, emoji }) => {
-      setMsgs((prev) =>
-        prev.map((m) =>
-          m.id === messageId ? { ...m, reactions: { ...(m.reactions || {}), [emoji]: (m.reactions?.[emoji] || 0) + 1 } } : m
-        )
-      );
-    });
+    // keep listeners for future (no UI bar now)
+    socket.on("reaction", () => {});
 
     socket.on("partnerDisconnected", () => {
       alert("💔 Partner disconnected.");
-      window.location.href = "/";
+      window.location.href = "/connect";
     });
 
     return () => {
-      try { socket.disconnect(); } catch {}
+      try {
+        socket.disconnect();
+      } catch {}
     };
   }, []);
 
@@ -147,7 +146,6 @@ export default function ChatPage() {
     if (!val) return;
     const id = genId();
 
-    // optimistic bubble
     setMsgs((p) => [...p, { id, self: true, kind: "text", html: linkify(escapeHtml(val)), time: timeNow(), status: "sent" }]);
     scrollToBottom();
 
@@ -157,9 +155,10 @@ export default function ChatPage() {
       text: val,
       roomCode: pd.roomCode,
       senderId: socketRef.current.id,
-    }); // same event name you used. :contentReference[oaicite:7]{index=7}
+    });
 
     msgRef.current.value = "";
+    setTyping(false);
   };
 
   const handleFile = (e) => {
@@ -172,7 +171,6 @@ export default function ChatPage() {
       const dataUrl = reader.result;
       const pd = JSON.parse(sessionStorage.getItem("partnerData") || "{}");
 
-      // optimistic preview
       let inner = "";
       if (f.type.startsWith("image/")) {
         inner = `<a href="${dataUrl}" target="_blank"><img src="${dataUrl}" /></a>`;
@@ -184,7 +182,6 @@ export default function ChatPage() {
       setMsgs((p) => [...p, { id, self: true, kind: "file", html: inner, time: timeNow(), status: "sent" }]);
       scrollToBottom();
 
-      // send to partner (same event). :contentReference[oaicite:8]{index=8}
       socketRef.current.emit("fileMessage", {
         id,
         fileName: f.name,
@@ -200,23 +197,56 @@ export default function ChatPage() {
 
   const onType = () => {
     const pd = JSON.parse(sessionStorage.getItem("partnerData") || "{}");
-    socketRef.current.emit("typing", { roomCode: pd.roomCode }); // same event name. :contentReference[oaicite:9]{index=9}
+    socketRef.current.emit("typing", { roomCode: pd.roomCode });
   };
 
-  const sendReaction = (mid, emoji) => {
-    setMsgs((prev) =>
-      prev.map((m) =>
-        m.id !== mid ? m : { ...m, reactions: { ...(m.reactions || {}), [emoji]: (m.reactions?.[emoji] || 0) + 1 } }
-      )
-    );
-    const pd = JSON.parse(sessionStorage.getItem("partnerData") || "{}");
-    socketRef.current.emit("reaction", { roomCode: pd.roomCode, messageId: mid, emoji }); // same event. :contentReference[oaicite:10]{index=10}
+  // ===== Search =====
+  const runSearch = (q) => {
+    if (!q) {
+      setMatchIds([]);
+      setMatchIndex(0);
+      return;
+    }
+    const ids = msgs
+      .filter((m) => m.kind === "text" && stripHtml(m.html).toLowerCase().includes(q.toLowerCase()))
+      .map((m) => m.id);
+    setMatchIds(ids);
+    setMatchIndex(0);
+    if (ids.length) {
+      const el = messageRefs.current[ids[0]];
+      if (el) el.scrollIntoView({ behavior: "smooth", block: "center" });
+    }
+  };
+  const jumpNext = () => {
+    if (!matchIds.length) return;
+    const next = (matchIndex + 1) % matchIds.length;
+    setMatchIndex(next);
+    const el = messageRefs.current[matchIds[next]];
+    if (el) el.scrollIntoView({ behavior: "smooth", block: "center" });
+  };
+
+  // ===== Emoji Picker =====
+  const insertEmoji = (emoji) => {
+    if (!msgRef.current) return;
+    const el = msgRef.current;
+    const start = el.selectionStart ?? el.value.length;
+    const end = el.selectionEnd ?? el.value.length;
+    const before = el.value.slice(0, start);
+    const after = el.value.slice(end);
+    el.value = before + emoji + after;
+    const caret = start + emoji.length;
+    requestAnimationFrame(() => {
+      el.focus();
+      el.setSelectionRange(caret, caret);
+    });
+    setEmojiOpen(false);
   };
 
   // ===== UI =====
   useEffect(() => {
     const handler = (e) => {
       if (!e.target.closest(".header-right")) setMenuOpen(false);
+      if (!e.target.closest(".emoji-wrap")) setEmojiOpen(false);
     };
     document.addEventListener("click", handler);
     return () => document.removeEventListener("click", handler);
@@ -230,7 +260,7 @@ export default function ChatPage() {
       </Head>
 
       <div className="app">
-        {/* Header (WhatsApp-style, pink gradient) */}
+        {/* Header */}
         <header className="header">
           <div className="header-left">
             <button className="back-btn" onClick={() => (window.location.href = "/connect")} aria-label="Back">⟵</button>
@@ -244,14 +274,56 @@ export default function ChatPage() {
           </div>
 
           <div className="header-right">
-            <button className="icon-btn" title="Search" aria-label="Search">🔎</button>
+            {/* SEARCH */}
+            <div className="search-area">
+              {searchOpen && (
+                <input
+                  className="search-input"
+                  placeholder="Search messages…"
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter") {
+                      if (!matchIds.length) runSearch(searchQuery);
+                      else jumpNext();
+                    }
+                  }}
+                />
+              )}
+            </div>
+            <button
+              className="icon-btn"
+              title="Search"
+              aria-label="Search"
+              onClick={() => {
+                const v = !searchOpen;
+                setSearchOpen(v);
+                if (!v) {
+                  setSearchQuery("");
+                  setMatchIds([]);
+                } else {
+                  setTimeout(() => {
+                    const el = document.querySelector(".search-input");
+                    el && el.focus();
+                  }, 50);
+                }
+              }}
+            >
+              🔎
+            </button>
+
+            {/* MENU */}
             <button className="icon-btn" title="Menu" aria-label="Menu" onClick={() => setMenuOpen((s) => !s)}>⋮</button>
             <div className={`menu ${menuOpen ? "open" : ""}`}>
               <button
                 className="menu-item"
                 onClick={() => {
-                  try { socketRef.current.emit("disconnectByUser"); socketRef.current.disconnect(); } catch {}
-                  window.location.href = "/";
+                  try {
+                    socketRef.current.emit("disconnectByUser");
+                    socketRef.current.disconnect();
+                  } catch {}
+                  // ✅ Go to features page (not registration)
+                  window.location.href = "/connect";
                 }}
               >
                 🔌 Disconnect
@@ -266,7 +338,27 @@ export default function ChatPage() {
         <main className="chat" ref={listRef}>
           <div className="day-sep"><span>Today</span></div>
           {msgs.map((m) => (
-            <Message key={m.id} self={m.self} html={m.html} time={m.time} status={m.status} onReact={(e) => sendReaction(m.id, e)} />
+            <div
+              key={m.id}
+              className={`row ${m.self ? "me" : "you"}`}
+              ref={(el) => (messageRefs.current[m.id] = el)}
+            >
+              <div className="msg-wrap" style={{ position: "relative" }}>
+                <div
+                  className="bubble"
+                  dangerouslySetInnerHTML={{ __html: m.html }}
+                />
+                <div className="meta">
+                  <span className="time">{m.time}</span>
+                  {m.self && (
+                    <span className={`ticks ${m.status === "seen" ? "seen" : ""}`}>
+                      {m.status === "sent" ? "✓" : m.status === "seen" ? "✓✓" : "✓✓"}
+                    </span>
+                  )}
+                </div>
+                {/* NOTE: Reaction bar removed as requested */}
+              </div>
+            </div>
           ))}
         </main>
 
@@ -274,7 +366,28 @@ export default function ChatPage() {
         <footer className="inputbar">
           <input ref={fileRef} type="file" hidden onChange={handleFile} />
           <button className="tool" title="Attach" aria-label="Attach" onClick={() => fileRef.current?.click()}>📎</button>
-          <button className="tool" title="Emoji" aria-label="Emoji">😊</button>
+
+          {/* Emoji Picker */}
+          <div className="emoji-wrap" style={{ position: "relative" }}>
+            <button
+              className="tool"
+              title="Emoji"
+              aria-label="Emoji"
+              onClick={() => setEmojiOpen((s) => !s)}
+            >
+              😊
+            </button>
+            {emojiOpen && (
+              <div className="emoji-pop">
+                {EMOJIS.map((e) => (
+                  <button key={e} className="emoji-item" onClick={() => insertEmoji(e)}>
+                    {e}
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
+
           <input
             ref={msgRef}
             className="msg-field"
@@ -304,14 +417,6 @@ export default function ChatPage() {
         }
         html,body{ background:#0b1220; }
         .app{ position:relative; display:flex; flex-direction:column; height:100svh; max-width:900px; margin:0 auto; background:var(--panel); }
-        .app::before{
-          content:""; position:fixed; inset:0; z-index:0; pointer-events:none; opacity:.06;
-          background:
-            radial-gradient(circle at 10% 24%, #ff6bb0 0 6px, transparent 7px),
-            radial-gradient(circle at 30% 80%, #ff6bb0 0 6px, transparent 7px),
-            radial-gradient(circle at 82% 30%, #ff6bb0 0 6px, transparent 7px);
-          filter: blur(1px);
-        }
 
         .header{ position:sticky; top:0; z-index:5; display:flex; align-items:center; justify-content:space-between; gap:.6rem; padding:.6rem .8rem;
           background:linear-gradient(90deg,var(--header-1),var(--header-2)); color:#fff; box-shadow:0 6px 24px rgba(0,0,0,.16); }
@@ -323,6 +428,13 @@ export default function ChatPage() {
         .dot{ width:8px; height:8px; border-radius:50%; background:#a7ffb2; box-shadow:0 0 0 3px rgba(255,255,255,.35) inset; }
         .header-right{ position:relative; display:flex; align-items:center; gap:.35rem; }
         .icon-btn{ border:none; background:rgba(255,255,255,.18); border-radius:10px; padding:.45rem; cursor:pointer; color:#fff; }
+
+        .search-area{ position:relative; }
+        .search-input{
+          width:220px; background:#0e1722; color:#e9eef6; border:1px solid rgba(255,255,255,.15);
+          border-radius:10px; padding:.4rem .6rem; margin-right:.35rem;
+        }
+
         .menu{ position:absolute; right:0; top:120%; background:#0e1722; border:1px solid rgba(255,255,255,.06); border-radius:10px; padding:.35rem; min-width:160px; display:none; }
         .menu.open{ display:block; }
         .menu-item{ width:100%; text-align:left; background:transparent; border:none; color:#e9eef6; padding:.5rem .6rem; border-radius:8px; cursor:pointer; }
@@ -344,53 +456,25 @@ export default function ChatPage() {
         .ticks{ font-size:.9rem; line-height:1; }
         .ticks.seen{ color:#4ea3ff; }
 
-        .react{ display:flex; gap:.35rem; margin-top:.3rem; }
-        .react button{ border:none; background:transparent; cursor:pointer; font-size:1rem; }
-        .pill{ margin-top:.24rem; display:inline-flex; gap:.3rem; background:rgba(0,0,0,.06); color:#333; border-radius:12px; padding:.12rem .4rem; font-size:.78rem; }
-
         .inputbar{ display:flex; align-items:center; gap:.5rem; padding:.6rem .7rem; background:#0e1722; border-top:1px solid rgba(255,255,255,.06); }
         .tool{ border:none; background:transparent; cursor:pointer; display:grid; place-items:center; border-radius:50%; width:34px; height:34px; color:#e9eef6; }
         .msg-field{ flex:1; background:#121d2a; color:#e9eef6; border:1px solid rgba(255,255,255,.08); border-radius:22px; padding:.55rem .75rem; outline:none; }
         .msg-field::placeholder{ color:#93a0b8; }
         .send{ background:linear-gradient(135deg,var(--accent),#ff9fd0); color:#071320; border:none; border-radius:50%; width:40px; height:40px; display:grid; place-items:center; cursor:pointer; box-shadow:0 6px 18px rgba(255,79,160,.35); }
 
+        .emoji-pop{
+          position:absolute; bottom:46px; left:0; background:#0e1722; border:1px solid rgba(255,255,255,.12);
+          border-radius:12px; padding:.35rem; display:grid; grid-template-columns: repeat(5, 1fr); gap:.25rem;
+        }
+        .emoji-item{ border:none; background:transparent; font-size:1.1rem; cursor:pointer; padding:.2rem; border-radius:8px; }
+        .emoji-item:hover{ background:rgba(255,255,255,.06); }
+
         @media (max-width:640px){
           .bubble{ max-width:82%; }
           .avatar{ width:34px; height:34px; }
+          .search-input{ width:160px; }
         }
       `}</style>
     </>
-  );
-}
-
-function Message({ self, html, time, status, onReact }) {
-  const [picker, setPicker] = useState(false);
-  useEffect(() => {
-    const h = (e) => { if (!e.target.closest(".msg-wrap")) setPicker(false); };
-    document.addEventListener("click", h);
-    return () => document.removeEventListener("click", h);
-  }, []);
-
-  const bar = ["❤️", "😂", "🔥", "👍", "😍", "🤗"];
-
-  return (
-    <div className={`row ${self ? "me" : "you"}`}>
-      <div className="msg-wrap" style={{ position: "relative" }}>
-        <div className="bubble" dangerouslySetInnerHTML={{ __html: html }} />
-        <div className="meta">
-          <span className="time">{time}</span>
-          {self && <span className={`ticks ${status === "seen" ? "seen" : ""}`}>{status === "sent" ? "✓" : status === "seen" ? "✓✓" : "✓✓"}</span>}
-        </div>
-
-        {/* quick reactions (WhatsApp-style long-press vibe) */}
-        <div className="react">
-          <button onClick={() => setPicker((s) => !s)}>😊</button>
-          {picker &&
-            bar.map((e) => (
-              <button key={e} onClick={() => { onReact(e); setPicker(false); }}>{e}</button>
-            ))}
-        </div>
-      </div>
-    </div>
   );
 }
