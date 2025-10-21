@@ -37,9 +37,7 @@ export default function ChatPage() {
   const msgRef = useRef(null);
   const fileRef = useRef(null);
   const listRef = useRef(null);
-  const messageRefs = useRef({}); // id -> row DOM (scrolling)
-  const bubbleRefs = useRef({});   // id -> bubble DOM (highlighting)
-  const originalHTML = useRef({}); // id -> original innerHTML (restore)
+  const messageRefs = useRef({}); // id -> DOM
 
   // ===== Utils =====
   const timeNow = () => {
@@ -202,7 +200,7 @@ export default function ChatPage() {
     socketRef.current.emit("typing", { roomCode: pd.roomCode });
   };
 
-  // ===== Search (find) =====
+  // ===== Search =====
   const runSearch = (q) => {
     if (!q) {
       setMatchIds([]);
@@ -226,50 +224,6 @@ export default function ChatPage() {
     const el = messageRefs.current[matchIds[next]];
     if (el) el.scrollIntoView({ behavior: "smooth", block: "center" });
   };
-
-  // ===== Highlight (mark) logic — adds/removes <mark> safely inside message bubbles =====
-  useEffect(() => {
-    // First: restore original innerHTML for all bubbles
-    Object.entries(bubbleRefs.current).forEach(([id, el]) => {
-      if (!el) return;
-      if (originalHTML.current[id] == null) originalHTML.current[id] = el.innerHTML;
-      el.innerHTML = originalHTML.current[id];
-    });
-
-    if (!searchQuery) return;
-
-    const rx = new RegExp(searchQuery.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"), "gi");
-
-    const walk = (node) => {
-      if (node.nodeType !== 3) { // not text
-        const name = node.nodeName;
-        if (name === "SCRIPT" || name === "STYLE") return;
-        node.childNodes && Array.from(node.childNodes).forEach(walk);
-        return;
-      }
-      const txt = node.nodeValue;
-      if (!rx.test(txt)) return;
-
-      const frag = document.createDocumentFragment();
-      let last = 0;
-      txt.replace(rx, (m, i) => {
-        if (i > last) frag.appendChild(document.createTextNode(txt.slice(last, i)));
-        const mark = document.createElement("mark");
-        mark.textContent = m;
-        frag.appendChild(mark);
-        last = i + m.length;
-        return m;
-      });
-      if (last < txt.length) frag.appendChild(document.createTextNode(txt.slice(last)));
-      node.parentNode.replaceChild(frag, node);
-    };
-
-    // Highlight only matching message bubbles
-    matchIds.forEach((id) => {
-      const el = bubbleRefs.current[id];
-      if (el) walk(el);
-    });
-  }, [matchIds, searchQuery]);
 
   // ===== Emoji Picker =====
   const insertEmoji = (emoji) => {
@@ -390,10 +344,8 @@ export default function ChatPage() {
               ref={(el) => (messageRefs.current[m.id] = el)}
             >
               <div className="msg-wrap" style={{ position: "relative" }}>
-                {/* ref for highlight: */}
                 <div
                   className="bubble"
-                  ref={(el) => (bubbleRefs.current[m.id] = el)}
                   dangerouslySetInnerHTML={{ __html: m.html }}
                 />
                 <div className="meta">
@@ -404,6 +356,7 @@ export default function ChatPage() {
                     </span>
                   )}
                 </div>
+                {/* NOTE: Reaction bar removed as requested */}
               </div>
             </div>
           ))}
@@ -499,8 +452,6 @@ export default function ChatPage() {
         .you .bubble{ background:var(--bubble-you); border-color:var(--bubble-you-b); border-top-left-radius:4px; }
         .bubble :global(img){ max-width:220px; border-radius:10px; display:block; }
         .bubble :global(video){ max-width:220px; border-radius:10px; display:block; }
-        .bubble :global(mark){ background:#ffe0f2; color:#1f2330; padding:0 .12rem; border-radius:.2rem; }
-
         .meta{ display:flex; align-items:center; gap:.35rem; margin-top:.28rem; font-size:.72rem; color:#7f8aa3; }
         .ticks{ font-size:.9rem; line-height:1; }
         .ticks.seen{ color:#4ea3ff; }
