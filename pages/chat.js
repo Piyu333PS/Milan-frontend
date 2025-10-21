@@ -6,6 +6,8 @@ import io from "socket.io-client";
 const BACKEND_URL =
   process.env.NEXT_PUBLIC_BACKEND_URL || "https://milan-j9u9.onrender.com";
 
+const MAX_FILE_BYTES = 15 * 1024 * 1024; // 15 MB
+
 const getAvatarForGender = (g) => {
   const key = String(g || "").toLowerCase();
   if (key === "male") return "/partner-avatar-male.png";
@@ -20,8 +22,8 @@ export default function ChatPage() {
   const [typing, setTyping] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
 
-  const [msgs, setMsgs] = useState([]); // {id,self,kind:'text'|'file',html,time,status?}
-  const [roomCode, setRoomCode] = useState(null); // ✅ true room code from server
+  const [msgs, setMsgs] = useState([]); // {id,self,kind:'text'|'file'|'system',html,time,status?}
+  const [roomCode, setRoomCode] = useState(null);
 
   // Search UI
   const [searchOpen, setSearchOpen] = useState(false);
@@ -61,29 +63,44 @@ export default function ChatPage() {
 
   // ===== Socket lifecycle =====
   useEffect(() => {
-    // Optional: user info you may have saved elsewhere
     let localName = "";
     try {
       localName = localStorage.getItem("milan_name") || "";
     } catch {}
 
-    // avatar/gender defaults (can be updated when partnerFound fires)
     setPartnerAvatarSrc(getAvatarForGender("unknown"));
 
-    const socket = io(BACKEND_URL, { transports: ["websocket"] });
+    const socket = io(BACKEND_URL, { transports: ["websocket"], autoConnect: true });
     socketRef.current = socket;
 
-    // let server know who we are (best-effort)
+    socket.on("connect_error", (err) => {
+      console.error("Socket connect error:", err?.message || err);
+      // gentle UI system message
+      setMsgs((p) => [
+        ...p,
+        { id: `sys-${Date.now()}`, self: false, kind: "system", html: "⚠️ Connection issue. Trying to reconnect...", time: timeNow() },
+      ]);
+    });
+
+    socket.on("disconnect", (reason) => {
+      // if server intentionally disconnected, show system message
+      setMsgs((p) => [
+        ...p,
+        { id: `sys-${Date.now()}`, self: false, kind: "system", html: `Disconnected (${String(reason)}).`, time: timeNow() },
+      ]);
+    });
+
+    // identify self (optional)
     socket.emit("userInfo", {
       name: localName || "You",
       avatar: null,
       gender: "unknown",
     });
 
-    // ✅ Correct matchmaking for TEXT chat
+    // join text queue
     socket.emit("lookingForPartner", { type: "text" });
 
-    // 🔔 partner found -> use server-provided roomCode (NO DEMO / random)
+    // partner found
     socket.on("partnerFound", ({ roomCode: rc, partner }) => {
       if (!rc) return;
       setRoomCode(rc);
@@ -93,77 +110,101 @@ export default function ChatPage() {
       setPartnerName(pName);
       setPartnerAvatarSrc(pAvatar);
 
-      // join the real room from server
-      socket.emit("joinRoom", { roomCode: rc });
-
-      // store for continuity across pages (not source of truth)
+      // join room on server (some servers require explicit join)
       try {
-        sessionStorage.setItem(
-          "partnerData",
-          JSON.stringify({
-            roomCode: rc,
-            name: pName,
-            avatar: pAvatar,
-            gender: partner?.gender || "unknown",
-          })
-        );
-      } catch {}
+        socket.emit("joinRoom", { roomCode: rc });
+      } catch (e) {}
+
+      // small system message
+      setMsgs((p) => [
+        ...p,
+        { id: `sys-${Date.now()}`, self: false, kind: "system", html: `You are connected with ${escapeHtml(pName)}.`, time: timeNow() },
+      ]);
+      scrollToBottom();
     });
 
-    // Incoming text message
+    // incoming text message
     socket.on("message", (msg) => {
-      const isSelf = socket.id === msg.senderId;
-      setMsgs((p) => [
-        ...p,
-        {
-          id: msg.id || genId(),
-          self: isSelf,
-          kind: "text",
-          html: `${linkify(escapeHtml(msg.text || ""))}`,
-          time: timeNow(),
-        },
-      ]);
+      if (!msg || !msg.id) return;
+      setMsgs((prev) => {
+        // dedupe by id: if message exists (optimistic self or previous), ignore
+        if (prev.some((x) => x.id === msg.id)) return prev;
+        const isSelf = socket.id === msg.senderId;
+        return [
+          ...prev,
+          {
+            id: msg.id,
+            self: isSelf,
+            kind: "text",
+            html: `${linkify(escapeHtml(msg.text || ""))}`,
+            time: timeNow(),
+          },
+        ];
+      });
       scrollToBottom();
     });
 
-    // Incoming file
+    // incoming file message
     socket.on("fileMessage", (msg) => {
-      const isSelf = socket.id === msg.senderId;
-      const t = (msg.fileType || "").toLowerCase();
-      let inner = "";
-      if (t.startsWith("image/")) {
-        inner = `<a href="${msg.fileData}" target="_blank"><img src="${msg.fileData}" /></a>`;
-      } else if (t.startsWith("video/")) {
-        inner = `<video controls><source src="${msg.fileData}" type="${msg.fileType}"></video>`;
-      } else {
-        inner = `<a class="file-link" download="${escapeHtml(msg.fileName || "file")}" href="${msg.fileData}">
-                   ${escapeHtml(msg.fileName || "file")}
-                 </a>`;
-      }
-      setMsgs((p) => [
-        ...p,
-        { id: msg.id || genId(), self: isSelf, kind: "file", html: inner, time: timeNow() },
-      ]);
+      if (!msg || !msg.id) return;
+      setMsgs((prev) => {
+        if (prev.some((x) => x.id === msg.id)) return prev;
+        const isSelf = socket.id === msg.senderId;
+        const t = (msg.fileType || "").toLowerCase();
+        let inner = "";
+        if (t.startsWith("image/")) {
+          inner = `<a href="${msg.fileData}" target="_blank" rel="noopener"><img src="${msg.fileData}" /></a>`;
+        } else if (t.startsWith("video/")) {
+          inner = `<video controls><source src="${msg.fileData}" type="${msg.fileType}"></video>`;
+        } else {
+          inner = `<a class="file-link" download="${escapeHtml(msg.fileName || "file")}" href="${msg.fileData}">${escapeHtml(msg.fileName || "file")}</a>`;
+        }
+        return [
+          ...prev,
+          { id: msg.id, self: isSelf, kind: "file", html: inner, time: timeNow() },
+        ];
+      });
       scrollToBottom();
     });
 
-    // Typing indicator from partner
+    // partner typing
     socket.on("partnerTyping", () => {
       setTyping(true);
       clearTimeout(socketRef.current?._typingTimer);
       socketRef.current._typingTimer = setTimeout(() => setTyping(false), 1500);
     });
 
-    // keep listeners for future (no UI bar now)
+    // reaction not used now
     socket.on("reaction", () => {});
 
+    // partner disconnected — show message then auto disconnect/redirect
     socket.on("partnerDisconnected", () => {
-      alert("💔 Partner disconnected.");
-      window.location.href = "/connect";
+      // push a system message in chat
+      const sysId = `sys-dis-${Date.now()}`;
+      setMsgs((p) => [
+        ...p,
+        { id: sysId, self: false, kind: "system", html: "Your partner has been disconnected.", time: timeNow() },
+      ]);
+      scrollToBottom();
+
+      // give user a moment to see message then disconnect and go to connect
+      setTimeout(() => {
+        try {
+          socket.disconnect();
+        } catch {}
+        window.location.href = "/connect";
+      }, 1200);
     });
 
     return () => {
       try {
+        socket.off("connect_error");
+        socket.off("disconnect");
+        socket.off("partnerFound");
+        socket.off("message");
+        socket.off("fileMessage");
+        socket.off("partnerTyping");
+        socket.off("partnerDisconnected");
         socket.disconnect();
       } catch {}
     };
@@ -175,19 +216,25 @@ export default function ChatPage() {
     if (!val || !socketRef.current || !roomCode) return;
     const id = genId();
 
-    // optimistic UI
+    // optimistic UI (status: sent)
     setMsgs((p) => [
       ...p,
       { id, self: true, kind: "text", html: linkify(escapeHtml(val)), time: timeNow(), status: "sent" },
     ]);
     scrollToBottom();
 
-    socketRef.current.emit("message", {
-      id,
-      text: val,
-      roomCode, // ✅ real room
-      senderId: socketRef.current.id,
-    });
+    try {
+      socketRef.current.emit("message", {
+        id,
+        text: val,
+        roomCode,
+        senderId: socketRef.current.id,
+      });
+    } catch (e) {
+      // mark failed
+      setMsgs((prev) => prev.map((m) => (m.id === id ? { ...m, status: "failed" } : m)));
+      console.error("emit message failed", e);
+    }
 
     msgRef.current.value = "";
     setTyping(false);
@@ -195,35 +242,56 @@ export default function ChatPage() {
 
   const handleFile = (e) => {
     const f = e.target.files?.[0];
-    if (!f || !socketRef.current || !roomCode) return;
+    if (!f || !socketRef.current || !roomCode) {
+      e.target.value = "";
+      return;
+    }
+
+    if (f.size > MAX_FILE_BYTES) {
+      alert("⚠️ File too big — max 15 MB allowed.");
+      e.target.value = "";
+      return;
+    }
 
     const id = genId();
     const reader = new FileReader();
     reader.onload = () => {
       const dataUrl = reader.result;
-
       let inner = "";
       if (f.type.startsWith("image/")) {
-        inner = `<a href="${dataUrl}" target="_blank"><img src="${dataUrl}" /></a>`;
+        inner = `<a href="${dataUrl}" target="_blank" rel="noopener"><img src="${dataUrl}" /></a>`;
       } else if (f.type.startsWith("video/")) {
         inner = `<video controls><source src="${dataUrl}" type="${f.type}"></video>`;
       } else {
         inner = `<a class="file-link" download="${escapeHtml(f.name)}" href="${dataUrl}">${escapeHtml(f.name)}</a>`;
       }
+
+      // optimistic UI entry for file
       setMsgs((p) => [
         ...p,
         { id, self: true, kind: "file", html: inner, time: timeNow(), status: "sent" },
       ]);
       scrollToBottom();
 
-      socketRef.current.emit("fileMessage", {
-        id,
-        fileName: f.name,
-        fileType: f.type,
-        fileData: dataUrl,
-        roomCode, // ✅ real room
-        senderId: socketRef.current.id,
-      });
+      try {
+        socketRef.current.emit("fileMessage", {
+          id,
+          fileName: f.name,
+          fileType: f.type,
+          fileData: dataUrl,
+          roomCode,
+          senderId: socketRef.current.id,
+        });
+      } catch (err) {
+        // if emit fails, mark as failed and inform user
+        setMsgs((prev) => prev.map((m) => (m.id === id ? { ...m, status: "failed" } : m)));
+        console.error("file emit failed", err);
+        alert("⚠️ Failed to send file. Please try again.");
+      }
+    };
+    reader.onerror = (err) => {
+      console.error("file read error", err);
+      alert("⚠️ Error reading file.");
     };
     reader.readAsDataURL(f);
     e.target.value = "";
@@ -231,10 +299,12 @@ export default function ChatPage() {
 
   const onType = () => {
     if (!socketRef.current || !roomCode) return;
-    socketRef.current.emit("typing", { roomCode }); // ✅ use current room
+    try {
+      socketRef.current.emit("typing", { roomCode });
+    } catch {}
   };
 
-  // ===== Search =====
+  // ===== Search helpers =====
   const runSearch = (q) => {
     if (!q) {
       setMatchIds([]);
@@ -379,12 +449,16 @@ export default function ChatPage() {
             <span>Today</span>
           </div>
           {msgs.map((m) => (
-            <div key={m.id} className={`row ${m.self ? "me" : "you"}`} ref={(el) => (messageRefs.current[m.id] = el)}>
+            <div
+              key={m.id}
+              className={`row ${m.self ? "me" : m.kind === "system" ? "system-row" : "you"}`}
+              ref={(el) => (messageRefs.current[m.id] = el)}
+            >
               <div className="msg-wrap" style={{ position: "relative" }}>
-                <div className="bubble" dangerouslySetInnerHTML={{ __html: m.html }} />
+                <div className={`bubble ${m.kind === "system" ? "system-bubble" : ""}`} dangerouslySetInnerHTML={{ __html: m.html }} />
                 <div className="meta">
                   <span className="time">{m.time}</span>
-                  {m.self && (
+                  {m.self && m.kind !== "system" && (
                     <span className={`ticks ${m.status === "seen" ? "seen" : ""}`}>
                       {m.status === "sent" ? "✓" : m.status === "seen" ? "✓✓" : "✓✓"}
                     </span>
@@ -435,31 +509,33 @@ export default function ChatPage() {
 
       <style jsx>{`
         :root {
-          --bg: #0f1a25;
-          --panel: #0b1420;
-          --header-1: #ff5fa2;
-          --header-2: #ff7ec7;
+          --bg: #0b101b;
+          --panel: #0f1720;
+          --header-1: #ff66a3;
+          --header-2: #ff85b8;
           --accent: #ff4fa0;
-          --accent-2: #ffd7ec;
-          --text: #1f2330;
-          --muted: #7f8aa3;
-          --bubble-me: #ffe6f4;
-          --bubble-me-b: #ffb9dc;
-          --bubble-you: #eef3f7;
-          --bubble-you-b: #dfe7ef;
+          --accent-2: #ffe0f0;
+          --text: #f6f7fb;
+          --muted: #a8b0c0;
+          --bubble-me: #ffd6e8;
+          --bubble-me-b: #ff9cc4;
+          --bubble-you: #f8f9ff;
+          --bubble-you-b: #e1e8ff;
+          --system-bg: rgba(255,255,255,0.04);
         }
         html,
         body {
-          background: #0b1220;
+          background: var(--bg);
         }
         .app {
           position: relative;
           display: flex;
           flex-direction: column;
           height: 100svh;
-          max-width: 900px;
+          max-width: 980px;
           margin: 0 auto;
-          background: var(--panel);
+          background: linear-gradient(180deg, var(--panel), #0b1220);
+          color: var(--text);
         }
 
         .header {
@@ -470,10 +546,10 @@ export default function ChatPage() {
           align-items: center;
           justify-content: space-between;
           gap: 0.6rem;
-          padding: 0.6rem 0.8rem;
+          padding: 0.8rem 1rem;
           background: linear-gradient(90deg, var(--header-1), var(--header-2));
-          color: #fff;
-          box-shadow: 0 6px 24px rgba(0, 0, 0, 0.16);
+          color: #071320;
+          box-shadow: 0 6px 24px rgba(0, 0, 0, 0.18);
         }
         .header-left {
           display: flex;
@@ -484,17 +560,18 @@ export default function ChatPage() {
         .back-btn {
           border: none;
           background: rgba(255, 255, 255, 0.18);
-          border-radius: 10px;
-          padding: 0.35rem 0.5rem;
+          border-radius: 12px;
+          padding: 0.45rem 0.6rem;
           cursor: pointer;
-          color: #fff;
+          color: #071320;
+          font-weight: 700;
         }
         .avatar {
-          width: 38px;
-          height: 38px;
+          width: 42px;
+          height: 42px;
           border-radius: 50%;
           object-fit: cover;
-          border: 2px solid rgba(255, 255, 255, 0.55);
+          border: 2px solid rgba(255, 255, 255, 0.7);
           background: #fff;
         }
         .partner .name {
@@ -502,58 +579,62 @@ export default function ChatPage() {
           white-space: nowrap;
           overflow: hidden;
           text-overflow: ellipsis;
+          color: #fff;
         }
         .status {
           display: flex;
           align-items: center;
           gap: 0.35rem;
-          font-size: 0.78rem;
+          font-size: 0.86rem;
           opacity: 0.95;
+          color: var(--accent-2);
         }
         .dot {
-          width: 8px;
-          height: 8px;
+          width: 9px;
+          height: 9px;
           border-radius: 50%;
           background: #a7ffb2;
-          box-shadow: 0 0 0 3px rgba(255, 255, 255, 0.35) inset;
+          box-shadow: 0 0 0 3px rgba(255, 255, 255, 0.22) inset;
         }
         .header-right {
           position: relative;
           display: flex;
           align-items: center;
-          gap: 0.35rem;
+          gap: 0.5rem;
         }
         .icon-btn {
           border: none;
-          background: rgba(255, 255, 255, 0.18);
+          background: rgba(255, 255, 255, 0.12);
           border-radius: 10px;
-          padding: 0.45rem;
+          padding: 0.55rem;
           cursor: pointer;
-          color: #fff;
+          color: #071320;
+          font-size: 1.05rem;
         }
 
         .search-area {
           position: relative;
         }
         .search-input {
-          width: 220px;
-          background: #0e1722;
-          color: #e9eef6;
-          border: 1px solid rgba(255, 255, 255, 0.15);
+          width: 260px;
+          background: rgba(255,255,255,0.04);
+          color: var(--text);
+          border: 1px solid rgba(255, 255, 255, 0.06);
           border-radius: 10px;
-          padding: 0.4rem 0.6rem;
+          padding: 0.6rem 0.7rem;
           margin-right: 0.35rem;
+          font-size: 0.95rem;
         }
 
         .menu {
           position: absolute;
           right: 0;
           top: 120%;
-          background: #0e1722;
+          background: rgba(255,255,255,0.03);
           border: 1px solid rgba(255, 255, 255, 0.06);
           border-radius: 10px;
           padding: 0.35rem;
-          min-width: 160px;
+          min-width: 180px;
           display: none;
         }
         .menu.open {
@@ -564,54 +645,67 @@ export default function ChatPage() {
           text-align: left;
           background: transparent;
           border: none;
-          color: #e9eef6;
-          padding: 0.5rem 0.6rem;
+          color: var(--text);
+          padding: 0.6rem 0.8rem;
           border-radius: 8px;
           cursor: pointer;
+          font-size: 0.95rem;
         }
         .menu-item:hover {
-          background: rgba(255, 255, 255, 0.05);
+          background: rgba(255, 255, 255, 0.02);
         }
         .sep {
           height: 1px;
-          background: rgba(255, 255, 255, 0.08);
+          background: rgba(255, 255, 255, 0.04);
           margin: 0.35rem 0;
         }
 
         .chat {
           flex: 1;
           overflow-y: auto;
-          padding: 18px;
-          background: linear-gradient(180deg, #0f1a25 0, #0b1420 100%);
+          padding: 20px;
+          background: linear-gradient(180deg, rgba(7,19,32,0.45) 0%, rgba(7,12,20,0.75) 100%);
         }
         .day-sep {
           text-align: center;
-          color: #cbd2e1;
-          font-size: 0.78rem;
+          color: var(--muted);
+          font-size: 0.86rem;
           margin: 8px 0 16px;
         }
         .day-sep span {
-          background: rgba(255, 255, 255, 0.06);
+          background: var(--system-bg);
           padding: 0.25rem 0.6rem;
           border-radius: 12px;
         }
 
         .row {
           display: flex;
-          margin: 6px 0;
+          margin: 8px 0;
         }
         .row.me {
           justify-content: flex-end;
         }
+        .row.system-row {
+          justify-content: center;
+        }
+
         .bubble {
           max-width: 74%;
           background: #fff;
-          border: 1px solid #eee;
-          padding: 0.55rem 0.7rem 0.6rem;
+          border: 1px solid rgba(255,255,255,0.02);
+          padding: 0.6rem 0.85rem;
           border-radius: 14px;
           line-height: 1.28;
           word-wrap: break-word;
-          box-shadow: 0 2px 10px rgba(0, 0, 0, 0.08);
+          box-shadow: 0 4px 18px rgba(0, 0, 0, 0.35);
+          color: #071320;
+        }
+        .system-bubble {
+          background: var(--system-bg);
+          color: var(--accent-2);
+          border-radius: 12px;
+          padding: 0.45rem 0.6rem;
+          font-weight: 600;
         }
         .me .bubble {
           background: var(--bubble-me);
@@ -624,13 +718,13 @@ export default function ChatPage() {
           border-top-left-radius: 4px;
         }
         .bubble :global(img) {
-          max-width: 220px;
-          border-radius: 10px;
+          max-width: 260px;
+          border-radius: 12px;
           display: block;
         }
         .bubble :global(video) {
-          max-width: 220px;
-          border-radius: 10px;
+          max-width: 260px;
+          border-radius: 12px;
           display: block;
         }
         .meta {
@@ -638,83 +732,86 @@ export default function ChatPage() {
           align-items: center;
           gap: 0.35rem;
           margin-top: 0.28rem;
-          font-size: 0.72rem;
-          color: #7f8aa3;
+          font-size: 0.78rem;
+          color: var(--muted);
         }
         .ticks {
-          font-size: 0.9rem;
+          font-size: 0.95rem;
           line-height: 1;
         }
         .ticks.seen {
-          color: #4ea3ff;
+          color: var(--accent);
         }
 
         .inputbar {
           display: flex;
           align-items: center;
-          gap: 0.5rem;
-          padding: 0.6rem 0.7rem;
-          background: #0e1722;
-          border-top: 1px solid rgba(255, 255, 255, 0.06);
+          gap: 0.6rem;
+          padding: 0.9rem 1rem;
+          background: rgba(255,255,255,0.015);
+          border-top: 1px solid rgba(255, 255, 255, 0.03);
         }
         .tool {
           border: none;
-          background: transparent;
+          background: rgba(255,255,255,0.03);
           cursor: pointer;
           display: grid;
           place-items: center;
-          border-radius: 50%;
-          width: 34px;
-          height: 34px;
-          color: #e9eef6;
+          border-radius: 10px;
+          width: 46px;
+          height: 46px;
+          color: var(--text);
+          font-size: 1.18rem;
         }
         .msg-field {
           flex: 1;
-          background: #121d2a;
-          color: #e9eef6;
-          border: 1px solid rgba(255, 255, 255, 0.08);
-          border-radius: 22px;
-          padding: 0.55rem 0.75rem;
+          background: rgba(255,255,255,0.02);
+          color: var(--text);
+          border: 1px solid rgba(255, 255, 255, 0.04);
+          border-radius: 28px;
+          padding: 0.75rem 1rem;
           outline: none;
+          font-size: 0.98rem;
         }
         .msg-field::placeholder {
-          color: #93a0b8;
+          color: var(--muted);
         }
         .send {
           background: linear-gradient(135deg, var(--accent), #ff9fd0);
           color: #071320;
           border: none;
           border-radius: 50%;
-          width: 40px;
-          height: 40px;
+          width: 48px;
+          height: 48px;
           display: grid;
           place-items: center;
           cursor: pointer;
-          box-shadow: 0 6px 18px rgba(255, 79, 160, 0.35);
+          box-shadow: 0 8px 24px rgba(255, 79, 160, 0.2);
+          font-size: 1.05rem;
         }
 
         .emoji-pop {
           position: absolute;
-          bottom: 46px;
+          bottom: 56px;
           left: 0;
-          background: #0e1722;
-          border: 1px solid rgba(255, 255, 255, 0.12);
+          background: rgba(255,255,255,0.02);
+          border: 1px solid rgba(255, 255, 255, 0.06);
           border-radius: 12px;
-          padding: 0.35rem;
+          padding: 0.5rem;
           display: grid;
           grid-template-columns: repeat(5, 1fr);
-          gap: 0.25rem;
+          gap: 0.35rem;
         }
         .emoji-item {
           border: none;
           background: transparent;
-          font-size: 1.1rem;
+          font-size: 1.4rem;
           cursor: pointer;
-          padding: 0.2rem;
+          padding: 0.25rem;
           border-radius: 8px;
         }
         .emoji-item:hover {
-          background: rgba(255, 255, 255, 0.06);
+          background: rgba(255, 255, 255, 0.02);
         }
 
         @media (max-width: 640px) {
@@ -722,11 +819,20 @@ export default function ChatPage() {
             max-width: 82%;
           }
           .avatar {
-            width: 34px;
-            height: 34px;
+            width: 36px;
+            height: 36px;
           }
           .search-input {
             width: 160px;
+          }
+          .tool {
+            width: 40px;
+            height: 40px;
+            font-size: 1rem;
+          }
+          .send {
+            width: 44px;
+            height: 44px;
           }
         }
       `}</style>
