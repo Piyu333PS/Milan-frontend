@@ -1,3 +1,4 @@
+
 "use client";
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import Head from "next/head";
@@ -528,28 +529,62 @@ export default function ConnectPage() {
           </article>
         </section>
 
-        {showLoader ? <div className="status">{statusMessage}</div> : null}
+        {/* Old small status moved; we now show a modal while searching */}
+        {showLoader && isSearching && (
+          <div className="search-modal-overlay" role="dialog" aria-modal="true">
+            <div className="search-modal">
+              <svg className="heart-svg" viewBox="0 0 32 29" aria-hidden>
+                <defs>
+                  <linearGradient id="g1" x1="0" x2="1" y1="0" y2="1">
+                    <stop offset="0%" stopColor="#ff9fb0" />
+                    <stop offset="100%" stopColor="#ff6ea7" />
+                  </linearGradient>
+                </defs>
+                <path fill="url(#g1)" d="M23.6,0c-2.9,0-4.6,1.8-5.6,3.1C16.9,1.8,15.2,0,12.3,0C8.1,0,5.3,3,5.3,6.7c0,7.1,11.7,13.9,11.7,13.9
+                s11.7-6.8,11.7-13.9C28.7,3,25.9,0,23.6,0z"/>
+              </svg>
+              <div className="modal-body">
+                <h2>🌙 Searching for your midnight spark…</h2>
+                <p>
+                  We’re gently nudging hearts together — finding someone who vibes
+                  with your rhythm. If you want to explore other Milan delights,
+                  tap below to stop searching and return to the menu. 💌
+                </p>
+                <div className="modal-actions">
+                  <button className="stopBtn" onClick={() => stopSearch()}>
+                    ✖ Stop searching
+                  </button>
+                  <button className="keepBtn" onClick={() => {
+                    setStatusMessage((s)=>s);
+                  }}>
+                    ✨ Keep searching
+                  </button>
+                </div>
+                <div className="small-note">{statusMessage}</div>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* older fallback status line (kept for accessibility) */}
+        {showLoader && !isSearching && (
+          <div className="status">{statusMessage}</div>
+        )}
       </main>
 
       <style>{`
-        :root{ --brandH: 170px; --bottomH: 60px; } /* smaller bottom gap now that diyas are gone */
-        *,*::before,*::after{ box-sizing: border-box; min-width:0; }
+        :root{ --brandH: 170px; --bottomH: 60px; } 
+        *,*::before,*::after{ box-sizing:border-box; min-width:0; }
         html,body{ margin:0; padding:0; height:100%; background:#08060c; color:#f7f7fb; font-family:Poppins,system-ui,-apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif; }
-        body{ overflow:hidden; } /* desktop */
+        body{ overflow:hidden; } 
         #heartsCanvas{ position:fixed; inset:0; z-index:0; pointer-events:none; }
-        #fxCanvas{ position:fixed; inset:0; z-index:0; pointer-events:none; }
+        #fxCanvas{ position:fixed; inset:0; z-index:0; pointerEvents:none; }
 
         .frame{ position:fixed; top:10px; bottom:10px; right:10px; left:210px; z-index:2; pointer-events:none; }
-        .frame::before,.frame::after{ content:""; position:absolute; inset:0; border-radius:18px; }
-        .frame::before{
-          padding:2px; background:linear-gradient(135deg, rgba(255,209,102,.9), rgba(255,209,102,.45) 40%, rgba(255,110,167,.55), rgba(255,209,102,.9));
-          -webkit-mask:linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
-          -webkit-mask-composite:xor; mask-composite:exclude; border-radius:18px; box-shadow:0 0 24px rgba(255,209,102,.32), 0 0 46px rgba(255,110,167,.2);
-        }
+        .frame::before{ padding:2px; background:linear-gradient(135deg, rgba(255,209,102,.9), rgba(255,209,102,.45) 40%, rgba(255,110,167,.55), rgba(255,209,102,.9)); -webkit-mask:linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0); -webkit-mask-composite:xor; mask-composite:exclude; border-radius:18px; box-shadow:0 0 24px rgba(255,209,102,.32), 0 0 46px rgba(255,110,167,.2); }
         .frame::after{ inset:8px; border:2px solid rgba(255,209,102,.6); border-radius:14px; box-shadow:0 0 20px rgba(255,209,102,.28) inset; }
 
-        .sidebar{ position:fixed; left:0; top:0; bottom:0; width:200px; background:rgba(255,255,255,.04);
-          backdrop-filter:blur(8px); border-right:1px solid rgba(255,255,255,.06); z-index:3; display:flex; flex-direction:column; align-items:center; padding-top:18px; }
+        .sidebar{ position:fixed; left:0; top:0; bottom:0; width:200px; background:rgba(255,255,255,.04); backdrop-filter:blur(8px); border-right:1px solid rgba(255,255,255,.06); z-index:3; display:flex; flex-direction:column; align-items:center; padding-top:18px; }
         .avatarWrap{ width:70px; height:70px; border-radius:50%; overflow:hidden; box-shadow:0 6px 18px rgba(0,0,0,.35); }
         .name{ margin-top:8px; font-weight:800; }
         .meter{ width:140px; height:8px; background:rgba(255,255,255,.1); border-radius:8px; margin-top:6px; overflow:hidden; }
@@ -559,14 +594,11 @@ export default function ConnectPage() {
         .nav li{ padding:10px 14px; margin:6px 12px; border-radius:12px; background:rgba(255,255,255,.04); cursor:pointer; font-weight:700; }
 
         .brandBlock{ position:fixed; left:50%; transform:translateX(-50%); top:120px; text-align:center; z-index:3; pointer-events:none; }
-        .heroBrand{ font-family:'Great Vibes', cursive; font-size:116px; line-height:1.02; background: linear-gradient(180deg, #fff5cc, #ffd166 48%, #f3b03f);
-          -webkit-background-clip: text; background-clip: text; color: transparent; text-shadow: 0 0 22px rgba(255,209,102,.35), 0 0 40px rgba(255,110,167,.15); }
-        .brandTagline{ margin-top:6px; font-size:20px; font-weight:700; letter-spacing:.02em; background: linear-gradient(90deg, #ffd166, #ffb6c1);
-          -webkit-background-clip:text; background-clip:text; color:transparent; font-style: italic; position:relative; display:inline-block; }
+        .heroBrand{ font-family:'Great Vibes', cursive; font-size:116px; line-height:1.02; background: linear-gradient(180deg, #fff5cc, #ffd166 48%, #f3b03f); -webkit-background-clip: text; background-clip: text; color: transparent; text-shadow: 0 0 22px rgba(255,209,102,.35), 0 0 40px rgba(255,110,167,.15); }
+        .brandTagline{ margin-top:6px; font-size:20px; font-weight:700; letter-spacing:.02em; background: linear-gradient(90deg, #ffd166, #ffb6c1); -webkit-background-clip:text; background-clip:text; color:transparent; font-style: italic; position:relative; display:inline-block; }
         .brandTagline:after{ content:""; display:block; height:2px; margin:8px auto 0; width:160px; border-radius:999px; background:linear-gradient(90deg, rgba(255,182,193,0), #ffd166, rgba(255,182,193,0)); box-shadow:0 0 12px rgba(255,209,102,.45); }
 
-        .heroWrap{ position:relative; margin-left:200px; z-index:3; min-height:100vh; display:flex; flex-direction:column; align-items:center; justify-content:center;
-          padding: calc(var(--brandH) + 16px) 12px var(--bottomH); box-sizing:border-box; gap:16px; }
+        .heroWrap{ position:relative; margin-left:200px; z-index:3; min-height:100vh; display:flex; flex-direction:column; align-items:center; justify-content:center; padding: calc(var(--brandH) + 16px) 12px var(--bottomH); box-sizing:border-box; gap:16px; }
         .miniGreeting{ max-width:min(980px, calc(100vw - 260px)); text-align:center; font-weight:700; line-height:1.35; color:#ffe9ac; text-shadow:0 0 14px rgba(255,209,102,.22); margin:0; }
 
         .featuresGrid{ width:min(980px, calc(100vw - 260px)); display:grid; grid-template-columns:repeat(2, minmax(260px, 1fr)); gap:16px; }
@@ -576,7 +608,7 @@ export default function ConnectPage() {
         .featureCard:hover{ transform: translateY(-4px); box-shadow:0 18px 56px rgba(0,0,0,.45); }
         .featureCard.text{ border-color:rgba(255,110,167,.22); }
         .featureCard.video{ border-color:rgba(255,110,167,.18); }
-        .featureCard.invite{ border-color:rgba(160, 220, 255, .28); } /* light blue hint for invite */
+        .featureCard.invite{ border-color:rgba(160, 220, 255, .28); }
         .featureCard.studio{ border-color:rgba(140,150,255,.22); }
         .featureCard.celebrate{ border-color:rgba(255,209,102,.35); }
 
@@ -593,36 +625,82 @@ export default function ConnectPage() {
         .status{ font-weight:800; color:#fff; animation:blink 1s infinite; }
         @keyframes blink{0%{opacity:.3}50%{opacity:1}100%{opacity:.3}}
 
-        /* ===== Mobile fixes ===== */
-        @media(max-width:1024px){
-          :root{ --brandH: 160px; --bottomH: 60px; }
-          .frame{ left:12px; right:12px; }
-          .brandBlock{ top:118px; }
-          .heroBrand{ font-size:96px; }
+        /* Search modal overlay */
+        .search-modal-overlay {
+          position: fixed;
+          inset: 0;
+          z-index: 60;
+          display: grid;
+          place-items: center;
+          background: rgba(2,6,23,0.6);
+          backdrop-filter: blur(6px);
         }
-        @media(max-width:860px){
-          :root{ --brandH: 150px; --bottomH: 70px; }
-          .sidebar{display:none;}
-          .frame{ left:12px; right:12px; }
-          .heroWrap{ margin-left:0; }
-          .featuresGrid{ width:min(980px, calc(100vw - 48px)); grid-template-columns:1fr 1fr; }
+        .search-modal {
+          width: min(560px, calc(100% - 48px));
+          max-width: 680px;
+          background: linear-gradient(180deg, rgba(255,255,255,0.03), rgba(255,255,255,0.02));
+          border-radius: 18px;
+          padding: 22px;
+          box-shadow: 0 24px 80px rgba(11,6,18,0.8);
+          display: flex;
+          gap: 18px;
+          align-items: center;
+          border: 1px solid rgba(255,255,255,0.04);
         }
-        @media(max-width:560px){
-          :root{ --brandH: 0px; --bottomH: 80px; }
-          html,body{ overflow:auto; }  /* enable scroll */
-          .brandBlock{
-            position:static; transform:none; top:auto; margin:16px 0 4px;
-            pointer-events:none; text-align:center;
-          }
-          .heroBrand{ font-size:64px; }
-          .brandTagline{ font-size:15px; }
-          .heroWrap{
-            padding: 8px 12px var(--bottomH);
-            justify-content:flex-start; gap:14px;
-          }
-          .featuresGrid{ grid-template-columns:1fr; width:min(980px, calc(100vw - 28px)); }
-          .cta{ width:100%; }
-          .miniGreeting{ padding:0 6px; }
+        .heart-svg {
+          width: 120px;
+          height: 120px;
+          flex: 0 0 120px;
+          filter: drop-shadow(0 10px 30px rgba(255,79,160,0.18));
+        }
+        .modal-body {
+          flex: 1;
+          color: #fff;
+        }
+        .modal-body h2 {
+          margin: 0 0 8px 0;
+          font-size: 22px;
+          letter-spacing: 0.2px;
+        }
+        .modal-body p {
+          margin: 0 0 12px 0;
+          color: #ffdfe8;
+          line-height: 1.35;
+        }
+        .modal-actions {
+          display:flex;
+          gap:10px;
+          margin-top:8px;
+        }
+        .stopBtn {
+          background: linear-gradient(90deg,#ff6ea7,#ff9fb0);
+          color: #071320;
+          border: none;
+          padding: 10px 14px;
+          border-radius: 12px;
+          font-weight: 800;
+          cursor: pointer;
+          box-shadow: 0 12px 36px rgba(255,79,160,0.18);
+        }
+        .keepBtn {
+          background: transparent;
+          color: #ffd6ea;
+          border: 1px solid rgba(255,255,255,0.06);
+          padding: 10px 12px;
+          border-radius: 12px;
+          cursor: pointer;
+        }
+        .small-note {
+          margin-top:10px;
+          color: #f7f7fb;
+          opacity: 0.9;
+          font-size: 13px;
+        }
+
+        /* Responsive */
+        @media(max-width:760px) {
+          .search-modal{ flex-direction:column; padding:14px; gap:12px; width:calc(100% - 32px); }
+          .heart-svg { width:96px; height:96px; }
         }
       `}</style>
     </>
