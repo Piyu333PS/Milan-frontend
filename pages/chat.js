@@ -1,9 +1,8 @@
 // pages/chat.js
-// FULLY FIXED VERSION with Mobile Image Support:
-// - Compress images before sending (mobile photos are huge!)
-// - Alert popup now works on mobile
-// - Better file size handling
-// - Proper disconnect flow for both desktop and mobile
+// FIXED: Removed false disconnect alerts and auto-disconnect issues
+// - Better socket connection handling
+// - No premature disconnect alerts
+// - Stable connection maintenance
 
 import { useEffect, useRef, useState } from "react";
 import Head from "next/head";
@@ -13,8 +12,8 @@ const BACKEND_URL =
   process.env.NEXT_PUBLIC_BACKEND_URL || "https://milan-j9u9.onrender.com";
 
 const MAX_FILE_BYTES = 15 * 1024 * 1024; // 15 MB
-const TARGET_IMAGE_SIZE = 800; // Resize images to max 800px width/height
-const IMAGE_QUALITY = 0.7; // JPEG quality
+const TARGET_IMAGE_SIZE = 800;
+const IMAGE_QUALITY = 0.7;
 
 const getAvatarForGender = (g) => {
   const key = String(g || "").toLowerCase();
@@ -34,7 +33,6 @@ const compressImage = (file) => {
         let width = img.width;
         let height = img.height;
 
-        // Resize if too large
         if (width > TARGET_IMAGE_SIZE || height > TARGET_IMAGE_SIZE) {
           if (width > height) {
             height = (height / width) * TARGET_IMAGE_SIZE;
@@ -50,7 +48,6 @@ const compressImage = (file) => {
         const ctx = canvas.getContext("2d");
         ctx.drawImage(img, 0, 0, width, height);
 
-        // Convert to JPEG with compression
         canvas.toBlob(
           (blob) => {
             if (blob) {
@@ -100,6 +97,9 @@ export default function ChatPage() {
   // File uploading state
   const [isUploading, setIsUploading] = useState(false);
 
+  // Connection state
+  const [isConnected, setIsConnected] = useState(false);
+
   // ===== Refs =====
   const socketRef = useRef(null);
   const msgRef = useRef(null);
@@ -107,6 +107,8 @@ export default function ChatPage() {
   const listRef = useRef(null);
   const messageRefs = useRef({});
   const processedMsgIds = useRef(new Set());
+  const partnerFoundRef = useRef(false); // Track if partner was actually found
+  const isCleaningUp = useRef(false);
 
   // ===== Utils =====
   const timeNow = () => {
@@ -137,48 +139,69 @@ export default function ChatPage() {
     setPartnerAvatarSrc(getAvatarForGender("unknown"));
 
     const socket = io(BACKEND_URL, { 
-      transports: ["websocket"], 
+      transports: ["websocket", "polling"], 
       autoConnect: true,
       reconnection: true,
       reconnectionAttempts: 5,
       reconnectionDelay: 1000,
+      timeout: 10000,
     });
     socketRef.current = socket;
 
+    socket.on("connect", () => {
+      console.log("Socket connected:", socket.id);
+      setIsConnected(true);
+      
+      socket.emit("userInfo", {
+        name: localName || "You",
+        avatar: null,
+        gender: "unknown",
+      });
+
+      socket.emit("lookingForPartner", { type: "text" });
+    });
+
     socket.on("connect_error", (err) => {
       console.error("Socket connect error:", err?.message || err);
-      const sysId = `sys-err-${Date.now()}`;
-      if (!processedMsgIds.current.has(sysId)) {
-        processedMsgIds.current.add(sysId);
-        setMsgs((p) => [
-          ...p,
-          { id: sysId, self: false, kind: "system", html: "⚠️ Connection issue. Trying to reconnect...", time: timeNow() },
-        ]);
+      // Don't show alert on initial connection errors
+      if (partnerFoundRef.current) {
+        const sysId = `sys-err-${Date.now()}`;
+        if (!processedMsgIds.current.has(sysId)) {
+          processedMsgIds.current.add(sysId);
+          setMsgs((p) => [
+            ...p,
+            { id: sysId, self: false, kind: "system", html: "⚠️ Connection issue. Reconnecting...", time: timeNow() },
+          ]);
+        }
       }
     });
 
     socket.on("disconnect", (reason) => {
       console.log("Socket disconnected:", reason);
-      const sysId = `sys-dis-${Date.now()}`;
-      if (!processedMsgIds.current.has(sysId)) {
-        processedMsgIds.current.add(sysId);
-        setMsgs((p) => [
-          ...p,
-          { id: sysId, self: false, kind: "system", html: `Disconnected (${String(reason)}).`, time: timeNow() },
-        ]);
+      setIsConnected(false);
+      
+      // Only show disconnect message if we had a partner
+      if (partnerFoundRef.current && !isCleaningUp.current) {
+        // Don't show for normal disconnects (transport close, io client disconnect)
+        if (reason !== "io client disconnect" && reason !== "transport close") {
+          const sysId = `sys-dis-${Date.now()}`;
+          if (!processedMsgIds.current.has(sysId)) {
+            processedMsgIds.current.add(sysId);
+            setMsgs((p) => [
+              ...p,
+              { id: sysId, self: false, kind: "system", html: `Connection lost (${String(reason)}).`, time: timeNow() },
+            ]);
+          }
+        }
       }
     });
 
-    socket.emit("userInfo", {
-      name: localName || "You",
-      avatar: null,
-      gender: "unknown",
-    });
-
-    socket.emit("lookingForPartner", { type: "text" });
-
     socket.on("partnerFound", ({ roomCode: rc, partner }) => {
       if (!rc) return;
+      
+      console.log("Partner found:", partner);
+      partnerFoundRef.current = true;
+      
       setRoomCode(rc);
       const pName = partner?.name || "Romantic Stranger";
       const pAvatar = partner?.avatar || getAvatarForGender(partner?.gender);
@@ -264,13 +287,18 @@ export default function ChatPage() {
 
     socket.on("reaction", () => {});
 
-    // Partner disconnected - show alert
+    // Partner disconnected - ONLY show alert if partner was actually connected
     socket.on("partnerDisconnected", () => {
       console.log("Partner disconnected event received");
-      setShowDisconnectAlert(true);
+      
+      // Only show alert if we had a partner and we're not cleaning up
+      if (partnerFoundRef.current && !isCleaningUp.current) {
+        setShowDisconnectAlert(true);
+      }
     });
 
     return () => {
+      isCleaningUp.current = true;
       try {
         socket.off("connect_error");
         socket.off("disconnect");
@@ -334,13 +362,11 @@ export default function ChatPage() {
     try {
       let dataUrl;
       
-      // Compress images from mobile
       if (f.type.startsWith("image/")) {
         console.log(`Original image size: ${(f.size / 1024 / 1024).toFixed(2)} MB`);
         dataUrl = await compressImage(f);
         console.log(`Compressed image size: ${(dataUrl.length / 1024 / 1024).toFixed(2)} MB`);
       } else {
-        // For non-images, read as-is
         dataUrl = await new Promise((resolve, reject) => {
           const reader = new FileReader();
           reader.onload = () => resolve(reader.result);
@@ -349,7 +375,6 @@ export default function ChatPage() {
         });
       }
 
-      // Check compressed size
       const sizeInMB = dataUrl.length / 1024 / 1024;
       if (sizeInMB > 10) {
         alert("⚠️ Image is still too large after compression. Try a smaller image.");
@@ -367,14 +392,12 @@ export default function ChatPage() {
         inner = `<a class="file-link" download="${escapeHtml(f.name)}" href="${dataUrl}">${escapeHtml(f.name)}</a>`;
       }
 
-      // Optimistic UI
       setMsgs((p) => [
         ...p,
         { id, self: true, kind: "file", html: inner, time: timeNow(), status: "sent" },
       ]);
       scrollToBottom();
 
-      // Send to server
       socketRef.current.emit("fileMessage", {
         id,
         fileName: f.name,
@@ -405,6 +428,7 @@ export default function ChatPage() {
   // Handle disconnect alert OK button
   const handleDisconnectOk = () => {
     setShowDisconnectAlert(false);
+    isCleaningUp.current = true;
     try {
       socketRef.current?.emit("disconnectByUser");
       socketRef.current?.disconnect();
@@ -507,7 +531,8 @@ export default function ChatPage() {
             <div className="partner">
               <div className="name">{partnerName}</div>
               <div className="status">
-                <span className="dot" /> {typing ? "typing…" : roomCode ? "online" : "searching…"}
+                <span className={`dot ${isConnected && roomCode ? 'online' : ''}`} /> 
+                {typing ? "typing…" : roomCode ? "online" : "searching…"}
               </div>
             </div>
           </div>
@@ -557,6 +582,7 @@ export default function ChatPage() {
               <button
                 className="menu-item"
                 onClick={() => {
+                  isCleaningUp.current = true;
                   try {
                     socketRef.current.emit("disconnectByUser");
                     socketRef.current.disconnect();
@@ -691,7 +717,7 @@ export default function ChatPage() {
           overflow: hidden;
         }
 
-        /* Disconnect Alert - IMPROVED FOR MOBILE */
+        /* Disconnect Alert */
         .alert-overlay {
           position: fixed;
           top: 0;
@@ -892,6 +918,12 @@ export default function ChatPage() {
           width: 9px;
           height: 9px;
           border-radius: 50%;
+          background: #666;
+          box-shadow: 0 0 10px rgba(102,102,102,0.14);
+          transition: background 0.3s ease, box-shadow 0.3s ease;
+        }
+
+        .dot.online {
           background: #a7ffb2;
           box-shadow: 0 0 10px rgba(167,255,178,0.14);
         }
