@@ -1,8 +1,9 @@
 // pages/chat.js
-// Fixed version: Pink romantic theme with VISIBLE text on all bubbles
-// ME bubble: Pink background with WHITE text (high contrast)
-// YOU bubble: Dark background with WHITE text
-// Input field: WHITE text visible
+// FULLY FIXED VERSION:
+// - Image/file sending bug fixed (proper dedupe logic)
+// - Cute disconnect alert with OK button
+// - All text visibility issues resolved
+// - Complete error handling
 
 import { useEffect, useRef, useState } from "react";
 import Head from "next/head";
@@ -27,25 +28,29 @@ export default function ChatPage() {
   const [typing, setTyping] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
 
-  const [msgs, setMsgs] = useState([]); // {id,self,kind:'text'|'file'|'system',html,time,status?}
+  const [msgs, setMsgs] = useState([]);
   const [roomCode, setRoomCode] = useState(null);
 
   // Search UI
   const [searchOpen, setSearchOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
-  const [matchIds, setMatchIds] = useState([]); // ids that match
+  const [matchIds, setMatchIds] = useState([]);
   const [matchIndex, setMatchIndex] = useState(0);
 
   // Emoji picker
   const [emojiOpen, setEmojiOpen] = useState(false);
   const EMOJIS = ["😊", "❤️", "😂", "👍", "🔥", "😍", "🤗", "😘", "😎", "🥰"];
 
+  // Disconnect alert
+  const [showDisconnectAlert, setShowDisconnectAlert] = useState(false);
+
   // ===== Refs =====
   const socketRef = useRef(null);
   const msgRef = useRef(null);
   const fileRef = useRef(null);
   const listRef = useRef(null);
-  const messageRefs = useRef({}); // id -> DOM
+  const messageRefs = useRef({});
+  const processedMsgIds = useRef(new Set()); // Track processed message IDs
 
   // ===== Utils =====
   const timeNow = () => {
@@ -80,17 +85,25 @@ export default function ChatPage() {
 
     socket.on("connect_error", (err) => {
       console.error("Socket connect error:", err?.message || err);
-      setMsgs((p) => [
-        ...p,
-        { id: `sys-${Date.now()}`, self: false, kind: "system", html: "⚠️ Connection issue. Trying to reconnect...", time: timeNow() },
-      ]);
+      const sysId = `sys-err-${Date.now()}`;
+      if (!processedMsgIds.current.has(sysId)) {
+        processedMsgIds.current.add(sysId);
+        setMsgs((p) => [
+          ...p,
+          { id: sysId, self: false, kind: "system", html: "⚠️ Connection issue. Trying to reconnect...", time: timeNow() },
+        ]);
+      }
     });
 
     socket.on("disconnect", (reason) => {
-      setMsgs((p) => [
-        ...p,
-        { id: `sys-${Date.now()}`, self: false, kind: "system", html: `Disconnected (${String(reason)}).`, time: timeNow() },
-      ]);
+      const sysId = `sys-dis-${Date.now()}`;
+      if (!processedMsgIds.current.has(sysId)) {
+        processedMsgIds.current.add(sysId);
+        setMsgs((p) => [
+          ...p,
+          { id: sysId, self: false, kind: "system", html: `Disconnected (${String(reason)}).`, time: timeNow() },
+        ]);
+      }
     });
 
     socket.emit("userInfo", {
@@ -114,17 +127,29 @@ export default function ChatPage() {
         socket.emit("joinRoom", { roomCode: rc });
       } catch (e) {}
 
-      setMsgs((p) => [
-        ...p,
-        { id: `sys-${Date.now()}`, self: false, kind: "system", html: `You are connected with ${escapeHtml(pName)}.`, time: timeNow() },
-      ]);
+      const sysId = `sys-found-${Date.now()}`;
+      if (!processedMsgIds.current.has(sysId)) {
+        processedMsgIds.current.add(sysId);
+        setMsgs((p) => [
+          ...p,
+          { id: sysId, self: false, kind: "system", html: `You are connected with ${escapeHtml(pName)}.`, time: timeNow() },
+        ]);
+      }
       scrollToBottom();
     });
 
+    // Incoming text message
     socket.on("message", (msg) => {
       if (!msg || !msg.id) return;
+      
+      // Check if already processed
+      if (processedMsgIds.current.has(msg.id)) return;
+      processedMsgIds.current.add(msg.id);
+
       setMsgs((prev) => {
+        // Double-check in state as well
         if (prev.some((x) => x.id === msg.id)) return prev;
+        
         const isSelf = socket.id === msg.senderId;
         return [
           ...prev,
@@ -140,20 +165,30 @@ export default function ChatPage() {
       scrollToBottom();
     });
 
+    // Incoming file message
     socket.on("fileMessage", (msg) => {
       if (!msg || !msg.id) return;
+      
+      // Check if already processed
+      if (processedMsgIds.current.has(msg.id)) return;
+      processedMsgIds.current.add(msg.id);
+
       setMsgs((prev) => {
+        // Double-check in state as well
         if (prev.some((x) => x.id === msg.id)) return prev;
+        
         const isSelf = socket.id === msg.senderId;
         const t = (msg.fileType || "").toLowerCase();
         let inner = "";
+        
         if (t.startsWith("image/")) {
-          inner = `<a href="${msg.fileData}" target="_blank" rel="noopener"><img src="${msg.fileData}" /></a>`;
+          inner = `<a href="${msg.fileData}" target="_blank" rel="noopener"><img src="${msg.fileData}" alt="image" /></a>`;
         } else if (t.startsWith("video/")) {
           inner = `<video controls><source src="${msg.fileData}" type="${msg.fileType}"></video>`;
         } else {
           inner = `<a class="file-link" download="${escapeHtml(msg.fileName || "file")}" href="${msg.fileData}">${escapeHtml(msg.fileName || "file")}</a>`;
         }
+        
         return [
           ...prev,
           { id: msg.id, self: isSelf, kind: "file", html: inner, time: timeNow() },
@@ -170,20 +205,9 @@ export default function ChatPage() {
 
     socket.on("reaction", () => {});
 
+    // Partner disconnected - show cute alert
     socket.on("partnerDisconnected", () => {
-      const sysId = `sys-dis-${Date.now()}`;
-      setMsgs((p) => [
-        ...p,
-        { id: sysId, self: false, kind: "system", html: "Your partner has been disconnected.", time: timeNow() },
-      ]);
-      scrollToBottom();
-
-      setTimeout(() => {
-        try {
-          socket.disconnect();
-        } catch {}
-        window.location.href = "/connect";
-      }, 1200);
+      setShowDisconnectAlert(true);
     });
 
     return () => {
@@ -205,6 +229,9 @@ export default function ChatPage() {
     const val = (msgRef.current?.value || "").trim();
     if (!val || !socketRef.current || !roomCode) return;
     const id = genId();
+
+    // Add to processed set immediately
+    processedMsgIds.current.add(id);
 
     setMsgs((p) => [
       ...p,
@@ -242,18 +269,24 @@ export default function ChatPage() {
     }
 
     const id = genId();
+    
+    // Add to processed set immediately
+    processedMsgIds.current.add(id);
+
     const reader = new FileReader();
     reader.onload = () => {
       const dataUrl = reader.result;
       let inner = "";
+      
       if (f.type.startsWith("image/")) {
-        inner = `<a href="${dataUrl}" target="_blank" rel="noopener"><img src="${dataUrl}" /></a>`;
+        inner = `<a href="${dataUrl}" target="_blank" rel="noopener"><img src="${dataUrl}" alt="image" /></a>`;
       } else if (f.type.startsWith("video/")) {
         inner = `<video controls><source src="${dataUrl}" type="${f.type}"></video>`;
       } else {
         inner = `<a class="file-link" download="${escapeHtml(f.name)}" href="${dataUrl}">${escapeHtml(f.name)}</a>`;
       }
 
+      // Optimistic UI
       setMsgs((p) => [
         ...p,
         { id, self: true, kind: "file", html: inner, time: timeNow(), status: "sent" },
@@ -275,10 +308,12 @@ export default function ChatPage() {
         alert("⚠️ Failed to send file. Please try again.");
       }
     };
+    
     reader.onerror = (err) => {
       console.error("file read error", err);
       alert("⚠️ Error reading file.");
     };
+    
     reader.readAsDataURL(f);
     e.target.value = "";
   };
@@ -288,6 +323,15 @@ export default function ChatPage() {
     try {
       socketRef.current.emit("typing", { roomCode });
     } catch {}
+  };
+
+  // Handle disconnect alert OK button
+  const handleDisconnectOk = () => {
+    setShowDisconnectAlert(false);
+    try {
+      socketRef.current?.disconnect();
+    } catch {}
+    window.location.href = "https://milanlove.in/connect";
   };
 
   // ===== Search helpers =====
@@ -307,6 +351,7 @@ export default function ChatPage() {
       if (el) el.scrollIntoView({ behavior: "smooth", block: "center" });
     }
   };
+  
   const jumpNext = () => {
     if (!matchIds.length) return;
     const next = (matchIndex + 1) % matchIds.length;
@@ -350,10 +395,26 @@ export default function ChatPage() {
       </Head>
 
       <div className="app">
+        {/* Disconnect Alert Overlay */}
+        {showDisconnectAlert && (
+          <div className="alert-overlay">
+            <div className="alert-box">
+              <div className="alert-icon">💔</div>
+              <h2 className="alert-title">Partner Disconnected</h2>
+              <p className="alert-message">
+                Your partner has left the chat. Don't worry, there are many hearts waiting to connect with you! 💕
+              </p>
+              <button className="alert-btn" onClick={handleDisconnectOk}>
+                OK
+              </button>
+            </div>
+          </div>
+        )}
+
         {/* Header */}
         <header className="header">
           <div className="header-left">
-            <button className="back-btn" onClick={() => (window.location.href = "/connect")} aria-label="Back">
+            <button className="back-btn" onClick={() => (window.location.href = "https://milanlove.in/connect")} aria-label="Back">
               ⟵
             </button>
             <img className="avatar" src={partnerAvatarSrc} alt="DP" />
@@ -416,7 +477,7 @@ export default function ChatPage() {
                     socketRef.current.emit("disconnectByUser");
                     socketRef.current.disconnect();
                   } catch {}
-                  window.location.href = "/connect";
+                  window.location.href = "https://milanlove.in/connect";
                 }}
               >
                 🔌 Disconnect
@@ -494,7 +555,6 @@ export default function ChatPage() {
       </div>
 
       <style jsx>{`
-        /* Root - color variables */
         :root {
           --bg-pink-1: #2b0b1e;
           --bg-pink-2: #120317;
@@ -538,6 +598,128 @@ export default function ChatPage() {
           overflow: hidden;
         }
 
+        /* Disconnect Alert */
+        .alert-overlay {
+          position: fixed;
+          top: 0;
+          left: 0;
+          right: 0;
+          bottom: 0;
+          background: rgba(0, 0, 0, 0.85);
+          backdrop-filter: blur(8px);
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          z-index: 9999;
+          animation: fadeIn 0.3s ease;
+        }
+
+        @keyframes fadeIn {
+          from { opacity: 0; }
+          to { opacity: 1; }
+        }
+
+        .alert-box {
+          background: linear-gradient(145deg, rgba(255,79,160,0.15), rgba(139,92,246,0.1));
+          border: 2px solid rgba(255,79,160,0.3);
+          border-radius: 24px;
+          padding: 2.5rem 2rem;
+          max-width: 420px;
+          width: 90%;
+          text-align: center;
+          box-shadow: 0 20px 60px rgba(255,79,160,0.2), 
+                      0 0 100px rgba(255,20,147,0.15);
+          animation: slideUp 0.4s ease;
+          position: relative;
+          overflow: hidden;
+        }
+
+        .alert-box::before {
+          content: '';
+          position: absolute;
+          top: -50%;
+          left: -50%;
+          width: 200%;
+          height: 200%;
+          background: radial-gradient(circle, rgba(255,79,160,0.1) 0%, transparent 70%);
+          animation: pulse 3s ease-in-out infinite;
+        }
+
+        @keyframes slideUp {
+          from {
+            transform: translateY(30px);
+            opacity: 0;
+          }
+          to {
+            transform: translateY(0);
+            opacity: 1;
+          }
+        }
+
+        @keyframes pulse {
+          0%, 100% { transform: scale(1); opacity: 0.5; }
+          50% { transform: scale(1.1); opacity: 0.8; }
+        }
+
+        .alert-icon {
+          font-size: 4rem;
+          margin-bottom: 1rem;
+          animation: heartBeat 1.5s ease infinite;
+        }
+
+        @keyframes heartBeat {
+          0%, 100% { transform: scale(1); }
+          10%, 30% { transform: scale(0.9); }
+          20%, 40% { transform: scale(1.1); }
+        }
+
+        .alert-title {
+          color: #ff6b9d;
+          font-size: 1.8rem;
+          font-weight: 800;
+          margin: 0 0 1rem;
+          text-shadow: 0 2px 10px rgba(255,107,157,0.3);
+          position: relative;
+          z-index: 1;
+        }
+
+        .alert-message {
+          color: #f7f8fb;
+          font-size: 1.05rem;
+          line-height: 1.6;
+          margin: 0 0 2rem;
+          opacity: 0.95;
+          position: relative;
+          z-index: 1;
+        }
+
+        .alert-btn {
+          background: linear-gradient(135deg, #ff4fa0, #ff1493);
+          color: #ffffff;
+          border: none;
+          border-radius: 50px;
+          padding: 14px 50px;
+          font-size: 1.1rem;
+          font-weight: 700;
+          cursor: pointer;
+          box-shadow: 0 8px 25px rgba(255,79,160,0.4),
+                      0 0 40px rgba(255,20,147,0.2);
+          transition: all 0.3s ease;
+          position: relative;
+          z-index: 1;
+          letter-spacing: 0.5px;
+        }
+
+        .alert-btn:hover {
+          transform: translateY(-2px) scale(1.05);
+          box-shadow: 0 12px 35px rgba(255,79,160,0.5),
+                      0 0 60px rgba(255,20,147,0.3);
+        }
+
+        .alert-btn:active {
+          transform: translateY(0) scale(1);
+        }
+
         /* Header */
         .header {
           position: sticky;
@@ -559,6 +741,7 @@ export default function ChatPage() {
           align-items: center;
           gap: 0.8rem;
         }
+        
         .back-btn {
           border: none;
           background: rgba(255,255,255,0.04);
@@ -569,6 +752,7 @@ export default function ChatPage() {
           font-weight: 700;
           box-shadow: 0 6px 18px rgba(139,92,246,0.06);
         }
+        
         .avatar {
           width: 46px;
           height: 46px;
@@ -577,6 +761,7 @@ export default function ChatPage() {
           border: 2px solid rgba(255,255,255,0.06);
           background: linear-gradient(180deg, rgba(255,255,255,0.02), rgba(255,255,255,0.01));
         }
+        
         .partner .name {
           font-weight: 800;
           white-space: nowrap;
@@ -585,6 +770,7 @@ export default function ChatPage() {
           color: #ffffff;
           font-size: 1rem;
         }
+        
         .status {
           display: flex;
           align-items: center;
@@ -593,6 +779,7 @@ export default function ChatPage() {
           opacity: 0.95;
           color: var(--muted);
         }
+        
         .dot {
           width: 9px;
           height: 9px;
@@ -606,6 +793,7 @@ export default function ChatPage() {
           align-items: center;
           gap: 0.6rem;
         }
+        
         .icon-btn {
           border: none;
           background: rgba(255,255,255,0.03);
@@ -697,7 +885,7 @@ export default function ChatPage() {
           border-top-left-radius: 6px;
         }
 
-        /* ME bubble - VIBRANT PINK with WHITE text for maximum visibility */
+        /* ME bubble - VIBRANT PINK with WHITE text */
         .me .bubble {
           background: linear-gradient(135deg, var(--bubble-me-start), var(--bubble-me-end));
           color: #ffffff !important;
@@ -707,18 +895,20 @@ export default function ChatPage() {
           text-shadow: 0 1px 2px rgba(0,0,0,0.15);
         }
 
-        /* Links inside bubbles should be visible */
+        /* Links inside bubbles */
         .bubble a {
           color: inherit;
           text-decoration: underline;
           font-weight: 600;
         }
 
-        /* Ensure image/video inside bubble are responsive */
+        /* Images and videos in bubbles */
         .bubble img, .bubble video {
           max-width: 360px;
+          width: 100%;
           border-radius: 12px;
           display: block;
+          margin: 4px 0;
         }
 
         .system-bubble {
@@ -793,6 +983,10 @@ export default function ChatPage() {
           font-weight: bold;
         }
         .send:active { transform: translateY(1px) scale(0.995); box-shadow: 0 8px 18px rgba(255,79,160,0.16); }
+        .send:disabled {
+          opacity: 0.5;
+          cursor: not-allowed;
+        }
 
         .emoji-pop {
           position: absolute;
@@ -817,14 +1011,21 @@ export default function ChatPage() {
           border-radius: 8px;
           transition: all 150ms ease;
         }
-        .emoji-item:hover { background: rgba(255,79,160,0.15); transform: translateY(-2px) scale(1.1); }
+        .emoji-item:hover { 
+          background: rgba(255,79,160,0.15); 
+          transform: translateY(-2px) scale(1.1); 
+        }
 
         @media (max-width: 640px) {
           .bubble { max-width: 82%; padding: 0.6rem 0.75rem; }
+          .bubble img, .bubble video { max-width: 280px; }
           .avatar { width: 40px; height: 40px; }
           .search-input { width: 140px; }
           .tool { width: 44px; height: 44px; font-size: 1rem; }
           .send { width: 48px; height: 48px; }
+          .alert-box { padding: 2rem 1.5rem; }
+          .alert-title { font-size: 1.5rem; }
+          .alert-message { font-size: 0.95rem; }
         }
       `}</style>
     </>
