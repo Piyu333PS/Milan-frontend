@@ -1,4 +1,3 @@
-
 "use client";
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import Head from "next/head";
@@ -18,7 +17,7 @@ export default function ConnectPage() {
   const [isSearching, setIsSearching] = useState(false);
   const [showLoader, setShowLoader] = useState(false);
   const [statusMessage, setStatusMessage] = useState(
-    "❤️ जहाँ दिल मिले, वहीं होती है शुरुआत Milan की…"
+    "❤️ जहां दिल मिले, वहीं होती है शुरुआत Milan की…"
   );
 
   const fwRef = useRef({ raf: null, burst: () => {}, cleanup: null });
@@ -255,8 +254,8 @@ export default function ConnectPage() {
     setShowLoader(true);
     setStatusMessage(
       type === "video"
-        ? "🎥 Searching for a Video Chat partner..."
-        : "💬 Searching for a Text Chat partner..."
+        ? "🎥 Finding your video chat soulmate..."
+        : "💬 Connecting hearts through words..."
     );
 
     try {
@@ -336,7 +335,7 @@ export default function ConnectPage() {
     }
     setIsSearching(false);
     setShowLoader(false);
-    setStatusMessage("❤️ जहाँ दिल मिले, वहीं होती है शुरुआत Milan की…");
+    setStatusMessage("❤️ जहां दिल मिले, वहीं होती है शुरुआत Milan की…");
   }
 
   // Completeness meter
@@ -358,7 +357,7 @@ export default function ConnectPage() {
   return (
     <>
       <Head>
-        <title>Milan — Connect</title>
+        <title>Milan – Connect</title>
         <meta name="viewport" content="width=device-width, initial-scale=1" />
         <link rel="preconnect" href="https://fonts.googleapis.com" />
         <link
@@ -466,17 +465,17 @@ export default function ConnectPage() {
             </button>
           </article>
 
-          {/* 🔗 NEW: Invite Link (Zero-DB) — Quick Direct Connect */}
+          {/* 🔗 NEW: Invite Link (Zero-DB) – Quick Direct Connect */}
           <article className="featureCard invite">
             <header>
               <h3>Invite Link (Zero-DB)</h3>
-              <p>Share a link. Partner clicks. You’re connected.</p>
+              <p>Share a link. Partner clicks. You're connected.</p>
             </header>
             <button
               className="cta outline"
               onClick={() => {
-                const rid = Math.random().toString(36).slice(2, 8); // short id
-                const mode = "text"; // change to "video" for video default
+                const rid = Math.random().toString(36).slice(2, 8);
+                const mode = "text";
                 window.location.href = `/invite/${rid}?mode=${mode}`;
               }}
             >
@@ -524,51 +523,66 @@ export default function ConnectPage() {
                 }
               }}
             >
-              🎆 Let’s Celebrate
+              🎆 Let's Celebrate
             </button>
           </article>
         </section>
 
-        {/* Old small status moved; we now show a modal while searching */}
+        {/* NEW: Enhanced Search Modal with Rotating Hearts */}
         {showLoader && isSearching && (
           <div className="search-modal-overlay" role="dialog" aria-modal="true">
             <div className="search-modal">
-              <svg className="heart-svg" viewBox="0 0 32 29" aria-hidden>
-                <defs>
-                  <linearGradient id="g1" x1="0" x2="1" y1="0" y2="1">
-                    <stop offset="0%" stopColor="#ff9fb0" />
-                    <stop offset="100%" stopColor="#ff6ea7" />
-                  </linearGradient>
-                </defs>
-                <path fill="url(#g1)" d="M23.6,0c-2.9,0-4.6,1.8-5.6,3.1C16.9,1.8,15.2,0,12.3,0C8.1,0,5.3,3,5.3,6.7c0,7.1,11.7,13.9,11.7,13.9
-                s11.7-6.8,11.7-13.9C28.7,3,25.9,0,23.6,0z"/>
-              </svg>
-              <div className="modal-body">
-                <h2>🌙 Searching for your midnight spark…</h2>
-                <p>
-                  We’re gently nudging hearts together — finding someone who vibes
-                  with your rhythm. If you want to explore other Milan delights,
-                  tap below to stop searching and return to the menu. 💌
-                </p>
-                <div className="modal-actions">
-                  <button className="stopBtn" onClick={() => stopSearch()}>
-                    ✖ Stop searching
-                  </button>
-                  <button className="keepBtn" onClick={() => {
-                    setStatusMessage((s)=>s);
-                  }}>
-                    ✨ Keep searching
-                  </button>
+              <div className="modal-content">
+                {/* Main Heading */}
+                <h2 className="modal-heading">
+                  🌙 Searching for your midnight spark…
+                </h2>
+                
+                {/* Heart Loading Animation */}
+                <div className="heart-loader-container">
+                  {/* Rotating small hearts around center */}
+                  <div className="orbiting-hearts">
+                    <div className="orbit-heart heart-1">💗</div>
+                    <div className="orbit-heart heart-2">💕</div>
+                    <div className="orbit-heart heart-3">💖</div>
+                    <div className="orbit-heart heart-4">💝</div>
+                    <div className="orbit-heart heart-5">💓</div>
+                    <div className="orbit-heart heart-6">💞</div>
+                  </div>
+                  
+                  {/* Center large animated heart */}
+                  <svg className="center-heart" viewBox="0 0 32 29" aria-hidden>
+                    <defs>
+                      <linearGradient id="heartGrad" x1="0" x2="1" y1="0" y2="1">
+                        <stop offset="0%" stopColor="#ff6ea7" />
+                        <stop offset="50%" stopColor="#ff9fb0" />
+                        <stop offset="100%" stopColor="#ff6ea7" />
+                      </linearGradient>
+                    </defs>
+                    <path 
+                      fill="url(#heartGrad)" 
+                      d="M23.6,0c-2.9,0-4.6,1.8-5.6,3.1C16.9,1.8,15.2,0,12.3,0C8.1,0,5.3,3,5.3,6.7c0,7.1,11.7,13.9,11.7,13.9s11.7-6.8,11.7-13.9C28.7,3,25.9,0,23.6,0z"
+                      className="heart-pulse"
+                    />
+                  </svg>
                 </div>
-                <div className="small-note">{statusMessage}</div>
+
+                {/* Romantic Status Message */}
+                <p className="modal-description">
+                  We're gently nudging hearts together — finding someone who vibes with your rhythm. Hold on, cupid is working his magic! 💘
+                </p>
+
+                {/* Status Text */}
+                <div className="status-text">{statusMessage}</div>
+
+                {/* Stop Button */}
+                <button className="stop-search-btn" onClick={() => stopSearch()}>
+                  <span className="btn-icon">✕</span>
+                  <span className="btn-text">Stop Searching</span>
+                </button>
               </div>
             </div>
           </div>
-        )}
-
-        {/* older fallback status line (kept for accessibility) */}
-        {showLoader && !isSearching && (
-          <div className="status">{statusMessage}</div>
         )}
       </main>
 
@@ -622,85 +636,362 @@ export default function ConnectPage() {
         .cta.outline{ background:transparent; color:#fff; border:2px solid rgba(255,110,167,.45); box-shadow:0 0 0 2px rgba(255,110,167,.12) inset; }
         .cta.gold{ background:rgba(255,209,102,.18); color:#ffe9ac; border:1px solid rgba(255,209,102,.4); box-shadow:0 12px 36px rgba(255,209,102,.18); }
 
-        .status{ font-weight:800; color:#fff; animation:blink 1s infinite; }
-        @keyframes blink{0%{opacity:.3}50%{opacity:1}100%{opacity:.3}}
-
-        /* Search modal overlay */
+        /* ============================================
+           ENHANCED SEARCH MODAL WITH ROTATING HEARTS
+           ============================================ */
         .search-modal-overlay {
           position: fixed;
           inset: 0;
-          z-index: 60;
+          z-index: 9999;
           display: grid;
           place-items: center;
-          background: rgba(2,6,23,0.6);
-          backdrop-filter: blur(6px);
-        }
-        .search-modal {
-          width: min(560px, calc(100% - 48px));
-          max-width: 680px;
-          background: linear-gradient(180deg, rgba(255,255,255,0.03), rgba(255,255,255,0.02));
-          border-radius: 18px;
-          padding: 22px;
-          box-shadow: 0 24px 80px rgba(11,6,18,0.8);
-          display: flex;
-          gap: 18px;
-          align-items: center;
-          border: 1px solid rgba(255,255,255,0.04);
-        }
-        .heart-svg {
-          width: 120px;
-          height: 120px;
-          flex: 0 0 120px;
-          filter: drop-shadow(0 10px 30px rgba(255,79,160,0.18));
-        }
-        .modal-body {
-          flex: 1;
-          color: #fff;
-        }
-        .modal-body h2 {
-          margin: 0 0 8px 0;
-          font-size: 22px;
-          letter-spacing: 0.2px;
-        }
-        .modal-body p {
-          margin: 0 0 12px 0;
-          color: #ffdfe8;
-          line-height: 1.35;
-        }
-        .modal-actions {
-          display:flex;
-          gap:10px;
-          margin-top:8px;
-        }
-        .stopBtn {
-          background: linear-gradient(90deg,#ff6ea7,#ff9fb0);
-          color: #071320;
-          border: none;
-          padding: 10px 14px;
-          border-radius: 12px;
-          font-weight: 800;
-          cursor: pointer;
-          box-shadow: 0 12px 36px rgba(255,79,160,0.18);
-        }
-        .keepBtn {
-          background: transparent;
-          color: #ffd6ea;
-          border: 1px solid rgba(255,255,255,0.06);
-          padding: 10px 12px;
-          border-radius: 12px;
-          cursor: pointer;
-        }
-        .small-note {
-          margin-top:10px;
-          color: #f7f7fb;
-          opacity: 0.9;
-          font-size: 13px;
+          background: rgba(8, 6, 12, 0.92);
+          backdrop-filter: blur(12px);
+          animation: fadeIn 0.3s ease;
         }
 
-        /* Responsive */
-        @media(max-width:760px) {
-          .search-modal{ flex-direction:column; padding:14px; gap:12px; width:calc(100% - 32px); }
-          .heart-svg { width:96px; height:96px; }
+        @keyframes fadeIn {
+          from { opacity: 0; }
+          to { opacity: 1; }
+        }
+
+        .search-modal {
+          width: min(520px, calc(100% - 32px));
+          background: linear-gradient(145deg, 
+            rgba(255, 110, 167, 0.12) 0%, 
+            rgba(255, 159, 176, 0.08) 50%,
+            rgba(255, 110, 167, 0.12) 100%);
+          border: 2px solid rgba(255, 110, 167, 0.25);
+          border-radius: 28px;
+          padding: 40px 32px;
+          box-shadow: 
+            0 30px 80px rgba(255, 79, 160, 0.35),
+            0 0 60px rgba(255, 110, 167, 0.2),
+            inset 0 1px 1px rgba(255, 255, 255, 0.1);
+          animation: modalSlideUp 0.4s cubic-bezier(0.34, 1.56, 0.64, 1);
+          position: relative;
+          overflow: hidden;
+        }
+
+        .search-modal::before {
+          content: '';
+          position: absolute;
+          top: -50%;
+          left: -50%;
+          width: 200%;
+          height: 200%;
+          background: radial-gradient(circle, 
+            rgba(255, 110, 167, 0.15) 0%, 
+            transparent 70%);
+          animation: bgPulse 3s ease-in-out infinite;
+        }
+
+        @keyframes modalSlideUp {
+          from {
+            opacity: 0;
+            transform: translateY(30px) scale(0.95);
+          }
+          to {
+            opacity: 1;
+            transform: translateY(0) scale(1);
+          }
+        }
+
+        @keyframes bgPulse {
+          0%, 100% { transform: scale(1) rotate(0deg); opacity: 0.5; }
+          50% { transform: scale(1.1) rotate(180deg); opacity: 0.8; }
+        }
+
+        .modal-content {
+          position: relative;
+          z-index: 1;
+          display: flex;
+          flex-direction: column;
+          align-items: center;
+          gap: 24px;
+        }
+
+        .modal-heading {
+          margin: 0;
+          font-size: 28px;
+          font-weight: 900;
+          text-align: center;
+          background: linear-gradient(135deg, #fff 0%, #ffd6ea 50%, #ff9fb0 100%);
+          -webkit-background-clip: text;
+          background-clip: text;
+          color: transparent;
+          letter-spacing: 0.3px;
+          text-shadow: 0 4px 20px rgba(255, 110, 167, 0.3);
+          animation: textShimmer 2s ease-in-out infinite;
+        }
+
+        @keyframes textShimmer {
+          0%, 100% { filter: brightness(1); }
+          50% { filter: brightness(1.2); }
+        }
+
+        /* Heart Loader Container */
+        .heart-loader-container {
+          position: relative;
+          width: 180px;
+          height: 180px;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+        }
+
+        /* Orbiting Hearts */
+        .orbiting-hearts {
+          position: absolute;
+          width: 100%;
+          height: 100%;
+          animation: rotate 8s linear infinite;
+        }
+
+        @keyframes rotate {
+          from { transform: rotate(0deg); }
+          to { transform: rotate(360deg); }
+        }
+
+        .orbit-heart {
+          position: absolute;
+          font-size: 24px;
+          animation: pulse 1.5s ease-in-out infinite;
+          filter: drop-shadow(0 4px 12px rgba(255, 110, 167, 0.6));
+        }
+
+        @keyframes pulse {
+          0%, 100% { 
+            transform: scale(1); 
+            opacity: 0.8;
+          }
+          50% { 
+            transform: scale(1.3); 
+            opacity: 1;
+          }
+        }
+
+        .orbit-heart.heart-1 {
+          top: 0;
+          left: 50%;
+          transform: translateX(-50%);
+          animation-delay: 0s;
+        }
+
+        .orbit-heart.heart-2 {
+          top: 25%;
+          right: 10%;
+          animation-delay: 0.2s;
+        }
+
+        .orbit-heart.heart-3 {
+          top: 50%;
+          right: 0;
+          transform: translateY(-50%);
+          animation-delay: 0.4s;
+        }
+
+        .orbit-heart.heart-4 {
+          bottom: 25%;
+          right: 10%;
+          animation-delay: 0.6s;
+        }
+
+        .orbit-heart.heart-5 {
+          bottom: 0;
+          left: 50%;
+          transform: translateX(-50%);
+          animation-delay: 0.8s;
+        }
+
+        .orbit-heart.heart-6 {
+          top: 50%;
+          left: 0;
+          transform: translateY(-50%);
+          animation-delay: 1s;
+        }
+
+        /* Center Heart SVG */
+        .center-heart {
+          width: 80px;
+          height: 80px;
+          filter: drop-shadow(0 8px 24px rgba(255, 110, 167, 0.6));
+          animation: heartBeat 1.2s ease-in-out infinite;
+        }
+
+        @keyframes heartBeat {
+          0%, 100% { 
+            transform: scale(1); 
+          }
+          10%, 30% { 
+            transform: scale(1.15); 
+          }
+          20%, 40% { 
+            transform: scale(1.05); 
+          }
+        }
+
+        .heart-pulse {
+          animation: fillPulse 2s ease-in-out infinite;
+        }
+
+        @keyframes fillPulse {
+          0%, 100% { 
+            opacity: 1;
+            filter: brightness(1);
+          }
+          50% { 
+            opacity: 0.85;
+            filter: brightness(1.3);
+          }
+        }
+
+        /* Modal Description */
+        .modal-description {
+          margin: 0;
+          text-align: center;
+          color: #ffdfe8;
+          font-size: 16px;
+          line-height: 1.6;
+          font-weight: 500;
+          max-width: 420px;
+          text-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
+        }
+
+        /* Status Text */
+        .status-text {
+          font-size: 14px;
+          color: #ffb6d1;
+          font-weight: 600;
+          text-align: center;
+          padding: 8px 16px;
+          background: rgba(255, 110, 167, 0.1);
+          border-radius: 12px;
+          border: 1px solid rgba(255, 110, 167, 0.2);
+          animation: statusBlink 2s ease-in-out infinite;
+        }
+
+        @keyframes statusBlink {
+          0%, 100% { opacity: 0.7; }
+          50% { opacity: 1; }
+        }
+
+        /* Stop Search Button */
+        .stop-search-btn {
+          margin-top: 8px;
+          padding: 14px 32px;
+          background: linear-gradient(135deg, #ff6ea7 0%, #ff4d6d 100%);
+          color: #fff;
+          border: none;
+          border-radius: 16px;
+          font-size: 16px;
+          font-weight: 900;
+          cursor: pointer;
+          display: flex;
+          align-items: center;
+          gap: 10px;
+          box-shadow: 
+            0 8px 24px rgba(255, 79, 160, 0.4),
+            0 0 30px rgba(255, 110, 167, 0.3);
+          transition: all 0.3s ease;
+          letter-spacing: 0.5px;
+        }
+
+        .stop-search-btn:hover {
+          transform: translateY(-3px);
+          box-shadow: 
+            0 12px 32px rgba(255, 79, 160, 0.5),
+            0 0 40px rgba(255, 110, 167, 0.4);
+          background: linear-gradient(135deg, #ff4d6d 0%, #ff6ea7 100%);
+        }
+
+        .stop-search-btn:active {
+          transform: translateY(-1px) scale(0.98);
+        }
+
+        .btn-icon {
+          font-size: 18px;
+          font-weight: bold;
+        }
+
+        .btn-text {
+          letter-spacing: 0.3px;
+        }
+
+        /* Responsive Design */
+        @media (max-width: 760px) {
+          .search-modal {
+            padding: 32px 24px;
+            border-radius: 24px;
+          }
+
+          .modal-heading {
+            font-size: 24px;
+          }
+
+          .heart-loader-container {
+            width: 150px;
+            height: 150px;
+          }
+
+          .center-heart {
+            width: 70px;
+            height: 70px;
+          }
+
+          .orbit-heart {
+            font-size: 20px;
+          }
+
+          .modal-description {
+            font-size: 14px;
+          }
+
+          .stop-search-btn {
+            padding: 12px 28px;
+            font-size: 15px;
+          }
+
+          .sidebar {
+            display: none;
+          }
+
+          .heroWrap {
+            margin-left: 0;
+          }
+
+          .frame {
+            left: 10px;
+          }
+
+          .featuresGrid {
+            grid-template-columns: 1fr;
+            width: calc(100vw - 32px);
+          }
+
+          .miniGreeting {
+            max-width: calc(100vw - 32px);
+          }
+        }
+
+        @media (max-width: 480px) {
+          .modal-heading {
+            font-size: 20px;
+          }
+
+          .heart-loader-container {
+            width: 130px;
+            height: 130px;
+          }
+
+          .center-heart {
+            width: 60px;
+            height: 60px;
+          }
+
+          .orbit-heart {
+            font-size: 18px;
+          }
         }
       `}</style>
     </>
