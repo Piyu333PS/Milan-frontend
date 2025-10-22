@@ -535,7 +535,7 @@ export default function ConnectPage() {
               <div className="modal-content">
                 {/* Main Heading */}
                 <h2 className="modal-heading">
-                  🌙 Searching for your midnight spark…
+                  💖 Your Milan story is about to begin…
                 </h2>
                 
                 {/* Heart Loading Animation */}
