@@ -1,9 +1,9 @@
 // pages/chat.js
-// FULLY FIXED VERSION:
-// - Image/file sending bug fixed (proper dedupe logic)
-// - Cute disconnect alert with OK button
-// - All text visibility issues resolved
-// - Complete error handling
+// FULLY FIXED VERSION with Mobile Image Support:
+// - Compress images before sending (mobile photos are huge!)
+// - Alert popup now works on mobile
+// - Better file size handling
+// - Proper disconnect flow for both desktop and mobile
 
 import { useEffect, useRef, useState } from "react";
 import Head from "next/head";
@@ -13,12 +13,65 @@ const BACKEND_URL =
   process.env.NEXT_PUBLIC_BACKEND_URL || "https://milan-j9u9.onrender.com";
 
 const MAX_FILE_BYTES = 15 * 1024 * 1024; // 15 MB
+const TARGET_IMAGE_SIZE = 800; // Resize images to max 800px width/height
+const IMAGE_QUALITY = 0.7; // JPEG quality
 
 const getAvatarForGender = (g) => {
   const key = String(g || "").toLowerCase();
   if (key === "male") return "/partner-avatar-male.png";
   if (key === "female") return "/partner-avatar-female.png";
   return "/partner-avatar.png";
+};
+
+// Compress image helper
+const compressImage = (file) => {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      const img = new Image();
+      img.onload = () => {
+        const canvas = document.createElement("canvas");
+        let width = img.width;
+        let height = img.height;
+
+        // Resize if too large
+        if (width > TARGET_IMAGE_SIZE || height > TARGET_IMAGE_SIZE) {
+          if (width > height) {
+            height = (height / width) * TARGET_IMAGE_SIZE;
+            width = TARGET_IMAGE_SIZE;
+          } else {
+            width = (width / height) * TARGET_IMAGE_SIZE;
+            height = TARGET_IMAGE_SIZE;
+          }
+        }
+
+        canvas.width = width;
+        canvas.height = height;
+        const ctx = canvas.getContext("2d");
+        ctx.drawImage(img, 0, 0, width, height);
+
+        // Convert to JPEG with compression
+        canvas.toBlob(
+          (blob) => {
+            if (blob) {
+              const reader2 = new FileReader();
+              reader2.onload = () => resolve(reader2.result);
+              reader2.onerror = reject;
+              reader2.readAsDataURL(blob);
+            } else {
+              reject(new Error("Compression failed"));
+            }
+          },
+          "image/jpeg",
+          IMAGE_QUALITY
+        );
+      };
+      img.onerror = reject;
+      img.src = e.target.result;
+    };
+    reader.onerror = reject;
+    reader.readAsDataURL(file);
+  });
 };
 
 export default function ChatPage() {
@@ -44,13 +97,16 @@ export default function ChatPage() {
   // Disconnect alert
   const [showDisconnectAlert, setShowDisconnectAlert] = useState(false);
 
+  // File uploading state
+  const [isUploading, setIsUploading] = useState(false);
+
   // ===== Refs =====
   const socketRef = useRef(null);
   const msgRef = useRef(null);
   const fileRef = useRef(null);
   const listRef = useRef(null);
   const messageRefs = useRef({});
-  const processedMsgIds = useRef(new Set()); // Track processed message IDs
+  const processedMsgIds = useRef(new Set());
 
   // ===== Utils =====
   const timeNow = () => {
@@ -80,7 +136,13 @@ export default function ChatPage() {
 
     setPartnerAvatarSrc(getAvatarForGender("unknown"));
 
-    const socket = io(BACKEND_URL, { transports: ["websocket"], autoConnect: true });
+    const socket = io(BACKEND_URL, { 
+      transports: ["websocket"], 
+      autoConnect: true,
+      reconnection: true,
+      reconnectionAttempts: 5,
+      reconnectionDelay: 1000,
+    });
     socketRef.current = socket;
 
     socket.on("connect_error", (err) => {
@@ -96,6 +158,7 @@ export default function ChatPage() {
     });
 
     socket.on("disconnect", (reason) => {
+      console.log("Socket disconnected:", reason);
       const sysId = `sys-dis-${Date.now()}`;
       if (!processedMsgIds.current.has(sysId)) {
         processedMsgIds.current.add(sysId);
@@ -142,12 +205,10 @@ export default function ChatPage() {
     socket.on("message", (msg) => {
       if (!msg || !msg.id) return;
       
-      // Check if already processed
       if (processedMsgIds.current.has(msg.id)) return;
       processedMsgIds.current.add(msg.id);
 
       setMsgs((prev) => {
-        // Double-check in state as well
         if (prev.some((x) => x.id === msg.id)) return prev;
         
         const isSelf = socket.id === msg.senderId;
@@ -169,12 +230,10 @@ export default function ChatPage() {
     socket.on("fileMessage", (msg) => {
       if (!msg || !msg.id) return;
       
-      // Check if already processed
       if (processedMsgIds.current.has(msg.id)) return;
       processedMsgIds.current.add(msg.id);
 
       setMsgs((prev) => {
-        // Double-check in state as well
         if (prev.some((x) => x.id === msg.id)) return prev;
         
         const isSelf = socket.id === msg.senderId;
@@ -205,8 +264,9 @@ export default function ChatPage() {
 
     socket.on("reaction", () => {});
 
-    // Partner disconnected - show cute alert
+    // Partner disconnected - show alert
     socket.on("partnerDisconnected", () => {
+      console.log("Partner disconnected event received");
       setShowDisconnectAlert(true);
     });
 
@@ -230,7 +290,6 @@ export default function ChatPage() {
     if (!val || !socketRef.current || !roomCode) return;
     const id = genId();
 
-    // Add to processed set immediately
     processedMsgIds.current.add(id);
 
     setMsgs((p) => [
@@ -255,9 +314,9 @@ export default function ChatPage() {
     setTyping(false);
   };
 
-  const handleFile = (e) => {
+  const handleFile = async (e) => {
     const f = e.target.files?.[0];
-    if (!f || !socketRef.current || !roomCode) {
+    if (!f || !socketRef.current || !roomCode || isUploading) {
       e.target.value = "";
       return;
     }
@@ -268,16 +327,38 @@ export default function ChatPage() {
       return;
     }
 
+    setIsUploading(true);
     const id = genId();
-    
-    // Add to processed set immediately
     processedMsgIds.current.add(id);
 
-    const reader = new FileReader();
-    reader.onload = () => {
-      const dataUrl = reader.result;
-      let inner = "";
+    try {
+      let dataUrl;
       
+      // Compress images from mobile
+      if (f.type.startsWith("image/")) {
+        console.log(`Original image size: ${(f.size / 1024 / 1024).toFixed(2)} MB`);
+        dataUrl = await compressImage(f);
+        console.log(`Compressed image size: ${(dataUrl.length / 1024 / 1024).toFixed(2)} MB`);
+      } else {
+        // For non-images, read as-is
+        dataUrl = await new Promise((resolve, reject) => {
+          const reader = new FileReader();
+          reader.onload = () => resolve(reader.result);
+          reader.onerror = reject;
+          reader.readAsDataURL(f);
+        });
+      }
+
+      // Check compressed size
+      const sizeInMB = dataUrl.length / 1024 / 1024;
+      if (sizeInMB > 10) {
+        alert("⚠️ Image is still too large after compression. Try a smaller image.");
+        setIsUploading(false);
+        e.target.value = "";
+        return;
+      }
+
+      let inner = "";
       if (f.type.startsWith("image/")) {
         inner = `<a href="${dataUrl}" target="_blank" rel="noopener"><img src="${dataUrl}" alt="image" /></a>`;
       } else if (f.type.startsWith("video/")) {
@@ -293,29 +374,25 @@ export default function ChatPage() {
       ]);
       scrollToBottom();
 
-      try {
-        socketRef.current.emit("fileMessage", {
-          id,
-          fileName: f.name,
-          fileType: f.type,
-          fileData: dataUrl,
-          roomCode,
-          senderId: socketRef.current.id,
-        });
-      } catch (err) {
-        setMsgs((prev) => prev.map((m) => (m.id === id ? { ...m, status: "failed" } : m)));
-        console.error("file emit failed", err);
-        alert("⚠️ Failed to send file. Please try again.");
-      }
-    };
-    
-    reader.onerror = (err) => {
-      console.error("file read error", err);
-      alert("⚠️ Error reading file.");
-    };
-    
-    reader.readAsDataURL(f);
-    e.target.value = "";
+      // Send to server
+      socketRef.current.emit("fileMessage", {
+        id,
+        fileName: f.name,
+        fileType: f.type,
+        fileData: dataUrl,
+        roomCode,
+        senderId: socketRef.current.id,
+      });
+
+      console.log("File sent successfully");
+    } catch (err) {
+      console.error("File processing failed:", err);
+      setMsgs((prev) => prev.map((m) => (m.id === id ? { ...m, status: "failed" } : m)));
+      alert("⚠️ Failed to send file. Please try again.");
+    } finally {
+      setIsUploading(false);
+      e.target.value = "";
+    }
   };
 
   const onType = () => {
@@ -329,6 +406,7 @@ export default function ChatPage() {
   const handleDisconnectOk = () => {
     setShowDisconnectAlert(false);
     try {
+      socketRef.current?.emit("disconnectByUser");
       socketRef.current?.disconnect();
     } catch {}
     window.location.href = "https://milanlove.in/connect";
@@ -391,14 +469,14 @@ export default function ChatPage() {
     <>
       <Head>
         <title>Milan – Romantic Chat</title>
-        <meta name="viewport" content="width=device-width, initial-scale=1" />
+        <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no" />
       </Head>
 
       <div className="app">
         {/* Disconnect Alert Overlay */}
         {showDisconnectAlert && (
-          <div className="alert-overlay">
-            <div className="alert-box">
+          <div className="alert-overlay" onClick={(e) => e.stopPropagation()}>
+            <div className="alert-box" onClick={(e) => e.stopPropagation()}>
               <div className="alert-icon">💔</div>
               <h2 className="alert-title">Partner Disconnected</h2>
               <p className="alert-message">
@@ -408,6 +486,14 @@ export default function ChatPage() {
                 OK
               </button>
             </div>
+          </div>
+        )}
+
+        {/* Uploading Overlay */}
+        {isUploading && (
+          <div className="upload-overlay">
+            <div className="upload-spinner"></div>
+            <p className="upload-text">Sending image...</p>
           </div>
         )}
 
@@ -427,7 +513,6 @@ export default function ChatPage() {
           </div>
 
           <div className="header-right">
-            {/* SEARCH */}
             <div className="search-area">
               {searchOpen && (
                 <input
@@ -465,7 +550,6 @@ export default function ChatPage() {
               🔎
             </button>
 
-            {/* MENU */}
             <button className="icon-btn" title="Menu" aria-label="Menu" onClick={() => setMenuOpen((s) => !s)}>
               ⋮
             </button>
@@ -501,7 +585,7 @@ export default function ChatPage() {
               className={`row ${m.self ? "me" : m.kind === "system" ? "system-row" : "you"}`}
               ref={(el) => (messageRefs.current[m.id] = el)}
             >
-              <div className="msg-wrap" style={{ position: "relative" }}>
+              <div className="msg-wrap">
                 <div className={`bubble ${m.kind === "system" ? "system-bubble" : ""}`} dangerouslySetInnerHTML={{ __html: m.html }} />
                 <div className="meta">
                   <span className="time">{m.time}</span>
@@ -518,13 +602,18 @@ export default function ChatPage() {
 
         {/* Input Bar */}
         <footer className="inputbar">
-          <input ref={fileRef} type="file" hidden onChange={handleFile} />
-          <button className="tool" title="Attach" aria-label="Attach" onClick={() => fileRef.current?.click()}>
+          <input ref={fileRef} type="file" hidden onChange={handleFile} accept="image/*,video/*,.pdf,.doc,.docx" />
+          <button 
+            className="tool" 
+            title="Attach" 
+            aria-label="Attach" 
+            onClick={() => fileRef.current?.click()}
+            disabled={isUploading}
+          >
             📎
           </button>
 
-          {/* Emoji Picker */}
-          <div className="emoji-wrap" style={{ position: "relative" }}>
+          <div className="emoji-wrap">
             <button className="tool" title="Emoji" aria-label="Emoji" onClick={() => setEmojiOpen((s) => !s)}>
               😊
             </button>
@@ -544,11 +633,17 @@ export default function ChatPage() {
             className="msg-field"
             type="text"
             placeholder={roomCode ? "Type a message…" : "Finding a partner…"}
-            disabled={!roomCode}
+            disabled={!roomCode || isUploading}
             onChange={onType}
             onKeyDown={(e) => e.key === "Enter" && sendText()}
           />
-          <button className="send" title="Send" aria-label="Send" onClick={sendText} disabled={!roomCode}>
+          <button 
+            className="send" 
+            title="Send" 
+            aria-label="Send" 
+            onClick={sendText} 
+            disabled={!roomCode || isUploading}
+          >
             ➤
           </button>
         </footer>
@@ -558,60 +653,60 @@ export default function ChatPage() {
         :root {
           --bg-pink-1: #2b0b1e;
           --bg-pink-2: #120317;
-          --panel: linear-gradient(180deg, rgba(255,79,160,0.06), rgba(139,92,246,0.04));
           --accent: #ff4fa0;
-          --accent-2: #ffd6ea;
           --text: #f7f8fb;
           --muted: #d6cbe0;
           --bubble-me-start: #ff6b9d;
           --bubble-me-end: #ff1493;
           --bubble-you-start: #1f2a3a;
           --bubble-you-end: #0f1724;
-          --system-bg: rgba(255,255,255,0.06);
-          --menu-bg: linear-gradient(180deg, rgba(255,79,160,0.12), rgba(139,92,246,0.08));
-          --glass: rgba(255,255,255,0.02);
-          --font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial;
+        }
+
+        * {
+          -webkit-tap-highlight-color: transparent;
         }
 
         html, body {
           height: 100%;
           margin: 0;
-          font-family: var(--font-family);
+          font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial;
           background: radial-gradient(1200px 600px at 10% 10%, rgba(255,79,160,0.06), transparent 6%),
                       radial-gradient(900px 400px at 90% 90%, rgba(139,92,246,0.03), transparent 8%),
                       linear-gradient(180deg, var(--bg-pink-1), var(--bg-pink-2));
           -webkit-font-smoothing: antialiased;
-          -moz-osx-font-smoothing: grayscale;
+          overscroll-behavior: none;
         }
 
         .app {
           position: relative;
           display: flex;
           flex-direction: column;
-          height: 100svh;
+          height: 100vh;
+          height: 100dvh;
           max-width: 980px;
-          margin: 10px auto;
+          margin: 0 auto;
           background: linear-gradient(180deg, rgba(3,2,6,0.6), rgba(5,3,8,0.95));
           color: var(--text);
           box-shadow: 0 18px 60px rgba(11,6,18,0.7);
-          border-radius: 12px;
           overflow: hidden;
         }
 
-        /* Disconnect Alert */
+        /* Disconnect Alert - IMPROVED FOR MOBILE */
         .alert-overlay {
           position: fixed;
           top: 0;
           left: 0;
           right: 0;
           bottom: 0;
-          background: rgba(0, 0, 0, 0.85);
-          backdrop-filter: blur(8px);
+          background: rgba(0, 0, 0, 0.92);
+          backdrop-filter: blur(10px);
           display: flex;
           align-items: center;
           justify-content: center;
-          z-index: 9999;
+          z-index: 99999;
           animation: fadeIn 0.3s ease;
+          padding: 20px;
+          -webkit-backdrop-filter: blur(10px);
         }
 
         @keyframes fadeIn {
@@ -620,57 +715,42 @@ export default function ChatPage() {
         }
 
         .alert-box {
-          background: linear-gradient(145deg, rgba(255,79,160,0.15), rgba(139,92,246,0.1));
-          border: 2px solid rgba(255,79,160,0.3);
+          background: linear-gradient(145deg, rgba(255,79,160,0.2), rgba(139,92,246,0.15));
+          border: 2px solid rgba(255,79,160,0.4);
           border-radius: 24px;
           padding: 2.5rem 2rem;
           max-width: 420px;
-          width: 90%;
+          width: 100%;
           text-align: center;
-          box-shadow: 0 20px 60px rgba(255,79,160,0.2), 
-                      0 0 100px rgba(255,20,147,0.15);
+          box-shadow: 0 20px 60px rgba(255,79,160,0.3), 
+                      0 0 100px rgba(255,20,147,0.2);
           animation: slideUp 0.4s ease;
           position: relative;
           overflow: hidden;
         }
 
-        .alert-box::before {
-          content: '';
-          position: absolute;
-          top: -50%;
-          left: -50%;
-          width: 200%;
-          height: 200%;
-          background: radial-gradient(circle, rgba(255,79,160,0.1) 0%, transparent 70%);
-          animation: pulse 3s ease-in-out infinite;
-        }
-
         @keyframes slideUp {
           from {
-            transform: translateY(30px);
+            transform: translateY(50px) scale(0.95);
             opacity: 0;
           }
           to {
-            transform: translateY(0);
+            transform: translateY(0) scale(1);
             opacity: 1;
           }
         }
 
-        @keyframes pulse {
-          0%, 100% { transform: scale(1); opacity: 0.5; }
-          50% { transform: scale(1.1); opacity: 0.8; }
-        }
-
         .alert-icon {
-          font-size: 4rem;
+          font-size: 4.5rem;
           margin-bottom: 1rem;
           animation: heartBeat 1.5s ease infinite;
+          filter: drop-shadow(0 0 20px rgba(255,79,160,0.5));
         }
 
         @keyframes heartBeat {
           0%, 100% { transform: scale(1); }
           10%, 30% { transform: scale(0.9); }
-          20%, 40% { transform: scale(1.1); }
+          20%, 40% { transform: scale(1.15); }
         }
 
         .alert-title {
@@ -678,9 +758,8 @@ export default function ChatPage() {
           font-size: 1.8rem;
           font-weight: 800;
           margin: 0 0 1rem;
-          text-shadow: 0 2px 10px rgba(255,107,157,0.3);
-          position: relative;
-          z-index: 1;
+          text-shadow: 0 2px 15px rgba(255,107,157,0.4);
+          line-height: 1.3;
         }
 
         .alert-message {
@@ -689,8 +768,6 @@ export default function ChatPage() {
           line-height: 1.6;
           margin: 0 0 2rem;
           opacity: 0.95;
-          position: relative;
-          z-index: 1;
         }
 
         .alert-btn {
@@ -698,26 +775,57 @@ export default function ChatPage() {
           color: #ffffff;
           border: none;
           border-radius: 50px;
-          padding: 14px 50px;
-          font-size: 1.1rem;
+          padding: 16px 60px;
+          font-size: 1.15rem;
           font-weight: 700;
           cursor: pointer;
-          box-shadow: 0 8px 25px rgba(255,79,160,0.4),
-                      0 0 40px rgba(255,20,147,0.2);
+          box-shadow: 0 10px 30px rgba(255,79,160,0.5),
+                      0 0 50px rgba(255,20,147,0.3);
           transition: all 0.3s ease;
-          position: relative;
-          z-index: 1;
           letter-spacing: 0.5px;
-        }
-
-        .alert-btn:hover {
-          transform: translateY(-2px) scale(1.05);
-          box-shadow: 0 12px 35px rgba(255,79,160,0.5),
-                      0 0 60px rgba(255,20,147,0.3);
+          min-width: 140px;
+          touch-action: manipulation;
+          -webkit-tap-highlight-color: transparent;
         }
 
         .alert-btn:active {
-          transform: translateY(0) scale(1);
+          transform: scale(0.97);
+          box-shadow: 0 5px 20px rgba(255,79,160,0.4);
+        }
+
+        /* Upload Overlay */
+        .upload-overlay {
+          position: fixed;
+          top: 0;
+          left: 0;
+          right: 0;
+          bottom: 0;
+          background: rgba(0, 0, 0, 0.7);
+          backdrop-filter: blur(8px);
+          display: flex;
+          flex-direction: column;
+          align-items: center;
+          justify-content: center;
+          z-index: 9998;
+        }
+
+        .upload-spinner {
+          width: 50px;
+          height: 50px;
+          border: 4px solid rgba(255,79,160,0.2);
+          border-top: 4px solid #ff4fa0;
+          border-radius: 50%;
+          animation: spin 1s linear infinite;
+        }
+
+        @keyframes spin {
+          to { transform: rotate(360deg); }
+        }
+
+        .upload-text {
+          color: #fff;
+          margin-top: 1rem;
+          font-size: 1rem;
         }
 
         /* Header */
@@ -730,7 +838,7 @@ export default function ChatPage() {
           justify-content: space-between;
           padding: 12px 14px;
           gap: 0.6rem;
-          background: var(--menu-bg);
+          background: linear-gradient(180deg, rgba(255,79,160,0.12), rgba(139,92,246,0.08));
           color: var(--text);
           border-bottom: 1px solid rgba(255,255,255,0.03);
           backdrop-filter: blur(6px);
@@ -804,8 +912,13 @@ export default function ChatPage() {
           font-size: 1.05rem;
         }
 
+        .search-area {
+          display: flex;
+          align-items: center;
+        }
+
         .search-input {
-          width: 260px;
+          width: 200px;
           background: rgba(255,255,255,0.02);
           color: var(--text);
           border: 1px solid rgba(255,255,255,0.04);
@@ -850,20 +963,31 @@ export default function ChatPage() {
         .chat {
           flex: 1;
           overflow-y: auto;
-          padding: 24px 26px;
+          overflow-x: hidden;
+          padding: 24px 16px;
           background-image:
             radial-gradient(600px 300px at 10% 10%, rgba(255,79,160,0.03), transparent 6%),
             radial-gradient(500px 250px at 90% 90%, rgba(139,92,246,0.02), transparent 8%);
+          -webkit-overflow-scrolling: touch;
         }
 
-        .day-sep { text-align: center; color: var(--muted); font-size: 0.86rem; margin: 8px 0 16px; }
-        .day-sep span { background: rgba(255,255,255,0.03); padding: 4px 10px; border-radius: 12px; }
+        .day-sep { 
+          text-align: center; 
+          color: var(--muted); 
+          font-size: 0.86rem; 
+          margin: 8px 0 16px; 
+        }
+        .day-sep span { 
+          background: rgba(255,255,255,0.03); 
+          padding: 4px 10px; 
+          border-radius: 12px; 
+        }
 
         .row { display: flex; margin: 10px 0; }
         .row.me { justify-content: flex-end; }
         .row.system-row { justify-content: center; }
 
-        .msg-wrap { max-width: 78%; position: relative; }
+        .msg-wrap { max-width: 85%; position: relative; }
 
         .bubble {
           display: inline-block;
@@ -876,7 +1000,7 @@ export default function ChatPage() {
           border: 1px solid rgba(255,255,255,0.02);
         }
 
-        /* YOU bubble - dark background with WHITE text */
+        /* YOU bubble */
         .you .bubble {
           background: linear-gradient(135deg, var(--bubble-you-start), var(--bubble-you-end));
           color: #ffffff !important;
@@ -885,7 +1009,7 @@ export default function ChatPage() {
           border-top-left-radius: 6px;
         }
 
-        /* ME bubble - VIBRANT PINK with WHITE text */
+        /* ME bubble */
         .me .bubble {
           background: linear-gradient(135deg, var(--bubble-me-start), var(--bubble-me-end));
           color: #ffffff !important;
@@ -895,17 +1019,16 @@ export default function ChatPage() {
           text-shadow: 0 1px 2px rgba(0,0,0,0.15);
         }
 
-        /* Links inside bubbles */
         .bubble a {
           color: inherit;
           text-decoration: underline;
           font-weight: 600;
         }
 
-        /* Images and videos in bubbles */
         .bubble img, .bubble video {
-          max-width: 360px;
-          width: 100%;
+          max-width: 100%;
+          width: auto;
+          max-height: 400px;
           border-radius: 12px;
           display: block;
           margin: 4px 0;
@@ -918,6 +1041,7 @@ export default function ChatPage() {
           border-radius: 12px;
           font-weight: 600;
           box-shadow: 0 6px 18px rgba(255,255,255,0.02) inset;
+          font-size: 0.9rem;
         }
 
         .meta {
@@ -953,7 +1077,17 @@ export default function ChatPage() {
           height: 48px;
           color: var(--text);
           font-size: 1.18rem;
+          flex-shrink: 0;
         }
+        .tool:disabled {
+          opacity: 0.5;
+          cursor: not-allowed;
+        }
+
+        .emoji-wrap {
+          position: relative;
+        }
+
         .msg-field {
           flex: 1;
           background: rgba(255,255,255,0.08);
@@ -966,6 +1100,9 @@ export default function ChatPage() {
           box-shadow: inset 0 2px 4px rgba(0,0,0,0.1);
         }
         .msg-field::placeholder { color: #d4b8d4; opacity: 0.8; }
+        .msg-field:disabled {
+          opacity: 0.6;
+        }
 
         .send {
           background: linear-gradient(135deg, rgba(255,79,160,1), rgba(139,92,246,0.95));
@@ -981,8 +1118,12 @@ export default function ChatPage() {
           font-size: 1.12rem;
           transition: transform 120ms ease, box-shadow 120ms ease;
           font-weight: bold;
+          flex-shrink: 0;
         }
-        .send:active { transform: translateY(1px) scale(0.995); box-shadow: 0 8px 18px rgba(255,79,160,0.16); }
+        .send:active { 
+          transform: translateY(1px) scale(0.98); 
+          box-shadow: 0 8px 18px rgba(255,79,160,0.16); 
+        }
         .send:disabled {
           opacity: 0.5;
           cursor: not-allowed;
@@ -1011,21 +1152,66 @@ export default function ChatPage() {
           border-radius: 8px;
           transition: all 150ms ease;
         }
-        .emoji-item:hover { 
-          background: rgba(255,79,160,0.15); 
-          transform: translateY(-2px) scale(1.1); 
+        .emoji-item:active { 
+          background: rgba(255,79,160,0.2); 
+          transform: scale(1.1); 
         }
 
         @media (max-width: 640px) {
-          .bubble { max-width: 82%; padding: 0.6rem 0.75rem; }
-          .bubble img, .bubble video { max-width: 280px; }
+          .app {
+            margin: 0;
+            border-radius: 0;
+            max-width: 100%;
+          }
+          
+          .bubble { 
+            max-width: 90%; 
+            padding: 0.7rem 0.85rem; 
+            font-size: 0.95rem;
+          }
+          
+          .bubble img, .bubble video { 
+            max-width: 100%;
+            max-height: 300px;
+          }
+          
+          .msg-wrap {
+            max-width: 85%;
+          }
+          
           .avatar { width: 40px; height: 40px; }
-          .search-input { width: 140px; }
-          .tool { width: 44px; height: 44px; font-size: 1rem; }
+          .search-input { width: 120px; font-size: 0.9rem; }
+          .tool { width: 44px; height: 44px; font-size: 1.1rem; }
           .send { width: 48px; height: 48px; }
-          .alert-box { padding: 2rem 1.5rem; }
+          .msg-field { font-size: 16px; padding: 11px 14px; }
+          
+          .alert-box { 
+            padding: 2rem 1.5rem;
+            max-width: 340px;
+          }
           .alert-title { font-size: 1.5rem; }
           .alert-message { font-size: 0.95rem; }
+          .alert-icon { font-size: 3.5rem; }
+          .alert-btn {
+            padding: 14px 50px;
+            font-size: 1.05rem;
+          }
+          
+          .header {
+            padding: 10px 12px;
+          }
+          
+          .chat {
+            padding: 16px 12px;
+          }
+          
+          .partner .name {
+            font-size: 0.95rem;
+          }
+          
+          .status {
+            font-size: 0.8rem;
+          }
         }
       `}</style>
     </>
