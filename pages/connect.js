@@ -19,6 +19,7 @@ export default function ConnectPage() {
   const [statusMessage, setStatusMessage] = useState(
     "❤️ जहां दिल मिले, वहीं होती है शुरुआत Milan की…"
   );
+  const [sidebarOpen, setSidebarOpen] = useState(false);
 
   const fwRef = useRef({ raf: null, burst: () => {}, cleanup: null });
   const socketRef = useRef(null);
@@ -32,7 +33,6 @@ export default function ConnectPage() {
     []
   );
 
-  // Load profile (SSR-safe)
   useEffect(() => {
     try {
       if (typeof window === "undefined") return;
@@ -55,7 +55,6 @@ export default function ConnectPage() {
     } catch {}
   }, []);
 
-  // Hearts BG
   useEffect(() => {
     const cvs = document.getElementById("heartsCanvas");
     if (!cvs) return;
@@ -122,7 +121,6 @@ export default function ConnectPage() {
     };
   }, []);
 
-  // Fireworks layer
   useEffect(() => {
     startFireworks();
     return stopFireworks;
@@ -212,7 +210,6 @@ export default function ConnectPage() {
     if (fwRef.current.cleanup) fwRef.current.cleanup();
   }
 
-  // SWC-safe file input handler
   const handlePhotoPick = (e) => {
     try {
       const input = e && e.target ? e.target : null;
@@ -246,7 +243,6 @@ export default function ConnectPage() {
     } catch {}
   };
 
-  // Matching
   function startSearch(type) {
     if (isSearching || connectingRef.current) return;
     connectingRef.current = true;
@@ -338,7 +334,6 @@ export default function ConnectPage() {
     setStatusMessage("❤️ जहां दिल मिले, वहीं होती है शुरुआत Milan की…");
   }
 
-  // Completeness meter
   function completeness(p = profile) {
     let s = 0;
     if (p.name) s += 18;
@@ -358,7 +353,7 @@ export default function ConnectPage() {
     <>
       <Head>
         <title>Milan – Connect</title>
-        <meta name="viewport" content="width=device-width, initial-scale=1" />
+        <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=5" />
         <link rel="preconnect" href="https://fonts.googleapis.com" />
         <link
           rel="preconnect"
@@ -370,6 +365,17 @@ export default function ConnectPage() {
           rel="stylesheet"
         />
       </Head>
+
+      {/* Hamburger Menu Button (Mobile Only) */}
+      <button 
+        className="hamburger"
+        onClick={() => setSidebarOpen(!sidebarOpen)}
+        aria-label="Toggle menu"
+      >
+        <span></span>
+        <span></span>
+        <span></span>
+      </button>
 
       {/* Frame */}
       <div className="frame" aria-hidden />
@@ -387,8 +393,23 @@ export default function ConnectPage() {
         />
       </audio>
 
-      {/* Sidebar (desktop only) */}
-      <aside className="sidebar">
+      {/* Sidebar Overlay (Mobile) */}
+      {sidebarOpen && (
+        <div 
+          className="sidebar-overlay"
+          onClick={() => setSidebarOpen(false)}
+        />
+      )}
+
+      {/* Sidebar */}
+      <aside className={`sidebar ${sidebarOpen ? 'open' : ''}`}>
+        <button 
+          className="close-sidebar"
+          onClick={() => setSidebarOpen(false)}
+          aria-label="Close menu"
+        >
+          ✕
+        </button>
         <div className="profileTop">
           <div className="avatarWrap">
             <Avatar />
@@ -450,7 +471,7 @@ export default function ConnectPage() {
               <h3>Text Chat</h3>
               <p>Say hello. Trade vibes. Let the story find you.</p>
             </header>
-            <button className="cta ghost" onClick={() => startSearch("text")}>
+            <button className="cta" onClick={() => startSearch("text")}>
               💬 Start Text Chat
             </button>
           </article>
@@ -460,19 +481,18 @@ export default function ConnectPage() {
               <h3>Video Chat</h3>
               <p>Face-to-face chemistry. Zero setup, all spark.</p>
             </header>
-            <button className="cta primary" onClick={() => startSearch("video")}>
+            <button className="cta" onClick={() => startSearch("video")}>
               🎥 Start Video Chat
             </button>
           </article>
 
-          {/* 🔗 NEW: Invite Link (Zero-DB) – Quick Direct Connect */}
           <article className="featureCard invite">
             <header>
               <h3>Invite Link (Zero-DB)</h3>
               <p>Share a link. Partner clicks. You're connected.</p>
             </header>
             <button
-              className="cta outline"
+              className="cta"
               onClick={() => {
                 const rid = Math.random().toString(36).slice(2, 8);
                 const mode = "text";
@@ -488,7 +508,7 @@ export default function ConnectPage() {
               <h3>Milan AI Studio</h3>
               <p>Create dreamy prompts & reels—love, but make it aesthetic.</p>
             </header>
-            <a href="/ai" className="cta outline">
+            <a href="/ai" className="cta">
               🎨 Open AI Studio
             </a>
           </article>
@@ -499,7 +519,7 @@ export default function ConnectPage() {
               <p>Light up the sky & your heart—Diwali vibes on tap.</p>
             </header>
             <button
-              className="cta gold"
+              className="cta"
               onClick={() => {
                 const a = document.getElementById("bellAudio");
                 try {
@@ -528,29 +548,24 @@ export default function ConnectPage() {
           </article>
         </section>
 
-        {/* NEW: Enhanced Search Modal with Rotating Hearts */}
         {showLoader && isSearching && (
           <div className="search-modal-overlay" role="dialog" aria-modal="true">
             <div className="search-modal">
               <div className="modal-content">
-                {/* Main Heading */}
                 <h2 className="modal-heading">
                   💖 Your Milan story is about to begin…
                 </h2>
                 
-                {/* Heart Loading Animation */}
                 <div className="heart-loader-container">
-                  {/* Rotating small hearts around center */}
                   <div className="orbiting-hearts">
                     <div className="orbit-heart heart-1">💗</div>
                     <div className="orbit-heart heart-2">💕</div>
                     <div className="orbit-heart heart-3">💖</div>
-                    <div className="orbit-heart heart-4">💝</div>
-                    <div className="orbit-heart heart-5">💓</div>
+                    <div className="orbit-heart heart-4">💓</div>
+                    <div className="orbit-heart heart-5">💝</div>
                     <div className="orbit-heart heart-6">💞</div>
                   </div>
                   
-                  {/* Center large animated heart */}
                   <svg className="center-heart" viewBox="0 0 32 29" aria-hidden>
                     <defs>
                       <linearGradient id="heartGrad" x1="0" x2="1" y1="0" y2="1">
@@ -567,15 +582,12 @@ export default function ConnectPage() {
                   </svg>
                 </div>
 
-                {/* Romantic Status Message */}
                 <p className="modal-description">
-                  We're gently nudging hearts together — finding someone who vibes with your rhythm. Hold on, cupid is working his magic! 💘
+                  We're gently nudging hearts together – finding someone who vibes with your rhythm. Hold on, cupid is working his magic! 💘
                 </p>
 
-                {/* Status Text */}
                 <div className="status-text">{statusMessage}</div>
 
-                {/* Stop Button */}
                 <button className="stop-search-btn" onClick={() => stopSearch()}>
                   <span className="btn-icon">✕</span>
                   <span className="btn-text">Stop Searching</span>
@@ -587,58 +599,347 @@ export default function ConnectPage() {
       </main>
 
       <style>{`
-        :root{ --brandH: 170px; --bottomH: 60px; } 
-        *,*::before,*::after{ box-sizing:border-box; min-width:0; }
-        html,body{ margin:0; padding:0; height:100%; background:#08060c; color:#f7f7fb; font-family:Poppins,system-ui,-apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif; }
-        body{ overflow:hidden; } 
-        #heartsCanvas{ position:fixed; inset:0; z-index:0; pointer-events:none; }
-        #fxCanvas{ position:fixed; inset:0; z-index:0; pointerEvents:none; }
+        :root { --brandH: 140px; --bottomH: 60px; }
+        *, *::before, *::after { box-sizing: border-box; min-width: 0; }
+        html, body { margin: 0; padding: 0; min-height: 100vh; background: #08060c; color: #f7f7fb; font-family: Poppins, system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, sans-serif; }
+        body { overflow-x: hidden; overflow-y: auto; }
+        
+        #heartsCanvas { position: fixed; inset: 0; z-index: 0; pointer-events: none; }
+        #fxCanvas { position: fixed; inset: 0; z-index: 0; pointer-events: none; }
 
-        .frame{ position:fixed; top:10px; bottom:10px; right:10px; left:210px; z-index:2; pointer-events:none; }
-        .frame::before{ padding:2px; background:linear-gradient(135deg, rgba(255,209,102,.9), rgba(255,209,102,.45) 40%, rgba(255,110,167,.55), rgba(255,209,102,.9)); -webkit-mask:linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0); -webkit-mask-composite:xor; mask-composite:exclude; border-radius:18px; box-shadow:0 0 24px rgba(255,209,102,.32), 0 0 46px rgba(255,110,167,.2); }
-        .frame::after{ inset:8px; border:2px solid rgba(255,209,102,.6); border-radius:14px; box-shadow:0 0 20px rgba(255,209,102,.28) inset; }
+        /* Hamburger Menu */
+        .hamburger {
+          display: none;
+          position: fixed;
+          top: 20px;
+          left: 20px;
+          z-index: 1001;
+          background: rgba(255, 110, 167, 0.2);
+          border: 2px solid rgba(255, 110, 167, 0.4);
+          border-radius: 12px;
+          width: 50px;
+          height: 50px;
+          flex-direction: column;
+          align-items: center;
+          justify-content: center;
+          gap: 6px;
+          cursor: pointer;
+          backdrop-filter: blur(10px);
+          transition: all 0.3s ease;
+        }
 
-        .sidebar{ position:fixed; left:0; top:0; bottom:0; width:200px; background:rgba(255,255,255,.04); backdrop-filter:blur(8px); border-right:1px solid rgba(255,255,255,.06); z-index:3; display:flex; flex-direction:column; align-items:center; padding-top:18px; }
-        .avatarWrap{ width:70px; height:70px; border-radius:50%; overflow:hidden; box-shadow:0 6px 18px rgba(0,0,0,.35); }
-        .name{ margin-top:8px; font-weight:800; }
-        .meter{ width:140px; height:8px; background:rgba(255,255,255,.1); border-radius:8px; margin-top:6px; overflow:hidden; }
-        .meter .bar{ height:100%; background:linear-gradient(90deg,#ff6ea7,#ff9fb0); }
-        .photoPick{ margin-top:8px; font-size:12px; color:#fff; background:rgba(255,255,255,.08); padding:6px 10px; border-radius:8px; cursor:pointer; }
-        .nav{ list-style:none; padding:0; width:100%; margin-top:18px; }
-        .nav li{ padding:10px 14px; margin:6px 12px; border-radius:12px; background:rgba(255,255,255,.04); cursor:pointer; font-weight:700; }
+        .hamburger:hover {
+          background: rgba(255, 110, 167, 0.3);
+          transform: scale(1.05);
+        }
 
-        .brandBlock{ position:fixed; left:50%; transform:translateX(-50%); top:120px; text-align:center; z-index:3; pointer-events:none; }
-        .heroBrand{ font-family:'Great Vibes', cursive; font-size:116px; line-height:1.02; background: linear-gradient(180deg, #fff5cc, #ffd166 48%, #f3b03f); -webkit-background-clip: text; background-clip: text; color: transparent; text-shadow: 0 0 22px rgba(255,209,102,.35), 0 0 40px rgba(255,110,167,.15); }
-        .brandTagline{ margin-top:6px; font-size:20px; font-weight:700; letter-spacing:.02em; background: linear-gradient(90deg, #ffd166, #ffb6c1); -webkit-background-clip:text; background-clip:text; color:transparent; font-style: italic; position:relative; display:inline-block; }
-        .brandTagline:after{ content:""; display:block; height:2px; margin:8px auto 0; width:160px; border-radius:999px; background:linear-gradient(90deg, rgba(255,182,193,0), #ffd166, rgba(255,182,193,0)); box-shadow:0 0 12px rgba(255,209,102,.45); }
+        .hamburger span {
+          display: block;
+          width: 25px;
+          height: 3px;
+          background: #fff;
+          border-radius: 2px;
+          transition: all 0.3s ease;
+        }
 
-        .heroWrap{ position:relative; margin-left:200px; z-index:3; min-height:100vh; display:flex; flex-direction:column; align-items:center; justify-content:center; padding: calc(var(--brandH) + 16px) 12px var(--bottomH); box-sizing:border-box; gap:16px; }
-        .miniGreeting{ max-width:min(980px, calc(100vw - 260px)); text-align:center; font-weight:700; line-height:1.35; color:#ffe9ac; text-shadow:0 0 14px rgba(255,209,102,.22); margin:0; }
+        .sidebar-overlay {
+          display: none;
+          position: fixed;
+          inset: 0;
+          background: rgba(0, 0, 0, 0.7);
+          z-index: 998;
+          backdrop-filter: blur(4px);
+        }
 
-        .featuresGrid{ width:min(980px, calc(100vw - 260px)); display:grid; grid-template-columns:repeat(2, minmax(260px, 1fr)); gap:16px; }
-        .featureCard{ background:rgba(16,13,22,.46); border:1px solid rgba(255,255,255,.08); border-radius:18px; padding:22px; backdrop-filter:blur(8px); box-shadow:0 14px 44px rgba(0,0,0,.35); display:flex; flex-direction:column; align-items:flex-start; gap:14px; transition:transform .15s ease, box-shadow .15s ease, border-color .15s ease; }
-        .featureCard header h3{ margin:0; font-size:22px; font-weight:900; letter-spacing:.2px; }
-        .featureCard header p{ margin:4px 0 0 0; opacity:.9; }
-        .featureCard:hover{ transform: translateY(-4px); box-shadow:0 18px 56px rgba(0,0,0,.45); }
-        .featureCard.text{ border-color:rgba(255,110,167,.22); }
-        .featureCard.video{ border-color:rgba(255,110,167,.18); }
-        .featureCard.invite{ border-color:rgba(160, 220, 255, .28); }
-        .featureCard.studio{ border-color:rgba(140,150,255,.22); }
-        .featureCard.celebrate{ border-color:rgba(255,209,102,.35); }
+        .close-sidebar {
+          display: none;
+          position: absolute;
+          top: 15px;
+          right: 15px;
+          background: rgba(255, 110, 167, 0.2);
+          border: 2px solid rgba(255, 110, 167, 0.4);
+          color: #fff;
+          font-size: 24px;
+          width: 40px;
+          height: 40px;
+          border-radius: 50%;
+          cursor: pointer;
+          transition: all 0.3s ease;
+        }
 
-        .cta{ padding:12px 16px; border-radius:12px; font-weight:900; border:0; cursor:pointer; display:inline-flex; align-items:center; justify-content:center; text-decoration:none; transition:transform .14s ease, box-shadow .14s ease, filter .14s ease; }
-        .cta:hover{ transform: translateY(-2px); filter: brightness(1.02); }
-        .cta:active{ transform: scale(.97); box-shadow: inset 0 0 0 9999px rgba(0,0,0,.05); }
-        .cta:focus-visible{ outline: 3px solid rgba(255,209,102,.6); outline-offset: 2px; }
+        .close-sidebar:hover {
+          background: rgba(255, 110, 167, 0.4);
+          transform: rotate(90deg);
+        }
 
-        .cta.primary{ background:linear-gradient(90deg,#ff6ea7,#ff9fb0); color:#0a0b12; box-shadow:0 10px 34px rgba(255,110,167,.25); }
-        .cta.ghost{ background:rgba(255,255,255,.07); color:#fff; border:1px solid rgba(255,255,255,.14); }
-        .cta.outline{ background:transparent; color:#fff; border:2px solid rgba(255,110,167,.45); box-shadow:0 0 0 2px rgba(255,110,167,.12) inset; }
-        .cta.gold{ background:rgba(255,209,102,.18); color:#ffe9ac; border:1px solid rgba(255,209,102,.4); box-shadow:0 12px 36px rgba(255,209,102,.18); }
+        .frame {
+          position: fixed;
+          top: 10px;
+          bottom: 10px;
+          right: 10px;
+          left: 210px;
+          z-index: 2;
+          pointer-events: none;
+        }
+        
+        .frame::before {
+          content: '';
+          position: absolute;
+          inset: 0;
+          padding: 2px;
+          background: linear-gradient(135deg, rgba(255,209,102,.9), rgba(255,209,102,.45) 40%, rgba(255,110,167,.55), rgba(255,209,102,.9));
+          -webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
+          -webkit-mask-composite: xor;
+          mask-composite: exclude;
+          border-radius: 18px;
+          box-shadow: 0 0 24px rgba(255,209,102,.32), 0 0 46px rgba(255,110,167,.2);
+        }
+        
+        .frame::after {
+          content: '';
+          position: absolute;
+          inset: 8px;
+          border: 2px solid rgba(255,209,102,.6);
+          border-radius: 14px;
+          box-shadow: 0 0 20px rgba(255,209,102,.28) inset;
+        }
 
-        /* ============================================
-           ENHANCED SEARCH MODAL WITH ROTATING HEARTS
-           ============================================ */
+        .sidebar {
+          position: fixed;
+          left: 0;
+          top: 0;
+          bottom: 0;
+          width: 200px;
+          background: rgba(255, 255, 255, 0.04);
+          backdrop-filter: blur(8px);
+          border-right: 1px solid rgba(255, 255, 255, 0.06);
+          z-index: 999;
+          display: flex;
+          flex-direction: column;
+          align-items: center;
+          padding-top: 18px;
+          transition: transform 0.3s ease;
+        }
+
+        .avatarWrap {
+          width: 70px;
+          height: 70px;
+          border-radius: 50%;
+          overflow: hidden;
+          box-shadow: 0 6px 18px rgba(0, 0, 0, 0.35);
+        }
+
+        .name {
+          margin-top: 8px;
+          font-weight: 800;
+        }
+
+        .meter {
+          width: 140px;
+          height: 8px;
+          background: rgba(255, 255, 255, 0.1);
+          border-radius: 8px;
+          margin-top: 6px;
+          overflow: hidden;
+        }
+
+        .meter .bar {
+          height: 100%;
+          background: linear-gradient(90deg, #ff6ea7, #ff9fb0);
+          transition: width 0.3s ease;
+        }
+
+        .photoPick {
+          margin-top: 8px;
+          font-size: 12px;
+          color: #fff;
+          background: rgba(255, 255, 255, 0.08);
+          padding: 6px 10px;
+          border-radius: 8px;
+          cursor: pointer;
+          transition: all 0.2s ease;
+        }
+
+        .photoPick:hover {
+          background: rgba(255, 110, 167, 0.2);
+        }
+
+        .nav {
+          list-style: none;
+          padding: 0;
+          width: 100%;
+          margin-top: 18px;
+        }
+
+        .nav li {
+          padding: 10px 14px;
+          margin: 6px 12px;
+          border-radius: 12px;
+          background: rgba(255, 255, 255, 0.04);
+          cursor: pointer;
+          font-weight: 700;
+          transition: all 0.2s ease;
+        }
+
+        .nav li:hover {
+          background: rgba(255, 110, 167, 0.15);
+          transform: translateX(4px);
+        }
+
+        .brandBlock {
+          position: fixed;
+          left: 50%;
+          transform: translateX(-50%);
+          top: 60px;
+          text-align: center;
+          z-index: 3;
+          pointer-events: none;
+          width: 100%;
+          padding: 0 20px;
+        }
+
+        .heroBrand {
+          font-family: 'Great Vibes', cursive;
+          font-size: clamp(60px, 12vw, 116px);
+          line-height: 1.02;
+          background: linear-gradient(180deg, #fff5cc, #ffd166 48%, #f3b03f);
+          -webkit-background-clip: text;
+          background-clip: text;
+          color: transparent;
+          text-shadow: 0 0 22px rgba(255, 209, 102, 0.35), 0 0 40px rgba(255, 110, 167, 0.15);
+          white-space: nowrap;
+        }
+
+        .brandTagline {
+          margin-top: 6px;
+          font-size: clamp(14px, 3vw, 20px);
+          font-weight: 700;
+          letter-spacing: 0.02em;
+          background: linear-gradient(90deg, #ffd166, #ffb6c1);
+          -webkit-background-clip: text;
+          background-clip: text;
+          color: transparent;
+          font-style: italic;
+          position: relative;
+          display: inline-block;
+        }
+
+        .brandTagline:after {
+          content: "";
+          display: block;
+          height: 2px;
+          margin: 8px auto 0;
+          width: clamp(100px, 30vw, 160px);
+          border-radius: 999px;
+          background: linear-gradient(90deg, rgba(255, 182, 193, 0), #ffd166, rgba(255, 182, 193, 0));
+          box-shadow: 0 0 12px rgba(255, 209, 102, 0.45);
+        }
+
+        .heroWrap {
+          position: relative;
+          margin-left: 200px;
+          z-index: 3;
+          min-height: 100vh;
+          display: flex;
+          flex-direction: column;
+          align-items: center;
+          justify-content: center;
+          padding: calc(var(--brandH) + 20px) 20px var(--bottomH);
+          box-sizing: border-box;
+          gap: 20px;
+        }
+
+        .miniGreeting {
+          max-width: min(980px, calc(100vw - 260px));
+          text-align: center;
+          font-weight: 700;
+          font-size: clamp(14px, 2.5vw, 16px);
+          line-height: 1.5;
+          color: #ffe9ac;
+          text-shadow: 0 0 14px rgba(255, 209, 102, 0.22);
+          margin: 0;
+          padding: 0 10px;
+        }
+
+        .featuresGrid {
+          width: min(980px, calc(100vw - 260px));
+          display: grid;
+          grid-template-columns: repeat(2, minmax(260px, 1fr));
+          gap: 16px;
+        }
+
+        .featureCard {
+          background: rgba(16, 13, 22, 0.46);
+          border: 1px solid rgba(255, 255, 255, 0.08);
+          border-radius: 18px;
+          padding: 22px;
+          backdrop-filter: blur(8px);
+          box-shadow: 0 14px 44px rgba(0, 0, 0, 0.35);
+          display: flex;
+          flex-direction: column;
+          align-items: flex-start;
+          gap: 14px;
+          transition: transform 0.15s ease, box-shadow 0.15s ease, border-color 0.15s ease;
+        }
+
+        .featureCard header h3 {
+          margin: 0;
+          font-size: 22px;
+          font-weight: 900;
+          letter-spacing: 0.2px;
+        }
+
+        .featureCard header p {
+          margin: 4px 0 0 0;
+          opacity: 0.9;
+          font-size: 14px;
+        }
+
+        .featureCard:hover {
+          transform: translateY(-4px);
+          box-shadow: 0 18px 56px rgba(0, 0, 0, 0.45);
+        }
+
+        .featureCard.text { border-color: rgba(255, 110, 167, 0.22); }
+        .featureCard.video { border-color: rgba(255, 110, 167, 0.18); }
+        .featureCard.invite { border-color: rgba(160, 220, 255, 0.28); }
+        .featureCard.studio { border-color: rgba(140, 150, 255, 0.22); }
+        .featureCard.celebrate { border-color: rgba(255, 209, 102, 0.35); }
+
+        .cta {
+          width: 100%;
+          padding: 14px 18px;
+          border-radius: 12px;
+          font-weight: 900;
+          font-size: 15px;
+          border: none;
+          cursor: pointer;
+          display: inline-flex;
+          align-items: center;
+          justify-content: center;
+          text-decoration: none;
+          background: linear-gradient(135deg, #ff6ea7 0%, #ff9fb0 100%);
+          color: #fff;
+          box-shadow: 0 10px 30px rgba(255, 110, 167, 0.3);
+          transition: all 0.2s ease;
+        }
+
+        .cta:hover {
+          transform: translateY(-2px);
+          box-shadow: 0 14px 40px rgba(255, 110, 167, 0.4);
+          background: linear-gradient(135deg, #ff9fb0 0%, #ff6ea7 100%);
+        }
+
+        .cta:active {
+          transform: translateY(0) scale(0.98);
+        }
+
+        .cta:focus-visible {
+          outline: 3px solid rgba(255, 209, 102, 0.6);
+          outline-offset: 2px;
+        }
+
+        /* Search Modal Styles */
         .search-modal-overlay {
           position: fixed;
           inset: 0;
@@ -730,7 +1031,6 @@ export default function ConnectPage() {
           50% { filter: brightness(1.2); }
         }
 
-        /* Heart Loader Container */
         .heart-loader-container {
           position: relative;
           width: 180px;
@@ -740,7 +1040,6 @@ export default function ConnectPage() {
           justify-content: center;
         }
 
-        /* Orbiting Hearts */
         .orbiting-hearts {
           position: absolute;
           width: 100%;
@@ -811,7 +1110,6 @@ export default function ConnectPage() {
           animation-delay: 1s;
         }
 
-        /* Center Heart SVG */
         .center-heart {
           width: 80px;
           height: 80px;
@@ -846,7 +1144,6 @@ export default function ConnectPage() {
           }
         }
 
-        /* Modal Description */
         .modal-description {
           margin: 0;
           text-align: center;
@@ -858,7 +1155,6 @@ export default function ConnectPage() {
           text-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
         }
 
-        /* Status Text */
         .status-text {
           font-size: 14px;
           color: #ffb6d1;
@@ -876,7 +1172,6 @@ export default function ConnectPage() {
           50% { opacity: 1; }
         }
 
-        /* Stop Search Button */
         .stop-search-btn {
           margin-top: 8px;
           padding: 14px 32px;
@@ -918,8 +1213,74 @@ export default function ConnectPage() {
           letter-spacing: 0.3px;
         }
 
-        /* Responsive Design */
+        /* Mobile Responsive */
         @media (max-width: 760px) {
+          .hamburger {
+            display: flex;
+          }
+
+          .sidebar-overlay {
+            display: block;
+          }
+
+          .close-sidebar {
+            display: block;
+          }
+
+          .sidebar {
+            transform: translateX(-100%);
+            box-shadow: 4px 0 20px rgba(0, 0, 0, 0.5);
+          }
+
+          .sidebar.open {
+            transform: translateX(0);
+          }
+
+          .frame {
+            left: 10px;
+          }
+
+          .heroWrap {
+            margin-left: 0;
+            padding: calc(var(--brandH) + 20px) 16px 40px;
+          }
+
+          .brandBlock {
+            top: 80px;
+          }
+
+          .heroBrand {
+            font-size: clamp(50px, 15vw, 80px);
+          }
+
+          .featuresGrid {
+            grid-template-columns: 1fr;
+            width: 100%;
+            max-width: 500px;
+          }
+
+          .miniGreeting {
+            max-width: 100%;
+            font-size: 14px;
+          }
+
+          .featureCard {
+            padding: 18px;
+          }
+
+          .featureCard header h3 {
+            font-size: 20px;
+          }
+
+          .featureCard header p {
+            font-size: 13px;
+          }
+
+          .cta {
+            padding: 12px 16px;
+            font-size: 14px;
+          }
+
           .search-modal {
             padding: 32px 24px;
             border-radius: 24px;
@@ -951,30 +1312,21 @@ export default function ConnectPage() {
             padding: 12px 28px;
             font-size: 15px;
           }
-
-          .sidebar {
-            display: none;
-          }
-
-          .heroWrap {
-            margin-left: 0;
-          }
-
-          .frame {
-            left: 10px;
-          }
-
-          .featuresGrid {
-            grid-template-columns: 1fr;
-            width: calc(100vw - 32px);
-          }
-
-          .miniGreeting {
-            max-width: calc(100vw - 32px);
-          }
         }
 
         @media (max-width: 480px) {
+          .brandBlock {
+            top: 90px;
+          }
+
+          .heroBrand {
+            font-size: clamp(40px, 18vw, 70px);
+          }
+
+          .brandTagline {
+            font-size: 16px;
+          }
+
           .modal-heading {
             font-size: 20px;
           }
@@ -991,6 +1343,20 @@ export default function ConnectPage() {
 
           .orbit-heart {
             font-size: 18px;
+          }
+
+          .featureCard {
+            padding: 16px;
+          }
+        }
+
+        @media (min-width: 761px) and (max-width: 1024px) {
+          .heroWrap {
+            margin-left: 200px;
+          }
+
+          .featuresGrid {
+            width: calc(100vw - 240px);
           }
         }
       `}</style>
