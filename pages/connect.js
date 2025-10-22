@@ -17,7 +17,7 @@ export default function ConnectPage() {
   const [isSearching, setIsSearching] = useState(false);
   const [showLoader, setShowLoader] = useState(false);
   const [statusMessage, setStatusMessage] = useState(
-    "❤️ जहां दिल मिले, वहीं होती है शुरुआत Milan की…"
+    "❤️ जहाँ दिल मिले, वहीं होती है शुरुआत Milan की…"
   );
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [showTutorial, setShowTutorial] = useState(false);
@@ -255,6 +255,26 @@ export default function ConnectPage() {
     setSidebarOpen(!sidebarOpen);
   };
 
+  // Navigation handlers for sidebar buttons
+  const handleProfileInfo = () => {
+    window.location.href = "/profile";
+  };
+
+  const handleSecurity = () => {
+    window.location.href = "/security";
+  };
+
+  const handleLoveCalculator = () => {
+    window.location.href = "/love-calculator";
+  };
+
+  const handleLogout = () => {
+    try {
+      localStorage.clear();
+    } catch {}
+    window.location.href = "/login";
+  };
+
   function startSearch(type) {
     if (isSearching || connectingRef.current) return;
     connectingRef.current = true;
@@ -343,7 +363,7 @@ export default function ConnectPage() {
     }
     setIsSearching(false);
     setShowLoader(false);
-    setStatusMessage("❤️ जहां दिल मिले, वहीं होती है शुरुआत Milan की…");
+    setStatusMessage("❤️ जहाँ दिल मिले, वहीं होती है शुरुआत Milan की…");
   }
 
   function completeness(p = profile) {
@@ -451,19 +471,10 @@ export default function ConnectPage() {
           />
         </div>
         <ul className="nav">
-          <li>👤 Profile Info</li>
-          <li>🔒 Security</li>
-          <li>💘 Love Calculator</li>
-          <li
-            onClick={() => {
-              try {
-                localStorage.clear();
-              } catch {}
-              window.location.href = "/login";
-            }}
-          >
-            🚪 Logout
-          </li>
+          <li onClick={handleProfileInfo}>💤 Profile Info</li>
+          <li onClick={handleSecurity}>🔒 Security</li>
+          <li onClick={handleLoveCalculator}>💘 Love Calculator</li>
+          <li onClick={handleLogout}>🚪 Logout</li>
         </ul>
       </aside>
 
@@ -583,7 +594,7 @@ export default function ConnectPage() {
                     <div className="orbit-heart heart-2">💕</div>
                     <div className="orbit-heart heart-3">💖</div>
                     <div className="orbit-heart heart-4">💓</div>
-                    <div className="orbit-heart heart-5">💝</div>
+                    <div className="orbit-heart heart-5">💙</div>
                     <div className="orbit-heart heart-6">💞</div>
                   </div>
                   
@@ -1502,7 +1513,7 @@ function Avatar() {
         height: 70,
         borderRadius: "50%",
         background: "#ec4899",
-        display: "flex",
+        display: flex,
         alignItems: "center",
         justifyContent: "center",
         fontSize: 28,
