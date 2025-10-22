@@ -1,8 +1,8 @@
-
 // pages/chat.js
-// Updated by assistant: fixes for message visibility, menu background colors,
-// romantic pink-themed background and improved font color combination.
-// NOTE: Only UI/CSS and minor DOM rendering fixes applied. Socket logic untouched.
+// Fixed version: Pink romantic theme with VISIBLE text on all bubbles
+// ME bubble: Pink background with WHITE text (high contrast)
+// YOU bubble: Dark background with WHITE text
+// Input field: WHITE text visible
 
 import { useEffect, useRef, useState } from "react";
 import Head from "next/head";
@@ -80,7 +80,6 @@ export default function ChatPage() {
 
     socket.on("connect_error", (err) => {
       console.error("Socket connect error:", err?.message || err);
-      // gentle UI system message
       setMsgs((p) => [
         ...p,
         { id: `sys-${Date.now()}`, self: false, kind: "system", html: "⚠️ Connection issue. Trying to reconnect...", time: timeNow() },
@@ -88,24 +87,20 @@ export default function ChatPage() {
     });
 
     socket.on("disconnect", (reason) => {
-      // if server intentionally disconnected, show system message
       setMsgs((p) => [
         ...p,
         { id: `sys-${Date.now()}`, self: false, kind: "system", html: `Disconnected (${String(reason)}).`, time: timeNow() },
       ]);
     });
 
-    // identify self (optional)
     socket.emit("userInfo", {
       name: localName || "You",
       avatar: null,
       gender: "unknown",
     });
 
-    // join text queue
     socket.emit("lookingForPartner", { type: "text" });
 
-    // partner found
     socket.on("partnerFound", ({ roomCode: rc, partner }) => {
       if (!rc) return;
       setRoomCode(rc);
@@ -115,12 +110,10 @@ export default function ChatPage() {
       setPartnerName(pName);
       setPartnerAvatarSrc(pAvatar);
 
-      // join room on server (some servers require explicit join)
       try {
         socket.emit("joinRoom", { roomCode: rc });
       } catch (e) {}
 
-      // small system message
       setMsgs((p) => [
         ...p,
         { id: `sys-${Date.now()}`, self: false, kind: "system", html: `You are connected with ${escapeHtml(pName)}.`, time: timeNow() },
@@ -128,11 +121,9 @@ export default function ChatPage() {
       scrollToBottom();
     });
 
-    // incoming text message
     socket.on("message", (msg) => {
       if (!msg || !msg.id) return;
       setMsgs((prev) => {
-        // dedupe by id: if message exists (optimistic self or previous), ignore
         if (prev.some((x) => x.id === msg.id)) return prev;
         const isSelf = socket.id === msg.senderId;
         return [
@@ -149,7 +140,6 @@ export default function ChatPage() {
       scrollToBottom();
     });
 
-    // incoming file message
     socket.on("fileMessage", (msg) => {
       if (!msg || !msg.id) return;
       setMsgs((prev) => {
@@ -172,19 +162,15 @@ export default function ChatPage() {
       scrollToBottom();
     });
 
-    // partner typing
     socket.on("partnerTyping", () => {
       setTyping(true);
       clearTimeout(socketRef.current?._typingTimer);
       socketRef.current._typingTimer = setTimeout(() => setTyping(false), 1500);
     });
 
-    // reaction not used now
     socket.on("reaction", () => {});
 
-    // partner disconnected — show message then auto disconnect/redirect
     socket.on("partnerDisconnected", () => {
-      // push a system message in chat
       const sysId = `sys-dis-${Date.now()}`;
       setMsgs((p) => [
         ...p,
@@ -192,7 +178,6 @@ export default function ChatPage() {
       ]);
       scrollToBottom();
 
-      // give user a moment to see message then disconnect and go to connect
       setTimeout(() => {
         try {
           socket.disconnect();
@@ -221,7 +206,6 @@ export default function ChatPage() {
     if (!val || !socketRef.current || !roomCode) return;
     const id = genId();
 
-    // optimistic UI (status: sent)
     setMsgs((p) => [
       ...p,
       { id, self: true, kind: "text", html: linkify(escapeHtml(val)), time: timeNow(), status: "sent" },
@@ -236,7 +220,6 @@ export default function ChatPage() {
         senderId: socketRef.current.id,
       });
     } catch (e) {
-      // mark failed
       setMsgs((prev) => prev.map((m) => (m.id === id ? { ...m, status: "failed" } : m)));
       console.error("emit message failed", e);
     }
@@ -253,7 +236,7 @@ export default function ChatPage() {
     }
 
     if (f.size > MAX_FILE_BYTES) {
-      alert("⚠️ File too big — max 15 MB allowed.");
+      alert("⚠️ File too big – max 15 MB allowed.");
       e.target.value = "";
       return;
     }
@@ -271,7 +254,6 @@ export default function ChatPage() {
         inner = `<a class="file-link" download="${escapeHtml(f.name)}" href="${dataUrl}">${escapeHtml(f.name)}</a>`;
       }
 
-      // optimistic UI entry for file
       setMsgs((p) => [
         ...p,
         { id, self: true, kind: "file", html: inner, time: timeNow(), status: "sent" },
@@ -288,7 +270,6 @@ export default function ChatPage() {
           senderId: socketRef.current.id,
         });
       } catch (err) {
-        // if emit fails, mark as failed and inform user
         setMsgs((prev) => prev.map((m) => (m.id === id ? { ...m, status: "failed" } : m)));
         console.error("file emit failed", err);
         alert("⚠️ Failed to send file. Please try again.");
@@ -360,26 +341,6 @@ export default function ChatPage() {
     document.addEventListener("click", handler);
     return () => document.removeEventListener("click", handler);
   }, []);
-
-  // Helper to ensure message text remains visible even if styles change
-  useEffect(() => {
-    // ensure message DOMs have correct style fallback
-    Object.values(messageRefs.current).forEach((el) => {
-      try {
-        if (el && el.querySelector) {
-          const bubble = el.querySelector(".bubble");
-          if (bubble) {
-            // enforce readable color if computed style is too dark
-            const comp = window.getComputedStyle(bubble);
-            const color = comp.color || "";
-            if (!color || color === "rgb(0, 0, 0)" || color === "rgba(0, 0, 0, 0)") {
-              bubble.style.color = "#f7f9fb";
-            }
-          }
-        }
-      } catch {}
-    });
-  }, [msgs]);
 
   return (
     <>
@@ -514,7 +475,7 @@ export default function ChatPage() {
                   </button>
                 ))}
               </div>
-                )}
+            )}
           </div>
 
           <input
@@ -535,15 +496,15 @@ export default function ChatPage() {
       <style jsx>{`
         /* Root - color variables */
         :root {
-          --bg-pink-1: #2b0b1e; /* deep rose */
-          --bg-pink-2: #120317; /* near-black plum */
+          --bg-pink-1: #2b0b1e;
+          --bg-pink-2: #120317;
           --panel: linear-gradient(180deg, rgba(255,79,160,0.06), rgba(139,92,246,0.04));
           --accent: #ff4fa0;
           --accent-2: #ffd6ea;
           --text: #f7f8fb;
           --muted: #d6cbe0;
-          --bubble-me-start: #ffd6e8;
-          --bubble-me-end: #ffb6d9;
+          --bubble-me-start: #ff6b9d;
+          --bubble-me-end: #ff1493;
           --bubble-you-start: #1f2a3a;
           --bubble-you-end: #0f1724;
           --system-bg: rgba(255,255,255,0.06);
@@ -665,7 +626,7 @@ export default function ChatPage() {
           font-size: 0.95rem;
         }
 
-        /* Menu (disconnect/report) - make it pink/visible */
+        /* Menu */
         .menu {
           position: absolute;
           right: 10px;
@@ -723,27 +684,34 @@ export default function ChatPage() {
           padding: 0.8rem 0.95rem;
           line-height: 1.35;
           word-wrap: break-word;
-          color: var(--text);
           box-shadow: 0 10px 40px rgba(2,6,23,0.6);
           border: 1px solid rgba(255,255,255,0.02);
         }
 
-        /* YOU bubble - keep as dark navy with white text */
+        /* YOU bubble - dark background with WHITE text */
         .you .bubble {
           background: linear-gradient(135deg, var(--bubble-you-start), var(--bubble-you-end));
-          color: #f3f6ff;
+          color: #ffffff !important;
           border: 1px solid rgba(255,255,255,0.03);
           box-shadow: 0 8px 28px rgba(20,40,80,0.12);
           border-top-left-radius: 6px;
         }
 
-        /* ME bubble - pink bubble with dark text to ensure visibility */
+        /* ME bubble - VIBRANT PINK with WHITE text for maximum visibility */
         .me .bubble {
           background: linear-gradient(135deg, var(--bubble-me-start), var(--bubble-me-end));
-          color: #0b1620; /* dark text for contrast on light bubble */
-          border: 1px solid rgba(0,0,0,0.06);
-          box-shadow: 0 12px 40px rgba(255,79,160,0.08), 0 2px 6px rgba(0,0,0,0.45) inset;
+          color: #ffffff !important;
+          border: 1px solid rgba(255,255,255,0.15);
+          box-shadow: 0 12px 40px rgba(255,20,147,0.25), 0 0 20px rgba(255,105,180,0.15);
           border-top-right-radius: 6px;
+          text-shadow: 0 1px 2px rgba(0,0,0,0.15);
+        }
+
+        /* Links inside bubbles should be visible */
+        .bubble a {
+          color: inherit;
+          text-decoration: underline;
+          font-weight: 600;
         }
 
         /* Ensure image/video inside bubble are responsive */
@@ -755,7 +723,7 @@ export default function ChatPage() {
 
         .system-bubble {
           background: linear-gradient(90deg, rgba(255,255,255,0.04), rgba(255,255,255,0.02));
-          color: #ffeef8;
+          color: #ffeef8 !important;
           padding: 0.45rem 0.6rem;
           border-radius: 12px;
           font-weight: 600;
@@ -798,20 +766,20 @@ export default function ChatPage() {
         }
         .msg-field {
           flex: 1;
-          background: linear-gradient(180deg, rgba(255,255,255,0.02), rgba(255,255,255,0.01));
-          color: var(--bg-pink-2);
-          border: 1px solid rgba(0,0,0,0.06);
+          background: rgba(255,255,255,0.08);
+          color: #ffffff !important;
+          border: 1px solid rgba(255,255,255,0.12);
           border-radius: 28px;
           padding: 12px 16px;
           outline: none;
           font-size: 1rem;
-          box-shadow: inset 0 1px 0 rgba(255,255,255,0.02);
+          box-shadow: inset 0 2px 4px rgba(0,0,0,0.1);
         }
-        .msg-field::placeholder { color: #bfa9bf; }
+        .msg-field::placeholder { color: #d4b8d4; opacity: 0.8; }
 
         .send {
           background: linear-gradient(135deg, rgba(255,79,160,1), rgba(139,92,246,0.95));
-          color: #071320;
+          color: #ffffff;
           border: none;
           border-radius: 50%;
           width: 52px;
@@ -822,6 +790,7 @@ export default function ChatPage() {
           box-shadow: 0 16px 36px rgba(255,79,160,0.18);
           font-size: 1.12rem;
           transition: transform 120ms ease, box-shadow 120ms ease;
+          font-weight: bold;
         }
         .send:active { transform: translateY(1px) scale(0.995); box-shadow: 0 8px 18px rgba(255,79,160,0.16); }
 
@@ -829,14 +798,15 @@ export default function ChatPage() {
           position: absolute;
           bottom: 66px;
           left: 0;
-          background: rgba(255,255,255,0.02);
-          border: 1px solid rgba(255, 255, 255, 0.04);
+          background: rgba(30,20,40,0.95);
+          border: 1px solid rgba(255, 255, 255, 0.08);
           border-radius: 12px;
           padding: 0.5rem;
           display: grid;
           grid-template-columns: repeat(5, 1fr);
           gap: 0.35rem;
           box-shadow: 0 10px 30px rgba(2,6,23,0.6);
+          backdrop-filter: blur(10px);
         }
         .emoji-item {
           border: none;
@@ -845,8 +815,9 @@ export default function ChatPage() {
           cursor: pointer;
           padding: 0.25rem;
           border-radius: 8px;
+          transition: all 150ms ease;
         }
-        .emoji-item:hover { background: rgba(255,255,255,0.02); transform: translateY(-2px); }
+        .emoji-item:hover { background: rgba(255,79,160,0.15); transform: translateY(-2px) scale(1.1); }
 
         @media (max-width: 640px) {
           .bubble { max-width: 82%; padding: 0.6rem 0.75rem; }
