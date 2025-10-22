@@ -20,6 +20,7 @@ export default function ConnectPage() {
     "❤️ जहां दिल मिले, वहीं होती है शुरुआत Milan की…"
   );
   const [sidebarOpen, setSidebarOpen] = useState(false);
+  const [showTutorial, setShowTutorial] = useState(false);
 
   const fwRef = useRef({ raf: null, burst: () => {}, cleanup: null });
   const socketRef = useRef(null);
@@ -53,6 +54,13 @@ export default function ConnectPage() {
         }));
       }
     } catch {}
+
+    // Check if first time user
+    const hasSeenTutorial = localStorage.getItem("milan_tutorial_seen");
+    if (!hasSeenTutorial) {
+      setShowTutorial(true);
+      localStorage.setItem("milan_tutorial_seen", "true");
+    }
   }, []);
 
   useEffect(() => {
@@ -243,6 +251,10 @@ export default function ConnectPage() {
     } catch {}
   };
 
+  const toggleSidebar = () => {
+    setSidebarOpen(!sidebarOpen);
+  };
+
   function startSearch(type) {
     if (isSearching || connectingRef.current) return;
     connectingRef.current = true;
@@ -366,10 +378,26 @@ export default function ConnectPage() {
         />
       </Head>
 
+      {/* Tutorial Toast */}
+      {showTutorial && (
+        <div className="tutorial-toast">
+          <div className="tutorial-content">
+            <span className="tutorial-icon">💡</span>
+            <p>Click the menu button to open/close sidebar</p>
+            <button 
+              className="tutorial-close"
+              onClick={() => setShowTutorial(false)}
+            >
+              Got it!
+            </button>
+          </div>
+        </div>
+      )}
+
       {/* Hamburger Menu Button (Mobile Only) */}
       <button 
         className="hamburger"
-        onClick={() => setSidebarOpen(!sidebarOpen)}
+        onClick={toggleSidebar}
         aria-label="Toggle menu"
       >
         <span></span>
@@ -397,19 +425,12 @@ export default function ConnectPage() {
       {sidebarOpen && (
         <div 
           className="sidebar-overlay"
-          onClick={() => setSidebarOpen(false)}
+          onClick={toggleSidebar}
         />
       )}
 
       {/* Sidebar */}
       <aside className={`sidebar ${sidebarOpen ? 'open' : ''}`}>
-        <button 
-          className="close-sidebar"
-          onClick={() => setSidebarOpen(false)}
-          aria-label="Close menu"
-        >
-          ✕
-        </button>
         <div className="profileTop">
           <div className="avatarWrap">
             <Avatar />
@@ -607,6 +628,67 @@ export default function ConnectPage() {
         #heartsCanvas { position: fixed; inset: 0; z-index: 0; pointer-events: none; }
         #fxCanvas { position: fixed; inset: 0; z-index: 0; pointer-events: none; }
 
+        /* Tutorial Toast */
+        .tutorial-toast {
+          position: fixed;
+          top: 90px;
+          left: 50%;
+          transform: translateX(-50%);
+          z-index: 10000;
+          animation: slideDown 0.4s ease-out;
+        }
+
+        @keyframes slideDown {
+          from {
+            opacity: 0;
+            transform: translateX(-50%) translateY(-20px);
+          }
+          to {
+            opacity: 1;
+            transform: translateX(-50%) translateY(0);
+          }
+        }
+
+        .tutorial-content {
+          background: linear-gradient(135deg, rgba(255, 110, 167, 0.95), rgba(255, 159, 176, 0.95));
+          padding: 16px 24px;
+          border-radius: 16px;
+          box-shadow: 0 8px 32px rgba(255, 110, 167, 0.4);
+          display: flex;
+          align-items: center;
+          gap: 12px;
+          max-width: 90vw;
+          backdrop-filter: blur(10px);
+        }
+
+        .tutorial-icon {
+          font-size: 24px;
+        }
+
+        .tutorial-content p {
+          margin: 0;
+          color: #fff;
+          font-weight: 600;
+          font-size: 14px;
+        }
+
+        .tutorial-close {
+          background: rgba(255, 255, 255, 0.25);
+          border: none;
+          padding: 8px 16px;
+          border-radius: 8px;
+          color: #fff;
+          font-weight: 700;
+          cursor: pointer;
+          transition: all 0.2s ease;
+          white-space: nowrap;
+        }
+
+        .tutorial-close:hover {
+          background: rgba(255, 255, 255, 0.35);
+          transform: scale(1.05);
+        }
+
         /* Hamburger Menu */
         .hamburger {
           display: none;
@@ -649,27 +731,6 @@ export default function ConnectPage() {
           background: rgba(0, 0, 0, 0.7);
           z-index: 998;
           backdrop-filter: blur(4px);
-        }
-
-        .close-sidebar {
-          display: none;
-          position: absolute;
-          top: 15px;
-          right: 15px;
-          background: rgba(255, 110, 167, 0.2);
-          border: 2px solid rgba(255, 110, 167, 0.4);
-          color: #fff;
-          font-size: 24px;
-          width: 40px;
-          height: 40px;
-          border-radius: 50%;
-          cursor: pointer;
-          transition: all 0.3s ease;
-        }
-
-        .close-sidebar:hover {
-          background: rgba(255, 110, 167, 0.4);
-          transform: rotate(90deg);
         }
 
         .frame {
@@ -790,7 +851,7 @@ export default function ConnectPage() {
           position: fixed;
           left: 50%;
           transform: translateX(-50%);
-          top: 60px;
+          top: 40px;
           text-align: center;
           z-index: 3;
           pointer-events: none;
@@ -811,7 +872,7 @@ export default function ConnectPage() {
         }
 
         .brandTagline {
-          margin-top: 6px;
+          margin-top: 8px;
           font-size: clamp(14px, 3vw, 20px);
           font-weight: 700;
           letter-spacing: 0.02em;
@@ -844,17 +905,17 @@ export default function ConnectPage() {
           flex-direction: column;
           align-items: center;
           justify-content: center;
-          padding: calc(var(--brandH) + 20px) 20px var(--bottomH);
+          padding: calc(var(--brandH) + 40px) 30px var(--bottomH);
           box-sizing: border-box;
-          gap: 20px;
+          gap: 24px;
         }
 
         .miniGreeting {
-          max-width: min(980px, calc(100vw - 260px));
+          max-width: min(920px, calc(100vw - 280px));
           text-align: center;
           font-weight: 700;
           font-size: clamp(14px, 2.5vw, 16px);
-          line-height: 1.5;
+          line-height: 1.6;
           color: #ffe9ac;
           text-shadow: 0 0 14px rgba(255, 209, 102, 0.22);
           margin: 0;
@@ -862,29 +923,30 @@ export default function ConnectPage() {
         }
 
         .featuresGrid {
-          width: min(980px, calc(100vw - 260px));
+          width: min(920px, calc(100vw - 280px));
           display: grid;
-          grid-template-columns: repeat(2, minmax(260px, 1fr));
-          gap: 16px;
+          grid-template-columns: repeat(2, minmax(240px, 1fr));
+          gap: 18px;
+          padding: 0 10px;
         }
 
         .featureCard {
           background: rgba(16, 13, 22, 0.46);
           border: 1px solid rgba(255, 255, 255, 0.08);
           border-radius: 18px;
-          padding: 22px;
+          padding: 20px;
           backdrop-filter: blur(8px);
           box-shadow: 0 14px 44px rgba(0, 0, 0, 0.35);
           display: flex;
           flex-direction: column;
           align-items: flex-start;
-          gap: 14px;
+          gap: 12px;
           transition: transform 0.15s ease, box-shadow 0.15s ease, border-color 0.15s ease;
         }
 
         .featureCard header h3 {
           margin: 0;
-          font-size: 22px;
+          font-size: 20px;
           font-weight: 900;
           letter-spacing: 0.2px;
         }
@@ -892,7 +954,8 @@ export default function ConnectPage() {
         .featureCard header p {
           margin: 4px 0 0 0;
           opacity: 0.9;
-          font-size: 14px;
+          font-size: 13px;
+          line-height: 1.4;
         }
 
         .featureCard:hover {
@@ -908,10 +971,10 @@ export default function ConnectPage() {
 
         .cta {
           width: 100%;
-          padding: 14px 18px;
+          padding: 12px 16px;
           border-radius: 12px;
           font-weight: 900;
-          font-size: 15px;
+          font-size: 14px;
           border: none;
           cursor: pointer;
           display: inline-flex;
@@ -1223,10 +1286,6 @@ export default function ConnectPage() {
             display: block;
           }
 
-          .close-sidebar {
-            display: block;
-          }
-
           .sidebar {
             transform: translateX(-100%);
             box-shadow: 4px 0 20px rgba(0, 0, 0, 0.5);
@@ -1242,43 +1301,51 @@ export default function ConnectPage() {
 
           .heroWrap {
             margin-left: 0;
-            padding: calc(var(--brandH) + 20px) 16px 40px;
+            padding: calc(var(--brandH) + 40px) 20px 40px;
           }
 
           .brandBlock {
-            top: 80px;
+            top: 50px;
           }
 
           .heroBrand {
             font-size: clamp(50px, 15vw, 80px);
           }
 
+          .brandTagline {
+            font-size: clamp(13px, 3.5vw, 18px);
+            margin-top: 6px;
+          }
+
           .featuresGrid {
             grid-template-columns: 1fr;
             width: 100%;
             max-width: 500px;
+            gap: 14px;
+            padding: 0;
           }
 
           .miniGreeting {
             max-width: 100%;
-            font-size: 14px;
+            font-size: 13px;
+            line-height: 1.5;
           }
 
           .featureCard {
-            padding: 18px;
+            padding: 16px;
           }
 
           .featureCard header h3 {
-            font-size: 20px;
+            font-size: 18px;
           }
 
           .featureCard header p {
-            font-size: 13px;
+            font-size: 12px;
           }
 
           .cta {
-            padding: 12px 16px;
-            font-size: 14px;
+            padding: 11px 14px;
+            font-size: 13px;
           }
 
           .search-modal {
@@ -1312,11 +1379,23 @@ export default function ConnectPage() {
             padding: 12px 28px;
             font-size: 15px;
           }
+
+          .tutorial-toast {
+            top: 80px;
+          }
+
+          .tutorial-content {
+            padding: 12px 18px;
+          }
+
+          .tutorial-content p {
+            font-size: 12px;
+          }
         }
 
         @media (max-width: 480px) {
           .brandBlock {
-            top: 90px;
+            top: 60px;
           }
 
           .heroBrand {
@@ -1324,7 +1403,7 @@ export default function ConnectPage() {
           }
 
           .brandTagline {
-            font-size: 16px;
+            font-size: 14px;
           }
 
           .modal-heading {
@@ -1346,17 +1425,27 @@ export default function ConnectPage() {
           }
 
           .featureCard {
-            padding: 16px;
+            padding: 14px;
+          }
+
+          .heroWrap {
+            padding: calc(var(--brandH) + 30px) 16px 30px;
           }
         }
 
         @media (min-width: 761px) and (max-width: 1024px) {
           .heroWrap {
             margin-left: 200px;
+            padding: calc(var(--brandH) + 40px) 24px var(--bottomH);
           }
 
           .featuresGrid {
-            width: calc(100vw - 240px);
+            width: calc(100vw - 260px);
+            max-width: 880px;
+          }
+
+          .miniGreeting {
+            max-width: calc(100vw - 260px);
           }
         }
       `}</style>
