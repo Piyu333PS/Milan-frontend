@@ -1,4 +1,9 @@
+
 // pages/chat.js
+// Updated by assistant: fixes for message visibility, menu background colors,
+// romantic pink-themed background and improved font color combination.
+// NOTE: Only UI/CSS and minor DOM rendering fixes applied. Socket logic untouched.
+
 import { useEffect, useRef, useState } from "react";
 import Head from "next/head";
 import io from "socket.io-client";
@@ -356,6 +361,26 @@ export default function ChatPage() {
     return () => document.removeEventListener("click", handler);
   }, []);
 
+  // Helper to ensure message text remains visible even if styles change
+  useEffect(() => {
+    // ensure message DOMs have correct style fallback
+    Object.values(messageRefs.current).forEach((el) => {
+      try {
+        if (el && el.querySelector) {
+          const bubble = el.querySelector(".bubble");
+          if (bubble) {
+            // enforce readable color if computed style is too dark
+            const comp = window.getComputedStyle(bubble);
+            const color = comp.color || "";
+            if (!color || color === "rgb(0, 0, 0)" || color === "rgba(0, 0, 0, 0)") {
+              bubble.style.color = "#f7f9fb";
+            }
+          }
+        }
+      } catch {}
+    });
+  }, [msgs]);
+
   return (
     <>
       <Head>
@@ -489,7 +514,7 @@ export default function ChatPage() {
                   </button>
                 ))}
               </div>
-            )}
+                )}
           </div>
 
           <input
@@ -508,29 +533,32 @@ export default function ChatPage() {
       </div>
 
       <style jsx>{`
+        /* Root - color variables */
         :root {
-          --bg: #030417;
-          --panel: #071021;
-          --header-1: #ff66a3;
-          --header-2: #8b5cf6;
+          --bg-pink-1: #2b0b1e; /* deep rose */
+          --bg-pink-2: #120317; /* near-black plum */
+          --panel: linear-gradient(180deg, rgba(255,79,160,0.06), rgba(139,92,246,0.04));
           --accent: #ff4fa0;
-          --accent-2: #ffe0f0;
-          --text: #f6f7fb;
-          --muted: #a8b0c0;
-          --bubble-me-start: #ffb6d9;
-          --bubble-me-end: #ff7fbf;
+          --accent-2: #ffd6ea;
+          --text: #f7f8fb;
+          --muted: #d6cbe0;
+          --bubble-me-start: #ffd6e8;
+          --bubble-me-end: #ffb6d9;
           --bubble-you-start: #1f2a3a;
           --bubble-you-end: #0f1724;
-          --system-bg: rgba(255,255,255,0.04);
-          --glass: rgba(255,255,255,0.03);
+          --system-bg: rgba(255,255,255,0.06);
+          --menu-bg: linear-gradient(180deg, rgba(255,79,160,0.12), rgba(139,92,246,0.08));
+          --glass: rgba(255,255,255,0.02);
+          --font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial;
         }
-        html,
-        body {
+
+        html, body {
           height: 100%;
           margin: 0;
-          background: radial-gradient(ellipse at top left, rgba(255,79,160,0.06), transparent 20%),
-                      linear-gradient(180deg, var(--panel) 0%, #030517 100%);
-          font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial;
+          font-family: var(--font-family);
+          background: radial-gradient(1200px 600px at 10% 10%, rgba(255,79,160,0.06), transparent 6%),
+                      radial-gradient(900px 400px at 90% 90%, rgba(139,92,246,0.03), transparent 8%),
+                      linear-gradient(180deg, var(--bg-pink-1), var(--bg-pink-2));
           -webkit-font-smoothing: antialiased;
           -moz-osx-font-smoothing: grayscale;
         }
@@ -541,11 +569,11 @@ export default function ChatPage() {
           flex-direction: column;
           height: 100svh;
           max-width: 980px;
-          margin: 0 auto;
-          background: linear-gradient(180deg, rgba(7,12,20,0.6), rgba(3,4,9,0.9));
+          margin: 10px auto;
+          background: linear-gradient(180deg, rgba(3,2,6,0.6), rgba(5,3,8,0.95));
           color: var(--text);
-          box-shadow: 0 12px 40px rgba(2,6,23,0.6);
-          border-radius: 10px;
+          box-shadow: 0 18px 60px rgba(11,6,18,0.7);
+          border-radius: 12px;
           overflow: hidden;
         }
 
@@ -553,42 +581,40 @@ export default function ChatPage() {
         .header {
           position: sticky;
           top: 0;
-          z-index: 20;
+          z-index: 30;
           display: flex;
           align-items: center;
           justify-content: space-between;
+          padding: 12px 14px;
           gap: 0.6rem;
-          padding: 0.9rem 1rem;
-          background: linear-gradient(90deg, rgba(255,102,163,0.14), rgba(139,92,246,0.08));
-          backdrop-filter: blur(6px);
-          -webkit-backdrop-filter: blur(6px);
+          background: var(--menu-bg);
           color: var(--text);
           border-bottom: 1px solid rgba(255,255,255,0.03);
+          backdrop-filter: blur(6px);
         }
+
         .header-left {
           display: flex;
           align-items: center;
-          gap: 0.7rem;
-          min-width: 0;
+          gap: 0.8rem;
         }
         .back-btn {
           border: none;
-          background: linear-gradient(90deg, rgba(255,255,255,0.06), rgba(255,255,255,0.02));
+          background: rgba(255,255,255,0.04);
           border-radius: 12px;
-          padding: 0.45rem 0.6rem;
+          padding: 8px 10px;
           cursor: pointer;
           color: var(--text);
           font-weight: 700;
           box-shadow: 0 6px 18px rgba(139,92,246,0.06);
         }
         .avatar {
-          width: 44px;
-          height: 44px;
+          width: 46px;
+          height: 46px;
           border-radius: 50%;
           object-fit: cover;
           border: 2px solid rgba(255,255,255,0.06);
           background: linear-gradient(180deg, rgba(255,255,255,0.02), rgba(255,255,255,0.01));
-          box-shadow: 0 6px 20px rgba(139,92,246,0.06);
         }
         .partner .name {
           font-weight: 800;
@@ -615,101 +641,94 @@ export default function ChatPage() {
         }
 
         .header-right {
-          position: relative;
           display: flex;
           align-items: center;
-          gap: 0.5rem;
+          gap: 0.6rem;
         }
         .icon-btn {
           border: none;
-          background: linear-gradient(180deg, rgba(255,255,255,0.03), rgba(255,255,255,0.01));
+          background: rgba(255,255,255,0.03);
           border-radius: 10px;
-          padding: 0.55rem;
+          padding: 8px;
           cursor: pointer;
           color: var(--text);
           font-size: 1.05rem;
-          box-shadow: 0 6px 18px rgba(2,6,23,0.6);
         }
 
-        .search-area { position: relative; }
         .search-input {
           width: 260px;
           background: rgba(255,255,255,0.02);
           color: var(--text);
           border: 1px solid rgba(255,255,255,0.04);
           border-radius: 10px;
-          padding: 0.6rem 0.7rem;
-          margin-right: 0.35rem;
+          padding: 8px 10px;
           font-size: 0.95rem;
         }
 
+        /* Menu (disconnect/report) - make it pink/visible */
         .menu {
           position: absolute;
-          right: 0;
-          top: 120%;
-          background: rgba(255,255,255,0.02);
-          border: 1px solid rgba(255,255,255,0.04);
+          right: 10px;
+          top: 48px;
+          background: rgba(0,0,0,0.45);
           border-radius: 10px;
-          padding: 0.35rem;
-          min-width: 180px;
+          padding: 6px;
+          min-width: 200px;
           display: none;
-          box-shadow: 0 10px 30px rgba(2,6,23,0.6);
+          box-shadow: 0 8px 26px rgba(2,6,23,0.6);
+          border: 1px solid rgba(255,255,255,0.04);
+          backdrop-filter: blur(6px);
         }
         .menu.open { display: block; }
         .menu-item {
           width: 100%;
           text-align: left;
-          background: transparent;
+          background: linear-gradient(90deg, rgba(255,79,160,0.06), rgba(139,92,246,0.04));
           border: none;
-          color: var(--text);
-          padding: 0.6rem 0.8rem;
+          color: #fff;
+          padding: 12px 14px;
           border-radius: 8px;
           cursor: pointer;
           font-size: 0.95rem;
+          margin: 4px 0;
         }
-        .menu-item:hover { background: rgba(255,255,255,0.02); }
-        .sep { height: 1px; background: rgba(255,255,255,0.03); margin: 0.35rem 0; }
+        .menu-item:hover {
+          background: linear-gradient(90deg, rgba(255,79,160,0.12), rgba(139,92,246,0.08));
+        }
+        .sep { height: 1px; background: rgba(255,255,255,0.03); margin: 6px 0; }
 
         /* Chat area */
         .chat {
           flex: 1;
           overflow-y: auto;
-          padding: 22px 20px 12px 20px;
+          padding: 24px 26px;
           background-image:
             radial-gradient(600px 300px at 10% 10%, rgba(255,79,160,0.03), transparent 6%),
             radial-gradient(500px 250px at 90% 90%, rgba(139,92,246,0.02), transparent 8%);
-          backdrop-filter: blur(2px);
         }
 
         .day-sep { text-align: center; color: var(--muted); font-size: 0.86rem; margin: 8px 0 16px; }
-        .day-sep span { background: var(--system-bg); padding: 0.25rem 0.6rem; border-radius: 12px; }
+        .day-sep span { background: rgba(255,255,255,0.03); padding: 4px 10px; border-radius: 12px; }
 
-        .row { display: flex; margin: 8px 0; }
+        .row { display: flex; margin: 10px 0; }
         .row.me { justify-content: flex-end; }
         .row.system-row { justify-content: center; }
 
         .msg-wrap { max-width: 78%; position: relative; }
 
         .bubble {
+          display: inline-block;
           max-width: 100%;
           border-radius: 14px;
-          padding: 0.7rem 0.85rem;
-          line-height: 1.28;
+          padding: 0.8rem 0.95rem;
+          line-height: 1.35;
           word-wrap: break-word;
           color: var(--text);
-          box-shadow: 0 8px 30px rgba(2,6,23,0.6);
+          box-shadow: 0 10px 40px rgba(2,6,23,0.6);
           border: 1px solid rgba(255,255,255,0.02);
         }
 
-        /* ME bubble - pink gradient with glow */
-        .me .bubble {
-          background: linear-gradient(135deg, var(--bubble-me-start), var(--bubble-me-end));
-          color: #1b1220;
-          border: 1px solid rgba(255,255,255,0.08);
-          box-shadow: 0 8px 28px rgba(255,79,160,0.12), 0 2px 6px rgba(0,0,0,0.45) inset;
-          border-top-right-radius: 6px;
-        }
-        /* YOU bubble - deep navy with subtle bluish glow */
+        /* YOU bubble - keep as dark navy with white text */
         .you .bubble {
           background: linear-gradient(135deg, var(--bubble-you-start), var(--bubble-you-end));
           color: #f3f6ff;
@@ -717,13 +736,19 @@ export default function ChatPage() {
           box-shadow: 0 8px 28px rgba(20,40,80,0.12);
           border-top-left-radius: 6px;
         }
-        .bubble :global(img) {
-          max-width: 320px;
-          border-radius: 12px;
-          display: block;
+
+        /* ME bubble - pink bubble with dark text to ensure visibility */
+        .me .bubble {
+          background: linear-gradient(135deg, var(--bubble-me-start), var(--bubble-me-end));
+          color: #0b1620; /* dark text for contrast on light bubble */
+          border: 1px solid rgba(0,0,0,0.06);
+          box-shadow: 0 12px 40px rgba(255,79,160,0.08), 0 2px 6px rgba(0,0,0,0.45) inset;
+          border-top-right-radius: 6px;
         }
-        .bubble :global(video) {
-          max-width: 320px;
+
+        /* Ensure image/video inside bubble are responsive */
+        .bubble img, .bubble video {
+          max-width: 360px;
           border-radius: 12px;
           display: block;
         }
@@ -754,57 +779,55 @@ export default function ChatPage() {
           display: flex;
           align-items: center;
           gap: 0.6rem;
-          padding: 0.9rem 1rem;
-          background: linear-gradient(180deg, rgba(255,255,255,0.01), rgba(255,255,255,0.008));
+          padding: 12px 14px;
+          background: rgba(255,255,255,0.01);
           border-top: 1px solid rgba(255,255,255,0.02);
           backdrop-filter: blur(6px);
         }
         .tool {
           border: none;
-          background: linear-gradient(180deg, rgba(255,255,255,0.02), rgba(255,255,255,0.01));
+          background: rgba(255,255,255,0.02);
           cursor: pointer;
           display: grid;
           place-items: center;
           border-radius: 10px;
-          width: 46px;
-          height: 46px;
+          width: 48px;
+          height: 48px;
           color: var(--text);
           font-size: 1.18rem;
-          box-shadow: 0 6px 18px rgba(2,6,23,0.6);
         }
-
         .msg-field {
           flex: 1;
           background: linear-gradient(180deg, rgba(255,255,255,0.02), rgba(255,255,255,0.01));
-          color: var(--text);
-          border: 1px solid rgba(255, 255, 255, 0.04);
+          color: var(--bg-pink-2);
+          border: 1px solid rgba(0,0,0,0.06);
           border-radius: 28px;
-          padding: 0.75rem 1rem;
+          padding: 12px 16px;
           outline: none;
-          font-size: 0.98rem;
+          font-size: 1rem;
           box-shadow: inset 0 1px 0 rgba(255,255,255,0.02);
         }
-        .msg-field::placeholder { color: var(--muted); }
+        .msg-field::placeholder { color: #bfa9bf; }
 
         .send {
-          background: linear-gradient(135deg, rgba(255,79,160,1), rgba(139,92,246,0.9));
+          background: linear-gradient(135deg, rgba(255,79,160,1), rgba(139,92,246,0.95));
           color: #071320;
           border: none;
           border-radius: 50%;
-          width: 48px;
-          height: 48px;
+          width: 52px;
+          height: 52px;
           display: grid;
           place-items: center;
           cursor: pointer;
-          box-shadow: 0 12px 28px rgba(255,79,160,0.18);
-          font-size: 1.05rem;
+          box-shadow: 0 16px 36px rgba(255,79,160,0.18);
+          font-size: 1.12rem;
           transition: transform 120ms ease, box-shadow 120ms ease;
         }
-        .send:active { transform: translateY(1px) scale(0.995); box-shadow: 0 6px 14px rgba(255,79,160,0.16); }
+        .send:active { transform: translateY(1px) scale(0.995); box-shadow: 0 8px 18px rgba(255,79,160,0.16); }
 
         .emoji-pop {
           position: absolute;
-          bottom: 56px;
+          bottom: 66px;
           left: 0;
           background: rgba(255,255,255,0.02);
           border: 1px solid rgba(255, 255, 255, 0.04);
@@ -826,11 +849,11 @@ export default function ChatPage() {
         .emoji-item:hover { background: rgba(255,255,255,0.02); transform: translateY(-2px); }
 
         @media (max-width: 640px) {
-          .bubble { max-width: 82%; }
-          .avatar { width: 36px; height: 36px; }
-          .search-input { width: 160px; }
-          .tool { width: 40px; height: 40px; font-size: 1rem; }
-          .send { width: 44px; height: 44px; }
+          .bubble { max-width: 82%; padding: 0.6rem 0.75rem; }
+          .avatar { width: 40px; height: 40px; }
+          .search-input { width: 140px; }
+          .tool { width: 44px; height: 44px; font-size: 1rem; }
+          .send { width: 48px; height: 48px; }
         }
       `}</style>
     </>
