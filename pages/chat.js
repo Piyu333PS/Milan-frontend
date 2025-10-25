@@ -1,8 +1,6 @@
 // pages/chat.js
 // FIXED: Removed false disconnect alerts and auto-disconnect issues
-// - Better socket connection handling
-// - No premature disconnect alerts
-// - Stable connection maintenance
+// ✅ NEW: Add to Favourites Feature with Romantic Popups
 
 import { useEffect, useRef, useState } from "react";
 import Head from "next/head";
@@ -80,6 +78,7 @@ export default function ChatPage() {
 
   const [msgs, setMsgs] = useState([]);
   const [roomCode, setRoomCode] = useState(null);
+  const [partnerId, setPartnerId] = useState(null);
 
   // Search UI
   const [searchOpen, setSearchOpen] = useState(false);
@@ -100,6 +99,16 @@ export default function ChatPage() {
   // Connection state
   const [isConnected, setIsConnected] = useState(false);
 
+  // ✅ NEW: Friend Request States
+  const [showFriendRequestPopup, setShowFriendRequestPopup] = useState(false);
+  const [friendRequestData, setFriendRequestData] = useState(null);
+  const [showResponsePopup, setShowResponsePopup] = useState(false);
+  const [responseType, setResponseType] = useState('');
+  const [celebrationActive, setCelebrationActive] = useState(false);
+  const [floatingHearts, setFloatingHearts] = useState([]);
+  const [currentUserId, setCurrentUserId] = useState(null);
+  const [currentUsername, setCurrentUsername] = useState("");
+
   // ===== Refs =====
   const socketRef = useRef(null);
   const msgRef = useRef(null);
@@ -107,7 +116,7 @@ export default function ChatPage() {
   const listRef = useRef(null);
   const messageRefs = useRef({});
   const processedMsgIds = useRef(new Set());
-  const partnerFoundRef = useRef(false); // Track if partner was actually found
+  const partnerFoundRef = useRef(false);
   const isCleaningUp = useRef(false);
 
   // ===== Utils =====
@@ -129,11 +138,44 @@ export default function ChatPage() {
       if (listRef.current) listRef.current.scrollTop = listRef.current.scrollHeight;
     });
 
+  // ✅ NEW: Floating Hearts Animation
+  const createFloatingHearts = (count) => {
+    const hearts = Array.from({ length: count }, (_, i) => ({
+      id: Date.now() + i,
+      left: Math.random() * 100,
+      delay: Math.random() * 2,
+      size: 20 + Math.random() * 20
+    }));
+    setFloatingHearts(hearts);
+    setTimeout(() => setFloatingHearts([]), 3000);
+  };
+
+  // ✅ NEW: Sound effect simulation
+  const playSound = (type) => {
+    console.log(`Playing ${type} sound effect`);
+    // In real app: new Audio(`/sounds/${type}.mp3`).play()
+  };
+
   // ===== Socket lifecycle =====
   useEffect(() => {
     let localName = "";
+    let localUserId = "";
+    
     try {
       localName = localStorage.getItem("milan_name") || "";
+      const token = localStorage.getItem("token");
+      
+      if (token) {
+        try {
+          const payload = JSON.parse(atob(token.split('.')[1]));
+          localUserId = payload.id || "";
+          setCurrentUserId(localUserId);
+        } catch (e) {
+          console.warn("Token parse failed:", e);
+        }
+      }
+      
+      setCurrentUsername(localName || "You");
     } catch {}
 
     setPartnerAvatarSrc(getAvatarForGender("unknown"));
@@ -153,6 +195,7 @@ export default function ChatPage() {
       setIsConnected(true);
       
       socket.emit("userInfo", {
+        userId: localUserId,
         name: localName || "You",
         avatar: null,
         gender: "unknown",
@@ -163,7 +206,6 @@ export default function ChatPage() {
 
     socket.on("connect_error", (err) => {
       console.error("Socket connect error:", err?.message || err);
-      // Don't show alert on initial connection errors
       if (partnerFoundRef.current) {
         const sysId = `sys-err-${Date.now()}`;
         if (!processedMsgIds.current.has(sysId)) {
@@ -180,9 +222,7 @@ export default function ChatPage() {
       console.log("Socket disconnected:", reason);
       setIsConnected(false);
       
-      // Only show disconnect message if we had a partner
       if (partnerFoundRef.current && !isCleaningUp.current) {
-        // Don't show for normal disconnects (transport close, io client disconnect)
         if (reason !== "io client disconnect" && reason !== "transport close") {
           const sysId = `sys-dis-${Date.now()}`;
           if (!processedMsgIds.current.has(sysId)) {
@@ -203,6 +243,8 @@ export default function ChatPage() {
       partnerFoundRef.current = true;
       
       setRoomCode(rc);
+      setPartnerId(partner?.id || null);
+      
       const pName = partner?.name || "Romantic Stranger";
       const pAvatar = partner?.avatar || getAvatarForGender(partner?.gender);
 
@@ -287,14 +329,46 @@ export default function ChatPage() {
 
     socket.on("reaction", () => {});
 
-    // Partner disconnected - ONLY show alert if partner was actually connected
+    // Partner disconnected
     socket.on("partnerDisconnected", () => {
       console.log("Partner disconnected event received");
       
-      // Only show alert if we had a partner and we're not cleaning up
       if (partnerFoundRef.current && !isCleaningUp.current) {
         setShowDisconnectAlert(true);
       }
+    });
+
+    // ✅ NEW: Friend Request Received
+    socket.on("friend-request-received", (data) => {
+      console.log("Friend request received:", data);
+      playSound('request');
+      setFriendRequestData(data);
+      setShowFriendRequestPopup(true);
+    });
+
+    // ✅ NEW: Friend Request Accepted
+    socket.on("friend-request-accepted", (data) => {
+      console.log("Friend request accepted:", data);
+      playSound('accept');
+      setCelebrationActive(true);
+      createFloatingHearts(20);
+      
+      setTimeout(() => {
+        setResponseType('accepted');
+        setShowResponsePopup(true);
+        setCelebrationActive(false);
+      }, 2000);
+    });
+
+    // ✅ NEW: Friend Request Rejected
+    socket.on("friend-request-rejected", (data) => {
+      console.log("Friend request rejected:", data);
+      playSound('reject');
+      
+      setTimeout(() => {
+        setResponseType('rejected');
+        setShowResponsePopup(true);
+      }, 500);
     });
 
     return () => {
@@ -307,6 +381,9 @@ export default function ChatPage() {
         socket.off("fileMessage");
         socket.off("partnerTyping");
         socket.off("partnerDisconnected");
+        socket.off("friend-request-received");
+        socket.off("friend-request-accepted");
+        socket.off("friend-request-rejected");
         socket.disconnect();
       } catch {}
     };
@@ -436,6 +513,99 @@ export default function ChatPage() {
     window.location.href = "https://milanlove.in/connect";
   };
 
+  // ✅ NEW: Add to Favourites Handler
+  const handleAddToFavourites = () => {
+    if (!socketRef.current || !currentUserId || !partnerId || !roomCode) {
+      console.warn("Missing data for friend request");
+      alert("Unable to send friend request. Please try again.");
+      return;
+    }
+
+    console.log("Sending friend request to partner:", partnerId);
+    
+    try {
+      socketRef.current.emit("send-friend-request", {
+        targetUserId: partnerId,
+        myUserId: currentUserId,
+        myUsername: currentUsername,
+        roomCode: roomCode
+      });
+      
+      // Show feedback to user
+      const sysId = `sys-req-${Date.now()}`;
+      setMsgs((p) => [
+        ...p,
+        { id: sysId, self: false, kind: "system", html: "💌 Friend request sent!", time: timeNow() },
+      ]);
+      scrollToBottom();
+    } catch (error) {
+      console.error("Failed to send friend request:", error);
+      alert("Failed to send friend request. Please try again.");
+    }
+  };
+
+  // ✅ NEW: Accept Friend Request
+  const handleAcceptRequest = () => {
+    if (!socketRef.current || !friendRequestData || !currentUserId) {
+      console.warn("Missing data for accepting request");
+      return;
+    }
+
+    playSound('accept');
+    setShowFriendRequestPopup(false);
+    setCelebrationActive(true);
+    createFloatingHearts(20);
+
+    try {
+      socketRef.current.emit("friend-request-response", {
+        accepted: true,
+        requesterId: friendRequestData.fromUserId,
+        responderId: currentUserId,
+        responderUsername: currentUsername
+      });
+
+      setTimeout(() => {
+        setResponseType('accepted');
+        setShowResponsePopup(true);
+        setCelebrationActive(false);
+      }, 2000);
+    } catch (error) {
+      console.error("Failed to accept request:", error);
+      setCelebrationActive(false);
+    }
+  };
+
+  // ✅ NEW: Reject Friend Request
+  const handleRejectRequest = () => {
+    if (!socketRef.current || !friendRequestData || !currentUserId) {
+      console.warn("Missing data for rejecting request");
+      return;
+    }
+
+    playSound('reject');
+    setShowFriendRequestPopup(false);
+
+    try {
+      socketRef.current.emit("friend-request-response", {
+        accepted: false,
+        requesterId: friendRequestData.fromUserId,
+        responderId: currentUserId
+      });
+
+      setTimeout(() => {
+        setResponseType('rejected');
+        setShowResponsePopup(true);
+      }, 500);
+    } catch (error) {
+      console.error("Failed to reject request:", error);
+    }
+  };
+
+  // ✅ NEW: Close Response Popup
+  const closeResponsePopup = () => {
+    setShowResponsePopup(false);
+  };
+
   // ===== Search helpers =====
   const runSearch = (q) => {
     if (!q) {
@@ -497,6 +667,143 @@ export default function ChatPage() {
       </Head>
 
       <div className="app">
+        {/* ✅ NEW: Friend Request Popup */}
+        {showFriendRequestPopup && friendRequestData && (
+          <div className="modal-overlay" onClick={(e) => e.stopPropagation()}>
+            <div className="friend-request-modal" onClick={(e) => e.stopPropagation()}>
+              {/* Sparkle effects */}
+              <div className="sparkles-container">
+                {[...Array(8)].map((_, i) => (
+                  <span key={i} className="sparkle" style={{
+                    left: `${Math.random() * 100}%`,
+                    top: `${Math.random() * 100}%`,
+                    animationDelay: `${Math.random() * 2}s`
+                  }}>✨</span>
+                ))}
+              </div>
+
+              <div className="modal-content">
+                {/* Heart icon */}
+                <div className="heart-icon-wrapper">
+                  <div className="heart-icon">
+                    <span className="heart-symbol">💖</span>
+                  </div>
+                  <div className="heart-pulse"></div>
+                </div>
+
+                {/* Message */}
+                <h3 className="modal-title">
+                  <span>💞</span>
+                  <span>Someone felt a spark!</span>
+                  <span>💫</span>
+                </h3>
+                
+                <p className="modal-subtitle">
+                  <span className="username">{friendRequestData.fromUsername}</span> wants to be your friend on Milan
+                </p>
+                
+                <p className="modal-description">
+                  They loved chatting with you and want to stay connected 💖
+                </p>
+
+                {/* Buttons */}
+                <div className="modal-buttons">
+                  <button
+                    onClick={handleRejectRequest}
+                    className="btn-reject"
+                  >
+                    <span>💔</span>
+                    <span>Maybe Later</span>
+                  </button>
+                  
+                  <button
+                    onClick={handleAcceptRequest}
+                    className="btn-accept"
+                  >
+                    <span>🌸</span>
+                    <span>Accept</span>
+                    <span className="heart-beat">❤️</span>
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* ✅ NEW: Celebration Animation */}
+        {celebrationActive && (
+          <div className="celebration-overlay">
+            <div className="celebration-content">
+              <div className="celebration-heart">💕</div>
+              <h2 className="celebration-text">
+                Connection Made! ✨
+              </h2>
+            </div>
+          </div>
+        )}
+
+        {/* ✅ NEW: Floating Hearts */}
+        {floatingHearts.map((heart) => (
+          <div
+            key={heart.id}
+            className="floating-heart"
+            style={{
+              left: `${heart.left}%`,
+              fontSize: `${heart.size}px`,
+              animationDelay: `${heart.delay}s`
+            }}
+          >
+            ♥
+          </div>
+        ))}
+
+        {/* ✅ NEW: Response Popup (Accepted/Rejected) */}
+        {showResponsePopup && (
+          <div className="modal-overlay" onClick={(e) => e.stopPropagation()}>
+            <div className={`response-modal ${responseType}`} onClick={(e) => e.stopPropagation()}>
+              <button
+                onClick={closeResponsePopup}
+                className="close-btn"
+              >
+                ✕
+              </button>
+
+              <div className="modal-content">
+                {responseType === 'accepted' ? (
+                  <>
+                    <div className="response-icon accepted-icon">
+                      <span>💖</span>
+                    </div>
+                    <h3 className="response-title">🎉 Yay!</h3>
+                    <p className="response-message">You've got a new Milan friend! 💕</p>
+                    <p className="response-sub">
+                      You can now find {partnerName} in your favourites list and chat anytime! ✨
+                    </p>
+                  </>
+                ) : (
+                  <>
+                    <div className="response-icon rejected-icon">
+                      <span>💔</span>
+                    </div>
+                    <h3 className="response-title">Oh no...</h3>
+                    <p className="response-message">Looks like cupid missed this time 😅</p>
+                    <p className="response-sub">
+                      No worries! Keep meeting new people on Milan 💫
+                    </p>
+                  </>
+                )}
+                
+                <button
+                  onClick={closeResponsePopup}
+                  className={`response-btn ${responseType}`}
+                >
+                  Continue
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
         {/* Disconnect Alert Overlay */}
         {showDisconnectAlert && (
           <div className="alert-overlay" onClick={(e) => e.stopPropagation()}>
@@ -527,7 +834,8 @@ export default function ChatPage() {
             <button className="back-btn" onClick={() => (window.location.href = "https://milanlove.in/connect")} aria-label="Back">
               ⟵
             </button>
-            <img className="avatar" src={partnerAvatarSrc} alt="DP" />
+            <img
+className="avatar" src={partnerAvatarSrc} alt="DP" />
             <div className="partner">
               <div className="name">{partnerName}</div>
               <div className="status">
@@ -538,6 +846,18 @@ export default function ChatPage() {
           </div>
 
           <div className="header-right">
+            {/* ✅ NEW: Add to Favourites Button */}
+            {roomCode && partnerId && (
+              <button
+                className="add-to-favourites-btn"
+                onClick={handleAddToFavourites}
+                title="Add to Favourites"
+                aria-label="Add to Favourites"
+              >
+                <span className="heart-icon-btn">💖</span>
+              </button>
+            )}
+
             <div className="search-area">
               {searchOpen && (
                 <input
@@ -717,6 +1037,434 @@ export default function ChatPage() {
           overflow: hidden;
         }
 
+        /* ✅ NEW: Modal Overlay */
+        .modal-overlay {
+          position: fixed;
+          inset: 0;
+          background: rgba(0, 0, 0, 0.85);
+          backdrop-filter: blur(12px);
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          z-index: 100000;
+          animation: fadeIn 0.3s ease;
+          padding: 20px;
+        }
+
+        /* ✅ NEW: Friend Request Modal */
+        .friend-request-modal {
+          background: linear-gradient(145deg, rgba(255,79,160,0.25), rgba(139,92,246,0.2));
+          border: 2px solid rgba(255,79,160,0.5);
+          border-radius: 28px;
+          padding: 2.5rem 2rem;
+          max-width: 460px;
+          width: 100%;
+          text-align: center;
+          box-shadow: 0 25px 70px rgba(255,79,160,0.4), 
+                      0 0 120px rgba(255,20,147,0.25);
+          animation: slideUp 0.5s cubic-bezier(0.34, 1.56, 0.64, 1);
+          position: relative;
+          overflow: hidden;
+        }
+
+        .sparkles-container {
+          position: absolute;
+          inset: 0;
+          pointer-events: none;
+          overflow: hidden;
+        }
+
+        .sparkle {
+          position: absolute;
+          font-size: 18px;
+          animation: sparkleFloat 3s ease-in-out infinite;
+          opacity: 0.7;
+        }
+
+        @keyframes sparkleFloat {
+          0%, 100% { transform: translateY(0) rotate(0deg); opacity: 0.5; }
+          50% { transform: translateY(-20px) rotate(180deg); opacity: 1; }
+        }
+
+        .modal-content {
+          position: relative;
+          z-index: 10;
+        }
+
+        .heart-icon-wrapper {
+          position: relative;
+          margin-bottom: 1.5rem;
+          display: inline-block;
+        }
+
+        .heart-icon {
+          width: 100px;
+          height: 100px;
+          background: linear-gradient(135deg, #ff4fa0, #ff1493);
+          border-radius: 50%;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          animation: heartBounce 1.2s ease-in-out infinite;
+          box-shadow: 0 15px 40px rgba(255,79,160,0.4);
+        }
+
+        .heart-symbol {
+          font-size: 3.5rem;
+          filter: drop-shadow(0 4px 8px rgba(0,0,0,0.3));
+        }
+
+        .heart-pulse {
+          position: absolute;
+          inset: 0;
+          border-radius: 50%;
+          border: 3px solid rgba(255,79,160,0.6);
+          animation: pulsate 1.5s ease-out infinite;
+        }
+
+        @keyframes heartBounce {
+          0%, 100% { transform: scale(1); }
+          25% { transform: scale(0.9); }
+          50% { transform: scale(1.15); }
+        }
+
+        @keyframes pulsate {
+          0% { transform: scale(1); opacity: 1; }
+          100% { transform: scale(1.8); opacity: 0; }
+        }
+
+        .modal-title {
+          color: #ffffff;
+          font-size: 1.9rem;
+          font-weight: 900;
+          margin: 0 0 1rem;
+          text-shadow: 0 3px 20px rgba(255,107,157,0.5);
+          line-height: 1.3;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          gap: 0.5rem;
+        }
+
+        .modal-subtitle {
+          color: #ffeef8;
+          font-size: 1.15rem;
+          margin: 0 0 0.8rem;
+          font-weight: 600;
+        }
+
+        .username {
+          color: #ff6b9d;
+          font-weight: 800;
+          text-shadow: 0 0 15px rgba(255,107,157,0.4);
+        }
+
+        .modal-description {
+          color: #ffd7e0;
+          font-size: 0.95rem;
+          margin: 0 0 2rem;
+          opacity: 0.9;
+        }
+
+        .modal-buttons {
+          display: flex;
+          gap: 1rem;
+        }
+
+        .btn-reject {
+          flex: 1;
+          background: linear-gradient(135deg, rgba(100,100,120,0.4), rgba(80,80,100,0.5));
+          border: 2px solid rgba(150,150,170,0.3);
+          color: #ffffff;
+          padding: 1rem 1.5rem;
+          border-radius: 50px;
+          font-size: 1.05rem;
+          font-weight: 700;
+          cursor: pointer;
+          transition: all 0.3s ease;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          gap: 0.5rem;
+        }
+
+        .btn-reject:hover {
+          background: linear-gradient(135deg, rgba(120,120,140,0.5), rgba(100,100,120,0.6));
+          transform: translateY(-2px);
+        }
+
+        .btn-reject:active {
+          transform: translateY(0) scale(0.98);
+        }
+
+        .btn-accept {
+          flex: 1;
+          background: linear-gradient(135deg, #ff4fa0, #ff1493);
+          border: 2px solid rgba(255,255,255,0.3);
+          color: #ffffff;
+          padding: 1rem 1.5rem;
+          border-radius: 50px;
+          font-size: 1.05rem;
+          font-weight: 700;
+          cursor: pointer;
+          box-shadow: 0 12px 35px rgba(255,79,160,0.5),
+                      0 0 60px rgba(255,20,147,0.3);
+          transition: all 0.3s ease;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          gap: 0.5rem;
+          position: relative;
+          overflow: hidden;
+        }
+
+        .btn-accept:hover {
+          background: linear-gradient(135deg, #ff1493, #ff4fa0);
+          transform: translateY(-3px);
+          box-shadow: 0 15px 45px rgba(255,79,160,0.6);
+        }
+
+        .btn-accept:active {
+          transform: translateY(-1px) scale(0.98);
+        }
+
+        .heart-beat {
+          animation: heartPulse 1s ease-in-out infinite;
+        }
+
+        @keyframes heartPulse {
+          0%, 100% { transform: scale(1); }
+          50% { transform: scale(1.3); }
+        }
+
+        /* ✅ NEW: Celebration Overlay */
+        .celebration-overlay {
+          position: fixed;
+          inset: 0;
+          pointer-events: none;
+          z-index: 99999;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+        }
+
+        .celebration-content {
+          text-align: center;
+          animation: celebrationBounce 0.6s cubic-bezier(0.34, 1.56, 0.64, 1);
+        }
+
+        .celebration-heart {
+          font-size: 8rem;
+          margin-bottom: 1rem;
+          animation: celebrationSpin 1.5s ease-in-out infinite;
+          filter: drop-shadow(0 0 30px rgba(255,79,160,0.8));
+        }
+
+        @keyframes celebrationSpin {
+          0%, 100% { transform: scale(1) rotate(0deg); }
+          25% { transform: scale(0.9) rotate(-10deg); }
+          50% { transform: scale(1.2) rotate(10deg); }
+          75% { transform: scale(0.95) rotate(-5deg); }
+        }
+
+        .celebration-text {
+          color: #ffffff;
+          font-size: 3rem;
+          font-weight: 900;
+          text-shadow: 0 5px 25px rgba(255,79,160,0.6),
+                       0 0 50px rgba(255,20,147,0.4);
+          animation: textPulse 1.5s ease infinite;
+        }
+
+        @keyframes celebrationBounce {
+          0% { transform: scale(0.3); opacity: 0; }
+          60% { transform: scale(1.1); opacity: 1; }
+          100% { transform: scale(1); }
+        }
+
+        @keyframes textPulse {
+          0%, 100% { opacity: 1; }
+          50% { opacity: 0.8; }
+        }
+
+        /* ✅ NEW: Floating Hearts */
+        .floating-heart {
+          position: fixed;
+          bottom: -50px;
+          color: #ff4fa0;
+          pointer-events: none;
+          z-index: 99998;
+          animation: floatUp 3s ease-out forwards;
+          text-shadow: 0 0 15px rgba(255,79,160,0.8);
+        }
+
+        @keyframes floatUp {
+          0% {
+            transform: translateY(0) rotate(0deg);
+            opacity: 1;
+          }
+          100% {
+            transform: translateY(-100vh) rotate(360deg);
+            opacity: 0;
+          }
+        }
+
+        /* ✅ NEW: Response Modal */
+        .response-modal {
+          background: linear-gradient(145deg, rgba(255,79,160,0.2), rgba(139,92,246,0.15));
+          border: 2px solid rgba(255,79,160,0.4);
+          border-radius: 28px;
+          padding: 2.5rem 2rem;
+          max-width: 440px;
+          width: 100%;
+          text-align: center;
+          box-shadow: 0 25px 70px rgba(255,79,160,0.4);
+          animation: slideUp 0.4s ease;
+          position: relative;
+        }
+
+        .response-modal.accepted {
+          border-color: rgba(76, 217, 100, 0.6);
+          background: linear-gradient(145deg, rgba(76,217,100,0.2), rgba(52,199,89,0.15));
+        }
+
+        .close-btn {
+          position: absolute;
+          top: 1rem;
+          right: 1rem;
+          background: rgba(255,255,255,0.1);
+          border: none;
+          color: #ffffff;
+          width: 36px;
+          height: 36px;
+          border-radius: 50%;
+          cursor: pointer;
+          font-size: 1.2rem;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          transition: all 0.2s ease;
+        }
+
+        .close-btn:hover {
+          background: rgba(255,255,255,0.2);
+          transform: rotate(90deg);
+        }
+
+        .response-icon {
+          width: 90px;
+          height: 90px;
+          margin: 0 auto 1.5rem;
+          border-radius: 50%;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          font-size: 3rem;
+          animation: iconBounce 0.6s ease;
+        }
+
+        .accepted-icon {
+          background: linear-gradient(135deg, #4cd964, #34c759);
+          box-shadow: 0 15px 40px rgba(76,217,100,0.4);
+        }
+
+        .rejected-icon {
+          background: linear-gradient(135deg, #888, #666);
+          box-shadow: 0 15px 40px rgba(100,100,100,0.3);
+        }
+
+        @keyframes iconBounce {
+          0% { transform: scale(0); }
+          50% { transform: scale(1.15); }
+          100% { transform: scale(1); }
+        }
+
+        .response-title {
+          color: #ffffff;
+          font-size: 2rem;
+          font-weight: 800;
+          margin: 0 0 1rem;
+        }
+
+        .response-message {
+          color: #ffeef8;
+          font-size: 1.2rem;
+          margin: 0 0 0.8rem;
+          font-weight: 600;
+        }
+
+        .response-sub {
+          color: #ffd7e0;
+          font-size: 0.95rem;
+          margin: 0 0 2rem;
+          opacity: 0.9;
+        }
+
+        .response-btn {
+          padding: 1rem 3rem;
+          border-radius: 50px;
+          border: none;
+          font-size: 1.1rem;
+          font-weight: 700;
+          cursor: pointer;
+          transition: all 0.3s ease;
+        }
+
+        .response-btn.accepted {
+          background: linear-gradient(135deg, #4cd964, #34c759);
+          color: #ffffff;
+          box-shadow: 0 12px 35px rgba(76,217,100,0.5);
+        }
+
+        .response-btn.accepted:hover {
+          transform: translateY(-2px);
+          box-shadow: 0 15px 45px rgba(76,217,100,0.6);
+        }
+
+        .response-btn.rejected {
+          background: linear-gradient(135deg, #888, #666);
+          color: #ffffff;
+          box-shadow: 0 12px 35px rgba(100,100,100,0.3);
+        }
+
+        .response-btn.rejected:hover {
+          transform: translateY(-2px);
+        }
+
+        /* ✅ NEW: Add to Favourites Button */
+        .add-to-favourites-btn {
+          background: linear-gradient(135deg, rgba(255,79,160,0.2), rgba(139,92,246,0.15));
+          border: 2px solid rgba(255,79,160,0.4);
+          border-radius: 12px;
+          padding: 8px 14px;
+          cursor: pointer;
+          transition: all 0.3s ease;
+          display: flex;
+          align-items: center;
+          gap: 6px;
+        }
+
+        .add-to-favourites-btn:hover {
+          background: linear-gradient(135deg, rgba(255,79,160,0.3), rgba(139,92,246,0.25));
+          border-color: rgba(255,79,160,0.6);
+          transform: scale(1.05);
+          box-shadow: 0 8px 24px rgba(255,79,160,0.3);
+        }
+
+        .add-to-favourites-btn:active {
+          transform: scale(0.98);
+        }
+
+        .heart-icon-btn {
+          font-size: 1.3rem;
+          animation: heartFloat 2s ease-in-out infinite;
+        }
+
+        @keyframes heartFloat {
+          0%, 100% { transform: translateY(0); }
+          50% { transform: translateY(-4px); }
+        }
+
         /* Disconnect Alert */
         .alert-overlay {
           position: fixed;
@@ -740,6 +1488,17 @@ export default function ChatPage() {
           to { opacity: 1; }
         }
 
+        @keyframes slideUp {
+          from {
+            transform: translateY(50px) scale(0.95);
+            opacity: 0;
+          }
+          to {
+            transform: translateY(0) scale(1);
+            opacity: 1;
+          }
+        }
+
         .alert-box {
           background: linear-gradient(145deg, rgba(255,79,160,0.2), rgba(139,92,246,0.15));
           border: 2px solid rgba(255,79,160,0.4);
@@ -753,17 +1512,6 @@ export default function ChatPage() {
           animation: slideUp 0.4s ease;
           position: relative;
           overflow: hidden;
-        }
-
-        @keyframes slideUp {
-          from {
-            transform: translateY(50px) scale(0.95);
-            opacity: 0;
-          }
-          to {
-            transform: translateY(0) scale(1);
-            opacity: 1;
-          }
         }
 
         .alert-icon {
@@ -1229,6 +1977,55 @@ export default function ChatPage() {
             font-size: 1.05rem;
           }
           
+          .friend-request-modal {
+            padding: 2rem 1.5rem;
+            max-width: 360px;
+          }
+
+          .modal-title {
+            font-size: 1.5rem;
+          }
+
+          .heart-icon {
+            width: 80px;
+            height: 80px;
+          }
+
+          .heart-symbol {
+            font-size: 2.8rem;
+          }
+
+          .modal-buttons {
+            flex-direction: column;
+          }
+
+          .btn-reject, .btn-accept {
+            width: 100%;
+          }
+
+          .response-modal {
+            padding: 2rem 1.5rem;
+            max-width: 340px;
+          }
+
+          .response-icon {
+            width: 70px;
+            height: 70px;
+            font-size: 2.5rem;
+          }
+
+          .response-title {
+            font-size: 1.6rem;
+          }
+
+          .celebration-heart {
+            font-size: 5rem;
+          }
+
+          .celebration-text {
+            font-size: 2rem;
+          }
+          
           .header {
             padding: 10px 12px;
           }
@@ -1243,6 +2040,14 @@ export default function ChatPage() {
           
           .status {
             font-size: 0.8rem;
+          }
+
+          .add-to-favourites-btn {
+            padding: 6px 10px;
+          }
+
+          .heart-icon-btn {
+            font-size: 1.1rem;
           }
         }
       `}</style>
