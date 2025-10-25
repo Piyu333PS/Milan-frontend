@@ -753,9 +753,6 @@ export default function ChatPage() {
         {/* Header */}
         <header className="header">
           <div className="header-left">
-            <button className="back-btn" onClick={() => (window.location.href = "https://milanlove.in/connect")} aria-label="Back">
-              ⟵
-            </button>
             <img className="avatar" src={partnerAvatarSrc} alt="DP" />
             <div className="partner">
               <div className="name">{partnerName}</div>
@@ -1520,18 +1517,6 @@ export default function ChatPage() {
           gap: 0.8rem;
           flex: 1;
           min-width: 0;
-        }
-        
-        .back-btn {
-          border: none;
-          background: rgba(255,255,255,0.04);
-          border-radius: 12px;
-          padding: 8px 10px;
-          cursor: pointer;
-          color: var(--text);
-          font-weight: 700;
-          box-shadow: 0 6px 18px rgba(139,92,246,0.06);
-          flex-shrink: 0;
         }
         
         .avatar {
