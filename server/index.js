@@ -1,4 +1,6 @@
 // server/index.js
+// ✅ FIXED: Friend request system with proper user tracking
+
 require("dotenv").config();
 const express = require("express");
 const app = express();
@@ -12,7 +14,7 @@ const bcrypt = require("bcryptjs");
 const jwt = require("jsonwebtoken");
 const { randomUUID } = require("crypto");
 
-// ===== Load question packs (optional file: server/question_packs.json) =====
+// Load question packs
 let QUESTION_PACKS = null;
 try {
   const packsPath = path.join(__dirname, "question_packs.json");
@@ -21,7 +23,6 @@ try {
     console.log("Loaded question packs:", Object.keys(QUESTION_PACKS));
   } else {
     console.log("question_packs.json not found – using inline pool");
-    console.log('[server] CORS: permissive mode enabled for development');
     QUESTION_PACKS = null;
   }
 } catch (err) {
@@ -29,17 +30,10 @@ try {
   QUESTION_PACKS = null;
 }
 
-// ===== CORS Config =====
-const allowedOrigins = [
-  "http://localhost:3000",
-  "https://milanlove.in",
-  "https://milan-j9u9.vercel.app",
-  "https://milan-frontend.vercel.app",
-];
-
+// CORS Config
 app.use(
   cors({
-    origin: true, // allow all origins (adjust in production)
+    origin: true,
     methods: ["GET", "POST", "PUT", "DELETE"],
     credentials: true,
   })
@@ -47,10 +41,10 @@ app.use(
 
 app.set("trust proxy", 1);
 
-// ===== Socket.IO setup =====
+// Socket.IO setup
 const io = require("socket.io")(http, {
   cors: {
-    origin: (origin, callback) => { callback(null, true); }, // allow all origins (adjust in prod)
+    origin: (origin, callback) => { callback(null, true); },
     methods: ["GET", "POST"],
     credentials: true,
   },
@@ -73,7 +67,7 @@ const apiLimiter = rateLimit({
 });
 app.use(apiLimiter);
 
-// ===== MongoDB Connection (keep as-is) =====
+// MongoDB Connection
 (async () => {
   try {
     if (!process.env.MONGO_URI) throw new Error("MONGO_URI missing");
@@ -84,8 +78,7 @@ app.use(apiLimiter);
   }
 })();
 
-// ===== Schemas =====
-// ✅ UPDATED: User Schema with Friends & Pending Requests
+// Schemas
 const userSchema = new mongoose.Schema({
   emailOrMobile: { type: String, unique: true, required: true },
   mobile: { type: String },
@@ -93,16 +86,18 @@ const userSchema = new mongoose.Schema({
   password: { type: String, required: true },
   name: String,
   avatar: String,
+  gender: String,
+  dob: String,
+  city: String,
+  reason: String,
   isPremium: { type: Boolean, default: false },
   
-  // ✅ NEW: Friends array
   friends: [{
     userId: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
     username: String,
     addedAt: { type: Date, default: Date.now }
   }],
   
-  // ✅ NEW: Pending friend requests
   pendingRequests: [{
     from: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
     fromUsername: String,
@@ -125,7 +120,7 @@ const messageSchema = new mongoose.Schema({
 messageSchema.index({ roomCode: 1, timestamp: -1 });
 const Message = mongoose.model("Message", messageSchema);
 
-// ===== Utilities =====
+// Utilities
 function generateRoomCode(length = 6) {
   const chars = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
   return Array.from({ length }, () => chars[Math.floor(Math.random() * chars.length)]).join("");
@@ -136,13 +131,13 @@ const socketState = new Map();
 const rooms = new Map();
 const roomMembers = new Map();
 
-// ✅ NEW: User socket tracking for friend requests
+// ✅ User socket tracking for friend requests
 const userSocketMap = new Map(); // userId -> socketId
 
 const offerDebounce = new Map();
 const OFFER_DEBOUNCE_MS = 700;
 
-// ===== Game / Question Support (inline fallback pool) =====
+// Game / Question Support
 const QUESTIONS = [
   "Tumhe apne partner ki sabse acchi baat kya lagti hai?",
   "Agar tumhe ek magical date mil jaye to kahan le jaoge?",
@@ -154,27 +149,15 @@ const QUESTIONS = [
   "Tumhara funniest pet name jo kisi ne diya ho?",
   "Agar tumhe ek din ke liye opposite gender banna pad jaye to kya karoge?",
   "Kya tum bathroom me gaana gaate ho?",
-  "Tumne kabhi public place me kuch crazy kiya hai?",
-  "Ek din ke liye invisible ho gaye to sabse pehle kya karoge?",
-  "Tumhe sabse ajeeb compliment kaunsa mila hai?",
-  "Agar tum ek superpower choose kar sakte, to kya hoti?",
-  "Kya tumne kabhi kisi teacher ya colleague pe crush hua hai?",
-  "Tumhe sabse zyada dare wali cheez kya karni hai?",
-  "Kya tumne kabhi public me kiss kiya hai?",
-  "Tumhare phone me sabse secret cheez kya hai?",
-  "Agar tumhe abhi dare diya jaye to apne partner ko kya bold sawal puchoge?",
-  "Ek habit jo tumhe apne partner me pasand nahi hai par bol nahi pate?"
 ];
 
 const questionTimers = new Map();
-
-// ===== Rate-limit / cooldown maps for games =====
 const lastGameStart = new Map();
 const lastGameBySocket = new Map();
 const GAME_COOLDOWN_MS = 12 * 1000;
 const PER_SOCKET_COOLDOWN_MS = 8 * 1000;
 
-// ===== NEW: Zero-DB Invite Rooms (Quick Direct Connect) =====
+// Zero-DB Invite Rooms
 const inviteRooms = new Map();
 
 function getInviteRoom(roomId) {
@@ -208,15 +191,15 @@ function cleanupInviteMembership(s) {
   }
 }
 
-// ===== Root Route =====
+// Root Route
 app.get("/", (req, res) => {
   res.send("✅ Milan backend is running successfully.");
 });
 
-// ===== Auth Routes =====
+// Auth Routes
 app.post("/register", async (req, res) => {
   try {
-    const { name, emailOrMobile, password,gender, dob, city, reason } = req.body;
+    const { name, emailOrMobile, password, gender, dob, city, reason } = req.body;
     if (!name || !emailOrMobile || !password) return res.status(400).json({ message: "Name, email/mobile, password required" });
 
     const existingUser = await User.findOne({ emailOrMobile });
@@ -224,13 +207,12 @@ app.post("/register", async (req, res) => {
 
     const hashedPassword = await bcrypt.hash(password, 10);
 
-    // Detect if emailOrMobile is numeric (mobile) or email-like
     let mobile = null, email = null;
     const trimmed = String(emailOrMobile || '').trim();
     if (/^\d+$/.test(trimmed)) mobile = trimmed;
     else if (/@/.test(trimmed)) email = trimmed;
 
-    const user = new User({ name, emailOrMobile: trimmed, password: hashedPassword, mobile, email, gender, dob, city, reason});
+    const user = new User({ name, emailOrMobile: trimmed, password: hashedPassword, mobile, email, gender, dob, city, reason });
     await user.save();
 
     const token = jwt.sign({ id: user._id }, process.env.JWT_SECRET || "secret", { expiresIn: "7d" });
@@ -242,7 +224,7 @@ app.post("/register", async (req, res) => {
   }
 });
 
-// ===== Login =====
+// Login
 app.post("/login", async (req, res) => {
   try {
     const body = req.body || {};
@@ -279,8 +261,6 @@ app.post("/login", async (req, res) => {
       searchCandidates.push({ email: normalizeEmail(identifier) });
     }
 
-    console.log("[/login] incoming identifier:", identifier, "searchCandidates:", JSON.stringify(searchCandidates));
-
     let user = null;
     for (const q of searchCandidates) {
       const hasNonEmpty = Object.values(q).some(v => v !== "" && v !== null && typeof v !== "undefined");
@@ -290,17 +270,14 @@ app.post("/login", async (req, res) => {
     }
 
     if (!user) {
-      console.log("[/login] user not found for identifier:", identifier);
       return res.status(400).json({ message: "User not found" });
     }
 
     if (!user.password || typeof user.password !== "string") {
-      console.warn("[/login] user record missing/invalid password hash, id:", user._id);
       return res.status(500).json({ message: "User record malformed (contact support)" });
     }
 
     const isMatch = await bcrypt.compare(rawPassword, user.password);
-    console.log("[/login] bcrypt.compare result for user", user._id, ":", isMatch);
 
     if (!isMatch) {
       return res.status(400).json({ message: "Invalid password" });
@@ -335,7 +312,7 @@ app.get("/api/profile/:id", async (req, res) => {
   }
 });
 
-// ===== Queue & Room Helpers (unchanged) =====
+// Queue & Room Helpers
 function enqueue(mode, socketId) {
   if (!queues[mode].includes(socketId)) queues[mode].push(socketId);
   setState(socketId, { queuedAt: Date.now() });
@@ -406,17 +383,14 @@ function getOtherParticipant(roomCode, fromId) {
   return null;
 }
 
-// ===== Socket.IO Logic =====
+// Socket.IO Logic
 io.on("connection", (socket) => {
-  console.log('[server] socket connected:', socket.id, 'transport:', socket.conn && socket.conn.transport && socket.conn.transport.name, 'origin:', socket.handshake && socket.handshake.headers && socket.handshake.headers.origin);
-  try { socket.conn.on('upgrade', () => console.log('[server] socket upgraded to websocket:', socket.id)); } catch(e) {}
-
-  console.log("✅ User connected:", socket.id);
+  console.log('[server] socket connected:', socket.id);
 
   function cleanupSocket(s) {
     const st = socketState.get(s.id);
     
-    // ✅ NEW: Remove from user socket map
+    // Remove from user socket map
     if (st?.userId) {
       userSocketMap.delete(st.userId);
       console.log(`[cleanup] Removed userId ${st.userId} from socket map`);
@@ -465,9 +439,7 @@ io.on("connection", (socket) => {
       }
     } catch (e) { console.warn("roomMembers cleanup failed:", e); }
 
-    // Also cleanup invite flow membership
     cleanupInviteMembership(s);
-
     clearState(s.id);
   }
 
@@ -476,14 +448,14 @@ io.on("connection", (socket) => {
     cleanupSocket(socket);
   });
 
-  // ✅ NEW: User Info with userId tracking
+  // ✅ FIXED: User Info with userId tracking
   socket.on("userInfo", (data = {}) => {
     try {
       const { userId, name, avatar, gender } = data || {};
       
       if (userId) {
         userSocketMap.set(userId, socket.id);
-        console.log(`[userInfo] Mapped userId ${userId} to socket ${socket.id}`);
+        console.log(`✅ [userInfo] Mapped userId ${userId} to socket ${socket.id} (name: ${name})`);
       }
       
       setState(socket.id, { userId, name, avatar, gender });
@@ -492,15 +464,15 @@ io.on("connection", (socket) => {
     }
   });
 
-  // ✅ NEW: Send Friend Request
+  // ✅ FIXED: Send Friend Request
   socket.on("send-friend-request", async ({ targetUserId, myUserId, myUsername, roomCode } = {}) => {
     try {
       if (!targetUserId || !myUserId || !myUsername) {
-        console.warn("[friend-request] missing params");
+        console.warn("❌ [friend-request] missing params");
         return socket.emit("friend-request-error", { message: "Missing required parameters" });
       }
 
-      console.log(`[friend-request] ${myUsername} (${myUserId}) → ${targetUserId} in room ${roomCode}`);
+      console.log(`📤 [friend-request] ${myUsername} (${myUserId}) → ${targetUserId} in room ${roomCode}`);
 
       // Find target user's socket
       const targetSocketId = userSocketMap.get(targetUserId);
@@ -514,12 +486,12 @@ io.on("connection", (socket) => {
           roomCode
         });
         
-        console.log(`[friend-request] ✅ Sent to socket ${targetSocketId}`);
+        console.log(`✅ [friend-request] Sent to socket ${targetSocketId}`);
       } else {
-        console.log(`[friend-request] ⚠️ Target user ${targetUserId} not online`);
+        console.log(`⚠️ [friend-request] Target user ${targetUserId} not online`);
       }
 
-      // Optional: Save to database
+      // Save to database
       try {
         await User.findByIdAndUpdate(targetUserId, {
           $push: {
@@ -530,26 +502,26 @@ io.on("connection", (socket) => {
             }
           }
         });
-        console.log(`[friend-request] 💾 Saved to DB`);
+        console.log(`💾 [friend-request] Saved to DB`);
       } catch (dbErr) {
-        console.warn("[friend-request] DB save failed:", dbErr);
+        console.warn("❌ [friend-request] DB save failed:", dbErr);
       }
 
     } catch (error) {
-      console.error("[friend-request] error:", error);
+      console.error("❌ [friend-request] error:", error);
       socket.emit("friend-request-error", { message: "Request failed" });
     }
   });
 
-  // ✅ NEW: Friend Request Response (Accept/Reject)
+  // ✅ FIXED: Friend Request Response (Accept/Reject)
   socket.on("friend-request-response", async ({ accepted, requesterId, responderId, responderUsername } = {}) => {
     try {
       if (!requesterId || !responderId) {
-        console.warn("[friend-response] missing IDs");
+        console.warn("❌ [friend-response] missing IDs");
         return socket.emit("friend-response-error", { message: "Missing IDs" });
       }
 
-      console.log(`[friend-response] ${responderId} ${accepted ? '✅ ACCEPTED' : '❌ REJECTED'} ${requesterId}`);
+      console.log(`📬 [friend-response] ${responderId} ${accepted ? '✅ ACCEPTED' : '❌ REJECTED'} ${requesterId}`);
 
       if (accepted) {
         // Add to both users' friends list
@@ -574,9 +546,9 @@ io.on("connection", (socket) => {
             }
           });
 
-          console.log(`[friend-response] 💾 DB updated for both users`);
+          console.log(`💾 [friend-response] DB updated for both users`);
         } catch (dbErr) {
-          console.error("[friend-response] DB update failed:", dbErr);
+          console.error("❌ [friend-response] DB update failed:", dbErr);
         }
         
         // Notify requester - ACCEPTED
@@ -587,7 +559,7 @@ io.on("connection", (socket) => {
             responderUsername: responderUsername || "Friend",
             timestamp: new Date().toISOString()
           });
-          console.log(`[friend-response] ✅ Acceptance sent to ${requesterSocketId}`);
+          console.log(`✅ [friend-response] Acceptance sent to ${requesterSocketId}`);
         }
 
       } else {
@@ -598,9 +570,9 @@ io.on("connection", (socket) => {
               pendingRequests: { from: requesterId } 
             }
           });
-          console.log(`[friend-response] 💾 Removed pending request from DB`);
+          console.log(`💾 [friend-response] Removed pending request from DB`);
         } catch (dbErr) {
-          console.warn("[friend-response] DB remove failed:", dbErr);
+          console.warn("❌ [friend-response] DB remove failed:", dbErr);
         }
         
         // Notify requester - REJECTED
@@ -610,17 +582,17 @@ io.on("connection", (socket) => {
             responderId,
             timestamp: new Date().toISOString()
           });
-          console.log(`[friend-response] ❌ Rejection sent to ${requesterSocketId}`);
+          console.log(`❌ [friend-response] Rejection sent to ${requesterSocketId}`);
         }
       }
 
     } catch (error) {
-      console.error("[friend-response] error:", error);
+      console.error("❌ [friend-response] error:", error);
       socket.emit("friend-response-error", { message: "Response failed" });
     }
   });
 
-  // ===== Partner Finding (text/video/game) =====
+  // ✅ FIXED: Partner Finding with proper user info sharing
   socket.on("lookingForPartner", ({ type, token } = {}) => {
     const mode = type || "video";
     enqueue(mode, socket.id);
@@ -634,8 +606,34 @@ io.on("connection", (socket) => {
       socket.join(roomCode);
       safeGetSocket(partnerId).join(roomCode);
 
-      socket.emit("partnerFound", { partner: { id: partnerId }, roomCode });
-      safeGetSocket(partnerId).emit("partnerFound", { partner: { id: socket.id }, roomCode });
+      // ✅ Get user info from state
+      const myState = socketState.get(socket.id) || {};
+      const partnerState = socketState.get(partnerId) || {};
+
+      // ✅ Share user info with partner
+      socket.emit("partnerFound", { 
+        partner: { 
+          id: partnerId,
+          userId: partnerState.userId || null,
+          name: partnerState.name || "Romantic Stranger",
+          avatar: partnerState.avatar || null,
+          gender: partnerState.gender || "unknown"
+        }, 
+        roomCode 
+      });
+      
+      safeGetSocket(partnerId).emit("partnerFound", { 
+        partner: { 
+          id: socket.id,
+          userId: myState.userId || null,
+          name: myState.name || "Romantic Stranger",
+          avatar: myState.avatar || null,
+          gender: myState.gender || "unknown"
+        }, 
+        roomCode 
+      });
+
+      console.log(`✅ [partnerFound] ${myState.name || socket.id} ↔️ ${partnerState.name || partnerId} in room ${roomCode}`);
 
       if (mode === "game") {
         const roomObj = rooms.get(roomCode);
@@ -689,21 +687,27 @@ io.on("connection", (socket) => {
     peers.forEach((skt) => {
       try {
         const partner = peers.find(p => p.id !== skt.id);
-        skt.emit("partnerFound",
-                 { partner: partner ? { id: partner.id } : null, roomCode });
+        const partnerState = partner ? socketState.get(partner.id) || {} : {};
+        skt.emit("partnerFound", { 
+          partner: partner ? { 
+            id: partner.id,
+            userId: partnerState.userId || null,
+            name: partnerState.name || "Romantic Stranger",
+            avatar: partnerState.avatar || null,
+            gender: partnerState.gender || "unknown"
+          } : null, 
+          roomCode 
+        });
       } catch (e) {}
     });
 
     io.to(roomCode).emit("rejoined", { by: socket.id });
   });
 
-  // ======== TEXT CHAT CORE (NEW) ========
-  // Broadcast normal text message to the room
+  // TEXT CHAT CORE
   socket.on("message", (data = {}) => {
     const { id, text, roomCode, senderId } = data || {};
     if (!roomCode || !text) return;
-    // (Optional) Persist if needed:
-    // Message.create({ sender: senderId, text, roomCode, type: "text" }).catch(()=>{});
     io.to(roomCode).emit("message", {
       id: id || `${Date.now()}-${Math.random()}`,
       text: String(text),
@@ -712,7 +716,6 @@ io.on("connection", (socket) => {
     });
   });
 
-  // Broadcast file/image/video message to the room
   socket.on("fileMessage", (data = {}) => {
     const { id, fileName, fileType, fileData, roomCode, senderId } = data || {};
     if (!roomCode || !fileData) return;
@@ -726,20 +729,17 @@ io.on("connection", (socket) => {
     });
   });
 
-  // Typing indicator – notify only others in the room
   socket.on("typing", ({ roomCode } = {}) => {
     if (!roomCode) return;
     socket.to(roomCode).emit("partnerTyping");
   });
 
-  // ✅ Emoji Reaction sync (WhatsApp-style)
   socket.on("reaction", ({ roomCode, messageId, emoji } = {}) => {
     if (!roomCode || !messageId || !emoji) return;
     io.to(roomCode).emit("reaction", { messageId, emoji, from: socket.id });
   });
-  // ======== /TEXT CHAT CORE ========
 
-  // ===== NEW: Video signalling & room membership =====
+  // Video signalling & room membership
   socket.on("joinVideo", ({ roomCode, token } = {}) => {
     try {
       if (!roomCode) { socket.emit("errorMessage", { message: "missing roomCode" }); return; }
@@ -773,8 +773,6 @@ io.on("connection", (socket) => {
       roomMembers.set(roomCode, members);
       setState(socket.id, { roomCode });
 
-      console.log(`[server] joinVideo: socket ${socket.id} joined room ${roomCode} (members=${members.size})`);
-
       if (members.size === 2) {
         const arr = Array.from(members);
         const a = arr[0];
@@ -785,7 +783,6 @@ io.on("connection", (socket) => {
         try {
           io.to(a).emit("ready", { roomCode, count: members.size, polite: politeFor === a });
           io.to(b).emit("ready", { roomCode, count: members.size, polite: politeFor === b });
-          console.log(`[server] room ${roomCode} ready -> emitted polite flags to ${a}, ${b}`);
         } catch (e) { console.log("[server] emit ready error", e); }
       } else {
         socket.emit("waitingForPeer", { roomCode });
@@ -795,7 +792,6 @@ io.on("connection", (socket) => {
     }
   });
 
-  // Forward signalling only to the other peer, with debounce for offers
   socket.on("offer", (offer) => {
     try {
       if (!offer || typeof offer !== 'object' || !offer.type || !offer.sdp) {
@@ -821,7 +817,6 @@ io.on("connection", (socket) => {
 
       const forwardOffer = { type: String(offer.type), sdp: String(offer.sdp), from: socket.id, roomCode };
       io.to(otherId).emit("offer", forwardOffer);
-      console.log(`[server] forwarded offer from ${socket.id} to ${otherId} in room ${roomCode}`);
     } catch (e) { console.error("offer forward error", e); }
   });
 
@@ -846,7 +841,6 @@ io.on("connection", (socket) => {
 
       const forwardAnswer = { type: String(answer.type), sdp: String(answer.sdp), from: socket.id, roomCode };
       io.to(otherId).emit("answer", forwardAnswer);
-      console.log(`[server] forwarded answer from ${socket.id} to ${otherId} in room ${roomCode}`);
     } catch (e) { console.error("answer forward error", e); }
   });
 
@@ -854,19 +848,16 @@ io.on("connection", (socket) => {
     try {
       const candPayload = candidate && (candidate.candidate || candidate);
       if (!candPayload || !candPayload.candidate) {
-        console.debug && console.debug(`[server] invalid candidate from ${socket.id} – ignoring`, candidate);
         return;
       }
 
       const st = socketState.get(socket.id) || {};
       const roomCode = st.roomCode || candidate.roomCode;
       if (!roomCode) {
-        console.debug && console.debug(`[server] candidate received but missing roomCode from ${socket.id}`);
         return;
       }
       const otherId = getOtherParticipant(roomCode, socket.id);
       if (!otherId) {
-        console.debug && console.debug(`[server] candidate received but other participant not found in room ${roomCode} for ${socket.id}`);
         return;
       }
 
@@ -886,12 +877,11 @@ io.on("connection", (socket) => {
         setState(socket.id, { roomCode: null, partnerId: null });
         const otherId = getOtherParticipant(roomCode, socket.id);
         if (otherId) io.to(otherId).emit("partnerLeft");
-        console.log(`[server] ${socket.id} left video room ${roomCode}`);
       }
     } catch (e) { console.error("leaveVideo error", e); }
   });
 
-  // ===== NEW NEW: Invite Link (Zero-DB) – Quick Direct Connect =====
+  // Invite Link (Zero-DB)
   socket.on("inviteJoin", ({ roomId, mode = "auto", username = "Guest" } = {}) => {
     try {
       if (!roomId || typeof roomId !== "string") return;
@@ -912,7 +902,6 @@ io.on("connection", (socket) => {
       const other = inviteOther(roomId, socket.id);
       if (other) {
         io.to(other).emit("invitePeerJoined", { roomId, socketId: socket.id, username });
-        io.to(roomId); // reserved
       }
 
       if (r.users.size === 2) {
@@ -989,7 +978,7 @@ io.on("connection", (socket) => {
     }
   });
 
-  // ====== QUESTION GAME (existing) ======
+  // QUESTION GAME
   socket.on("startQuestionGame", ({ roomCode, timeout } = {}) => {
     try {
       if (!roomCode) return;
@@ -1036,7 +1025,7 @@ io.on("connection", (socket) => {
     } catch (err) { console.warn("submitAnswer error", err); }
   });
 
-  // ====== TWO-OPTION QUIZ: START ======
+  // TWO-OPTION QUIZ
   socket.on("twoOptionStart", ({ roomCode, questionsPack = "default", count = 10 } = {}) => {
     try {
       if (!roomCode) return;
@@ -1072,7 +1061,6 @@ io.on("connection", (socket) => {
         currentIndex: 1,
         totalQuestions: prepared.length,
       });
-      console.log(`[server] twoOptionStart in ${roomCode}, qcount=${prepared.length}`);
     } catch (err) { console.warn("twoOptionStart error", err); }
   });
 
@@ -1151,7 +1139,7 @@ io.on("connection", (socket) => {
     } catch (err) { console.warn("twoOptionAnswer error", err); }
   });
 
-  // ====== SPIN THE BOTTLE ======
+  // SPIN THE BOTTLE
   socket.on("spinBottleStart", ({ roomCode } = {}) => {
     try {
       if (!roomCode) return;
@@ -1213,10 +1201,23 @@ io.on("connection", (socket) => {
     } catch (err) { console.warn("spinBottleStart error", err); }
   });
 
-  socket.on("spinBottleDone", ({ roomCode } = {}) => { try { if (roomCode) io.to(roomCode).emit("spinDoneAck", { by: socket.id }); const r = rooms.get(roomCode); if (r && r.spin) { r.spin = null; rooms.set(roomCode, r); } } catch (e) {} });
-  socket.on("spinBottleSkip", ({ roomCode } = {}) => { try { if (roomCode) io.to(roomCode).emit("spinSkipped", { by: socket.id }); const r = rooms.get(roomCode); if (r && r.spin) { r.spin = null; rooms.set(roomCode, r); } } catch (e) {} });
+  socket.on("spinBottleDone", ({ roomCode } = {}) => { 
+    try { 
+      if (roomCode) io.to(roomCode).emit("spinDoneAck", { by: socket.id }); 
+      const r = rooms.get(roomCode); 
+      if (r && r.spin) { r.spin = null; rooms.set(roomCode, r); } 
+    } catch (e) {} 
+  });
 
-  // ====== Other game handlers (unchanged) ======
+  socket.on("spinBottleSkip", ({ roomCode } = {}) => { 
+    try { 
+      if (roomCode) io.to(roomCode).emit("spinSkipped", { by: socket.id }); 
+      const r = rooms.get(roomCode); 
+      if (r && r.spin) { r.spin = null; rooms.set(roomCode, r); } 
+    } catch (e) {} 
+  });
+
+  // Game handlers
   socket.on("gameMove", (data = {}) => {
     const { roomCode, cellIndex, symbol } = data || {};
     if (!roomCode) return;
@@ -1249,8 +1250,10 @@ io.on("connection", (socket) => {
   socket.on("partnerLeft", () => { cleanupSocket(socket); });
   socket.on("disconnectByUser", () => { cleanupSocket(socket); try { socket.disconnect(true); } catch (e) {} });
 
-}); // end io.on connection
+});
 
-// ===== Start Server =====
+// Start Server
 const PORT = process.env.PORT || 5000;
-http.listen(PORT, "0.0.0.0", () => { console.log(`🚀 Server running at: http://localhost:${PORT}`); });
+http.listen(PORT, "0.0.0.0", () => { 
+  console.log(`🚀 Server running at: http://localhost:${PORT}`); 
+});
