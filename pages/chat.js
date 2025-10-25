@@ -764,16 +764,16 @@ export default function ChatPage() {
           </div>
 
           <div className="header-right">
-            {/* ✅ Add to Favourites Button - Only show when connected */}
+            {/* ✅ Add to Favourites Button - Better icon */}
             {roomCode && partnerUserId && (
               <button
                 className="add-to-favourites-btn"
                 onClick={handleAddToFavourites}
-                title="Add to Favourites"
-                aria-label="Add to Favourites"
+                title="Add Friend"
+                aria-label="Add Friend"
                 disabled={requestSending}
               >
-                <span className="heart-icon-btn">💖</span>
+                <span className="add-friend-icon">👤+</span>
               </button>
             )}
 
@@ -782,6 +782,22 @@ export default function ChatPage() {
               ⋮
             </button>
             <div className={`menu ${menuOpen ? "open" : ""}`}>
+              {/* ✅ NEW: Add Friend option in menu */}
+              {roomCode && partnerUserId && (
+                <>
+                  <button
+                    className="menu-item"
+                    onClick={() => {
+                      setMenuOpen(false);
+                      handleAddToFavourites();
+                    }}
+                    disabled={requestSending}
+                  >
+                    👤 Add Friend
+                  </button>
+                  <div className="sep" />
+                </>
+              )}
               <button
                 className="menu-item"
                 onClick={() => {
@@ -1324,8 +1340,8 @@ export default function ChatPage() {
         }
 
         .add-to-favourites-btn {
-          background: linear-gradient(135deg, rgba(255,79,160,0.2), rgba(139,92,246,0.15));
-          border: 2px solid rgba(255,79,160,0.4);
+          background: linear-gradient(135deg, rgba(76,217,100,0.2), rgba(52,199,89,0.15));
+          border: 2px solid rgba(76,217,100,0.4);
           border-radius: 12px;
           padding: 8px 14px;
           cursor: pointer;
@@ -1333,13 +1349,15 @@ export default function ChatPage() {
           display: flex;
           align-items: center;
           gap: 6px;
+          color: #fff;
+          font-weight: 700;
         }
 
         .add-to-favourites-btn:hover {
-          background: linear-gradient(135deg, rgba(255,79,160,0.3), rgba(139,92,246,0.25));
-          border-color: rgba(255,79,160,0.6);
+          background: linear-gradient(135deg, rgba(76,217,100,0.3), rgba(52,199,89,0.25));
+          border-color: rgba(76,217,100,0.6);
           transform: scale(1.05);
-          box-shadow: 0 8px 24px rgba(255,79,160,0.3);
+          box-shadow: 0 8px 24px rgba(76,217,100,0.3);
         }
 
         .add-to-favourites-btn:active {
@@ -1351,14 +1369,10 @@ export default function ChatPage() {
           cursor: not-allowed;
         }
 
-        .heart-icon-btn {
-          font-size: 1.3rem;
-          animation: heartFloat 2s ease-in-out infinite;
-        }
-
-        @keyframes heartFloat {
-          0%, 100% { transform: translateY(0); }
-          50% { transform: translateY(-4px); }
+        .add-friend-icon {
+          font-size: 1.2rem;
+          display: flex;
+          align-items: center;
         }
 
         .alert-overlay {
@@ -1609,9 +1623,16 @@ export default function ChatPage() {
           cursor: pointer;
           font-size: 0.95rem;
           margin: 4px 0;
+          display: flex;
+          align-items: center;
+          gap: 8px;
         }
         .menu-item:hover {
           background: linear-gradient(90deg, rgba(255,79,160,0.12), rgba(139,92,246,0.08));
+        }
+        .menu-item:disabled {
+          opacity: 0.5;
+          cursor: not-allowed;
         }
         .sep { height: 1px; background: rgba(255,255,255,0.03); margin: 6px 0; }
 
@@ -1917,8 +1938,8 @@ export default function ChatPage() {
             padding: 6px 10px;
           }
 
-          .heart-icon-btn {
-            font-size: 1.1rem;
+          .add-friend-icon {
+            font-size: 1rem;
           }
         }
       `}</style>
