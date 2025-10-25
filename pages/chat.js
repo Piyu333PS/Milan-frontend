@@ -1,6 +1,5 @@
 // pages/chat.js
-// FIXED: Removed false disconnect alerts and auto-disconnect issues
-// ✅ NEW: Add to Favourites Feature with Romantic Popups
+// FIXED: Friend Request System with proper user tracking
 
 import { useEffect, useRef, useState } from "react";
 import Head from "next/head";
@@ -9,7 +8,7 @@ import io from "socket.io-client";
 const BACKEND_URL =
   process.env.NEXT_PUBLIC_BACKEND_URL || "https://milan-j9u9.onrender.com";
 
-const MAX_FILE_BYTES = 15 * 1024 * 1024; // 15 MB
+const MAX_FILE_BYTES = 15 * 1024 * 1024;
 const TARGET_IMAGE_SIZE = 800;
 const IMAGE_QUALITY = 0.7;
 
@@ -20,7 +19,6 @@ const getAvatarForGender = (g) => {
   return "/partner-avatar.png";
 };
 
-// Compress image helper
 const compressImage = (file) => {
   return new Promise((resolve, reject) => {
     const reader = new FileReader();
@@ -70,7 +68,6 @@ const compressImage = (file) => {
 };
 
 export default function ChatPage() {
-  // ===== State =====
   const [partnerName, setPartnerName] = useState("Partner");
   const [partnerAvatarSrc, setPartnerAvatarSrc] = useState("/partner-avatar.png");
   const [typing, setTyping] = useState(false);
@@ -79,27 +76,16 @@ export default function ChatPage() {
   const [msgs, setMsgs] = useState([]);
   const [roomCode, setRoomCode] = useState(null);
   const [partnerId, setPartnerId] = useState(null);
+  const [partnerUserId, setPartnerUserId] = useState(null); // ✅ NEW: Track partner's actual user ID
 
-  // Search UI
-  const [searchOpen, setSearchOpen] = useState(false);
-  const [searchQuery, setSearchQuery] = useState("");
-  const [matchIds, setMatchIds] = useState([]);
-  const [matchIndex, setMatchIndex] = useState(0);
-
-  // Emoji picker
   const [emojiOpen, setEmojiOpen] = useState(false);
   const EMOJIS = ["😊", "❤️", "😂", "👍", "🔥", "😍", "🤗", "😘", "😎", "🥰"];
 
-  // Disconnect alert
   const [showDisconnectAlert, setShowDisconnectAlert] = useState(false);
-
-  // File uploading state
   const [isUploading, setIsUploading] = useState(false);
-
-  // Connection state
   const [isConnected, setIsConnected] = useState(false);
 
-  // ✅ NEW: Friend Request States
+  // Friend Request States
   const [showFriendRequestPopup, setShowFriendRequestPopup] = useState(false);
   const [friendRequestData, setFriendRequestData] = useState(null);
   const [showResponsePopup, setShowResponsePopup] = useState(false);
@@ -108,8 +94,8 @@ export default function ChatPage() {
   const [floatingHearts, setFloatingHearts] = useState([]);
   const [currentUserId, setCurrentUserId] = useState(null);
   const [currentUsername, setCurrentUsername] = useState("");
+  const [requestSending, setRequestSending] = useState(false); // ✅ Prevent duplicate sends
 
-  // ===== Refs =====
   const socketRef = useRef(null);
   const msgRef = useRef(null);
   const fileRef = useRef(null);
@@ -119,7 +105,6 @@ export default function ChatPage() {
   const partnerFoundRef = useRef(false);
   const isCleaningUp = useRef(false);
 
-  // ===== Utils =====
   const timeNow = () => {
     const d = new Date();
     const h = d.getHours() % 12 || 12;
@@ -138,7 +123,6 @@ export default function ChatPage() {
       if (listRef.current) listRef.current.scrollTop = listRef.current.scrollHeight;
     });
 
-  // ✅ NEW: Floating Hearts Animation
   const createFloatingHearts = (count) => {
     const hearts = Array.from({ length: count }, (_, i) => ({
       id: Date.now() + i,
@@ -150,13 +134,10 @@ export default function ChatPage() {
     setTimeout(() => setFloatingHearts([]), 3000);
   };
 
-  // ✅ NEW: Sound effect simulation
   const playSound = (type) => {
     console.log(`Playing ${type} sound effect`);
-    // In real app: new Audio(`/sounds/${type}.mp3`).play()
   };
 
-  // ===== Socket lifecycle =====
   useEffect(() => {
     let localName = "";
     let localUserId = "";
@@ -170,6 +151,7 @@ export default function ChatPage() {
           const payload = JSON.parse(atob(token.split('.')[1]));
           localUserId = payload.id || "";
           setCurrentUserId(localUserId);
+          console.log("✅ Current user ID:", localUserId);
         } catch (e) {
           console.warn("Token parse failed:", e);
         }
@@ -194,6 +176,7 @@ export default function ChatPage() {
       console.log("Socket connected:", socket.id);
       setIsConnected(true);
       
+      // ✅ Send user info with userId
       socket.emit("userInfo", {
         userId: localUserId,
         name: localName || "You",
@@ -206,50 +189,33 @@ export default function ChatPage() {
 
     socket.on("connect_error", (err) => {
       console.error("Socket connect error:", err?.message || err);
-      if (partnerFoundRef.current) {
-        const sysId = `sys-err-${Date.now()}`;
-        if (!processedMsgIds.current.has(sysId)) {
-          processedMsgIds.current.add(sysId);
-          setMsgs((p) => [
-            ...p,
-            { id: sysId, self: false, kind: "system", html: "⚠️ Connection issue. Reconnecting...", time: timeNow() },
-          ]);
-        }
-      }
     });
 
     socket.on("disconnect", (reason) => {
       console.log("Socket disconnected:", reason);
       setIsConnected(false);
-      
-      if (partnerFoundRef.current && !isCleaningUp.current) {
-        if (reason !== "io client disconnect" && reason !== "transport close") {
-          const sysId = `sys-dis-${Date.now()}`;
-          if (!processedMsgIds.current.has(sysId)) {
-            processedMsgIds.current.add(sysId);
-            setMsgs((p) => [
-              ...p,
-              { id: sysId, self: false, kind: "system", html: `Connection lost (${String(reason)}).`, time: timeNow() },
-            ]);
-          }
-        }
-      }
     });
 
+    // ✅ FIXED: Partner found with proper user tracking
     socket.on("partnerFound", ({ roomCode: rc, partner }) => {
       if (!rc) return;
       
-      console.log("Partner found:", partner);
+      console.log("✅ Partner found:", partner);
       partnerFoundRef.current = true;
       
       setRoomCode(rc);
       setPartnerId(partner?.id || null);
       
+      // ✅ Extract partner's actual userId and name
+      const pUserId = partner?.userId || null;
       const pName = partner?.name || "Romantic Stranger";
       const pAvatar = partner?.avatar || getAvatarForGender(partner?.gender);
 
+      setPartnerUserId(pUserId);
       setPartnerName(pName);
       setPartnerAvatarSrc(pAvatar);
+
+      console.log("✅ Partner Info - Name:", pName, "UserId:", pUserId);
 
       try {
         socket.emit("joinRoom", { roomCode: rc });
@@ -266,7 +232,6 @@ export default function ChatPage() {
       scrollToBottom();
     });
 
-    // Incoming text message
     socket.on("message", (msg) => {
       if (!msg || !msg.id) return;
       
@@ -291,7 +256,6 @@ export default function ChatPage() {
       scrollToBottom();
     });
 
-    // Incoming file message
     socket.on("fileMessage", (msg) => {
       if (!msg || !msg.id) return;
       
@@ -327,9 +291,6 @@ export default function ChatPage() {
       socketRef.current._typingTimer = setTimeout(() => setTyping(false), 1500);
     });
 
-    socket.on("reaction", () => {});
-
-    // Partner disconnected
     socket.on("partnerDisconnected", () => {
       console.log("Partner disconnected event received");
       
@@ -338,17 +299,17 @@ export default function ChatPage() {
       }
     });
 
-    // ✅ NEW: Friend Request Received
+    // ✅ Friend Request Received
     socket.on("friend-request-received", (data) => {
-      console.log("Friend request received:", data);
+      console.log("✅ Friend request received:", data);
       playSound('request');
       setFriendRequestData(data);
       setShowFriendRequestPopup(true);
     });
 
-    // ✅ NEW: Friend Request Accepted
+    // ✅ Friend Request Accepted
     socket.on("friend-request-accepted", (data) => {
-      console.log("Friend request accepted:", data);
+      console.log("✅ Friend request accepted:", data);
       playSound('accept');
       setCelebrationActive(true);
       createFloatingHearts(20);
@@ -360,9 +321,9 @@ export default function ChatPage() {
       }, 2000);
     });
 
-    // ✅ NEW: Friend Request Rejected
+    // ✅ Friend Request Rejected
     socket.on("friend-request-rejected", (data) => {
-      console.log("Friend request rejected:", data);
+      console.log("❌ Friend request rejected:", data);
       playSound('reject');
       
       setTimeout(() => {
@@ -389,7 +350,6 @@ export default function ChatPage() {
     };
   }, []);
 
-  // ===== Actions =====
   const sendText = () => {
     const val = (msgRef.current?.value || "").trim();
     if (!val || !socketRef.current || !roomCode) return;
@@ -502,7 +462,6 @@ export default function ChatPage() {
     } catch {}
   };
 
-  // Handle disconnect alert OK button
   const handleDisconnectOk = () => {
     setShowDisconnectAlert(false);
     isCleaningUp.current = true;
@@ -513,41 +472,49 @@ export default function ChatPage() {
     window.location.href = "https://milanlove.in/connect";
   };
 
-  // ✅ NEW: Add to Favourites Handler
+  // ✅ FIXED: Add to Favourites Handler
   const handleAddToFavourites = () => {
-    if (!socketRef.current || !currentUserId || !partnerId || !roomCode) {
-      console.warn("Missing data for friend request");
-      alert("Unable to send friend request. Please try again.");
+    if (!socketRef.current || !currentUserId || !partnerUserId || !roomCode) {
+      console.warn("❌ Missing data for friend request");
+      alert("Unable to send friend request. Please make sure you're connected.");
       return;
     }
 
-    console.log("Sending friend request to partner:", partnerId);
+    if (requestSending) {
+      console.log("⏳ Request already in progress");
+      return;
+    }
+
+    console.log("📤 Sending friend request to:", partnerUserId);
+    setRequestSending(true);
     
     try {
       socketRef.current.emit("send-friend-request", {
-        targetUserId: partnerId,
+        targetUserId: partnerUserId,
         myUserId: currentUserId,
         myUsername: currentUsername,
         roomCode: roomCode
       });
       
-      // Show feedback to user
       const sysId = `sys-req-${Date.now()}`;
       setMsgs((p) => [
         ...p,
         { id: sysId, self: false, kind: "system", html: "💌 Friend request sent!", time: timeNow() },
       ]);
       scrollToBottom();
+      
+      setTimeout(() => setRequestSending(false), 2000);
     } catch (error) {
-      console.error("Failed to send friend request:", error);
+      console.error("❌ Failed to send friend request:", error);
       alert("Failed to send friend request. Please try again.");
+      setRequestSending(false);
     }
   };
 
-  // ✅ NEW: Accept Friend Request
+  // ✅ Accept Friend Request
   const handleAcceptRequest = () => {
     if (!socketRef.current || !friendRequestData || !currentUserId) {
-      console.warn("Missing data for accepting request");
+      console.warn("❌ Missing data for accepting request");
       return;
     }
 
@@ -564,21 +531,23 @@ export default function ChatPage() {
         responderUsername: currentUsername
       });
 
+      console.log("✅ Accepted request from:", friendRequestData.fromUsername);
+
       setTimeout(() => {
         setResponseType('accepted');
         setShowResponsePopup(true);
         setCelebrationActive(false);
       }, 2000);
     } catch (error) {
-      console.error("Failed to accept request:", error);
+      console.error("❌ Failed to accept request:", error);
       setCelebrationActive(false);
     }
   };
 
-  // ✅ NEW: Reject Friend Request
+  // ✅ Reject Friend Request
   const handleRejectRequest = () => {
     if (!socketRef.current || !friendRequestData || !currentUserId) {
-      console.warn("Missing data for rejecting request");
+      console.warn("❌ Missing data for rejecting request");
       return;
     }
 
@@ -592,64 +561,21 @@ export default function ChatPage() {
         responderId: currentUserId
       });
 
+      console.log("❌ Rejected request from:", friendRequestData.fromUsername);
+
       setTimeout(() => {
         setResponseType('rejected');
         setShowResponsePopup(true);
       }, 500);
     } catch (error) {
-      console.error("Failed to reject request:", error);
+      console.error("❌ Failed to reject request:", error);
     }
   };
 
-  // ✅ NEW: Close Response Popup
   const closeResponsePopup = () => {
     setShowResponsePopup(false);
   };
 
-  // ===== Search helpers =====
-  const runSearch = (q) => {
-    if (!q) {
-      setMatchIds([]);
-      setMatchIndex(0);
-      return;
-    }
-    const ids = msgs
-      .filter((m) => m.kind === "text" && stripHtml(m.html).toLowerCase().includes(q.toLowerCase()))
-      .map((m) => m.id);
-    setMatchIds(ids);
-    setMatchIndex(0);
-    if (ids.length) {
-      const el = messageRefs.current[ids[0]];
-      if (el) el.scrollIntoView({ behavior: "smooth", block: "center" });
-    }
-  };
-  
-  const jumpNext = () => {
-    if (!matchIds.length) return;
-    const next = (matchIndex + 1) % matchIds.length;
-    setMatchIndex(next);
-    const el = messageRefs.current[matchIds[next]];
-    if (el) el.scrollIntoView({ behavior: "smooth", block: "center" });
-  };
-
-  // ===== Emoji Picker =====
-  const insertEmoji = (emoji) => {
-    if (!msgRef.current) return;
-    const el = msgRef.current;
-    const start = el.selectionStart ?? el.value.length;
-    const end = el.selectionEnd ?? el.value.length;
-    const before = el.value.slice(0, start);
-    const after = el.value.slice(end);
-    el.value = before + emoji + after;
-    const caret = start + emoji.length;
-    requestAnimationFrame(() => {
-      el.focus();
-      el.setSelectionRange(caret, caret);
-    });
-    setEmojiOpen(false);
-  };
-
-  // ===== UI: outside click handlers =====
   useEffect(() => {
     const handler = (e) => {
       if (!e.target.closest(".header-right")) setMenuOpen(false);
@@ -667,11 +593,10 @@ export default function ChatPage() {
       </Head>
 
       <div className="app">
-        {/* ✅ NEW: Friend Request Popup */}
+        {/* Friend Request Popup */}
         {showFriendRequestPopup && friendRequestData && (
           <div className="modal-overlay" onClick={(e) => e.stopPropagation()}>
             <div className="friend-request-modal" onClick={(e) => e.stopPropagation()}>
-              {/* Sparkle effects */}
               <div className="sparkles-container">
                 {[...Array(8)].map((_, i) => (
                   <span key={i} className="sparkle" style={{
@@ -683,7 +608,6 @@ export default function ChatPage() {
               </div>
 
               <div className="modal-content">
-                {/* Heart icon */}
                 <div className="heart-icon-wrapper">
                   <div className="heart-icon">
                     <span className="heart-symbol">💖</span>
@@ -691,7 +615,6 @@ export default function ChatPage() {
                   <div className="heart-pulse"></div>
                 </div>
 
-                {/* Message */}
                 <h3 className="modal-title">
                   <span>💞</span>
                   <span>Someone felt a spark!</span>
@@ -706,7 +629,6 @@ export default function ChatPage() {
                   They loved chatting with you and want to stay connected 💖
                 </p>
 
-                {/* Buttons */}
                 <div className="modal-buttons">
                   <button
                     onClick={handleRejectRequest}
@@ -730,7 +652,7 @@ export default function ChatPage() {
           </div>
         )}
 
-        {/* ✅ NEW: Celebration Animation */}
+        {/* Celebration Animation */}
         {celebrationActive && (
           <div className="celebration-overlay">
             <div className="celebration-content">
@@ -742,7 +664,7 @@ export default function ChatPage() {
           </div>
         )}
 
-        {/* ✅ NEW: Floating Hearts */}
+        {/* Floating Hearts */}
         {floatingHearts.map((heart) => (
           <div
             key={heart.id}
@@ -757,7 +679,7 @@ export default function ChatPage() {
           </div>
         ))}
 
-        {/* ✅ NEW: Response Popup (Accepted/Rejected) */}
+        {/* Response Popup */}
         {showResponsePopup && (
           <div className="modal-overlay" onClick={(e) => e.stopPropagation()}>
             <div className={`response-modal ${responseType}`} onClick={(e) => e.stopPropagation()}>
@@ -777,7 +699,7 @@ export default function ChatPage() {
                     <h3 className="response-title">🎉 Yay!</h3>
                     <p className="response-message">You've got a new Milan friend! 💕</p>
                     <p className="response-sub">
-                      You can now find {partnerName} in your favourites list and chat anytime! ✨
+                      You can now find them in your favourites list and chat anytime! ✨
                     </p>
                   </>
                 ) : (
@@ -804,7 +726,7 @@ export default function ChatPage() {
           </div>
         )}
 
-        {/* Disconnect Alert Overlay */}
+        {/* Disconnect Alert */}
         {showDisconnectAlert && (
           <div className="alert-overlay" onClick={(e) => e.stopPropagation()}>
             <div className="alert-box" onClick={(e) => e.stopPropagation()}>
@@ -834,8 +756,7 @@ export default function ChatPage() {
             <button className="back-btn" onClick={() => (window.location.href = "https://milanlove.in/connect")} aria-label="Back">
               ⟵
             </button>
-            <img
-className="avatar" src={partnerAvatarSrc} alt="DP" />
+            <img className="avatar" src={partnerAvatarSrc} alt="DP" />
             <div className="partner">
               <div className="name">{partnerName}</div>
               <div className="status">
@@ -846,55 +767,20 @@ className="avatar" src={partnerAvatarSrc} alt="DP" />
           </div>
 
           <div className="header-right">
-            {/* ✅ NEW: Add to Favourites Button */}
-            {roomCode && partnerId && (
+            {/* ✅ Add to Favourites Button - Only show when connected */}
+            {roomCode && partnerUserId && (
               <button
                 className="add-to-favourites-btn"
                 onClick={handleAddToFavourites}
                 title="Add to Favourites"
                 aria-label="Add to Favourites"
+                disabled={requestSending}
               >
                 <span className="heart-icon-btn">💖</span>
               </button>
             )}
 
-            <div className="search-area">
-              {searchOpen && (
-                <input
-                  className="search-input"
-                  placeholder="Search messages…"
-                  value={searchQuery}
-                  onChange={(e) => setSearchQuery(e.target.value)}
-                  onKeyDown={(e) => {
-                    if (e.key === "Enter") {
-                      if (!matchIds.length) runSearch(searchQuery);
-                      else jumpNext();
-                    }
-                  }}
-                />
-              )}
-            </div>
-            <button
-              className="icon-btn"
-              title="Search"
-              aria-label="Search"
-              onClick={() => {
-                const v = !searchOpen;
-                setSearchOpen(v);
-                if (!v) {
-                  setSearchQuery("");
-                  setMatchIds([]);
-                } else {
-                  setTimeout(() => {
-                    const el = document.querySelector(".search-input");
-                    el && el.focus();
-                  }, 50);
-                }
-              }}
-            >
-              🔎
-            </button>
-
+            {/* ✅ Menu Button */}
             <button className="icon-btn" title="Menu" aria-label="Menu" onClick={() => setMenuOpen((s) => !s)}>
               ⋮
             </button>
@@ -966,7 +852,21 @@ className="avatar" src={partnerAvatarSrc} alt="DP" />
             {emojiOpen && (
               <div className="emoji-pop">
                 {EMOJIS.map((e) => (
-                  <button key={e} className="emoji-item" onClick={() => insertEmoji(e)}>
+                  <button key={e} className="emoji-item" onClick={() => {
+                    if (!msgRef.current) return;
+                    const el = msgRef.current;
+                    const start = el.selectionStart ?? el.value.length;
+                    const end = el.selectionEnd ?? el.value.length;
+                    const before = el.value.slice(0, start);
+                    const after = el.value.slice(end);
+                    el.value = before + e + after;
+                    const caret = start + e.length;
+                    requestAnimationFrame(() => {
+                      el.focus();
+                      el.setSelectionRange(caret, caret);
+                    });
+                    setEmojiOpen(false);
+                  }}>
                     {e}
                   </button>
                 ))}
@@ -1037,7 +937,6 @@ className="avatar" src={partnerAvatarSrc} alt="DP" />
           overflow: hidden;
         }
 
-        /* ✅ NEW: Modal Overlay */
         .modal-overlay {
           position: fixed;
           inset: 0;
@@ -1051,7 +950,6 @@ className="avatar" src={partnerAvatarSrc} alt="DP" />
           padding: 20px;
         }
 
-        /* ✅ NEW: Friend Request Modal */
         .friend-request-modal {
           background: linear-gradient(145deg, rgba(255,79,160,0.25), rgba(139,92,246,0.2));
           border: 2px solid rgba(255,79,160,0.5);
@@ -1237,7 +1135,6 @@ className="avatar" src={partnerAvatarSrc} alt="DP" />
           50% { transform: scale(1.3); }
         }
 
-        /* ✅ NEW: Celebration Overlay */
         .celebration-overlay {
           position: fixed;
           inset: 0;
@@ -1287,7 +1184,6 @@ className="avatar" src={partnerAvatarSrc} alt="DP" />
           50% { opacity: 0.8; }
         }
 
-        /* ✅ NEW: Floating Hearts */
         .floating-heart {
           position: fixed;
           bottom: -50px;
@@ -1309,7 +1205,6 @@ className="avatar" src={partnerAvatarSrc} alt="DP" />
           }
         }
 
-        /* ✅ NEW: Response Modal */
         .response-modal {
           background: linear-gradient(145deg, rgba(255,79,160,0.2), rgba(139,92,246,0.15));
           border: 2px solid rgba(255,79,160,0.4);
@@ -1431,7 +1326,6 @@ className="avatar" src={partnerAvatarSrc} alt="DP" />
           transform: translateY(-2px);
         }
 
-        /* ✅ NEW: Add to Favourites Button */
         .add-to-favourites-btn {
           background: linear-gradient(135deg, rgba(255,79,160,0.2), rgba(139,92,246,0.15));
           border: 2px solid rgba(255,79,160,0.4);
@@ -1455,6 +1349,11 @@ className="avatar" src={partnerAvatarSrc} alt="DP" />
           transform: scale(0.98);
         }
 
+        .add-to-favourites-btn:disabled {
+          opacity: 0.5;
+          cursor: not-allowed;
+        }
+
         .heart-icon-btn {
           font-size: 1.3rem;
           animation: heartFloat 2s ease-in-out infinite;
@@ -1465,7 +1364,6 @@ className="avatar" src={partnerAvatarSrc} alt="DP" />
           50% { transform: translateY(-4px); }
         }
 
-        /* Disconnect Alert */
         .alert-overlay {
           position: fixed;
           top: 0;
@@ -1567,7 +1465,6 @@ className="avatar" src={partnerAvatarSrc} alt="DP" />
           box-shadow: 0 5px 20px rgba(255,79,160,0.4);
         }
 
-        /* Upload Overlay */
         .upload-overlay {
           position: fixed;
           top: 0;
@@ -1602,7 +1499,6 @@ className="avatar" src={partnerAvatarSrc} alt="DP" />
           font-size: 1rem;
         }
 
-        /* Header */
         .header {
           position: sticky;
           top: 0;
@@ -1622,6 +1518,8 @@ className="avatar" src={partnerAvatarSrc} alt="DP" />
           display: flex;
           align-items: center;
           gap: 0.8rem;
+          flex: 1;
+          min-width: 0;
         }
         
         .back-btn {
@@ -1633,6 +1531,7 @@ className="avatar" src={partnerAvatarSrc} alt="DP" />
           color: var(--text);
           font-weight: 700;
           box-shadow: 0 6px 18px rgba(139,92,246,0.06);
+          flex-shrink: 0;
         }
         
         .avatar {
@@ -1642,8 +1541,14 @@ className="avatar" src={partnerAvatarSrc} alt="DP" />
           object-fit: cover;
           border: 2px solid rgba(255,255,255,0.06);
           background: linear-gradient(180deg, rgba(255,255,255,0.02), rgba(255,255,255,0.01));
+          flex-shrink: 0;
         }
         
+        .partner {
+          flex: 1;
+          min-width: 0;
+        }
+
         .partner .name {
           font-weight: 800;
           white-space: nowrap;
@@ -1680,6 +1585,7 @@ className="avatar" src={partnerAvatarSrc} alt="DP" />
           display: flex;
           align-items: center;
           gap: 0.6rem;
+          position: relative;
         }
         
         .icon-btn {
@@ -1690,27 +1596,12 @@ className="avatar" src={partnerAvatarSrc} alt="DP" />
           cursor: pointer;
           color: var(--text);
           font-size: 1.05rem;
+          flex-shrink: 0;
         }
 
-        .search-area {
-          display: flex;
-          align-items: center;
-        }
-
-        .search-input {
-          width: 200px;
-          background: rgba(255,255,255,0.02);
-          color: var(--text);
-          border: 1px solid rgba(255,255,255,0.04);
-          border-radius: 10px;
-          padding: 8px 10px;
-          font-size: 0.95rem;
-        }
-
-        /* Menu */
         .menu {
           position: absolute;
-          right: 10px;
+          right: 0;
           top: 48px;
           background: rgba(0,0,0,0.45);
           border-radius: 10px;
@@ -1739,7 +1630,6 @@ className="avatar" src={partnerAvatarSrc} alt="DP" />
         }
         .sep { height: 1px; background: rgba(255,255,255,0.03); margin: 6px 0; }
 
-        /* Chat area */
         .chat {
           flex: 1;
           overflow-y: auto;
@@ -1780,7 +1670,6 @@ className="avatar" src={partnerAvatarSrc} alt="DP" />
           border: 1px solid rgba(255,255,255,0.02);
         }
 
-        /* YOU bubble */
         .you .bubble {
           background: linear-gradient(135deg, var(--bubble-you-start), var(--bubble-you-end));
           color: #ffffff !important;
@@ -1789,7 +1678,6 @@ className="avatar" src={partnerAvatarSrc} alt="DP" />
           border-top-left-radius: 6px;
         }
 
-        /* ME bubble */
         .me .bubble {
           background: linear-gradient(135deg, var(--bubble-me-start), var(--bubble-me-end));
           color: #ffffff !important;
@@ -1836,7 +1724,6 @@ className="avatar" src={partnerAvatarSrc} alt="DP" />
         .ticks { font-size: 0.95rem; line-height: 1; }
         .ticks.seen { color: var(--accent); text-shadow: 0 0 6px rgba(255,79,160,0.16); }
 
-        /* Input bar */
         .inputbar {
           display: flex;
           align-items: center;
@@ -1960,7 +1847,6 @@ className="avatar" src={partnerAvatarSrc} alt="DP" />
           }
           
           .avatar { width: 40px; height: 40px; }
-          .search-input { width: 120px; font-size: 0.9rem; }
           .tool { width: 44px; height: 44px; font-size: 1.1rem; }
           .send { width: 48px; height: 48px; }
           .msg-field { font-size: 16px; padding: 11px 14px; }
