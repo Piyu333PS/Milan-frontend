@@ -544,40 +544,6 @@ export default function ConnectPage() {
               🎨 Open AI Studio
             </a>
           </article>
-
-          <article className="featureCard celebrate">
-            <header>
-              <h3>Festive Spark</h3>
-              <p>Light up the sky & your heart—Diwali vibes on tap.</p>
-            </header>
-            <button
-              className="cta"
-              onClick={() => {
-                const a = document.getElementById("bellAudio");
-                try {
-                  a.currentTime = 0;
-                  a.play();
-                } catch {}
-                const b =
-                  fwRef.current && fwRef.current.burst
-                    ? fwRef.current.burst
-                    : null;
-                const x = window.innerWidth / 2;
-                const y = window.innerHeight * 0.58;
-                for (let i = 0; i < 6; i++) {
-                  setTimeout(() => {
-                    if (b)
-                      b(
-                        x + (Math.random() * 260 - 130),
-                        y + (Math.random() * 140 - 70)
-                      );
-                  }, i * 120);
-                }
-              }}
-            >
-              🎆 Let's Celebrate
-            </button>
-          </article>
         </section>
 
         {showLoader && isSearching && (
@@ -978,7 +944,6 @@ export default function ConnectPage() {
         .featureCard.video { border-color: rgba(255, 110, 167, 0.18); }
         .featureCard.invite { border-color: rgba(160, 220, 255, 0.28); }
         .featureCard.studio { border-color: rgba(140, 150, 255, 0.22); }
-        .featureCard.celebrate { border-color: rgba(255, 209, 102, 0.35); }
 
         .cta {
           width: 100%;
@@ -1513,7 +1478,7 @@ function Avatar() {
         height: 70,
         borderRadius: "50%",
         background: "#ec4899",
-        display: flex,
+        display: "flex",
         alignItems: "center",
         justifyContent: "center",
         fontSize: 28,
