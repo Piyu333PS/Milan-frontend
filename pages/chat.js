@@ -1,5 +1,5 @@
 // pages/chat.js
-// ✅ FIXED: Token parsing + Friend Request System
+// ✅ COMPLETE FILE - Token parsing + Friend Request System
 
 import { useEffect, useRef, useState } from "react";
 import Head from "next/head";
@@ -117,7 +117,6 @@ export default function ChatPage() {
     s.replace(/[&<>"']/g, (m) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[m]));
   const linkify = (text = "") =>
     text.replace(/(https?:\/\/[^\s]+)/g, '<a href="$1" target="_blank" rel="noopener">$1</a>');
-  const stripHtml = (s = "") => s.replace(/<[^>]*>/g, "");
   const scrollToBottom = () =>
     requestAnimationFrame(() => {
       if (listRef.current) listRef.current.scrollTop = listRef.current.scrollHeight;
@@ -134,10 +133,6 @@ export default function ChatPage() {
     setTimeout(() => setFloatingHearts([]), 3000);
   };
 
-  const playSound = (type) => {
-    console.log(`Playing ${type} sound effect`);
-  };
-
   useEffect(() => {
     let localName = "";
     let localUserId = "";
@@ -146,17 +141,15 @@ export default function ChatPage() {
       localName = localStorage.getItem("milan_name") || "";
       const token = localStorage.getItem("token");
       
-      console.log("🔑 Token check:", token ? "Found" : "Not found");
+      console.log("🔐 Token check:", token ? "Found" : "Not found");
       
       if (token) {
         try {
-          // ✅ FIXED: Better token parsing with multiple fallbacks
           const parts = token.split('.');
           if (parts.length === 3) {
             const payload = JSON.parse(atob(parts[1]));
             console.log("📦 Token payload:", payload);
             
-            // Try multiple possible ID fields
             localUserId = payload.id || payload.userId || payload._id || payload.sub || "";
             
             if (localUserId) {
@@ -197,7 +190,6 @@ export default function ChatPage() {
       console.log("🔌 Socket connected:", socket.id);
       setIsConnected(true);
       
-      // ✅ Send user info with proper logging
       const userInfo = {
         userId: localUserId,
         name: localName || "You",
@@ -242,7 +234,6 @@ export default function ChatPage() {
         socketId: partner?.id 
       });
 
-      // Debug: Check if friend request button should show
       console.log("🔍 Friend Request Button Check:", {
         roomCode: rc,
         partnerUserId: pUserId,
@@ -334,14 +325,12 @@ export default function ChatPage() {
 
     socket.on("friend-request-received", (data) => {
       console.log("✅ Friend request received:", data);
-      playSound('request');
       setFriendRequestData(data);
       setShowFriendRequestPopup(true);
     });
 
     socket.on("friend-request-accepted", (data) => {
       console.log("✅ Friend request accepted:", data);
-      playSound('accept');
       setCelebrationActive(true);
       createFloatingHearts(20);
       
@@ -354,7 +343,6 @@ export default function ChatPage() {
 
     socket.on("friend-request-rejected", (data) => {
       console.log("❌ Friend request rejected:", data);
-      playSound('reject');
       
       setTimeout(() => {
         setResponseType('rejected');
@@ -529,6 +517,7 @@ export default function ChatPage() {
 
     console.log("📤 Sending friend request to:", partnerUserId);
     setRequestSending(true);
+    setMenuOpen(false);
     
     try {
       socketRef.current.emit("send-friend-request", {
@@ -559,7 +548,6 @@ export default function ChatPage() {
       return;
     }
 
-    playSound('accept');
     setShowFriendRequestPopup(false);
     setCelebrationActive(true);
     createFloatingHearts(20);
@@ -591,7 +579,6 @@ export default function ChatPage() {
       return;
     }
 
-    playSound('reject');
     setShowFriendRequestPopup(false);
 
     try {
@@ -633,10 +620,9 @@ export default function ChatPage() {
       </Head>
 
       <div className="app">
-        {/* Friend Request Popup */}
         {showFriendRequestPopup && friendRequestData && (
-          <div className="modal-overlay" onClick={(e) => e.stopPropagation()}>
-            <div className="friend-request-modal" onClick={(e) => e.stopPropagation()}>
+          <div className="modal-overlay">
+            <div className="friend-request-modal">
               <div className="sparkles-container">
                 {[...Array(8)].map((_, i) => (
                   <span key={i} className="sparkle" style={{
@@ -670,18 +656,12 @@ export default function ChatPage() {
                 </p>
 
                 <div className="modal-buttons">
-                  <button
-                    onClick={handleRejectRequest}
-                    className="btn-reject"
-                  >
+                  <button onClick={handleRejectRequest} className="btn-reject">
                     <span>💔</span>
                     <span>Maybe Later</span>
                   </button>
                   
-                  <button
-                    onClick={handleAcceptRequest}
-                    className="btn-accept"
-                  >
+                  <button onClick={handleAcceptRequest} className="btn-accept">
                     <span>🌸</span>
                     <span>Accept</span>
                     <span className="heart-beat">❤️</span>
@@ -692,19 +672,15 @@ export default function ChatPage() {
           </div>
         )}
 
-        {/* Celebration Animation */}
         {celebrationActive && (
           <div className="celebration-overlay">
             <div className="celebration-content">
               <div className="celebration-heart">💕</div>
-              <h2 className="celebration-text">
-                Connection Made! ✨
-              </h2>
+              <h2 className="celebration-text">Connection Made! ✨</h2>
             </div>
           </div>
         )}
 
-        {/* Floating Hearts */}
         {floatingHearts.map((heart) => (
           <div
             key={heart.id}
@@ -719,16 +695,10 @@ export default function ChatPage() {
           </div>
         ))}
 
-        {/* Response Popup */}
         {showResponsePopup && (
-          <div className="modal-overlay" onClick={(e) => e.stopPropagation()}>
-            <div className={`response-modal ${responseType}`} onClick={(e) => e.stopPropagation()}>
-              <button
-                onClick={closeResponsePopup}
-                className="close-btn"
-              >
-                ✕
-              </button>
+          <div className="modal-overlay">
+            <div className={`response-modal ${responseType}`}>
+              <button onClick={closeResponsePopup} className="close-btn">✕</button>
 
               <div className="modal-content">
                 {responseType === 'accepted' ? (
@@ -755,10 +725,7 @@ export default function ChatPage() {
                   </>
                 )}
                 
-                <button
-                  onClick={closeResponsePopup}
-                  className={`response-btn ${responseType}`}
-                >
+                <button onClick={closeResponsePopup} className={`response-btn ${responseType}`}>
                   Continue
                 </button>
               </div>
@@ -766,23 +733,19 @@ export default function ChatPage() {
           </div>
         )}
 
-        {/* Disconnect Alert */}
         {showDisconnectAlert && (
-          <div className="alert-overlay" onClick={(e) => e.stopPropagation()}>
-            <div className="alert-box" onClick={(e) => e.stopPropagation()}>
+          <div className="alert-overlay">
+            <div className="alert-box">
               <div className="alert-icon">💔</div>
               <h2 className="alert-title">Partner Disconnected</h2>
               <p className="alert-message">
                 Your partner has left the chat. Don't worry, there are many hearts waiting to connect with you! 💕
               </p>
-              <button className="alert-btn" onClick={handleDisconnectOk}>
-                OK
-              </button>
+              <button className="alert-btn" onClick={handleDisconnectOk}>OK</button>
             </div>
           </div>
         )}
 
-        {/* Uploading Overlay */}
         {isUploading && (
           <div className="upload-overlay">
             <div className="upload-spinner"></div>
@@ -790,7 +753,6 @@ export default function ChatPage() {
           </div>
         )}
 
-        {/* Header */}
         <header className="header">
           <div className="header-left">
             <img className="avatar" src={partnerAvatarSrc} alt="DP" />
@@ -804,13 +766,11 @@ export default function ChatPage() {
           </div>
 
           <div className="header-right">
-            {/* ✅ Quick Add Friend Button in Header */}
             {roomCode && partnerUserId && currentUserId && (
               <button
-                className="quick-add-friend-btn"
+                className="friend-request-btn"
                 onClick={handleAddToFavourites}
                 title="Send Friend Request"
-                aria-label="Send Friend Request"
                 disabled={requestSending}
               >
                 <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
@@ -822,22 +782,12 @@ export default function ChatPage() {
               </button>
             )}
 
-            {/* Menu Button */}
-            <button className="icon-btn" title="Menu" aria-label="Menu" onClick={() => setMenuOpen((s) => !s)}>
-              ⋮
-            </button>
+            <button className="icon-btn" title="Menu" onClick={() => setMenuOpen((s) => !s)}>⋮</button>
+            
             <div className={`menu ${menuOpen ? "open" : ""}`}>
-              {/* ✅ Send Friend Request in Menu */}
               {roomCode && partnerUserId && currentUserId && (
                 <>
-                  <button
-                    className="menu-item"
-                    onClick={() => {
-                      setMenuOpen(false);
-                      handleAddToFavourites();
-                    }}
-                    disabled={requestSending}
-                  >
+                  <button className="menu-item" onClick={handleAddToFavourites} disabled={requestSending}>
                     <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                       <path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"></path>
                       <circle cx="9" cy="7" r="4"></circle>
@@ -849,28 +799,28 @@ export default function ChatPage() {
                   <div className="sep" />
                 </>
               )}
-              <button
-                className="menu-item"
-                onClick={() => {
-                  isCleaningUp.current = true;
-                  try {
-                    socketRef.current.emit("disconnectByUser");
-                    socketRef.current.disconnect();
-                  } catch {}
-                  window.location.href = "https://milanlove.in/connect";
-                }}
-              >
+              <button className="menu-item" onClick={() => {
+                setMenuOpen(false);
+                isCleaningUp.current = true;
+                try {
+                  socketRef.current.emit("disconnectByUser");
+                  socketRef.current.disconnect();
+                } catch {}
+                window.location.href = "https://milanlove.in/connect";
+              }}>
                 🔌 Disconnect
               </button>
               <div className="sep" />
-              <button className="menu-item" onClick={() => alert("🚩 Report submitted. Thank you!")}>
+              <button className="menu-item" onClick={() => {
+                setMenuOpen(false);
+                alert("🚩 Report submitted. Thank you!");
+              }}>
                 🚩 Report
               </button>
             </div>
           </div>
         </header>
 
-        {/* Messages */}
         <main className="chat" ref={listRef}>
           <div className="day-sep">
             <span>Today</span>
@@ -896,21 +846,14 @@ export default function ChatPage() {
           ))}
         </main>
 
-        {/* Input Bar */}
         <footer className="inputbar">
           <input ref={fileRef} type="file" hidden onChange={handleFile} accept="image/*,video/*,.pdf,.doc,.docx" />
-          <button 
-            className="tool" 
-            title="Attach" 
-            aria-label="Attach" 
-            onClick={() => fileRef.current?.click()}
-            disabled={isUploading}
-          >
+          <button className="tool" title="Attach" onClick={() => fileRef.current?.click()} disabled={isUploading}>
             📎
           </button>
 
           <div className="emoji-wrap">
-            <button className="tool" title="Emoji" aria-label="Emoji" onClick={() => setEmojiOpen((s) => !s)}>
+            <button className="tool" title="Emoji" onClick={() => setEmojiOpen((s) => !s)}>
               😊
             </button>
             {emojiOpen && (
@@ -947,13 +890,7 @@ export default function ChatPage() {
             onChange={onType}
             onKeyDown={(e) => e.key === "Enter" && sendText()}
           />
-          <button 
-            className="send" 
-            title="Send" 
-            aria-label="Send" 
-            onClick={sendText} 
-            disabled={!roomCode || isUploading}
-          >
+          <button className="send" title="Send" onClick={sendText} disabled={!roomCode || isUploading}>
             ➤
           </button>
         </footer>
@@ -1022,8 +959,7 @@ export default function ChatPage() {
           max-width: 460px;
           width: 100%;
           text-align: center;
-          box-shadow: 0 25px 70px rgba(255,79,160,0.4), 
-                      0 0 120px rgba(255,20,147,0.25);
+          box-shadow: 0 25px 70px rgba(255,79,160,0.4), 0 0 120px rgba(255,20,147,0.25);
           animation: slideUp 0.5s cubic-bezier(0.34, 1.56, 0.64, 1);
           position: relative;
           overflow: hidden;
@@ -1169,8 +1105,7 @@ export default function ChatPage() {
           font-size: 1.05rem;
           font-weight: 700;
           cursor: pointer;
-          box-shadow: 0 12px 35px rgba(255,79,160,0.5),
-                      0 0 60px rgba(255,20,147,0.3);
+          box-shadow: 0 12px 35px rgba(255,79,160,0.5), 0 0 60px rgba(255,20,147,0.3);
           transition: all 0.3s ease;
           display: flex;
           align-items: center;
@@ -1232,8 +1167,7 @@ export default function ChatPage() {
           color: #ffffff;
           font-size: 3rem;
           font-weight: 900;
-          text-shadow: 0 5px 25px rgba(255,79,160,0.6),
-                       0 0 50px rgba(255,20,147,0.4);
+          text-shadow: 0 5px 25px rgba(255,79,160,0.6), 0 0 50px rgba(255,20,147,0.4);
           animation: textPulse 1.5s ease infinite;
         }
 
@@ -1390,7 +1324,7 @@ export default function ChatPage() {
           transform: translateY(-2px);
         }
 
-        .quick-add-friend-btn {
+        .friend-request-btn {
           background: linear-gradient(135deg, rgba(76,217,100,0.25), rgba(52,199,89,0.2));
           border: 2px solid rgba(76,217,100,0.5);
           border-radius: 12px;
@@ -1404,24 +1338,24 @@ export default function ChatPage() {
           flex-shrink: 0;
         }
 
-        .quick-add-friend-btn:hover {
+        .friend-request-btn:hover {
           background: linear-gradient(135deg, rgba(76,217,100,0.35), rgba(52,199,89,0.3));
           border-color: rgba(76,217,100,0.7);
           transform: scale(1.08);
           box-shadow: 0 8px 24px rgba(76,217,100,0.4);
         }
 
-        .quick-add-friend-btn:active {
+        .friend-request-btn:active {
           transform: scale(0.95);
         }
 
-        .quick-add-friend-btn:disabled {
+        .friend-request-btn:disabled {
           opacity: 0.5;
           cursor: not-allowed;
           transform: scale(1);
         }
 
-        .quick-add-friend-btn svg {
+        .friend-request-btn svg {
           filter: drop-shadow(0 2px 4px rgba(76,217,100,0.3));
         }
 
@@ -1439,7 +1373,6 @@ export default function ChatPage() {
           z-index: 99999;
           animation: fadeIn 0.3s ease;
           padding: 20px;
-          -webkit-backdrop-filter: blur(10px);
         }
 
         @keyframes fadeIn {
@@ -1466,8 +1399,7 @@ export default function ChatPage() {
           max-width: 420px;
           width: 100%;
           text-align: center;
-          box-shadow: 0 20px 60px rgba(255,79,160,0.3), 
-                      0 0 100px rgba(255,20,147,0.2);
+          box-shadow: 0 20px 60px rgba(255,79,160,0.3), 0 0 100px rgba(255,20,147,0.2);
           animation: slideUp 0.4s ease;
           position: relative;
           overflow: hidden;
@@ -1512,13 +1444,10 @@ export default function ChatPage() {
           font-size: 1.15rem;
           font-weight: 700;
           cursor: pointer;
-          box-shadow: 0 10px 30px rgba(255,79,160,0.5),
-                      0 0 50px rgba(255,20,147,0.3);
+          box-shadow: 0 10px 30px rgba(255,79,160,0.5), 0 0 50px rgba(255,20,147,0.3);
           transition: all 0.3s ease;
           letter-spacing: 0.5px;
           min-width: 140px;
-          touch-action: manipulation;
-          -webkit-tap-highlight-color: transparent;
         }
 
         .alert-btn:active {
@@ -1987,11 +1916,11 @@ export default function ChatPage() {
             font-size: 0.8rem;
           }
 
-          .quick-add-friend-btn {
+          .friend-request-btn {
             padding: 8px 10px;
           }
 
-          .quick-add-friend-btn svg {
+          .friend-request-btn svg {
             width: 18px;
             height: 18px;
           }
