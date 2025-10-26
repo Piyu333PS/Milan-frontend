@@ -436,9 +436,11 @@ export default function HomePage() {
                     {loadingRegister ? <span className="btn-loader" aria-hidden></span> : null}
                     Register & Start
                   </button>
-                  <p className="link-text" onClick={() => setShowLogin(true)}>
+
+                  {/* Changed to <a> to keep semantics and improve clickability */}
+                  <a className="link-text" onClick={() => setShowLogin(true)} role="button" tabIndex={0}>
                     Already Registered? Login here
-                  </p>
+                  </a>
                 </div>
               )}
 
@@ -460,9 +462,9 @@ export default function HomePage() {
                     {loadingLogin ? <span className="btn-loader" /> : null}
                     Login
                   </button>
-                  <p className="link-text" onClick={() => setShowLogin(false)}>
+                  <a className="link-text" onClick={() => setShowLogin(false)} role="button" tabIndex={0}>
                     New User? Register here
-                  </p>
+                  </a>
                   <p className="reset-link" onClick={() => setShowReset(true)}>
                     Forgot Password?
                   </p>
@@ -486,9 +488,9 @@ export default function HomePage() {
                     {loadingLogin ? <span className="btn-loader" /> : null}
                     Reset Password
                   </button>
-                  <p className="link-text" onClick={() => { setShowReset(false); setShowLogin(true); }}>
+                  <a className="link-text" onClick={() => { setShowReset(false); setShowLogin(true); }} role="button" tabIndex={0}>
                     Back to Login
-                  </p>
+                  </a>
                 </div>
               )}
             </div>
@@ -588,16 +590,19 @@ export default function HomePage() {
           box-shadow: 0 8px 24px rgba(255,79,160,0.3);
         }
 
+        /* Give stable bottom padding so content never gets hidden behind footer */
         .page-wrap{ 
           position:relative; 
           z-index:5; 
           min-height:100vh;
-          max-height:100vh;
+          /* remove max-height constraint to avoid clipping at different zooms */
+          max-height: none;
           display:flex; 
           flex-direction:column; 
           justify-content:space-between;
           overflow-y: auto;
           overflow-x: hidden;
+          padding-bottom: 140px; /* safe area above footer */
         }
         
         .container{ 
@@ -648,15 +653,15 @@ export default function HomePage() {
           margin-bottom: 10px;
         }
         
-        /* BIGGER / LOGO-LIKE brand title for desktop */
+        /* BIGGER / LOGO-LIKE brand title for desktop - boosted for visibility */
         .welcome-title{ 
-          font-size:110px; /* increased from 84px */
+          font-size:140px; /* increased to make brand dominant on desktop */
           margin:0; 
           font-weight:900; 
           background: linear-gradient(135deg, #ff4fa0, #ff1493, #ff6b9d); 
           -webkit-background-clip:text; 
           -webkit-text-fill-color:transparent; 
-          text-shadow:0 12px 36px rgba(255,79,160,0.45); 
+          text-shadow:0 16px 44px rgba(255,79,160,0.55); 
           letter-spacing: -3px;
           font-family: 'Poppins', sans-serif;
           line-height: 0.9;
@@ -664,7 +669,7 @@ export default function HomePage() {
         
         .pulse-heart{ 
           display:inline-block; 
-          font-size:56px; 
+          font-size:76px; /* increased slightly but still smaller relative to title */
           animation: heartBeat 1200ms ease-in-out infinite; 
           transform-origin:center; 
           filter: drop-shadow(0 8px 20px rgba(255,70,94,0.4));
@@ -768,9 +773,9 @@ export default function HomePage() {
           backdrop-filter: blur(12px); 
           box-shadow: 0 20px 60px rgba(2,6,23,0.7); 
           border: 1px solid rgba(255,107,129,0.1);
-          position: relative; /* added */
-          z-index: 60; /* added — keep form clickable above footer/others */
-          margin-bottom: 36px; /* small spacing to footer */
+          position: relative;
+          z-index: 120; /* raised to ensure clickable above decorations and footer */
+          margin-bottom: 100px; /* large safe spacing so link doesn't hug footer */
         }
         
         h2{ 
@@ -931,13 +936,19 @@ export default function HomePage() {
           font-weight:700; 
           font-size: 14px;
           position: relative; /* added */
-          z-index: 70; /* added to be above nearby elements */
+          z-index: 130; /* ensure highest above form & footer */
           pointer-events: auto; /* ensure clickable */
           display: block;
+          text-decoration: none;
+          padding: 8px 12px;
+          border-radius: 8px;
+          transition: background 160ms ease, color 160ms ease, transform 160ms ease;
         }
-        
+
         .link-text:hover {
-          color: #ff6b9d;
+          color: #fff;
+          background: rgba(255,79,160,0.12);
+          transform: translateY(-2px);
         }
         
         .reset-link{ 
@@ -1037,6 +1048,7 @@ export default function HomePage() {
           color:#dcdfea;
           background: rgba(0,0,0,0.2);
           border-top: 1px solid rgba(255,107,129,0.1);
+          position: relative;
         }
         
         .footer-links{ 
@@ -1100,6 +1112,7 @@ export default function HomePage() {
           .page-wrap {
             min-height: auto;
             max-height: none;
+            padding-bottom: 80px; /* smaller safe area on mobile */
           }
 
           .container{ 
