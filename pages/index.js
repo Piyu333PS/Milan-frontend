@@ -6,7 +6,7 @@ import { useEffect, useState, useRef } from "react";
 export default function HomePage() {
   const API_BASE = "https://milan-j9u9.onrender.com";
 
-  // --- HARD SCROLL-UNLOCK: prevents mobile freeze (body/html overflow locks) ---
+  // --- HARD SCROLL-UNLOCK: prevents mobile freeze ---
   useEffect(() => {
     const html = document.documentElement;
     const body = document.body;
@@ -22,11 +22,9 @@ export default function HomePage() {
     };
     unlock();
 
-    // In case any runtime script re-locks scroll
     const i = setInterval(unlock, 500);
     return () => clearInterval(i);
   }, []);
-  // ---------------------------------------------------------------------------
 
   // Auth views
   const [showLogin, setShowLogin] = useState(false);
@@ -42,23 +40,6 @@ export default function HomePage() {
   const [enableHearts, setEnableHearts] = useState(true);
   const heartsRef = useRef({ raf: null, smallMode: false, cleanup: null });
 
-  // Fireworks (bursts)
-  const fwRef = useRef({ ents: [], raf: null, burst: () => {}, cleanup: null });
-
-  // Rockets (niche se upar)
-  const rocketsRef = useRef({ ents: [], raf: null, cleanup: null });
-
-  // Wish modal
-  const [showWish, setShowWish] = useState(false);
-  const [wishText, setWishText] = useState("");
-  const [wishDone, setWishDone] = useState(false);
-
-  // Gift Box
-  const [showGift, setShowGift] = useState(false);
-  const [giftAccepted, setGiftAccepted] = useState(false);
-  const offerEndsAt = new Date("2025-10-31T23:59:59+05:30").getTime();
-  const [countdown, setCountdown] = useState("");
-
   useEffect(() => {
     const smallScreen =
       window.innerWidth < 760 ||
@@ -67,33 +48,14 @@ export default function HomePage() {
     heartsRef.current.smallMode = smallScreen;
     setEnableHearts(true);
     startHearts();
-    startFireworks();
-    startRockets();
-
-    const t = setInterval(() => {
-      const diff = offerEndsAt - Date.now();
-      if (diff <= 0) {
-        setCountdown("Offer ended");
-        clearInterval(t);
-        return;
-      }
-      const d = Math.floor(diff / (1000 * 60 * 60 * 24));
-      const h = Math.floor((diff / (1000 * 60 * 60)) % 24);
-      const m = Math.floor((diff / (1000 * 60)) % 60);
-      const s = Math.floor((diff / 1000) % 60);
-      setCountdown(`${d}d : ${h}h : ${m}m : ${s}s`);
-    }, 1000);
 
     return () => {
       stopHearts();
-      stopFireworks();
-      stopRockets();
-      clearInterval(t);
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  /** HEARTS */
+  /** HEARTS - Rising from bottom */
   function startHearts() {
     const canvas = document.getElementById("heartsCanvas");
     if (!canvas) return;
@@ -112,14 +74,15 @@ export default function HomePage() {
       return {
         x: Math.random() * canvas.width,
         y: canvas.height + (small ? 30 : 50),
-        size: small ? Math.random() * 18 + 6 : Math.random() * 28 + 12,
-        speed: small ? Math.random() * 0.9 + 0.3 : Math.random() * 1.6 + 0.6,
+        size: small ? Math.random() * 20 + 8 : Math.random() * 32 + 14,
+        speed: small ? Math.random() * 1.2 + 0.4 : Math.random() * 2 + 0.8,
         color: small
-          ? ["#ff7a9a", "#ff6b81", "#ff9fb0"][Math.floor(Math.random() * 3)]
+          ? ["#ff6b9d", "#ff4fa0", "#ff1493"][Math.floor(Math.random() * 3)]
           : ["#ff4d6d", "#ff1c68", "#ff6b81", "#e6005c"][
               Math.floor(Math.random() * 4)
             ],
-        alpha: small ? 0.75 : 0.95,
+        alpha: small ? 0.8 : 1,
+        wobble: Math.random() * Math.PI * 2,
       };
     }
 
@@ -129,7 +92,11 @@ export default function HomePage() {
         ctx.save();
         ctx.globalAlpha = h.alpha;
         ctx.translate(h.x, h.y);
-        ctx.rotate(Math.sin(h.y / 50) * 0.03);
+        
+        // Wobble effect
+        h.wobble += 0.02;
+        ctx.rotate(Math.sin(h.wobble) * 0.1);
+        
         ctx.fillStyle = h.color;
         ctx.beginPath();
         const s = h.size;
@@ -138,13 +105,19 @@ export default function HomePage() {
         ctx.bezierCurveTo(-s * 1.5, s / 3, -s / 2, -s, 0, 0);
         ctx.fill();
         ctx.restore();
+        
         h.y -= h.speed;
+        h.alpha *= 0.998; // Fade as it rises
       });
-      hearts = hearts.filter((h) => h.y + h.size > -60);
-      const spawnProb = heartsRef.current.smallMode ? 0.06 : 0.12;
+      
+      hearts = hearts.filter((h) => h.y + h.size > -100 && h.alpha > 0.05);
+      
+      const spawnProb = heartsRef.current.smallMode ? 0.08 : 0.15;
       if (Math.random() < spawnProb) hearts.push(createHeart());
-      if (heartsRef.current.smallMode && hearts.length > 60) hearts = hearts.slice(-60);
-      if (!heartsRef.current.smallMode && hearts.length > 220) hearts = hearts.slice(-220);
+      
+      if (heartsRef.current.smallMode && hearts.length > 80) hearts = hearts.slice(-80);
+      if (!heartsRef.current.smallMode && hearts.length > 250) hearts = hearts.slice(-250);
+      
       heartsRef.current.raf = requestAnimationFrame(drawHearts);
     }
     drawHearts();
@@ -154,165 +127,9 @@ export default function HomePage() {
       cancelAnimationFrame(heartsRef.current.raf);
     };
   }
+  
   function stopHearts() {
     heartsRef.current.cleanup && heartsRef.current.cleanup();
-  }
-
-  /** FIREWORKS (bursts) */
-  function startFireworks() {
-    const cvs = document.getElementById("fireworksCanvas");
-    if (!cvs) return;
-    const ctx = cvs.getContext("2d");
-    let W, H, ents = [];
-
-    function resize() {
-      W = cvs.width = window.innerWidth;
-      H = cvs.height = window.innerHeight;
-    }
-    window.addEventListener("resize", resize);
-    resize();
-
-    function rand(a, b) {
-      return a + Math.random() * (b - a);
-    }
-    function hsv(h, s, v) {
-      const f = (n, k = (n + h / 60) % 6) =>
-        v - v * s * Math.max(Math.min(k, 4 - k, 1), 0);
-      return `rgb(${(f(5) * 255) | 0},${(f(3) * 255) | 0},${(f(1) * 255) | 0})`;
-    }
-
-    function burst(x, y) {
-      const n = (60 + Math.random() * 40) | 0;
-      const hue = Math.random() * 360;
-      for (let i = 0; i < n; i++) {
-        const speed = rand(1.2, 3.2);
-        const ang = ((Math.PI * 2) * i) / n + rand(-0.03, 0.03);
-        ents.push({
-          x,
-          y,
-          vx: Math.cos(ang) * speed,
-          vy: Math.sin(ang) * speed - rand(0.2, 0.6),
-          life: rand(0.9, 1.4),
-          age: 0,
-          color: hsv(hue + rand(-20, 20), 0.9, 1),
-          r: rand(1, 2.2),
-        });
-      }
-    }
-
-    function tick() {
-      ctx.fillStyle = "rgba(10,7,16,0.22)";
-      ctx.fillRect(0, 0, W, H);
-      if (Math.random() < 0.015)
-        burst(rand(W * 0.1, W * 0.9), rand(H * 0.1, H * 0.6));
-      ents = ents.filter((p) => (p.age += 0.016) < p.life);
-      for (const p of ents) {
-        p.vy += 0.5 * 0.016;
-        p.x += p.vx;
-        p.y += p.vy;
-        const a = 1 - p.age / p.life;
-        ctx.beginPath();
-        ctx.arc(p.x, p.y, p.r, 0, Math.PI * 2);
-        ctx.fillStyle = p.color
-          .replace("rgb", "rgba")
-          .replace(")", `,${a.toFixed(2)})`);
-        ctx.fill();
-      }
-      fwRef.current.raf = requestAnimationFrame(tick);
-    }
-    tick();
-
-    fwRef.current.burst = burst;
-    fwRef.current.cleanup = () => {
-      cancelAnimationFrame(fwRef.current.raf);
-      window.removeEventListener("resize", resize);
-    };
-  }
-  function stopFireworks() {
-    fwRef.current.cleanup && fwRef.current.cleanup();
-  }
-
-  /** ROCKETS (bottom → top, with trail + optional burst) */
-  function startRockets() {
-    const cvs = document.getElementById("rocketsCanvas");
-    if (!cvs) return;
-    const ctx = cvs.getContext("2d");
-    let W, H;
-    let rockets = [];
-
-    function resize() {
-      W = cvs.width = window.innerWidth;
-      H = cvs.height = window.innerHeight;
-    }
-    window.addEventListener("resize", resize);
-    resize();
-
-    function spawnRocket() {
-      rockets.push({
-        x: Math.random() * W * 0.9 + W * 0.05,
-        y: H + 20,
-        vx: (Math.random() - 0.5) * 0.8,
-        vy: -(3.8 + Math.random() * 1.6),
-        life: 0,
-        hue: Math.random() * 360,
-        trail: [],
-      });
-    }
-
-    // launch cadence
-    const launcher = setInterval(() => {
-      const launches = window.innerWidth > 768 ? 2 : 1;
-      for (let i = 0; i < launches; i++) spawnRocket();
-    }, 900);
-
-    function tick() {
-      ctx.clearRect(0, 0, W, H);
-      rockets.forEach((r) => {
-        // physics
-        r.vy += 0.008; // small drag
-        r.x += r.vx;
-        r.y += r.vy;
-
-        // trail
-        r.trail.push({ x: r.x, y: r.y, a: 1 });
-        if (r.trail.length > 24) r.trail.shift();
-
-        // draw trail
-        for (let i = 0; i < r.trail.length; i++) {
-          const t = r.trail[i];
-          t.a *= 0.94;
-          ctx.beginPath();
-          ctx.arc(t.x, t.y, 2 + i * 0.05, 0, Math.PI * 2);
-          ctx.fillStyle = `rgba(255, 220, 160, ${t.a})`;
-          ctx.fill();
-        }
-
-        // draw rocket head
-        ctx.beginPath();
-        ctx.arc(r.x, r.y, 3.2, 0, Math.PI * 2);
-        ctx.fillStyle = `hsl(${r.hue}, 95%, 60%)`;
-        ctx.fill();
-
-        // burst when high enough
-        if (r.vy > -0.2 || r.y < H * 0.28) {
-          fwRef.current.burst && fwRef.current.burst(r.x, r.y);
-          r.life = -1; // mark for removal
-        }
-      });
-
-      rockets = rockets.filter((r) => r.life !== -1 && r.y > -40);
-      rocketsRef.current.raf = requestAnimationFrame(tick);
-    }
-    tick();
-
-    rocketsRef.current.cleanup = () => {
-      cancelAnimationFrame(rocketsRef.current.raf);
-      window.removeEventListener("resize", resize);
-      clearInterval(launcher);
-    };
-  }
-  function stopRockets() {
-    rocketsRef.current.cleanup && rocketsRef.current.cleanup();
   }
 
   // Toast
@@ -350,7 +167,7 @@ export default function HomePage() {
     setTimeout(() => circle.remove(), 700);
   }
 
-  // Register & flows
+  // Register
   function onRegisterClick(e) {
     rippleEffect(e);
     if (!consentAccepted) {
@@ -359,6 +176,7 @@ export default function HomePage() {
     }
     registerUser();
   }
+  
   async function registerUser() {
     const name = document.getElementById("name")?.value.trim();
     const gender = document.getElementById("gender")?.value;
@@ -388,7 +206,6 @@ export default function HomePage() {
         city,
         reason,
       };
-      if (giftAccepted) payload.diwaliGift = true;
       const res = await fetch(`${API_BASE}/register`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -397,8 +214,9 @@ export default function HomePage() {
       const data = await res.json();
       if (res.ok) {
         localStorage.setItem("token", data.token);
+        localStorage.setItem("milan_name", name);
         window.location.href = "/connect";
-      } else showError(data.error || "Registration failed");
+      } else showError(data.message || data.error || "Registration failed");
     } catch (err) {
       console.error(err);
       showError("Server error");
@@ -423,8 +241,11 @@ export default function HomePage() {
       const data = await res.json();
       if (res.ok) {
         localStorage.setItem("token", data.token);
+        if (data.user && data.user.name) {
+          localStorage.setItem("milan_name", data.user.name);
+        }
         window.location.href = "/connect";
-      } else showError(data.error || "Login failed");
+      } else showError(data.message || data.error || "Login failed");
     } catch (err) {
       console.error(err);
       showError("Server error");
@@ -450,7 +271,7 @@ export default function HomePage() {
         alert("Password reset successful, please login again.");
         setShowReset(false);
         setShowLogin(true);
-      } else showError(data.error || "Reset failed");
+      } else showError(data.message || data.error || "Reset failed");
     } catch {
       showError("Server error");
     } finally {
@@ -464,79 +285,11 @@ export default function HomePage() {
     setShowConsent(false);
     setTimeout(() => registerUser(), 180);
   }
-  function cancelConsent() {
-    setConsentAccepted(false);
-    setShowConsent(false);
-  }
-
-  // Celebrate button
-  function celebrateDiwali(e) {
-    rippleEffect(e);
-    const audio = document.getElementById("diwaliChime");
-    try {
-      audio.currentTime = 0;
-      audio.play();
-    } catch {}
-    const { burst } = fwRef.current;
-    if (burst) {
-      const x = window.innerWidth / 2,
-        y = window.innerHeight * 0.3;
-      for (let i = 0; i < 4; i++)
-        setTimeout(
-          () =>
-            burst(
-              x + (Math.random() * 160 - 80),
-              y + (Math.random() * 80 - 40)
-            ),
-          i * 140
-        );
-    }
-  }
-
-  // Wish CTA
-  function openWish(e) {
-    rippleEffect(e);
-    setShowWish(true);
-    setWishDone(false);
-    setWishText("");
-  }
-  function submitWish() {
-    setWishDone(true);
-    const { burst } = fwRef.current;
-    if (burst) {
-      const x = window.innerWidth * 0.5,
-        y = window.innerHeight * 0.32;
-      burst(x, y);
-      setTimeout(() => burst(x + 60, y - 20), 180);
-    }
-  }
-
-  // Gift Box
-  function openGift() {
-    setShowGift(true);
-  }
-  function acceptGift() {
-    setGiftAccepted(true);
-    setShowGift(false);
-    try {
-      localStorage.setItem("milan_diwali_gift", "accepted");
-    } catch {}
-    setShowReset(false);
-    setShowLogin(true);
-    setTimeout(() => {
-      try {
-        const el = document.getElementById("loginContact");
-        el && el.focus({ preventScroll: true });
-        el &&
-          el.scrollIntoView({ behavior: "smooth", block: "center" });
-      } catch {}
-    }, 150);
-  }
 
   return (
     <>
       <Head>
-        <title>Milan — Happy Diwali</title>
+        <title>Milan – Where Hearts Connect</title>
         <meta
           name="viewport"
           content="width=device-width, initial-scale=1, viewport-fit=cover"
@@ -544,23 +297,9 @@ export default function HomePage() {
         <meta name="theme-color" content="#0b1220" />
       </Head>
 
-      {/* Background layers */}
-      <div className="rangoli-bg" aria-hidden />
+      {/* Background hearts */}
       <canvas id="heartsCanvas" aria-hidden={!enableHearts}></canvas>
-      <canvas
-        id="rocketsCanvas"
-        style={{ position: "fixed", inset: 0, zIndex: 1, pointerEvents: "none" }}
-      />
-      <canvas
-        id="fireworksCanvas"
-        style={{ position: "fixed", inset: 0, zIndex: 0, pointerEvents: "none" }}
-      />
-      <audio id="diwaliChime" preload="auto">
-        <source
-          src="https://cdn.pixabay.com/download/audio/2022/03/15/audio_4c76d6de8a.mp3?filename=soft-bell-ambient-10473.mp3"
-          type="audio/mpeg"
-        />
-      </audio>
+      
       <div id="errorMessage" style={{ display: "none" }} role="alert"></div>
 
       <div className="page-wrap">
@@ -570,13 +309,16 @@ export default function HomePage() {
               <div className="welcome-row">
                 <h1 className="welcome-title">Milan</h1>
                 <span className="pulse-heart" aria-hidden>
-                  ❤
+                  ❤️
                 </span>
               </div>
-              <h3 className="festive-wish">Happy Diwali! ✨</h3>
+              <h3 className="tagline">
+                <span>Where Hearts Connect</span>
+                <span className="beating-heart">💕</span>
+              </h3>
               <p className="welcome-text">
-                “Love recognizes no barriers. It jumps hurdles, leaps fences,
-                penetrates walls to arrive at its destination full of hope.”
+                "Love recognizes no barriers. It jumps hurdles, leaps fences,
+                penetrates walls to arrive at its destination full of hope."
               </p>
               <p className="age-note">🔞 Milan is strictly for 18+ users.</p>
 
@@ -600,24 +342,8 @@ export default function HomePage() {
                 <div className="why-card">
                   <div className="why-emoji">🕶️</div>
                   <h4>Anonymous & Fun</h4>
-                  <p>Chat anonymously, express freely — it's light, friendly & playful.</p>
+                  <p>Chat anonymously, express freely – it's light, friendly & playful.</p>
                 </div>
-              </div>
-
-              <div className="cta-row">
-                <button
-                  className="celebrate-btn"
-                  onClick={celebrateDiwali}
-                  onMouseDown={rippleEffect}
-                >
-                  🎉 Celebrate Diwali
-                </button>
-                <button className="ghost-btn" onClick={openWish} onMouseDown={rippleEffect}>
-                  ✨ Make a Wish
-                </button>
-                <button className="gift-btn" onClick={openGift} onMouseDown={rippleEffect}>
-                  🎁 Open Diwali Gift
-                </button>
               </div>
             </div>
           </div>
@@ -789,9 +515,9 @@ export default function HomePage() {
       {showConsent && (
         <div className="modal-back" role="dialog" aria-modal>
           <div className="modal">
-            <h3>Before you continue — A quick consent</h3>
+            <h3>Before you continue – A quick consent</h3>
             <p className="modal-desc">
-              By continuing you agree to Milan's Terms & Privacy. We value your safety —
+              By continuing you agree to Milan's Terms & Privacy. We value your safety –
               we moderate content, do not share personal data, and provide reporting tools.
             </p>
             <ul className="modal-list">
@@ -800,74 +526,11 @@ export default function HomePage() {
               <li>You can report/block anyone from the profile options.</li>
             </ul>
             <div className="modal-actions">
-              <button className="ghost-btn" onClick={() => { setShowConsent(false); }} onMouseDown={rippleEffect}>
+              <button className="ghost-btn" onClick={() => setShowConsent(false)} onMouseDown={rippleEffect}>
                 Cancel
               </button>
               <button className="primary-btn" onClick={acceptConsent} onMouseDown={rippleEffect}>
                 I Accept & Continue
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {showWish && (
-        <div className="modal-back" role="dialog" aria-modal>
-          <div className="modal">
-            <h3>✨ Make a Wish</h3>
-            {!wishDone ? (
-              <>
-                <p className="modal-desc">
-                  Close your eyes for a second, type your wish below, and release it to the
-                  universe. May it come true this Diwali ✨
-                </p>
-                <textarea
-                  value={wishText}
-                  onChange={(e) => setWishText(e.target.value)}
-                  placeholder="Type your Diwali wish here..."
-                />
-                <div className="modal-actions">
-                  <button className="ghost-btn" onClick={() => setShowWish(false)} onMouseDown={rippleEffect}>
-                    Cancel
-                  </button>
-                  <button className="primary-btn" onClick={submitWish} onMouseDown={rippleEffect}>
-                    Make it Happen
-                  </button>
-                </div>
-              </>
-            ) : (
-              <>
-                <p className="modal-desc">Wish sent! Now go meet someone special on Milan 💖</p>
-                <div className="modal-actions">
-                  <button className="primary-btn" onClick={() => setShowWish(false)} onMouseDown={rippleEffect}>
-                    Close
-                  </button>
-                </div>
-              </>
-            )}
-          </div>
-        </div>
-      )}
-
-      {showGift && (
-        <div className="modal-back" role="dialog" aria-modal>
-          <div className="modal">
-            <h3>🎁 Diwali Gift Box</h3>
-            <p className="modal-desc">
-              Unlock special perks when you register before <b>31 Oct 2025</b>:
-            </p>
-            <ul className="modal-list">
-              <li>✨ <b>3-day Spotlight</b> — your profile gets top visibility</li>
-              <li>💘 <b>1 Priority Match</b> — we’ll boost you to someone highly compatible</li>
-              <li>🏷️ <b>Festival Badge</b> — "Diwali ’25" on your profile (limited)</li>
-            </ul>
-            <p className="countdown">⏳ Offer ends in: <b>{countdown}</b></p>
-            <div className="modal-actions">
-              <button className="ghost-btn" onClick={() => setShowGift(false)} onMouseDown={rippleEffect}>
-                Maybe later
-              </button>
-              <button className="primary-btn" onClick={acceptGift} onMouseDown={rippleEffect}>
-                Add Gift to My Account
               </button>
             </div>
           </div>
@@ -888,84 +551,565 @@ export default function HomePage() {
       `}</style>
 
       <style>{`
-        :root{ --bg-1:#0b1220; --bg-2:#0f2030; --accent1:#ff6b81; --accent2:#ff9fb0; --muted:#c7d7ea; --gold:#ffd166; }
-        html,body{ margin:0; padding:0; font-family:Poppins, "Segoe UI", Roboto, sans-serif; background: radial-gradient(1200px circle at 10% 0%, #0e1526 0%, var(--bg-1) 35%, var(--bg-2) 100%); color:#eef6ff; }
-        #heartsCanvas{ position:fixed; inset:0; z-index:0; pointer-events:none; }
-        #errorMessage{ position:fixed; top:18px; left:50%; transform:translateX(-50%); background:rgba(0,0,0,0.7); color:#fff; padding:10px 14px; border-radius:8px; display:none; z-index:9999; font-weight:700; }
-
-        /* Rangoli watermark (subtle, center) */
-        .rangoli-bg{
-          position: fixed; inset: 0; z-index: 0; pointer-events: none; opacity: .18;
-          background:
-            radial-gradient(closest-side, rgba(255,215,170,.25), rgba(255,215,170,0) 70%) no-repeat 50% 72% / 900px 900px,
-            repeating-conic-gradient(from 0deg, rgba(255,209,102,.28) 0 8deg, rgba(255,209,102,0) 8deg 16deg) no-repeat 50% 72% / 900px 900px;
-          mask-image: radial-gradient(circle at 50% 70%, rgba(0,0,0,1), rgba(0,0,0,0) 70%);
+        :root{ 
+          --bg-1:#0b1220; 
+          --bg-2:#0f2030; 
+          --accent1:#ff6b81; 
+          --accent2:#ff9fb0; 
+          --muted:#c7d7ea; 
+        }
+        
+        html,body{ 
+          margin:0; 
+          padding:0; 
+          font-family:Poppins, "Segoe UI", Roboto, sans-serif; 
+          background: radial-gradient(1200px circle at 10% 0%, #1a0a1e 0%, var(--bg-1) 35%, var(--bg-2) 100%); 
+          color:#eef6ff; 
+        }
+        
+        #heartsCanvas{ 
+          position:fixed; 
+          inset:0; 
+          z-index:0; 
+          pointer-events:none; 
+        }
+        
+        #errorMessage{ 
+          position:fixed; 
+          top:18px; 
+          left:50%; 
+          transform:translateX(-50%); 
+          background:rgba(0,0,0,0.85); 
+          color:#fff; 
+          padding:12px 18px; 
+          border-radius:12px; 
+          display:none; 
+          z-index:9999; 
+          font-weight:700; 
+          box-shadow: 0 8px 24px rgba(255,79,160,0.3);
         }
 
-        .page-wrap{ position:relative; z-index:5; min-height:100svh; display:flex; flex-direction:column; justify-content:space-between; padding-bottom:24px; }
-        .container{ width:100%; max-width:1200px; margin:28px auto 6px; display:flex; gap:34px; padding:18px; align-items:flex-start; justify-content:space-between; flex-wrap:wrap; }
-        .left{ flex:1 1 560px; min-width:320px; display:flex; align-items:center; justify-content:center; }
-        .right{ flex:0 0 420px; min-width:300px; display:flex; align-items:flex-start; justify-content:center; }
+        .page-wrap{ 
+          position:relative; 
+          z-index:5; 
+          min-height:100svh; 
+          display:flex; 
+          flex-direction:column; 
+          justify-content:space-between; 
+          padding-bottom:24px; 
+        }
+        
+        .container{ 
+          width:100%; 
+          max-width:1200px; 
+          margin:28px auto 6px; 
+          display:flex; 
+          gap:34px; 
+          padding:18px; 
+          align-items:flex-start; 
+          justify-content:space-between; 
+          flex-wrap:wrap; 
+        }
+        
+        .left{ 
+          flex:1 1 560px; 
+          min-width:320px; 
+          display:flex; 
+          align-items:center; 
+          justify-content:center; 
+        }
+        
+        .right{ 
+          flex:0 0 420px; 
+          min-width:300px; 
+          display:flex; 
+          align-items:flex-start; 
+          justify-content:center; 
+        }
 
-        .welcome-box{ background: linear-gradient(180deg, rgba(10,14,20,0.54), rgba(12,18,24,0.44)); border-radius:16px; padding:26px 32px; box-shadow: 0 12px 48px rgba(2,6,23,0.6); max-width:780px; text-align:center; border: 1px solid rgba(255,107,129,0.06); }
-        .welcome-row{ display:flex; align-items:center; gap:12px; justify-content:center; }
-        .welcome-title{ font-size:56px; margin:0; font-weight:900; background: linear-gradient(90deg, #ff6b81, #ff9fb0); -webkit-background-clip:text; -webkit-text-fill-color:transparent; text-shadow:0 10px 28px rgba(0,0,0,0.45); }
-        .pulse-heart{ display:inline-block; font-size:36px; color:#ff465e; animation: heartBeat 1000ms ease-in-out infinite; transform-origin:center; text-shadow: 0 8px 22px rgba(255,70,94,0.12); }
-        .festive-wish{ margin:8px 0 2px; font-size:24px; color: var(--gold); text-shadow:0 0 16px rgba(255,209,102,.25); font-weight:800; }
-        @keyframes heartBeat{ 0%{transform:scale(1)} 28%{transform:scale(1.28)} 42%{transform:scale(1)} 100%{transform:scale(1)} }
-        .welcome-text{ font-size:20px; color: var(--muted); margin-top:12px; font-weight:600; line-height:1.6; }
-        .age-note{ margin-top:14px; color:#ffd7e0; font-weight:700; }
+        .welcome-box{ 
+          background: linear-gradient(145deg, rgba(255,79,160,0.08), rgba(139,92,246,0.05)); 
+          border-radius:20px; 
+          padding:32px 38px; 
+          box-shadow: 0 20px 60px rgba(255,79,160,0.15); 
+          max-width:780px; 
+          text-align:center; 
+          border: 2px solid rgba(255,107,129,0.15); 
+          backdrop-filter: blur(10px);
+        }
+        
+        .welcome-row{ 
+          display:flex; 
+          align-items:center; 
+          gap:16px; 
+          justify-content:center; 
+          margin-bottom: 8px;
+        }
+        
+        .welcome-title{ 
+          font-size:64px; 
+          margin:0; 
+          font-weight:900; 
+          background: linear-gradient(135deg, #ff4fa0, #ff1493, #ff6b9d); 
+          -webkit-background-clip:text; 
+          -webkit-text-fill-color:transparent; 
+          text-shadow:0 10px 28px rgba(255,79,160,0.4); 
+          letter-spacing: -2px;
+        }
+        
+        .pulse-heart{ 
+          display:inline-block; 
+          font-size:42px; 
+          animation: heartBeat 1200ms ease-in-out infinite; 
+          transform-origin:center; 
+          filter: drop-shadow(0 8px 20px rgba(255,70,94,0.4));
+        }
+        
+        .tagline {
+          font-size: 28px;
+          margin: 12px 0 18px;
+          color: #ffeef8;
+          font-weight: 700;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          gap: 12px;
+          text-shadow: 0 2px 12px rgba(255,107,157,0.3);
+        }
+        
+        .beating-heart {
+          display: inline-block;
+          font-size: 32px;
+          animation: heartBeat 800ms ease-in-out infinite;
+          filter: drop-shadow(0 4px 16px rgba(255,107,157,0.5));
+        }
+        
+        @keyframes heartBeat{ 
+          0%{transform:scale(1)} 
+          14%{transform:scale(1.1)} 
+          28%{transform:scale(1)} 
+          42%{transform:scale(1.1)} 
+          70%{transform:scale(1)} 
+          100%{transform:scale(1)} 
+        }
+        
+        .welcome-text{ 
+          font-size:18px; 
+          color: var(--muted); 
+          margin-top:14px; 
+          font-weight:600; 
+          line-height:1.7; 
+          font-style: italic;
+        }
+        
+        .age-note{ 
+          margin-top:16px; 
+          color:#ff9fb0; 
+          font-weight:700; 
+          font-size: 15px;
+        }
 
-        .why-grid{ display:flex; gap:14px; margin-top:18px; justify-content:center; flex-wrap:wrap; }
-        .why-card{ background: rgba(255,255,255,0.03); border-radius:12px; padding:14px; width:220px; box-shadow: 0 8px 28px rgba(2,6,23,0.5); border:1px solid rgba(255,255,255,0.05); }
-        .why-emoji{ font-size:28px; display:block; margin-bottom:8px; }
-        .why-card h4{ margin:0 0 6px 0; font-size:16px; color:#fff; }
-        .why-card p{ margin:0; color: var(--muted); font-size:13px; line-height:1.4; }
+        .why-grid{ 
+          display:flex; 
+          gap:16px; 
+          margin-top:24px; 
+          justify-content:center; 
+          flex-wrap:wrap; 
+        }
+        
+        .why-card{ 
+          background: rgba(255,255,255,0.04); 
+          border-radius:16px; 
+          padding:18px; 
+          width:220px; 
+          box-shadow: 0 12px 32px rgba(255,79,160,0.08); 
+          border:1px solid rgba(255,107,129,0.12); 
+          transition: all 0.3s ease;
+        }
+        
+        .why-card:hover {
+          transform: translateY(-4px);
+          box-shadow: 0 16px 40px rgba(255,79,160,0.15);
+          border-color: rgba(255,107,129,0.25);
+        }
+        
+        .why-emoji{ 
+          font-size:32px; 
+          display:block; 
+          margin-bottom:10px; 
+        }
+        
+        .why-card h4{ 
+          margin:0 0 8px 0; 
+          font-size:17px; 
+          color:#fff; 
+          font-weight: 800;
+        }
+        
+        .why-card p{ 
+          margin:0; 
+          color: var(--muted); 
+          font-size:14px; 
+          line-height:1.5; 
+        }
 
-        .cta-row{ margin-top:16px; display:flex; gap:12px; justify-content:center; flex-wrap:wrap; }
-        .celebrate-btn{ position:relative; overflow:hidden; display:inline-flex; align-items:center; justify-content:center; gap:8px; padding:12px 16px; border-radius:12px; border:none; cursor:pointer; background: rgba(255,209,102,0.2); color:#ffe9ac; font-weight:900; box-shadow: 0 10px 36px rgba(255,209,102,0.12); }
-        .celebrate-btn:hover{ filter:brightness(1.1); }
-        .ghost-btn{ position:relative; overflow:hidden; display:inline-flex; align-items:center; justify-content:center; gap:8px; padding:12px 16px; border-radius:12px; border:1px solid rgba(255,255,255,0.08); cursor:pointer; background: rgba(255,255,255,0.05); color:#e9f0ff; font-weight:800; }
-        .gift-btn{ position:relative; overflow:hidden; display:inline-flex; align-items:center; justify-content:center; gap:8px; padding:12px 16px; border-radius:12px; border:none; cursor:pointer; background: linear-gradient(90deg, #ff6b81, #ff9fb0); color:#09121f; font-weight:900; box-shadow: 0 14px 48px rgba(255,107,129,0.22); }
+        .form-container{ 
+          width:100%; 
+          background: linear-gradient(145deg, rgba(255,255,255,0.06), rgba(255,255,255,0.03)); 
+          padding:28px; 
+          border-radius:20px; 
+          backdrop-filter: blur(12px); 
+          box-shadow: 0 20px 60px rgba(2,6,23,0.7); 
+          border: 1px solid rgba(255,107,129,0.1);
+        }
+        
+        h2{ 
+          font-size:22px; 
+          margin:0 0 18px 0; 
+          text-align:center; 
+          color: #ffeef8;
+          font-weight: 800;
+        }
+        
+        label{ 
+          display:block; 
+          margin-top:14px; 
+          font-size:15px; 
+          font-weight:700; 
+          color:#f3f7fb; 
+        }
+        
+        .star {
+          color: #ff6b9d;
+        }
+        
+        input,select,textarea{ 
+          width:100%; 
+          padding:13px 16px; 
+          margin-top:8px; 
+          border-radius:12px; 
+          border:1px solid rgba(255,107,129,0.2); 
+          font-size:15px; 
+          background: rgba(0,0,0,0.4); 
+          color:#fff; 
+          outline:2px solid transparent; 
+          transition: all 200ms ease; 
+        }
+        
+        input:focus,select:focus,textarea:focus{ 
+          outline:2px solid rgba(255,107,129,0.4); 
+          transform: translateY(-2px); 
+          background: rgba(0,0,0,0.5);
+        }
+        
+        textarea{ 
+          min-height:90px; 
+          resize:vertical; 
+        }
+        
+        .primary-btn{ 
+          position:relative; 
+          overflow:hidden; 
+          display:inline-flex; 
+          align-items:center; 
+          justify-content:center; 
+          gap:8px; 
+          width:100%; 
+          padding:14px 16px; 
+          border-radius:12px; 
+          border:none; 
+          cursor:pointer; 
+          font-weight:800; 
+          font-size:16px; 
+          background: linear-gradient(135deg, #ff4fa0, #ff1493); 
+          color:#fff; 
+          box-shadow: 0 12px 40px rgba(255,79,160,0.3); 
+          transition: all 0.3s ease;
+          margin-top: 18px;
+        }
+        
+        .primary-btn:hover {
+          transform: translateY(-2px);
+          box-shadow: 0 16px 48px rgba(255,79,160,0.4);
+        }
+        
+        .primary-btn:disabled{ 
+          opacity:.7; 
+          cursor:not-allowed; 
+          transform:none; 
+        }
+        
+        .ripple{ 
+          position:absolute; 
+          border-radius:50%; 
+          transform: scale(0); 
+          animation: ripple 700ms linear; 
+          background: rgba(255,255,255,0.4); 
+          pointer-events:none; 
+        }
+        
+        @keyframes ripple{ 
+          to{ 
+            transform: scale(4); 
+            opacity:0; 
+          } 
+        }
+        
+        .btn-loader{ 
+          width:18px; 
+          height:18px; 
+          border-radius:50%; 
+          border:2px solid rgba(255,255,255,0.2); 
+          border-top:2px solid rgba(255,255,255,0.9); 
+          animation: spin 800ms linear infinite; 
+          display:inline-block; 
+          margin-right:8px; 
+        }
+        
+        @keyframes spin{ 
+          to{ 
+            transform: rotate(360deg); 
+          } 
+        }
+        
+        .terms-container{ 
+          display:flex; 
+          align-items:flex-start; 
+          gap:10px; 
+          margin-top:16px; 
+          font-size:13px; 
+          color:#c7d7ea; 
+        }
+        
+        .terms-container input[type="checkbox"] {
+          margin-top: 4px;
+          flex-shrink: 0;
+        }
+        
+        .terms-container a{ 
+          color:#ff9fb0; 
+          text-decoration:none; 
+          font-weight:700; 
+        }
+        
+        .terms-container a:hover {
+          text-decoration: underline;
+        }
+        
+        .link-text{ 
+          text-align:center; 
+          cursor:pointer; 
+          color:#ff9fb0; 
+          margin-top:16px; 
+          font-weight:700; 
+          font-size: 14px;
+        }
+        
+        .link-text:hover {
+          color: #ff6b9d;
+        }
+        
+        .reset-link{ 
+          text-align:center; 
+          cursor:pointer; 
+          color:#ff6b9d; 
+          font-weight:700; 
+          margin-top: 12px;
+          font-size: 14px;
+        }
+        
+        .reset-link:hover {
+          color: #ff4fa0;
+        }
 
-        .form-container{ width:100%; background: linear-gradient(180deg, rgba(255,255,255,0.03), rgba(255,255,255,0.02)); padding:24px; border-radius:16px; backdrop-filter: blur(6px); box-shadow: 0 14px 50px rgba(2,6,23,0.6); }
-        h2{ font-size:20px; margin:0 0 8px 0; text-align:center; }
-        label{ display:block; margin-top:10px; font-size:15px; font-weight:700; color:#f3f7fb; }
-        input,select,textarea{ width:100%; padding:12px 14px; margin-top:6px; border-radius:8px; border:none; font-size:15px; background: rgba(0,0,0,0.36); color:#fff; outline:2px solid transparent; transition: outline 120ms ease, transform 100ms ease; }
-        input:focus,select:focus,textarea:focus{ outline:2px solid rgba(255,107,129,0.18); transform: translateY(-2px); }
-        textarea{ min-height:84px; resize:vertical; }
-        .primary-btn{ position:relative; overflow:hidden; display:inline-flex; align-items:center; justify-content:center; gap:8px; width:100%; padding:12px 14px; border-radius:10px; border:none; cursor:pointer; font-weight:800; font-size:15px; background: linear-gradient(90deg, #ff6b81, #ff9fb0); color:#071320; box-shadow: 0 10px 36px rgba(255,107,129,0.12); }
-        .primary-btn:disabled{ opacity:.8; cursor:not-allowed; transform:none; }
-        .ripple{ position:absolute; border-radius:50%; transform: scale(0); animation: ripple 700ms linear; background: rgba(255,255,255,0.35); pointer-events:none; }
-        @keyframes ripple{ to{ transform: scale(4); opacity:0; } }
-        .btn-loader{ width:18px; height:18px; border-radius:50%; border:2px solid rgba(0,0,0,0.12); border-top:2px solid rgba(255,255,255,0.9); animation: spin 900ms linear infinite; display:inline-block; margin-right:8px; }
-        @keyframes spin{ to{ transform: rotate(360deg); } }
-        .terms-container{ display:flex; align-items:center; gap:8px; margin-top:12px; font-size:13px; color:#c7d7ea; }
-        .terms-container a{ color:#ffd54d; text-decoration:none; font-weight:700; }
-        .link-text{ text-align:center; cursor:pointer; color:#ffd54d; margin-top:10px; font-weight:700; }
-        .reset-link{ text-align:center; cursor:pointer; color:#ff7a8a; font-weight:700; }
+        .ghost-btn{ 
+          position:relative; 
+          overflow:hidden; 
+          display:inline-flex; 
+          align-items:center; 
+          justify-content:center; 
+          gap:8px; 
+          padding:12px 20px; 
+          border-radius:12px; 
+          border:2px solid rgba(255,107,129,0.3); 
+          cursor:pointer; 
+          background: rgba(255,255,255,0.05); 
+          color:#ffeef8; 
+          font-weight:800; 
+          transition: all 0.3s ease;
+        }
+        
+        .ghost-btn:hover {
+          background: rgba(255,107,129,0.1);
+          border-color: rgba(255,107,129,0.5);
+        }
 
-        .modal-back{ position:fixed; inset:0; background: rgba(2,6,23,0.65); display:flex; align-items:center; justify-content:center; z-index: 99999; }
-        .modal{ width:92%; max-width:540px; background: linear-gradient(180deg, rgba(255,255,255,0.02), rgba(255,255,255,0.01)); padding:20px; border-radius:12px; box-shadow: 0 18px 68px rgba(0,0,0,0.6); color: #eef6ff; }
-        .modal h3{ margin:0 0 8px 0; font-size:18px; }
-        .modal-desc{ color:#c7d7ea; font-size:14px; margin:6px 0 12px; }
-        .modal-list{ margin:0 0 14px 18px; color:#c7d7ea; }
-        .modal-actions{ display:flex; gap:12px; justify-content:flex-end; }
-        .countdown{ color:#ffd54d; font-weight:800; }
+        .modal-back{ 
+          position:fixed; 
+          inset:0; 
+          background: rgba(0,0,0,0.8); 
+          backdrop-filter: blur(8px);
+          display:flex; 
+          align-items:center; 
+          justify-content:center; 
+          z-index: 99999; 
+          padding: 20px;
+        }
+        
+        .modal{ 
+          width:92%; 
+          max-width:540px; 
+          background: linear-gradient(145deg, rgba(255,79,160,0.15), rgba(139,92,246,0.1)); 
+          padding:28px; 
+          border-radius:20px; 
+          box-shadow: 0 24px 80px rgba(255,79,160,0.3); 
+          color: #eef6ff; 
+          border: 2px solid rgba(255,107,129,0.2);
+        }
+        
+        .modal h3{ 
+          margin:0 0 12px 0; 
+          font-size:22px; 
+          color: #ffeef8;
+          font-weight: 800;
+        }
+        
+        .modal-desc{ 
+          color:#c7d7ea; 
+          font-size:15px; 
+          margin:8px 0 16px; 
+          line-height: 1.6;
+        }
+        
+        .modal-list{ 
+          margin:0 0 20px 20px; 
+          color:#c7d7ea; 
+          line-height: 1.8;
+        }
+        
+        .modal-list li {
+          margin-bottom: 8px;
+        }
+        
+        .modal-actions{ 
+          display:flex; 
+          gap:12px; 
+          justify-content:flex-end; 
+          margin-top: 24px;
+        }
 
-        .footer-section{ text-align:center; margin:28px auto 30px; padding: 0 18px; z-index:5; color:#dcdfea; }
-        .footer-links{ display:flex; gap:18px; justify-content:center; flex-wrap:wrap; margin-bottom:8px; }
-        .footer-links a{ color:#ffd54d; text-decoration:none; font-weight:600; }
-        .support-text{ font-size:14px; color:#cdd6e6; margin:6px 0; }
-        .support-text a{ color:#ff9fb0; font-weight:700; text-decoration:none; }
+        .footer-section{ 
+          text-align:center; 
+          margin:32px auto 30px; 
+          padding: 0 18px; 
+          z-index:5; 
+          color:#dcdfea; 
+        }
+        
+        .footer-links{ 
+          display:flex; 
+          gap:20px; 
+          justify-content:center; 
+          flex-wrap:wrap; 
+          margin-bottom:12px; 
+        }
+        
+        .footer-links a{ 
+          color:#ff9fb0; 
+          text-decoration:none; 
+          font-weight:600; 
+          font-size: 14px;
+        }
+        
+        .footer-links a:hover {
+          color: #ff6b9d;
+          text-decoration: underline;
+        }
+        
+        .support-text{ 
+          font-size:14px; 
+          color:#cdd6e6; 
+          margin:8px 0; 
+        }
+        
+        .support-text a{ 
+          color:#ff9fb0; 
+          font-weight:700; 
+          text-decoration:none; 
+        }
+        
+        .support-text a:hover {
+          text-decoration: underline;
+        }
+        
+        .copyright {
+          font-size: 13px;
+          color: #9ca9bb;
+          margin-top: 8px;
+        }
 
         @media (max-width:768px){
-          .container{ flex-direction:column; align-items:center; padding:12px; gap:16px; margin-top:10px; }
-          .welcome-title{ font-size:40px; }
-          .why-card{ width:92%; }
-          .right{ width:100%; margin-top:6px; display:flex; justify-content:center; }
-          .form-container{ width:94%; padding:16px; }
-          .gift-btn{ width:100%; }
+          .container{ 
+            flex-direction:column; 
+            align-items:center; 
+            padding:12px; 
+            gap:24px; 
+            margin-top:16px; 
+          }
+          
+          .welcome-title{ 
+            font-size:48px; 
+          }
+          
+          .tagline {
+            font-size: 22px;
+          }
+          
+          .beating-heart {
+            font-size: 26px;
+          }
+          
+          .pulse-heart {
+            font-size: 36px;
+          }
+          
+          .welcome-text {
+            font-size: 16px;
+          }
+          
+          .why-card{ 
+            width:100%; 
+            max-width: 320px;
+          }
+          
+          .right{ 
+            width:100%; 
+            margin-top:6px; 
+            display:flex; 
+            justify-content:center; 
+          }
+          
+          .form-container{ 
+            width:100%; 
+            max-width: 420px;
+            padding:22px; 
+          }
+          
+          .welcome-box {
+            padding: 24px 20px;
+          }
+          
+          .modal {
+            padding: 24px 20px;
+          }
+          
+          .modal-actions {
+            flex-direction: column;
+          }
+          
+          .modal-actions button {
+            width: 100%;
+          }
         }
       `}</style>
     </>
