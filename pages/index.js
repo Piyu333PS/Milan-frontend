@@ -92,11 +92,11 @@ export default function HomePage() {
         ctx.save();
         ctx.globalAlpha = h.alpha;
         ctx.translate(h.x, h.y);
-        
+
         // Wobble effect
         h.wobble += 0.02;
         ctx.rotate(Math.sin(h.wobble) * 0.1);
-        
+
         ctx.fillStyle = h.color;
         ctx.beginPath();
         const s = h.size;
@@ -105,19 +105,19 @@ export default function HomePage() {
         ctx.bezierCurveTo(-s * 1.5, s / 3, -s / 2, -s, 0, 0);
         ctx.fill();
         ctx.restore();
-        
+
         h.y -= h.speed;
         h.alpha *= 0.998; // Fade as it rises
       });
-      
+
       hearts = hearts.filter((h) => h.y + h.size > -100 && h.alpha > 0.05);
-      
+
       const spawnProb = heartsRef.current.smallMode ? 0.08 : 0.15;
       if (Math.random() < spawnProb) hearts.push(createHeart());
-      
+
       if (heartsRef.current.smallMode && hearts.length > 80) hearts = hearts.slice(-80);
       if (!heartsRef.current.smallMode && hearts.length > 250) hearts = hearts.slice(-250);
-      
+
       heartsRef.current.raf = requestAnimationFrame(drawHearts);
     }
     drawHearts();
@@ -127,7 +127,7 @@ export default function HomePage() {
       cancelAnimationFrame(heartsRef.current.raf);
     };
   }
-  
+
   function stopHearts() {
     heartsRef.current.cleanup && heartsRef.current.cleanup();
   }
@@ -176,7 +176,7 @@ export default function HomePage() {
     }
     registerUser();
   }
-  
+
   async function registerUser() {
     const name = document.getElementById("name")?.value.trim();
     const gender = document.getElementById("gender")?.value;
@@ -299,7 +299,7 @@ export default function HomePage() {
 
       {/* Background hearts */}
       <canvas id="heartsCanvas" aria-hidden={!enableHearts}></canvas>
-      
+
       <div id="errorMessage" style={{ display: "none" }} role="alert"></div>
 
       <div className="page-wrap">
@@ -648,16 +648,18 @@ export default function HomePage() {
           margin-bottom: 10px;
         }
         
+        /* BIGGER / LOGO-LIKE brand title for desktop */
         .welcome-title{ 
-          font-size:84px; 
+          font-size:110px; /* increased from 84px */
           margin:0; 
           font-weight:900; 
           background: linear-gradient(135deg, #ff4fa0, #ff1493, #ff6b9d); 
           -webkit-background-clip:text; 
           -webkit-text-fill-color:transparent; 
-          text-shadow:0 10px 28px rgba(255,79,160,0.4); 
+          text-shadow:0 12px 36px rgba(255,79,160,0.45); 
           letter-spacing: -3px;
           font-family: 'Poppins', sans-serif;
+          line-height: 0.9;
         }
         
         .pulse-heart{ 
@@ -756,6 +758,7 @@ export default function HomePage() {
           line-height:1.5; 
         }
 
+        /* Ensure form sits above footer / overlapping elements on desktop */
         .form-container{ 
           width:100%; 
           max-width:460px;
@@ -765,6 +768,9 @@ export default function HomePage() {
           backdrop-filter: blur(12px); 
           box-shadow: 0 20px 60px rgba(2,6,23,0.7); 
           border: 1px solid rgba(255,107,129,0.1);
+          position: relative; /* added */
+          z-index: 60; /* added — keep form clickable above footer/others */
+          margin-bottom: 36px; /* small spacing to footer */
         }
         
         h2{ 
@@ -916,6 +922,7 @@ export default function HomePage() {
           color: #ff6b9d;
         }
         
+        /* Make the link clearly on top and clickable */
         .link-text{ 
           text-align:center; 
           cursor:pointer; 
@@ -923,6 +930,10 @@ export default function HomePage() {
           margin-top:16px; 
           font-weight:700; 
           font-size: 14px;
+          position: relative; /* added */
+          z-index: 70; /* added to be above nearby elements */
+          pointer-events: auto; /* ensure clickable */
+          display: block;
         }
         
         .link-text:hover {
@@ -1018,10 +1029,11 @@ export default function HomePage() {
           margin-top: 24px;
         }
 
+        /* Lower footer z-index so content (form link) stays clickable above it */
         .footer-section{ 
           text-align:center; 
           padding: 20px 18px; 
-          z-index:5; 
+          z-index:2; /* reduced from higher to avoid overlap */
           color:#dcdfea;
           background: rgba(0,0,0,0.2);
           border-top: 1px solid rgba(255,107,129,0.1);
@@ -1141,6 +1153,8 @@ export default function HomePage() {
             width:100%; 
             max-width: 100%;
             padding:24px 20px; 
+            margin-bottom: 18px; /* smaller mobile spacing */
+            z-index: 60;
           }
           
           .welcome-box {
