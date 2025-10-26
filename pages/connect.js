@@ -875,7 +875,7 @@ export default function ConnectPage() {
         }
 
         .brandTagline {
-          margin-top: 8px;
+          margin-top: 6px;
           font-size: clamp(14px, 3vw, 20px);
           font-weight: 700;
           letter-spacing: 0.02em;
@@ -908,7 +908,7 @@ export default function ConnectPage() {
           flex-direction: column;
           align-items: center;
           justify-content: center;
-          padding: calc(var(--brandH) + 40px) 30px var(--bottomH);
+          padding: calc(var(--brandH) + 10px) 30px var(--bottomH);
           box-sizing: border-box;
           gap: 24px;
         }
