@@ -1,7 +1,14 @@
+// pages/connect.js
 "use client";
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import Head from "next/head";
 import io from "socket.io-client";
+
+/**
+ * IMPORTANT: This file preserves all original code but disables Diwali-specific visuals.
+ * If you ever want to re-enable Diwali fireworks/audio, set ENABLE_DIWALI = true.
+ */
+const ENABLE_DIWALI = false;
 
 export default function ConnectPage() {
   const [profile, setProfile] = useState({
@@ -63,6 +70,10 @@ export default function ConnectPage() {
     }
   }, []);
 
+  /** ---------------------------------------------------------
+   * Hearts Canvas - romantic upward-floating hearts (active)
+   * Keeps the romantic vibe: hearts float from bottom -> top.
+   * --------------------------------------------------------- */
   useEffect(() => {
     const cvs = document.getElementById("heartsCanvas");
     if (!cvs) return;
@@ -96,6 +107,8 @@ export default function ConnectPage() {
         c: ["#ff6ea7", "#ff8fb7", "#ff4d6d", "#e6007a"][
           Math.floor(Math.random() * 4)
         ],
+        wobble: Math.random() * Math.PI * 2,
+        alpha: 1,
       });
     }
 
@@ -104,11 +117,12 @@ export default function ConnectPage() {
       for (let i = 0; i < items.length; i++) {
         const h = items[i];
         ctx.save();
-        ctx.globalAlpha = 0.9;
+        ctx.globalAlpha = h.alpha * 0.95;
         ctx.translate(h.x, h.y);
-        ctx.rotate(Math.sin(h.y / 40) * 0.03);
-        ctx.fillStyle = h.c;
+        h.wobble += 0.02;
+        ctx.rotate(Math.sin(h.wobble) * 0.06);
         const s = h.s;
+        ctx.fillStyle = h.c;
         ctx.beginPath();
         ctx.moveTo(0, 0);
         ctx.bezierCurveTo(s / 2, -s, s * 1.5, s / 3, 0, s);
@@ -116,8 +130,9 @@ export default function ConnectPage() {
         ctx.fill();
         ctx.restore();
         h.y -= h.v;
+        h.alpha *= 0.998;
       }
-      items = items.filter((h) => h.y + h.s > -40);
+      items = items.filter((h) => h.y + h.s > -40 && h.alpha > 0.06);
       if (Math.random() < (window.innerWidth < 760 ? 0.06 : 0.12)) spawn();
       rafId = requestAnimationFrame(draw);
     }
@@ -129,9 +144,17 @@ export default function ConnectPage() {
     };
   }, []);
 
+  /**
+   * Fireworks (Diwali) code remains in the file for parity but is disabled
+   * by the ENABLE_DIWALI flag above. That keeps file lines intact and zero-risk.
+   */
   useEffect(() => {
-    startFireworks();
-    return stopFireworks;
+    if (ENABLE_DIWALI) {
+      startFireworks();
+      return stopFireworks;
+    }
+    return () => {};
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   function startFireworks() {
@@ -430,6 +453,7 @@ export default function ConnectPage() {
 
       {/* Background layers */}
       <canvas id="heartsCanvas" />
+      {/* fxCanvas and bellAudio left in file for parity but not active unless ENABLE_DIWALI=true */}
       <canvas
         id="fxCanvas"
         style={{ position: "fixed", inset: 0, zIndex: 0, pointerEvents: "none" }}
@@ -488,9 +512,9 @@ export default function ConnectPage() {
 
       {/* Center */}
       <main className="heroWrap">
+        {/* Diwali text removed — replaced with romantic greeting */}
         <p className="miniGreeting">
-          🌟 Wishing you a sparkling Diwali full of love, light, and unforgettable
-          connections – from all of us at Milan 💞
+          Find gentle connections. Let hearts float up and find each other — welcome to Milan.
         </p>
 
         <section
@@ -602,6 +626,7 @@ export default function ConnectPage() {
         html, body { margin: 0; padding: 0; min-height: 100vh; background: #08060c; color: #f7f7fb; font-family: Poppins, system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, sans-serif; }
         body { overflow-x: hidden; overflow-y: auto; }
         
+        /* hearts canvas sits below UI */
         #heartsCanvas { position: fixed; inset: 0; z-index: 0; pointer-events: none; }
         #fxCanvas { position: fixed; inset: 0; z-index: 0; pointer-events: none; }
 
@@ -710,6 +735,7 @@ export default function ConnectPage() {
           backdrop-filter: blur(4px);
         }
 
+        /* Frame: replaced Diwali gold with soft romantic pink glow */
         .frame {
           position: fixed;
           top: 10px;
@@ -725,21 +751,21 @@ export default function ConnectPage() {
           position: absolute;
           inset: 0;
           padding: 2px;
-          background: linear-gradient(135deg, rgba(255,209,102,.9), rgba(255,209,102,.45) 40%, rgba(255,110,167,.55), rgba(255,209,102,.9));
+          background: linear-gradient(135deg, rgba(255,110,167,0.18), rgba(255,110,167,0.08) 40%, rgba(255,182,193,0.08));
           -webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
           -webkit-mask-composite: xor;
           mask-composite: exclude;
           border-radius: 18px;
-          box-shadow: 0 0 24px rgba(255,209,102,.32), 0 0 46px rgba(255,110,167,.2);
+          box-shadow: 0 0 28px rgba(255,110,167,0.12), 0 0 46px rgba(255,110,167,0.06);
         }
         
         .frame::after {
           content: '';
           position: absolute;
           inset: 8px;
-          border: 2px solid rgba(255,209,102,.6);
+          border: 1px solid rgba(255,110,167,0.08);
           border-radius: 14px;
-          box-shadow: 0 0 20px rgba(255,209,102,.28) inset;
+          box-shadow: 0 0 20px rgba(255,110,167,0.06) inset;
         }
 
         .sidebar {
@@ -840,11 +866,11 @@ export default function ConnectPage() {
           font-family: 'Great Vibes', cursive;
           font-size: clamp(60px, 12vw, 116px);
           line-height: 1.02;
-          background: linear-gradient(180deg, #fff5cc, #ffd166 48%, #f3b03f);
+          background: linear-gradient(180deg, #ffd6ea 0%, #ff9fb0 48%, #ff6ea7);
           -webkit-background-clip: text;
           background-clip: text;
           color: transparent;
-          text-shadow: 0 0 22px rgba(255, 209, 102, 0.35), 0 0 40px rgba(255, 110, 167, 0.15);
+          text-shadow: 0 0 28px rgba(255, 110, 167, 0.28), 0 0 40px rgba(255, 110, 167, 0.12);
           white-space: nowrap;
         }
 
@@ -853,7 +879,7 @@ export default function ConnectPage() {
           font-size: clamp(14px, 3vw, 20px);
           font-weight: 700;
           letter-spacing: 0.02em;
-          background: linear-gradient(90deg, #ffd166, #ffb6c1);
+          background: linear-gradient(90deg, #ffd6ea, #ffb6c1);
           -webkit-background-clip: text;
           background-clip: text;
           color: transparent;
@@ -869,8 +895,8 @@ export default function ConnectPage() {
           margin: 8px auto 0;
           width: clamp(100px, 30vw, 160px);
           border-radius: 999px;
-          background: linear-gradient(90deg, rgba(255, 182, 193, 0), #ffd166, rgba(255, 182, 193, 0));
-          box-shadow: 0 0 12px rgba(255, 209, 102, 0.45);
+          background: linear-gradient(90deg, rgba(255, 182, 193, 0), #ffd6ea, rgba(255, 182, 193, 0));
+          box-shadow: 0 0 12px rgba(255, 110, 167, 0.15);
         }
 
         .heroWrap {
@@ -893,8 +919,8 @@ export default function ConnectPage() {
           font-weight: 700;
           font-size: clamp(14px, 2.5vw, 16px);
           line-height: 1.6;
-          color: #ffe9ac;
-          text-shadow: 0 0 14px rgba(255, 209, 102, 0.22);
+          color: #ffd6ea;
+          text-shadow: 0 0 14px rgba(255, 110, 167, 0.12);
           margin: 0;
           padding: 0 10px;
         }
@@ -974,7 +1000,7 @@ export default function ConnectPage() {
         }
 
         .cta:focus-visible {
-          outline: 3px solid rgba(255, 209, 102, 0.6);
+          outline: 3px solid rgba(255, 110, 167, 0.48);
           outline-offset: 2px;
         }
 
