@@ -410,14 +410,13 @@ export default function HomePage() {
                   />
                   <div className="terms-container">
                     <input type="checkbox" id="terms" />
-                    <label htmlFor="terms" style={{ marginLeft: 8 }}>
+                    <label htmlFor="terms" className="terms-label">
                       I agree to the{" "}
                       <a href="/terms.html" target="_blank" rel="noreferrer">
                         Terms & Conditions
                       </a>
-                      ,
+                      ,{" "}
                       <a href="/privacy.html" target="_blank" rel="noreferrer">
-                        {" "}
                         Privacy Policy
                       </a>{" "}
                       and{" "}
@@ -592,27 +591,30 @@ export default function HomePage() {
         .page-wrap{ 
           position:relative; 
           z-index:5; 
-          min-height:100svh; 
+          min-height:100vh;
+          max-height:100vh;
           display:flex; 
           flex-direction:column; 
-          justify-content:space-between; 
-          padding-bottom:24px; 
+          justify-content:space-between;
+          overflow-y: auto;
+          overflow-x: hidden;
         }
         
         .container{ 
           width:100%; 
-          max-width:1200px; 
-          margin:28px auto 6px; 
+          max-width:1400px; 
+          margin:0 auto;
           display:flex; 
-          gap:34px; 
-          padding:18px; 
-          align-items:flex-start; 
-          justify-content:space-between; 
-          flex-wrap:wrap; 
+          gap:40px; 
+          padding:20px; 
+          align-items:center; 
+          justify-content:center; 
+          flex-wrap:wrap;
+          min-height: calc(100vh - 120px);
         }
         
         .left{ 
-          flex:1 1 560px; 
+          flex:1 1 580px; 
           min-width:320px; 
           display:flex; 
           align-items:center; 
@@ -620,19 +622,19 @@ export default function HomePage() {
         }
         
         .right{ 
-          flex:0 0 420px; 
-          min-width:300px; 
+          flex:0 0 460px; 
+          min-width:320px; 
           display:flex; 
-          align-items:flex-start; 
+          align-items:center; 
           justify-content:center; 
         }
 
         .welcome-box{ 
           background: linear-gradient(145deg, rgba(255,79,160,0.08), rgba(139,92,246,0.05)); 
-          border-radius:20px; 
-          padding:32px 38px; 
+          border-radius:24px; 
+          padding:36px 42px; 
           box-shadow: 0 20px 60px rgba(255,79,160,0.15); 
-          max-width:780px; 
+          max-width:720px; 
           text-align:center; 
           border: 2px solid rgba(255,107,129,0.15); 
           backdrop-filter: blur(10px);
@@ -641,45 +643,46 @@ export default function HomePage() {
         .welcome-row{ 
           display:flex; 
           align-items:center; 
-          gap:16px; 
+          gap:20px; 
           justify-content:center; 
-          margin-bottom: 8px;
+          margin-bottom: 10px;
         }
         
         .welcome-title{ 
-          font-size:64px; 
+          font-size:84px; 
           margin:0; 
           font-weight:900; 
           background: linear-gradient(135deg, #ff4fa0, #ff1493, #ff6b9d); 
           -webkit-background-clip:text; 
           -webkit-text-fill-color:transparent; 
           text-shadow:0 10px 28px rgba(255,79,160,0.4); 
-          letter-spacing: -2px;
+          letter-spacing: -3px;
+          font-family: 'Poppins', sans-serif;
         }
         
         .pulse-heart{ 
           display:inline-block; 
-          font-size:42px; 
+          font-size:56px; 
           animation: heartBeat 1200ms ease-in-out infinite; 
           transform-origin:center; 
           filter: drop-shadow(0 8px 20px rgba(255,70,94,0.4));
         }
         
         .tagline {
-          font-size: 28px;
-          margin: 12px 0 18px;
+          font-size: 24px;
+          margin: 14px 0 20px;
           color: #ffeef8;
           font-weight: 700;
           display: flex;
           align-items: center;
           justify-content: center;
-          gap: 12px;
+          gap: 10px;
           text-shadow: 0 2px 12px rgba(255,107,157,0.3);
         }
         
         .beating-heart {
           display: inline-block;
-          font-size: 32px;
+          font-size: 28px;
           animation: heartBeat 800ms ease-in-out infinite;
           filter: drop-shadow(0 4px 16px rgba(255,107,157,0.5));
         }
@@ -694,7 +697,7 @@ export default function HomePage() {
         }
         
         .welcome-text{ 
-          font-size:18px; 
+          font-size:17px; 
           color: var(--muted); 
           margin-top:14px; 
           font-weight:600; 
@@ -721,7 +724,7 @@ export default function HomePage() {
           background: rgba(255,255,255,0.04); 
           border-radius:16px; 
           padding:18px; 
-          width:220px; 
+          width:200px; 
           box-shadow: 0 12px 32px rgba(255,79,160,0.08); 
           border:1px solid rgba(255,107,129,0.12); 
           transition: all 0.3s ease;
@@ -741,7 +744,7 @@ export default function HomePage() {
         
         .why-card h4{ 
           margin:0 0 8px 0; 
-          font-size:17px; 
+          font-size:16px; 
           color:#fff; 
           font-weight: 800;
         }
@@ -749,12 +752,13 @@ export default function HomePage() {
         .why-card p{ 
           margin:0; 
           color: var(--muted); 
-          font-size:14px; 
+          font-size:13px; 
           line-height:1.5; 
         }
 
         .form-container{ 
           width:100%; 
+          max-width:460px;
           background: linear-gradient(145deg, rgba(255,255,255,0.06), rgba(255,255,255,0.03)); 
           padding:28px; 
           border-radius:20px; 
@@ -773,8 +777,8 @@ export default function HomePage() {
         
         label{ 
           display:block; 
-          margin-top:14px; 
-          font-size:15px; 
+          margin-top:12px; 
+          font-size:14px; 
           font-weight:700; 
           color:#f3f7fb; 
         }
@@ -785,15 +789,16 @@ export default function HomePage() {
         
         input,select,textarea{ 
           width:100%; 
-          padding:13px 16px; 
-          margin-top:8px; 
-          border-radius:12px; 
+          padding:12px 14px; 
+          margin-top:6px; 
+          border-radius:10px; 
           border:1px solid rgba(255,107,129,0.2); 
-          font-size:15px; 
+          font-size:14px; 
           background: rgba(0,0,0,0.4); 
           color:#fff; 
           outline:2px solid transparent; 
-          transition: all 200ms ease; 
+          transition: all 200ms ease;
+          box-sizing: border-box;
         }
         
         input:focus,select:focus,textarea:focus{ 
@@ -803,7 +808,7 @@ export default function HomePage() {
         }
         
         textarea{ 
-          min-height:90px; 
+          min-height:80px; 
           resize:vertical; 
         }
         
@@ -825,7 +830,7 @@ export default function HomePage() {
           color:#fff; 
           box-shadow: 0 12px 40px rgba(255,79,160,0.3); 
           transition: all 0.3s ease;
-          margin-top: 18px;
+          margin-top: 16px;
         }
         
         .primary-btn:hover {
@@ -876,14 +881,28 @@ export default function HomePage() {
           display:flex; 
           align-items:flex-start; 
           gap:10px; 
-          margin-top:16px; 
-          font-size:13px; 
-          color:#c7d7ea; 
+          margin-top:14px; 
+          padding: 12px;
+          background: rgba(255,107,129,0.05);
+          border-radius: 10px;
+          border: 1px solid rgba(255,107,129,0.15);
         }
         
         .terms-container input[type="checkbox"] {
-          margin-top: 4px;
+          margin-top: 3px;
+          width: 18px;
+          height: 18px;
           flex-shrink: 0;
+          cursor: pointer;
+          accent-color: #ff4fa0;
+        }
+        
+        .terms-label {
+          font-size: 13px;
+          color: #e9f0ff;
+          line-height: 1.6;
+          margin: 0;
+          cursor: pointer;
         }
         
         .terms-container a{ 
@@ -894,6 +913,7 @@ export default function HomePage() {
         
         .terms-container a:hover {
           text-decoration: underline;
+          color: #ff6b9d;
         }
         
         .link-text{ 
@@ -1000,10 +1020,11 @@ export default function HomePage() {
 
         .footer-section{ 
           text-align:center; 
-          margin:32px auto 30px; 
-          padding: 0 18px; 
+          padding: 20px 18px; 
           z-index:5; 
-          color:#dcdfea; 
+          color:#dcdfea;
+          background: rgba(0,0,0,0.2);
+          border-top: 1px solid rgba(255,107,129,0.1);
         }
         
         .footer-links{ 
@@ -1011,14 +1032,14 @@ export default function HomePage() {
           gap:20px; 
           justify-content:center; 
           flex-wrap:wrap; 
-          margin-bottom:12px; 
+          margin-bottom:10px; 
         }
         
         .footer-links a{ 
           color:#ff9fb0; 
           text-decoration:none; 
           font-weight:600; 
-          font-size: 14px;
+          font-size: 13px;
         }
         
         .footer-links a:hover {
@@ -1027,7 +1048,7 @@ export default function HomePage() {
         }
         
         .support-text{ 
-          font-size:14px; 
+          font-size:13px; 
           color:#cdd6e6; 
           margin:8px 0; 
         }
@@ -1043,38 +1064,63 @@ export default function HomePage() {
         }
         
         .copyright {
-          font-size: 13px;
+          font-size: 12px;
           color: #9ca9bb;
-          margin-top: 8px;
+          margin-top: 6px;
         }
 
-        @media (max-width:768px){
+        @media (max-width:1024px){
           .container{ 
-            flex-direction:column; 
-            align-items:center; 
-            padding:12px; 
-            gap:24px; 
-            margin-top:16px; 
+            gap:30px; 
+            padding:16px; 
           }
           
           .welcome-title{ 
-            font-size:48px; 
-          }
-          
-          .tagline {
-            font-size: 22px;
-          }
-          
-          .beating-heart {
-            font-size: 26px;
+            font-size:72px; 
           }
           
           .pulse-heart {
-            font-size: 36px;
+            font-size: 48px;
+          }
+        }
+
+        @media (max-width:768px){
+          .page-wrap {
+            min-height: auto;
+            max-height: none;
+          }
+
+          .container{ 
+            flex-direction:column; 
+            align-items:center; 
+            padding:16px 12px; 
+            gap:24px; 
+            min-height: auto;
+          }
+          
+          .welcome-title{ 
+            font-size:56px;
+            letter-spacing: -2px; 
+          }
+          
+          .pulse-heart {
+            font-size: 42px;
+          }
+          
+          .tagline {
+            font-size: 20px;
+          }
+          
+          .beating-heart {
+            font-size: 24px;
           }
           
           .welcome-text {
-            font-size: 16px;
+            font-size: 15px;
+          }
+          
+          .age-note {
+            font-size: 14px;
           }
           
           .why-card{ 
@@ -1082,21 +1128,23 @@ export default function HomePage() {
             max-width: 320px;
           }
           
+          .left {
+            flex: 1 1 auto;
+          }
+          
           .right{ 
-            width:100%; 
-            margin-top:6px; 
-            display:flex; 
-            justify-content:center; 
+            width:100%;
+            flex: 0 0 auto;
           }
           
           .form-container{ 
             width:100%; 
-            max-width: 420px;
-            padding:22px; 
+            max-width: 100%;
+            padding:24px 20px; 
           }
           
           .welcome-box {
-            padding: 24px 20px;
+            padding: 28px 24px;
           }
           
           .modal {
@@ -1109,6 +1157,54 @@ export default function HomePage() {
           
           .modal-actions button {
             width: 100%;
+          }
+
+          label {
+            font-size: 13px;
+            margin-top: 10px;
+          }
+
+          input, select, textarea {
+            font-size: 14px;
+            padding: 11px 13px;
+          }
+
+          .terms-container {
+            padding: 10px;
+          }
+
+          .terms-label {
+            font-size: 12px;
+          }
+
+          .footer-section {
+            padding: 16px 12px;
+          }
+        }
+
+        @media (max-width:480px){
+          .welcome-title{ 
+            font-size:44px; 
+          }
+          
+          .pulse-heart {
+            font-size: 36px;
+          }
+          
+          .tagline {
+            font-size: 18px;
+          }
+          
+          .beating-heart {
+            font-size: 22px;
+          }
+
+          .form-container {
+            padding: 20px 16px;
+          }
+
+          h2 {
+            font-size: 20px;
           }
         }
       `}</style>
