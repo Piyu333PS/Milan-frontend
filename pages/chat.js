@@ -1,5 +1,5 @@
 // pages/chat.js
-// FIXED: Friend Request System with proper user tracking + Enhanced UI
+// ✅ FIXED: Token parsing + Friend Request System
 
 import { useEffect, useRef, useState } from "react";
 import Head from "next/head";
@@ -146,19 +146,40 @@ export default function ChatPage() {
       localName = localStorage.getItem("milan_name") || "";
       const token = localStorage.getItem("token");
       
+      console.log("🔑 Token check:", token ? "Found" : "Not found");
+      
       if (token) {
         try {
-          const payload = JSON.parse(atob(token.split('.')[1]));
-          localUserId = payload.id || "";
-          setCurrentUserId(localUserId);
-          console.log("✅ Current user ID:", localUserId);
+          // ✅ FIXED: Better token parsing with multiple fallbacks
+          const parts = token.split('.');
+          if (parts.length === 3) {
+            const payload = JSON.parse(atob(parts[1]));
+            console.log("📦 Token payload:", payload);
+            
+            // Try multiple possible ID fields
+            localUserId = payload.id || payload.userId || payload._id || payload.sub || "";
+            
+            if (localUserId) {
+              setCurrentUserId(localUserId);
+              console.log("✅ Successfully extracted userId:", localUserId);
+            } else {
+              console.error("❌ No ID field found in token payload:", Object.keys(payload));
+            }
+          } else {
+            console.error("❌ Invalid token format - expected 3 parts, got:", parts.length);
+          }
         } catch (e) {
-          console.warn("Token parse failed:", e);
+          console.error("❌ Token parse error:", e);
         }
+      } else {
+        console.warn("⚠️ No token in localStorage");
       }
       
       setCurrentUsername(localName || "You");
-    } catch {}
+      console.log("📋 Final user info:", { userId: localUserId, name: localName });
+    } catch (err) {
+      console.error("❌ Setup error:", err);
+    }
 
     setPartnerAvatarSrc(getAvatarForGender("unknown"));
 
@@ -173,32 +194,35 @@ export default function ChatPage() {
     socketRef.current = socket;
 
     socket.on("connect", () => {
-      console.log("Socket connected:", socket.id);
+      console.log("🔌 Socket connected:", socket.id);
       setIsConnected(true);
       
-      socket.emit("userInfo", {
+      // ✅ Send user info with proper logging
+      const userInfo = {
         userId: localUserId,
         name: localName || "You",
         avatar: null,
         gender: "unknown",
-      });
-
+      };
+      
+      console.log("📤 Sending userInfo:", userInfo);
+      socket.emit("userInfo", userInfo);
       socket.emit("lookingForPartner", { type: "text" });
     });
 
     socket.on("connect_error", (err) => {
-      console.error("Socket connect error:", err?.message || err);
+      console.error("❌ Socket connect error:", err?.message || err);
     });
 
     socket.on("disconnect", (reason) => {
-      console.log("Socket disconnected:", reason);
+      console.log("🔌 Socket disconnected:", reason);
       setIsConnected(false);
     });
 
     socket.on("partnerFound", ({ roomCode: rc, partner }) => {
       if (!rc) return;
       
-      console.log("✅ Partner found:", partner);
+      console.log("👥 Partner found - FULL DATA:", partner);
       partnerFoundRef.current = true;
       
       setRoomCode(rc);
@@ -212,7 +236,19 @@ export default function ChatPage() {
       setPartnerName(pName);
       setPartnerAvatarSrc(pAvatar);
 
-      console.log("✅ Partner Info - Name:", pName, "UserId:", pUserId);
+      console.log("✅ Partner Info SET:", { 
+        name: pName, 
+        userId: pUserId,
+        socketId: partner?.id 
+      });
+
+      // Debug: Check if friend request button should show
+      console.log("🔍 Friend Request Button Check:", {
+        roomCode: rc,
+        partnerUserId: pUserId,
+        myUserId: localUserId,
+        shouldShow: !!(rc && pUserId && localUserId)
+      });
 
       try {
         socket.emit("joinRoom", { roomCode: rc });
@@ -467,8 +503,21 @@ export default function ChatPage() {
   };
 
   const handleAddToFavourites = () => {
+    console.log("🔍 Add Friend clicked - Current state:", {
+      socketConnected: socketRef.current?.connected,
+      currentUserId,
+      partnerUserId,
+      roomCode,
+      requestSending
+    });
+
     if (!socketRef.current || !currentUserId || !partnerUserId || !roomCode) {
-      console.warn("❌ Missing data for friend request");
+      console.warn("❌ Missing data for friend request:", {
+        socket: !!socketRef.current,
+        currentUserId,
+        partnerUserId,
+        roomCode
+      });
       alert("Unable to send friend request. Please make sure you're connected.");
       return;
     }
@@ -756,7 +805,7 @@ export default function ChatPage() {
 
           <div className="header-right">
             {/* ✅ Quick Add Friend Button in Header */}
-            {roomCode && partnerUserId && (
+            {roomCode && partnerUserId && currentUserId && (
               <button
                 className="quick-add-friend-btn"
                 onClick={handleAddToFavourites}
@@ -779,7 +828,7 @@ export default function ChatPage() {
             </button>
             <div className={`menu ${menuOpen ? "open" : ""}`}>
               {/* ✅ Send Friend Request in Menu */}
-              {roomCode && partnerUserId && (
+              {roomCode && partnerUserId && currentUserId && (
                 <>
                   <button
                     className="menu-item"
@@ -829,8 +878,7 @@ export default function ChatPage() {
           {msgs.map((m) => (
             <div
               key={m.id}
-              className={`row ${m.self ? "me" : m.kind ===
-"system" ? "system-row" : "you"}`}
+              className={`row ${m.self ? "me" : m.kind === "system" ? "system-row" : "you"}`}
               ref={(el) => (messageRefs.current[m.id] = el)}
             >
               <div className="msg-wrap">
@@ -1956,5 +2004,3 @@ export default function ChatPage() {
     </>
   );
 }
-
-
