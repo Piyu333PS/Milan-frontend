@@ -1,5 +1,5 @@
 // pages/chat.js
-// FIXED: Friend Request System with proper user tracking
+// FIXED: Friend Request System with proper user tracking + Enhanced UI
 
 import { useEffect, useRef, useState } from "react";
 import Head from "next/head";
@@ -76,7 +76,7 @@ export default function ChatPage() {
   const [msgs, setMsgs] = useState([]);
   const [roomCode, setRoomCode] = useState(null);
   const [partnerId, setPartnerId] = useState(null);
-  const [partnerUserId, setPartnerUserId] = useState(null); // ✅ NEW: Track partner's actual user ID
+  const [partnerUserId, setPartnerUserId] = useState(null);
 
   const [emojiOpen, setEmojiOpen] = useState(false);
   const EMOJIS = ["😊", "❤️", "😂", "👍", "🔥", "😍", "🤗", "😘", "😎", "🥰"];
@@ -94,7 +94,7 @@ export default function ChatPage() {
   const [floatingHearts, setFloatingHearts] = useState([]);
   const [currentUserId, setCurrentUserId] = useState(null);
   const [currentUsername, setCurrentUsername] = useState("");
-  const [requestSending, setRequestSending] = useState(false); // ✅ Prevent duplicate sends
+  const [requestSending, setRequestSending] = useState(false);
 
   const socketRef = useRef(null);
   const msgRef = useRef(null);
@@ -176,7 +176,6 @@ export default function ChatPage() {
       console.log("Socket connected:", socket.id);
       setIsConnected(true);
       
-      // ✅ Send user info with userId
       socket.emit("userInfo", {
         userId: localUserId,
         name: localName || "You",
@@ -196,7 +195,6 @@ export default function ChatPage() {
       setIsConnected(false);
     });
 
-    // ✅ FIXED: Partner found with proper user tracking
     socket.on("partnerFound", ({ roomCode: rc, partner }) => {
       if (!rc) return;
       
@@ -206,7 +204,6 @@ export default function ChatPage() {
       setRoomCode(rc);
       setPartnerId(partner?.id || null);
       
-      // ✅ Extract partner's actual userId and name
       const pUserId = partner?.userId || null;
       const pName = partner?.name || "Romantic Stranger";
       const pAvatar = partner?.avatar || getAvatarForGender(partner?.gender);
@@ -299,7 +296,6 @@ export default function ChatPage() {
       }
     });
 
-    // ✅ Friend Request Received
     socket.on("friend-request-received", (data) => {
       console.log("✅ Friend request received:", data);
       playSound('request');
@@ -307,7 +303,6 @@ export default function ChatPage() {
       setShowFriendRequestPopup(true);
     });
 
-    // ✅ Friend Request Accepted
     socket.on("friend-request-accepted", (data) => {
       console.log("✅ Friend request accepted:", data);
       playSound('accept');
@@ -321,7 +316,6 @@ export default function ChatPage() {
       }, 2000);
     });
 
-    // ✅ Friend Request Rejected
     socket.on("friend-request-rejected", (data) => {
       console.log("❌ Friend request rejected:", data);
       playSound('reject');
@@ -472,7 +466,6 @@ export default function ChatPage() {
     window.location.href = "https://milanlove.in/connect";
   };
 
-  // ✅ FIXED: Add to Favourites Handler
   const handleAddToFavourites = () => {
     if (!socketRef.current || !currentUserId || !partnerUserId || !roomCode) {
       console.warn("❌ Missing data for friend request");
@@ -511,7 +504,6 @@ export default function ChatPage() {
     }
   };
 
-  // ✅ Accept Friend Request
   const handleAcceptRequest = () => {
     if (!socketRef.current || !friendRequestData || !currentUserId) {
       console.warn("❌ Missing data for accepting request");
@@ -544,7 +536,6 @@ export default function ChatPage() {
     }
   };
 
-  // ✅ Reject Friend Request
   const handleRejectRequest = () => {
     if (!socketRef.current || !friendRequestData || !currentUserId) {
       console.warn("❌ Missing data for rejecting request");
@@ -764,25 +755,30 @@ export default function ChatPage() {
           </div>
 
           <div className="header-right">
-            {/* ✅ Add to Favourites Button - Better icon */}
+            {/* ✅ Quick Add Friend Button in Header */}
             {roomCode && partnerUserId && (
               <button
-                className="add-to-favourites-btn"
+                className="quick-add-friend-btn"
                 onClick={handleAddToFavourites}
-                title="Add Friend"
-                aria-label="Add Friend"
+                title="Send Friend Request"
+                aria-label="Send Friend Request"
                 disabled={requestSending}
               >
-                <span className="add-friend-icon">👤+</span>
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"></path>
+                  <circle cx="9" cy="7" r="4"></circle>
+                  <line x1="19" y1="8" x2="19" y2="14"></line>
+                  <line x1="22" y1="11" x2="16" y2="11"></line>
+                </svg>
               </button>
             )}
 
-            {/* ✅ Menu Button */}
+            {/* Menu Button */}
             <button className="icon-btn" title="Menu" aria-label="Menu" onClick={() => setMenuOpen((s) => !s)}>
               ⋮
             </button>
             <div className={`menu ${menuOpen ? "open" : ""}`}>
-              {/* ✅ NEW: Add Friend option in menu */}
+              {/* ✅ Send Friend Request in Menu */}
               {roomCode && partnerUserId && (
                 <>
                   <button
@@ -793,7 +789,13 @@ export default function ChatPage() {
                     }}
                     disabled={requestSending}
                   >
-                    👤 Add Friend
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                      <path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"></path>
+                      <circle cx="9" cy="7" r="4"></circle>
+                      <line x1="19" y1="8" x2="19" y2="14"></line>
+                      <line x1="22" y1="11" x2="16" y2="11"></line>
+                    </svg>
+                    Send Friend Request
                   </button>
                   <div className="sep" />
                 </>
@@ -827,7 +829,8 @@ export default function ChatPage() {
           {msgs.map((m) => (
             <div
               key={m.id}
-              className={`row ${m.self ? "me" : m.kind === "system" ? "system-row" : "you"}`}
+              className={`row ${m.self ? "me" : m.kind ===
+"system" ? "system-row" : "you"}`}
               ref={(el) => (messageRefs.current[m.id] = el)}
             >
               <div className="msg-wrap">
@@ -1339,40 +1342,39 @@ export default function ChatPage() {
           transform: translateY(-2px);
         }
 
-        .add-to-favourites-btn {
-          background: linear-gradient(135deg, rgba(76,217,100,0.2), rgba(52,199,89,0.15));
-          border: 2px solid rgba(76,217,100,0.4);
+        .quick-add-friend-btn {
+          background: linear-gradient(135deg, rgba(76,217,100,0.25), rgba(52,199,89,0.2));
+          border: 2px solid rgba(76,217,100,0.5);
           border-radius: 12px;
-          padding: 8px 14px;
+          padding: 10px 12px;
           cursor: pointer;
           transition: all 0.3s ease;
           display: flex;
           align-items: center;
-          gap: 6px;
-          color: #fff;
-          font-weight: 700;
+          justify-content: center;
+          color: #4cd964;
+          flex-shrink: 0;
         }
 
-        .add-to-favourites-btn:hover {
-          background: linear-gradient(135deg, rgba(76,217,100,0.3), rgba(52,199,89,0.25));
-          border-color: rgba(76,217,100,0.6);
-          transform: scale(1.05);
-          box-shadow: 0 8px 24px rgba(76,217,100,0.3);
+        .quick-add-friend-btn:hover {
+          background: linear-gradient(135deg, rgba(76,217,100,0.35), rgba(52,199,89,0.3));
+          border-color: rgba(76,217,100,0.7);
+          transform: scale(1.08);
+          box-shadow: 0 8px 24px rgba(76,217,100,0.4);
         }
 
-        .add-to-favourites-btn:active {
-          transform: scale(0.98);
+        .quick-add-friend-btn:active {
+          transform: scale(0.95);
         }
 
-        .add-to-favourites-btn:disabled {
+        .quick-add-friend-btn:disabled {
           opacity: 0.5;
           cursor: not-allowed;
+          transform: scale(1);
         }
 
-        .add-friend-icon {
-          font-size: 1.2rem;
-          display: flex;
-          align-items: center;
+        .quick-add-friend-btn svg {
+          filter: drop-shadow(0 2px 4px rgba(76,217,100,0.3));
         }
 
         .alert-overlay {
@@ -1605,7 +1607,7 @@ export default function ChatPage() {
           background: rgba(0,0,0,0.45);
           border-radius: 10px;
           padding: 6px;
-          min-width: 200px;
+          min-width: 220px;
           display: none;
           box-shadow: 0 8px 26px rgba(2,6,23,0.6);
           border: 1px solid rgba(255,255,255,0.04);
@@ -1633,6 +1635,9 @@ export default function ChatPage() {
         .menu-item:disabled {
           opacity: 0.5;
           cursor: not-allowed;
+        }
+        .menu-item svg {
+          flex-shrink: 0;
         }
         .sep { height: 1px; background: rgba(255,255,255,0.03); margin: 6px 0; }
 
@@ -1934,15 +1939,22 @@ export default function ChatPage() {
             font-size: 0.8rem;
           }
 
-          .add-to-favourites-btn {
-            padding: 6px 10px;
+          .quick-add-friend-btn {
+            padding: 8px 10px;
           }
 
-          .add-friend-icon {
-            font-size: 1rem;
+          .quick-add-friend-btn svg {
+            width: 18px;
+            height: 18px;
+          }
+
+          .menu {
+            min-width: 200px;
           }
         }
       `}</style>
     </>
   );
 }
+
+
