@@ -309,7 +309,7 @@ export default function HomePage() {
               {/* ==== BRAND HERO START (updated) ==== */}
               <div className="brand-logo-stack" aria-label="Milan brand">
                 <img
-                  src="/logo.png"
+                  src="/logo_clean_transparent.png"
                   alt="Milan logo"
                   className="brand-logo anim-pop"
                   decoding="async"
