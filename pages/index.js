@@ -311,16 +311,15 @@ export default function HomePage() {
                 <img
                   src="/logo.png"
                   alt="Milan logo"
-                  className="brand-logo"
+                  className="brand-logo anim-pop"
                   decoding="async"
                 />
-                <h1 className="brand-wordmark">Milan</h1>
               </div>
               {/* ==== BRAND HERO END ==== */}
 
-              <h3 className="tagline">
+              <h3 className="tagline main-tagline anim-fadeUp">
                 <span>Where Hearts Connect</span>
-                <span className="beating-heart">💕</span>
+                <span className="beating-heart" aria-hidden>💕</span>
               </h3>
 
               <p className="welcome-text">
@@ -666,22 +665,9 @@ export default function HomePage() {
           height: auto;
           display:block;
           filter: drop-shadow(0 16px 44px rgba(255,79,160,0.45));
-          border-radius: 16px; /* keeps soft glow edges */
+          border-radius: 16px;
         }
 
-        /* NEW: wordmark below logo */
-        .brand-wordmark{ 
-          font-size: clamp(44px, 8vw, 96px);
-          margin:0; 
-          font-weight:900; 
-          background: linear-gradient(135deg, #ff4fa0, #ff1493, #ff6b9d); 
-          -webkit-background-clip:text; 
-          -webkit-text-fill-color:transparent; 
-          text-shadow:0 12px 36px rgba(255,79,160,0.45); 
-          letter-spacing: -2px;
-          line-height: 1;
-        }
-        
         /* Old title/heart kept off just in case */
         .welcome-title, .pulse-heart { 
           display:none !important; 
@@ -695,6 +681,7 @@ export default function HomePage() {
           margin-bottom: 10px;
         }
         
+        /* Base tagline style */
         .tagline {
           font-size: 24px;
           margin: 14px 0 20px;
@@ -706,11 +693,21 @@ export default function HomePage() {
           gap: 10px;
           text-shadow: 0 2px 12px rgba(255,107,157,0.3);
         }
+
+        /* NEW: place tagline just under logo + premium sizing */
+        .main-tagline {
+          margin-top: 8px;
+          margin-bottom: 28px;
+          font-size: clamp(22px, 4vw, 32px);
+          font-weight: 800;
+          color: #ffffff;
+          text-shadow: 0 0 22px rgba(255,79,160,0.35);
+        }
         
         .beating-heart {
           display: inline-block;
           font-size: 28px;
-          animation: heartBeat 800ms ease-in-out infinite;
+          animation: heartBeat 900ms ease-in-out infinite;
           filter: drop-shadow(0 4px 16px rgba(255,107,157,0.5));
         }
         
@@ -928,7 +925,6 @@ export default function HomePage() {
         @media (max-width:1024px){
           .container{ gap:30px; padding:16px; }
           .brand-logo{ width: clamp(120px, 28vw, 200px); }
-          .brand-wordmark{ font-size: clamp(40px, 9vw, 76px); }
           .beating-heart { font-size: 26px; }
         }
 
@@ -956,11 +952,45 @@ export default function HomePage() {
 
         @media (max-width:480px){
           .brand-logo{ width: clamp(110px, 40vw, 160px); }
-          .brand-wordmark{ font-size: clamp(36px, 11vw, 56px); }
           .tagline { font-size: 18px; }
           .beating-heart { font-size: 22px; }
           .form-container { padding: 20px 16px; }
           h2 { font-size: 20px; }
+        }
+
+        /* ===== ANIMATIONS: logo pop-in + float, tagline fade-up, heartbeat ===== */
+        @keyframes popIn {
+          0%   { transform: scale(0.8) translateY(10px); opacity: 0; }
+          60%  { transform: scale(1.06) translateY(0);  opacity: 1; }
+          100% { transform: scale(1) translateY(0);     opacity: 1; }
+        }
+
+        @keyframes floatUp {
+          0%   { transform: translateY(0); }
+          50%  { transform: translateY(-6px); }
+          100% { transform: translateY(0); }
+        }
+
+        @keyframes fadeUp {
+          0%   { opacity: 0; transform: translateY(14px); }
+          100% { opacity: 1; transform: translateY(0); }
+        }
+
+        .anim-pop {
+          animation: popIn 820ms cubic-bezier(.2,.8,.2,1) 60ms both,
+                     floatUp 6s ease-in-out 1200ms infinite;
+          will-change: transform, opacity;
+        }
+
+        .anim-fadeUp {
+          animation: fadeUp 740ms ease 140ms both;
+          will-change: transform, opacity;
+        }
+
+        @media (prefers-reduced-motion: reduce) {
+          .anim-pop, .anim-fadeUp, .beating-heart {
+            animation: none !important;
+          }
         }
       `}</style>
     </>
