@@ -386,14 +386,7 @@ function startSearch(type) {
           href="https://fonts.googleapis.com/css2?family=Great+Vibes&family=Poppins:wght@300;400;600;700;900&display=swap"
           rel="stylesheet"
         />
-      </Head>
-
-      {/* Tutorial Toast */}
-      {showTutorial && (
-        </div>
-      )}
-
-      {/* Hamburger Menu Button (Mobile Only) */}
+      </Head>{/* Hamburger Menu Button (Mobile Only) */}
       {/* Frame */}
       <div className="frame" aria-hidden />
 
