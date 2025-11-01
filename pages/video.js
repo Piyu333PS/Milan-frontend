@@ -956,33 +956,91 @@ export default function VideoPage() {
           })(hearts[hi]);
         }
 
-        // Activities button
+        // Activities button - FIXED
         var activitiesBtn = get("activitiesBtn");
         if (activitiesBtn) {
-          activitiesBtn.onclick = function () {
-            var m = get("activitiesModal");
-            if (m) m.style.display = "flex";
+          activitiesBtn.onclick = function (e) {
+            e.preventDefault();
+            e.stopPropagation();
+            log("Activities button clicked");
+            var overlay = get("activitiesModal");
+            if (overlay) {
+              overlay.style.display = "block";
+              setTimeout(() => {
+                var sheet = overlay.querySelector(".activities-sheet");
+                if (sheet) {
+                  sheet.classList.add("show");
+                  log("Sheet shown");
+                }
+              }, 10);
+            }
           };
         }
 
         // Activities modal close
         var actClose = get("activitiesClose");
-        if (actClose) actClose.onclick = function () { var m = get("activitiesModal"); if (m) m.style.display = "none"; };
+        if (actClose) {
+          actClose.onclick = function (e) {
+            e.preventDefault();
+            e.stopPropagation();
+            var overlay = get("activitiesModal");
+            if (overlay) {
+              var sheet = overlay.querySelector(".activities-sheet");
+              if (sheet) sheet.classList.remove("show");
+              setTimeout(() => { overlay.style.display = "none"; }, 300);
+            }
+          };
+        }
 
-        // EXISTING ACTIVITIES
+        // Close on backdrop click
+        setTimeout(() => {
+          var actBackdrop = document.querySelector(".activities-backdrop");
+          if (actBackdrop) {
+            actBackdrop.onclick = function(e) {
+              if (e.target === actBackdrop) {
+                var overlay = get("activitiesModal");
+                if (overlay) {
+                  var sheet = overlay.querySelector(".activities-sheet");
+                  if (sheet) sheet.classList.remove("show");
+                  setTimeout(() => { overlay.style.display = "none"; }, 300);
+                }
+              }
+            };
+          }
+        }, 1000);
+
+        // Helper to close activities modal
+        function closeActivitiesModal() {
+          var overlay = get("activitiesModal");
+          if (overlay) {
+            var sheet = overlay.querySelector(".activities-sheet");
+            if (sheet) sheet.classList.remove("show");
+            setTimeout(() => { overlay.style.display = "none"; }, 300);
+          }
+        }
+
+        // EXISTING ACTIVITIES - Fixed event handlers
         var startTwo = get("startTwoOption");
-        if (startTwo) startTwo.onclick = function () {
-          safeEmit("twoOptionStart", { questionsPack: "default", count: 10 });
-          var m = get("activitiesModal"); if (m) m.style.display = "none";
-          showToast("Starting Two-Option Quiz...");
-        };
+        if (startTwo) {
+          startTwo.onclick = function (e) {
+            e.preventDefault();
+            e.stopPropagation();
+            safeEmit("twoOptionStart", { questionsPack: "default", count: 10 });
+            closeActivitiesModal();
+            showToast("Starting Two-Option Quiz...");
+          };
+        }
 
         var startSpin = get("startSpin");
-        if (startSpin) startSpin.onclick = function () {
-          safeEmit("spinBottleStart", {});
-          var m = get("activitiesModal"); if (m) m.style.display = "none";
-          showToast("Spinning the bottle...");
-        };
+        if (startSpin) {
+          startSpin.onclick = function (e) {
+            e.preventDefault();
+            e.stopPropagation();
+            safeEmit("spinBottleStart", {});
+            closeActivitiesModal();
+            showToast("Spinning the bottle...");
+          };
+        }
 
         var optA = get("optA");
         var optB = get("optB");
@@ -997,12 +1055,16 @@ export default function VideoPage() {
         if (spinDone) spinDone.onclick = function () { var sm = get("spinModal"); if (sm) sm.style.display = "none"; safeEmit("spinBottleDone", {}); };
         if (spinSkip) spinSkip.onclick = function () { var sm = get("spinModal"); if (sm) sm.style.display = "none"; safeEmit("spinBottleSkip", {}); };
 
-        // NEW ACTIVITIES BUTTONS
+        // NEW ACTIVITIES BUTTONS - Fixed
         var startRapid = get("startRapidFire");
-        if (startRapid) startRapid.onclick = function () {
-          safeEmit("rapidFireStart", {});
-          var m = get("activitiesModal"); if (m) m.style.display = "none";
-        };
+        if (startRapid) {
+          startRapid.onclick = function (e) {
+            e.preventDefault();
+            e.stopPropagation();
+            safeEmit("rapidFireStart", {});
+            closeActivitiesModal();
+          };
+        }
 
         var endRapid = get("endRapidFire");
         if (endRapid) endRapid.onclick = function () {
@@ -1011,10 +1073,14 @@ export default function VideoPage() {
         };
 
         var startMirror = get("startMirror");
-        if (startMirror) startMirror.onclick = function () {
-          safeEmit("mirrorStart", {});
-          var m = get("activitiesModal"); if (m) m.style.display = "none";
-        };
+        if (startMirror) {
+          startMirror.onclick = function (e) {
+            e.preventDefault();
+            e.stopPropagation();
+            safeEmit("mirrorStart", {});
+            closeActivitiesModal();
+          };
+        }
 
         var endMirror = get("endMirror");
         if (endMirror) endMirror.onclick = function () {
@@ -1023,10 +1089,14 @@ export default function VideoPage() {
         };
 
         var startStaring = get("startStaring");
-        if (startStaring) startStaring.onclick = function () {
-          safeEmit("staringStart", {});
-          var m = get("activitiesModal"); if (m) m.style.display = "none";
-        };
+        if (startStaring) {
+          startStaring.onclick = function (e) {
+            e.preventDefault();
+            e.stopPropagation();
+            safeEmit("staringStart", {});
+            closeActivitiesModal();
+          };
+        }
 
         var iBlinked = get("iBlinked");
         if (iBlinked) iBlinked.onclick = function () {
@@ -1040,10 +1110,14 @@ export default function VideoPage() {
         };
 
         var startLyrics = get("startLyrics");
-        if (startLyrics) startLyrics.onclick = function () {
-          safeEmit("lyricsStart", {});
-          var m = get("activitiesModal"); if (m) m.style.display = "none";
-        };
+        if (startLyrics) {
+          startLyrics.onclick = function (e) {
+            e.preventDefault();
+            e.stopPropagation();
+            safeEmit("lyricsStart", {});
+            closeActivitiesModal();
+          };
+        }
 
         var showLyricsAnswer = get("showLyricsAnswer");
         if (showLyricsAnswer) showLyricsAnswer.onclick = function () {
@@ -1062,10 +1136,14 @@ export default function VideoPage() {
         };
 
         var startDance = get("startDance");
-        if (startDance) startDance.onclick = function () {
-          safeEmit("danceStart", {});
-          var m = get("activitiesModal"); if (m) m.style.display = "none";
-        };
+        if (startDance) {
+          startDance.onclick = function (e) {
+            e.preventDefault();
+            e.stopPropagation();
+            safeEmit("danceStart", {});
+            closeActivitiesModal();
+          };
+        }
 
         var skipDance = get("skipDance");
         if (skipDance) skipDance.onclick = function () {
@@ -1418,11 +1496,32 @@ export default function VideoPage() {
         .watermark-badge{ animation: badge-breath 4.5s ease-in-out infinite; }
 
         .overlay-modal{position:fixed;inset:0;display:flex;align-items:center;justify-content:center;background:rgba(0,0,0,.75);z-index:4500;backdrop-filter:blur(4px)}
-        .modal-card{background:linear-gradient(180deg, rgba(20,20,25,0.98), rgba(15,15,20,0.98));padding:24px;border-radius:16px;min-width:320px;max-width:90vw;color:#fff;border:1px solid rgba(255,255,255,.08);box-shadow:0 20px 60px rgba(0,0,0,.8);position:relative}
+        .modal-card{background:linear-gradient(180deg, rgba(20,20,25,0.98), rgba(15,15,20,0.98));padding:24px;border-radius:16px;min-width:320px;max-width:90vw;color:#fff;border:1px solid rgba(255,255,255,.08);box-shadow:0 20px 60px rgba(0,0,0,.8);position:relative;max-height:80vh;overflow-y:auto}
         .modal-card.small{min-width: min(520px, 92vw)}
         .modal-card.wide{min-width: min(800px, 92vw);max-width:95vw}
         .modal-close{position:absolute;right:12px;top:12px;background:rgba(255,255,255,0.05);border:none;color:#fff;font-size:24px;cursor:pointer;width:32px;height:32px;border-radius:8px;display:flex;align-items:center;justify-content:center;transition:background .2s}
         .modal-close:hover{background:rgba(255,255,255,0.1)}
+
+        /* NEW: Bottom Sheet Activities Modal */
+        .activities-overlay{position:fixed;inset:0;z-index:4500;display:none}
+        .activities-backdrop{position:absolute;inset:0;background:rgba(0,0,0,0.6);backdrop-filter:blur(4px)}
+        .activities-sheet{position:absolute;bottom:0;left:0;right:0;background:linear-gradient(180deg, rgba(20,20,25,0.98), rgba(15,15,20,0.98));border-radius:24px 24px 0 0;max-height:85vh;transform:translateY(100%);transition:transform 0.3s cubic-bezier(0.4, 0, 0.2, 1);border:1px solid rgba(255,255,255,0.1);border-bottom:none;box-shadow:0 -10px 60px rgba(0,0,0,0.8)}
+        .activities-sheet.show{transform:translateY(0)}
+        .sheet-handle{width:40px;height:4px;background:rgba(255,255,255,0.3);border-radius:2px;margin:12px auto 0 auto}
+        .sheet-header{display:flex;justify-content:space-between;align-items:center;padding:16px 20px;border-bottom:1px solid rgba(255,255,255,0.08);position:sticky;top:0;background:linear-gradient(180deg, rgba(20,20,25,0.98), rgba(15,15,20,0.95));z-index:10;backdrop-filter:blur(8px)}
+        .sheet-header h3{color:#fff;font-size:20px;margin:0}
+        .sheet-close{background:rgba(255,255,255,0.08);border:none;color:#fff;font-size:28px;cursor:pointer;width:36px;height:36px;border-radius:50%;display:flex;align-items:center;justify-content:center;transition:background .2s;line-height:1}
+        .sheet-close:hover{background:rgba(255,255,255,0.15)}
+        .sheet-content{padding:8px 0 calc(20px + env(safe-area-inset-bottom));max-height:calc(85vh - 70px);overflow-y:auto;overflow-x:hidden;-webkit-overflow-scrolling:touch}
+        
+        .act-item{display:flex;align-items:center;gap:14px;padding:16px 20px;cursor:pointer;transition:background .2s;border-bottom:1px solid rgba(255,255,255,0.04)}
+        .act-item:hover{background:rgba(255,255,255,0.05)}
+        .act-item:active{background:rgba(255,255,255,0.08)}
+        .act-item-icon{font-size:32px;flex-shrink:0;width:50px;height:50px;display:flex;align-items:center;justify-content:center;background:rgba(255,255,255,0.05);border-radius:12px}
+        .act-item-content{flex:1}
+        .act-item-content h4{color:#fff;font-size:16px;margin:0 0 4px 0;font-weight:600}
+        .act-item-content p{color:rgba(255,255,255,0.7);font-size:13px;margin:0;line-height:1.4}
+        .act-item-arrow{color:rgba(255,255,255,0.3);font-size:16px;flex-shrink:0}
 
         .activities-grid{display:grid;grid-template-columns:repeat(auto-fit, minmax(220px, 1fr));gap:14px;margin-top:16px}
         .act-card{padding:16px;border-radius:12px;background:rgba(255,255,255,0.03);border:1px solid rgba(255,255,255,0.05);transition:transform .2s, box-shadow .2s}
@@ -1456,14 +1555,18 @@ export default function VideoPage() {
           .call-timer{ top:8px; font-size:13px; padding:6px 12px }
           .control-btn{ width:64px; height:64px }
           .control-bar{ gap:10px; padding:8px }
-          .activities-grid{grid-template-columns:repeat(auto-fit, minmax(200px, 1fr));gap:12px}
-          .modal-card.wide{min-width:90vw}
+          .activities-sheet{max-height:90vh}
+          .sheet-content{max-height:calc(90vh - 70px)}
         }
 
         @media(max-width: 600px){
           .activities-grid{grid-template-columns:1fr;gap:10px}
           .big-text{font-size:18px}
           .big-timer{font-size:28px}
+          .act-item{padding:14px 16px}
+          .act-item-icon{font-size:28px;width:46px;height:46px}
+          .act-item-content h4{font-size:15px}
+          .act-item-content p{font-size:12px}
         }
 
         @media(max-width: 480px){
@@ -1478,6 +1581,10 @@ export default function VideoPage() {
           .call-timer{ font-size:12px; padding:6px 10px }
           .modal-card{padding:18px;min-width:90vw}
           .activities-grid{gap:8px}
+          .act-item{padding:12px 14px}
+          .act-item-icon{font-size:26px;width:44px;height:44px}
+          .sheet-header{padding:14px 16px}
+          .sheet-header h3{font-size:18px}
         }
 
         .floating-emoji{position:absolute;font-size:32px;animation:float-up 1.4s ease-out forwards;pointer-events:none}
