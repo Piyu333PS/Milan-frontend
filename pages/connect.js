@@ -26,10 +26,7 @@ export default function ConnectPage() {
   const [statusMessage, setStatusMessage] = useState(
     "❤️ जहाँ दिल मिले, वहीं होती है शुरुआत Milan की…"
   );
-  const [sidebarOpen, setSidebarOpen] = useState(false);
-  const [showTutorial, setShowTutorial] = useState(false);
-
-  const fwRef = useRef({ raf: null, burst: () => {}, cleanup: null });
+const fwRef = useRef({ raf: null, burst: () => {}, cleanup: null });
   const socketRef = useRef(null);
   const partnerRef = useRef(null);
   const connectingRef = useRef(false);
@@ -62,13 +59,7 @@ export default function ConnectPage() {
       }
     } catch {}
 
-    // Check if first time user
-    const hasSeenTutorial = localStorage.getItem("milan_tutorial_seen");
-    if (!hasSeenTutorial) {
-      setShowTutorial(true);
-      localStorage.setItem("milan_tutorial_seen", "true");
-    }
-  }, []);
+    }, []);
 
   /** ---------------------------------------------------------
    * Hearts Canvas - romantic upward-floating hearts (active)
@@ -273,32 +264,8 @@ export default function ConnectPage() {
       if (e && e.target) e.target.value = "";
     } catch {}
   };
-
-  const toggleSidebar = () => {
-    setSidebarOpen(!sidebarOpen);
-  };
-
-  // Navigation handlers for sidebar buttons
-  const handleProfileInfo = () => {
-    window.location.href = "/profile";
-  };
-
-  const handleSecurity = () => {
-    window.location.href = "/security";
-  };
-
-  const handleLoveCalculator = () => {
-    window.location.href = "/love-calculator";
-  };
-
-  const handleLogout = () => {
-    try {
-      localStorage.clear();
-    } catch {}
-    window.location.href = "/login";
-  };
-
-  function startSearch(type) {
+// Navigation handlers for sidebar buttons
+function startSearch(type) {
     if (isSearching || connectingRef.current) return;
     connectingRef.current = true;
     setIsSearching(true);
@@ -423,31 +390,10 @@ export default function ConnectPage() {
 
       {/* Tutorial Toast */}
       {showTutorial && (
-        <div className="tutorial-toast">
-          <div className="tutorial-content">
-            <span className="tutorial-icon">💡</span>
-            <p>Click the menu button to open/close sidebar</p>
-            <button 
-              className="tutorial-close"
-              onClick={() => setShowTutorial(false)}
-            >
-              Got it!
-            </button>
-          </div>
         </div>
       )}
 
       {/* Hamburger Menu Button (Mobile Only) */}
-      <button 
-        className="hamburger"
-        onClick={toggleSidebar}
-        aria-label="Toggle menu"
-      >
-        <span></span>
-        <span></span>
-        <span></span>
-      </button>
-
       {/* Frame */}
       <div className="frame" aria-hidden />
 
@@ -467,19 +413,7 @@ export default function ConnectPage() {
 
       {/* Sidebar Overlay (Mobile) */}
       {sidebarOpen && (
-        <div 
-          className="sidebar-overlay"
-          onClick={toggleSidebar}
-        />
-      )}
-
-      {/* Sidebar */}
-      <aside className={`sidebar ${sidebarOpen ? 'open' : ''}`}>
-        <div className="profileTop">
-          <div className="avatarWrap">
-            <Avatar />
-          </div>
-          <div className="name">{profile.name || "Pinky"}</div>
+        <div className="name">{profile.name || "Pinky"}</div>
           <div className="meter">
             <div className="bar" style={{ width: `${percent}%` }} />
           </div>
@@ -542,21 +476,13 @@ export default function ConnectPage() {
             </button>
           </article>
 
-          <article className="featureCard invite">
+          <article className="featureCard invite locked">
             <header>
+              <div className="soonTag">✨ Coming soon</div>
               <h3>Invite Link (Zero-DB)</h3>
               <p>Share a link. Partner clicks. You're connected.</p>
             </header>
-            <button
-              className="cta"
-              onClick={() => {
-                const rid = Math.random().toString(36).slice(2, 8);
-                const mode = "text";
-                window.location.href = `/invite/${rid}?mode=${mode}`;
-              }}
-            >
-              🔗 Create Invite Link
-            </button>
+            <button className="cta disabled" aria-disabled="true" tabIndex={-1}>🔒 Create Invite Link</button>
           </article>
 
           <article className="featureCard studio">
@@ -741,7 +667,7 @@ export default function ConnectPage() {
           top: 10px;
           bottom: 10px;
           right: 10px;
-          left: 210px;
+          left: 10px;
           z-index: 2;
           pointer-events: none;
         }
@@ -1450,7 +1376,17 @@ export default function ConnectPage() {
             max-width: calc(100vw - 260px);
           }
         }
-      `}</style>
+      
+    .soonTag{
+      display:inline-block;padding:6px 10px;border-radius:999px;
+      font-size:12px;font-weight:800;letter-spacing:.2px;color:#120b12;
+      background: linear-gradient(90deg,#ffd6ea,#ffb6c1);
+      box-shadow:0 6px 18px rgba(255,110,167,.25);
+      margin-bottom:6px;
+    }
+    .cta.disabled{cursor:not-allowed;filter:grayscale(.2) brightness(.9);opacity:.7;box-shadow:none}
+    .featureCard.invite.locked{border-color:rgba(160,220,255,.28)}
+    `}</style>
     </>
   );
 }
