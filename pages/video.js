@@ -1149,60 +1149,78 @@ export default function VideoPage() {
         </button>
       </div>
 
-      {/* Activities Modal - UPDATED WITH NEW ACTIVITIES */}
-      <div id="activitiesModal" className="overlay-modal" style={{display:'none'}}>
-        <div className="modal-card wide">
-          <button id="activitiesClose" className="modal-close">×</button>
-          <h3>🎮 Fun Activities</h3>
-          <div className="activities-grid">
+      {/* Activities Modal - BOTTOM SHEET STYLE (Mobile Friendly) */}
+      <div id="activitiesModal" className="activities-overlay" style={{display:'none'}}>
+        <div className="activities-backdrop"></div>
+        <div className="activities-sheet">
+          <div className="sheet-handle"></div>
+          <div className="sheet-header">
+            <h3>🎮 Fun Activities</h3>
+            <button id="activitiesClose" className="sheet-close">×</button>
+          </div>
+          <div className="sheet-content">
             
-            <div className="act-card">
-              <div className="act-icon">❓</div>
-              <h4>Two-Option Quiz</h4>
-              <p>Answer quick two-choice questions privately. Reveal together and get love %!</p>
-              <button id="startTwoOption" className="act-btn">Start Quiz</button>
+            <div className="act-item" id="startTwoOption">
+              <div className="act-item-icon">❓</div>
+              <div className="act-item-content">
+                <h4>Two-Option Quiz</h4>
+                <p>Quick questions, reveal together!</p>
+              </div>
+              <i className="fas fa-chevron-right act-item-arrow"></i>
             </div>
 
-            <div className="act-card">
-              <div className="act-icon">🎯</div>
-              <h4>Truth & Dare</h4>
-              <p>Spin a virtual bottle. When it lands, selected person does truth or dare challenge.</p>
-              <button id="startSpin" className="act-btn">Spin Bottle</button>
+            <div className="act-item" id="startSpin">
+              <div className="act-item-icon">🎯</div>
+              <div className="act-item-content">
+                <h4>Truth & Dare</h4>
+                <p>Spin bottle, do challenge!</p>
+              </div>
+              <i className="fas fa-chevron-right act-item-arrow"></i>
             </div>
 
-            <div className="act-card">
-              <div className="act-icon">⚡</div>
-              <h4>Rapid Fire Questions</h4>
-              <p>60 seconds of quick questions! Fast-paced and funny.</p>
-              <button id="startRapidFire" className="act-btn">Start Rapid Fire</button>
+            <div className="act-item" id="startRapidFire">
+              <div className="act-item-icon">⚡</div>
+              <div className="act-item-content">
+                <h4>Rapid Fire Questions</h4>
+                <p>60 seconds of fast questions!</p>
+              </div>
+              <i className="fas fa-chevron-right act-item-arrow"></i>
             </div>
 
-            <div className="act-card">
-              <div className="act-icon">🪞</div>
-              <h4>Mirror Challenge</h4>
-              <p>Copy each other's movements! One leads, one follows.</p>
-              <button id="startMirror" className="act-btn">Start Mirror</button>
+            <div className="act-item" id="startMirror">
+              <div className="act-item-icon">🪞</div>
+              <div className="act-item-content">
+                <h4>Mirror Challenge</h4>
+                <p>Copy each other's moves!</p>
+              </div>
+              <i className="fas fa-chevron-right act-item-arrow"></i>
             </div>
 
-            <div className="act-card">
-              <div className="act-icon">👀</div>
-              <h4>Staring Contest</h4>
-              <p>Don't blink, don't laugh! First to blink loses.</p>
-              <button id="startStaring" className="act-btn">Start Staring</button>
+            <div className="act-item" id="startStaring">
+              <div className="act-item-icon">👀</div>
+              <div className="act-item-content">
+                <h4>Staring Contest</h4>
+                <p>Don't blink, don't laugh!</p>
+              </div>
+              <i className="fas fa-chevron-right act-item-arrow"></i>
             </div>
 
-            <div className="act-card">
-              <div className="act-icon">🎤</div>
-              <h4>Finish the Lyrics</h4>
-              <p>Complete the Bollywood hit! Sing together.</p>
-              <button id="startLyrics" className="act-btn">Start Lyrics</button>
+            <div className="act-item" id="startLyrics">
+              <div className="act-item-icon">🎤</div>
+              <div className="act-item-content">
+                <h4>Finish the Lyrics</h4>
+                <p>Complete Bollywood songs!</p>
+              </div>
+              <i className="fas fa-chevron-right act-item-arrow"></i>
             </div>
 
-            <div className="act-card">
-              <div className="act-icon">💃</div>
-              <h4>Dance Dare</h4>
-              <p>15 seconds of fun dance moves!</p>
-              <button id="startDance" className="act-btn">Start Dance</button>
+            <div className="act-item" id="startDance">
+              <div className="act-item-icon">💃</div>
+              <div className="act-item-content">
+                <h4>Dance Dare</h4>
+                <p>15 seconds of dance moves!</p>
+              </div>
+              <i className="fas fa-chevron-right act-item-arrow"></i>
             </div>
 
           </div>
