@@ -26,7 +26,8 @@ export default function ConnectPage() {
   const [statusMessage, setStatusMessage] = useState(
     "❤️ जहाँ दिल मिले, वहीं होती है शुरुआत Milan की…"
   );
-const fwRef = useRef({ raf: null, burst: () => {}, cleanup: null });
+
+  const fwRef = useRef({ raf: null, burst: () => {}, cleanup: null });
   const socketRef = useRef(null);
   const partnerRef = useRef(null);
   const connectingRef = useRef(false);
@@ -58,8 +59,7 @@ const fwRef = useRef({ raf: null, burst: () => {}, cleanup: null });
         }));
       }
     } catch {}
-
-    }, []);
+  }, []);
 
   /** ---------------------------------------------------------
    * Hearts Canvas - romantic upward-floating hearts (active)
@@ -231,19 +231,8 @@ const fwRef = useRef({ raf: null, burst: () => {}, cleanup: null });
   function stopFireworks() {
     if (fwRef.current.cleanup) fwRef.current.cleanup();
   }
-        setProfile(p);
-        try {
-          localStorage.setItem("milan_profile", JSON.stringify(p));
-        } catch {}
-      };
-      r.readAsDataURL(f);
-    } catch {}
-    try {
-      if (e && e.target) e.target.value = "";
-    } catch {}
-  };
-// Navigation handlers for sidebar buttons
-function startSearch(type) {
+
+  function startSearch(type) {
     if (isSearching || connectingRef.current) return;
     connectingRef.current = true;
     setIsSearching(true);
@@ -334,21 +323,6 @@ function startSearch(type) {
     setStatusMessage("❤️ जहाँ दिल मिले, वहीं होती है शुरुआत Milan की…");
   }
 
-  function completeness(p = profile) {
-    let s = 0;
-    if (p.name) s += 18;
-    if (p.contact) s += 12;
-    if (p.age) s += 10;
-    if (p.city) s += 10;
-    if (p.language) s += 10;
-    if (p.bio) s += 15;
-    if ((p.interests || []).length) s += 15;
-    if ((p.photoDataUrls || []).length)
-      s += Math.min(10, p.photoDataUrls.length * 4);
-    return Math.min(100, Math.round(s));
-  }
-  const percent = completeness(profile);
-
   return (
     <>
       <Head>
@@ -364,13 +338,13 @@ function startSearch(type) {
           href="https://fonts.googleapis.com/css2?family=Great+Vibes&family=Poppins:wght@300;400;600;700;900&display=swap"
           rel="stylesheet"
         />
-      </Head>{/* Hamburger Menu Button (Mobile Only) */}
+      </Head>
+
       {/* Frame */}
       <div className="frame" aria-hidden />
 
       {/* Background layers */}
       <canvas id="heartsCanvas" />
-      {/* fxCanvas and bellAudio left in file for parity but not active unless ENABLE_DIWALI=true */}
       <canvas
         id="fxCanvas"
         style={{ position: "fixed", inset: 0, zIndex: 0, pointerEvents: "none" }}
@@ -392,7 +366,6 @@ function startSearch(type) {
 
       {/* Center */}
       <main className="heroWrap">
-        {/* Diwali text removed — replaced with romantic greeting */}
         <p className="miniGreeting">
           Find gentle connections. Let hearts float up and find each other — welcome to Milan.
         </p>
@@ -422,13 +395,22 @@ function startSearch(type) {
             </button>
           </article>
 
-          <article className="featureCard invite locked">
+          <article className="featureCard invite coming-soon">
+            <div className="coming-soon-badge">
+              <span className="badge-sparkle">✨</span>
+              <span className="badge-text">Coming Soon</span>
+              <span className="badge-sparkle">✨</span>
+            </div>
             <header>
-              <div className="soonTag">✨ Coming soon</div>
               <h3>Invite Link (Zero-DB)</h3>
               <p>Share a link. Partner clicks. You're connected.</p>
             </header>
-            <button className="cta disabled" aria-disabled="true" tabIndex={-1}>🔒 Create Invite Link</button>
+            <button className="cta disabled">
+              🔗 Create Invite Link
+            </button>
+            <div className="hover-message">
+              💕 Patience, love! This magical feature is almost ready to bring hearts together... 💕
+            </div>
           </article>
 
           <article className="featureCard studio">
@@ -477,7 +459,7 @@ function startSearch(type) {
                 </div>
 
                 <p className="modal-description">
-                  We're gently nudging hearts together – finding someone who vibes with your rhythm. Hold on, cupid is working his magic! 💘
+                  We're gently nudging hearts together — finding someone who vibes with your rhythm. Hold on, cupid is working his magic! 💘
                 </p>
 
                 <div className="status-text">{statusMessage}</div>
@@ -502,112 +484,7 @@ function startSearch(type) {
         #heartsCanvas { position: fixed; inset: 0; z-index: 0; pointer-events: none; }
         #fxCanvas { position: fixed; inset: 0; z-index: 0; pointer-events: none; }
 
-        /* Tutorial Toast */
-        .tutorial-toast {
-          position: fixed;
-          top: 90px;
-          left: 50%;
-          transform: translateX(-50%);
-          z-index: 10000;
-          animation: slideDown 0.4s ease-out;
-        }
-
-        @keyframes slideDown {
-          from {
-            opacity: 0;
-            transform: translateX(-50%) translateY(-20px);
-          }
-          to {
-            opacity: 1;
-            transform: translateX(-50%) translateY(0);
-          }
-        }
-
-        .tutorial-content {
-          background: linear-gradient(135deg, rgba(255, 110, 167, 0.95), rgba(255, 159, 176, 0.95));
-          padding: 16px 24px;
-          border-radius: 16px;
-          box-shadow: 0 8px 32px rgba(255, 110, 167, 0.4);
-          display: flex;
-          align-items: center;
-          gap: 12px;
-          max-width: 90vw;
-          backdrop-filter: blur(10px);
-        }
-
-        .tutorial-icon {
-          font-size: 24px;
-        }
-
-        .tutorial-content p {
-          margin: 0;
-          color: #fff;
-          font-weight: 600;
-          font-size: 14px;
-        }
-
-        .tutorial-close {
-          background: rgba(255, 255, 255, 0.25);
-          border: none;
-          padding: 8px 16px;
-          border-radius: 8px;
-          color: #fff;
-          font-weight: 700;
-          cursor: pointer;
-          transition: all 0.2s ease;
-          white-space: nowrap;
-        }
-
-        .tutorial-close:hover {
-          background: rgba(255, 255, 255, 0.35);
-          transform: scale(1.05);
-        }
-
-        /* Hamburger Menu */
-        .hamburger {
-          display: none;
-          position: fixed;
-          top: 20px;
-          left: 20px;
-          z-index: 1001;
-          background: rgba(255, 110, 167, 0.2);
-          border: 2px solid rgba(255, 110, 167, 0.4);
-          border-radius: 12px;
-          width: 50px;
-          height: 50px;
-          flex-direction: column;
-          align-items: center;
-          justify-content: center;
-          gap: 6px;
-          cursor: pointer;
-          backdrop-filter: blur(10px);
-          transition: all 0.3s ease;
-        }
-
-        .hamburger:hover {
-          background: rgba(255, 110, 167, 0.3);
-          transform: scale(1.05);
-        }
-
-        .hamburger span {
-          display: block;
-          width: 25px;
-          height: 3px;
-          background: #fff;
-          border-radius: 2px;
-          transition: all 0.3s ease;
-        }
-
-        .sidebar-overlay {
-          display: none;
-          position: fixed;
-          inset: 0;
-          background: rgba(0, 0, 0, 0.7);
-          z-index: 998;
-          backdrop-filter: blur(4px);
-        }
-
-        /* Frame: replaced Diwali gold with soft romantic pink glow */
+        /* Frame: soft romantic pink glow */
         .frame {
           position: fixed;
           top: 10px;
@@ -638,88 +515,6 @@ function startSearch(type) {
           border: 1px solid rgba(255,110,167,0.08);
           border-radius: 14px;
           box-shadow: 0 0 20px rgba(255,110,167,0.06) inset;
-        }
-
-        .sidebar {
-          position: fixed;
-          left: 0;
-          top: 0;
-          bottom: 0;
-          width: 200px;
-          background: rgba(255, 255, 255, 0.04);
-          backdrop-filter: blur(8px);
-          border-right: 1px solid rgba(255, 255, 255, 0.06);
-          z-index: 999;
-          display: flex;
-          flex-direction: column;
-          align-items: center;
-          padding-top: 18px;
-          transition: transform 0.3s ease;
-        }
-
-        .avatarWrap {
-          width: 70px;
-          height: 70px;
-          border-radius: 50%;
-          overflow: hidden;
-          box-shadow: 0 6px 18px rgba(0, 0, 0, 0.35);
-        }
-
-        .name {
-          margin-top: 8px;
-          font-weight: 800;
-        }
-
-        .meter {
-          width: 140px;
-          height: 8px;
-          background: rgba(255, 255, 255, 0.1);
-          border-radius: 8px;
-          margin-top: 6px;
-          overflow: hidden;
-        }
-
-        .meter .bar {
-          height: 100%;
-          background: linear-gradient(90deg, #ff6ea7, #ff9fb0);
-          transition: width 0.3s ease;
-        }
-
-        .photoPick {
-          margin-top: 8px;
-          font-size: 12px;
-          color: #fff;
-          background: rgba(255, 255, 255, 0.08);
-          padding: 6px 10px;
-          border-radius: 8px;
-          cursor: pointer;
-          transition: all 0.2s ease;
-        }
-
-        .photoPick:hover {
-          background: rgba(255, 110, 167, 0.2);
-        }
-
-        .nav {
-          list-style: none;
-          padding: 0;
-          width: 100%;
-          margin-top: 18px;
-        }
-
-        .nav li {
-          padding: 10px 14px;
-          margin: 6px 12px;
-          border-radius: 12px;
-          background: rgba(255, 255, 255, 0.04);
-          cursor: pointer;
-          font-weight: 700;
-          transition: all 0.2s ease;
-        }
-
-        .nav li:hover {
-          background: rgba(255, 110, 167, 0.15);
-          transform: translateX(4px);
         }
 
         .brandBlock {
@@ -773,7 +568,6 @@ function startSearch(type) {
 
         .heroWrap {
           position: relative;
-          margin-left: 0;
           z-index: 3;
           min-height: 100vh;
           display: flex;
@@ -786,7 +580,7 @@ function startSearch(type) {
         }
 
         .miniGreeting {
-          max-width: min(920px, 100%);
+          max-width: min(920px, calc(100vw - 60px));
           text-align: center;
           font-weight: 700;
           font-size: clamp(14px, 2.5vw, 16px);
@@ -798,7 +592,7 @@ function startSearch(type) {
         }
 
         .featuresGrid {
-          width: min(920px, 100%);
+          width: min(920px, calc(100vw - 60px));
           display: grid;
           grid-template-columns: repeat(2, minmax(240px, 1fr));
           gap: 18px;
@@ -817,6 +611,7 @@ function startSearch(type) {
           align-items: flex-start;
           gap: 12px;
           transition: transform 0.15s ease, box-shadow 0.15s ease, border-color 0.15s ease;
+          position: relative;
         }
 
         .featureCard header h3 {
@@ -842,6 +637,105 @@ function startSearch(type) {
         .featureCard.video { border-color: rgba(255, 110, 167, 0.18); }
         .featureCard.invite { border-color: rgba(160, 220, 255, 0.28); }
         .featureCard.studio { border-color: rgba(140, 150, 255, 0.22); }
+
+        /* Coming Soon Styles */
+        .featureCard.coming-soon {
+          position: relative;
+          overflow: hidden;
+        }
+
+        .featureCard.coming-soon::before {
+          content: '';
+          position: absolute;
+          inset: 0;
+          background: linear-gradient(135deg, rgba(255, 110, 167, 0.03), rgba(255, 182, 193, 0.05));
+          pointer-events: none;
+        }
+
+        .coming-soon-badge {
+          position: absolute;
+          top: -8px;
+          right: -8px;
+          background: linear-gradient(135deg, #ff6ea7, #ff9fb0);
+          color: #fff;
+          padding: 8px 16px;
+          border-radius: 0 18px 0 18px;
+          font-size: 11px;
+          font-weight: 900;
+          letter-spacing: 0.5px;
+          text-transform: uppercase;
+          box-shadow: 0 4px 16px rgba(255, 110, 167, 0.4);
+          display: flex;
+          align-items: center;
+          gap: 6px;
+          animation: badgePulse 2s ease-in-out infinite;
+        }
+
+        @keyframes badgePulse {
+          0%, 100% { transform: scale(1); }
+          50% { transform: scale(1.05); }
+        }
+
+        .badge-sparkle {
+          font-size: 10px;
+          animation: sparkle 1.5s ease-in-out infinite;
+        }
+
+        .badge-sparkle:nth-child(3) {
+          animation-delay: 0.75s;
+        }
+
+        @keyframes sparkle {
+          0%, 100% { opacity: 1; transform: scale(1); }
+          50% { opacity: 0.5; transform: scale(1.2); }
+        }
+
+        .badge-text {
+          font-size: 11px;
+        }
+
+        .hover-message {
+          position: absolute;
+          bottom: -60px;
+          left: 50%;
+          transform: translateX(-50%);
+          background: linear-gradient(135deg, rgba(255, 110, 167, 0.95), rgba(255, 159, 176, 0.95));
+          color: #fff;
+          padding: 12px 20px;
+          border-radius: 16px;
+          font-size: 13px;
+          font-weight: 700;
+          text-align: center;
+          white-space: nowrap;
+          box-shadow: 0 8px 24px rgba(255, 110, 167, 0.4);
+          opacity: 0;
+          pointer-events: none;
+          transition: all 0.3s ease;
+          z-index: 10;
+        }
+
+        .hover-message::before {
+          content: '';
+          position: absolute;
+          top: -6px;
+          left: 50%;
+          transform: translateX(-50%);
+          width: 0;
+          height: 0;
+          border-left: 8px solid transparent;
+          border-right: 8px solid transparent;
+          border-bottom: 8px solid rgba(255, 110, 167, 0.95);
+        }
+
+        .featureCard.coming-soon:hover .hover-message {
+          opacity: 1;
+          bottom: -70px;
+        }
+
+        .featureCard.coming-soon header h3,
+        .featureCard.coming-soon header p {
+          opacity: 0.6;
+        }
 
         .cta {
           width: 100%;
@@ -874,6 +768,19 @@ function startSearch(type) {
         .cta:focus-visible {
           outline: 3px solid rgba(255, 110, 167, 0.48);
           outline-offset: 2px;
+        }
+
+        .cta.disabled {
+          background: rgba(255, 255, 255, 0.1);
+          color: rgba(255, 255, 255, 0.4);
+          cursor: not-allowed;
+          box-shadow: none;
+        }
+
+        .cta.disabled:hover {
+          transform: none;
+          box-shadow: none;
+          background: rgba(255, 255, 255, 0.1);
         }
 
         /* Search Modal Styles */
@@ -1152,29 +1059,7 @@ function startSearch(type) {
 
         /* Mobile Responsive */
         @media (max-width: 760px) {
-          .hamburger {
-            display: flex;
-          }
-
-          .sidebar-overlay {
-            display: block;
-          }
-
-          .sidebar {
-            transform: translateX(-100%);
-            box-shadow: 4px 0 20px rgba(0, 0, 0, 0.5);
-          }
-
-          .sidebar.open {
-            transform: translateX(0);
-          }
-
-          .frame {
-            left: 10px;
-          }
-
           .heroWrap {
-            margin-left: 0;
             padding: calc(var(--brandH) + 40px) 20px 40px;
           }
 
@@ -1222,6 +1107,12 @@ function startSearch(type) {
             font-size: 13px;
           }
 
+          .hover-message {
+            white-space: normal;
+            max-width: 280px;
+            font-size: 12px;
+          }
+
           .search-modal {
             padding: 32px 24px;
             border-radius: 24px;
@@ -1252,18 +1143,6 @@ function startSearch(type) {
           .stop-search-btn {
             padding: 12px 28px;
             font-size: 15px;
-          }
-
-          .tutorial-toast {
-            top: 80px;
-          }
-
-          .tutorial-content {
-            padding: 12px 18px;
-          }
-
-          .tutorial-content p {
-            font-size: 12px;
           }
         }
 
@@ -1309,92 +1188,19 @@ function startSearch(type) {
 
         @media (min-width: 761px) and (max-width: 1024px) {
           .heroWrap {
-            margin-left: 0;
             padding: calc(var(--brandH) + 40px) 24px var(--bottomH);
           }
 
           .featuresGrid {
-            width: 100%;
+            width: calc(100vw - 80px);
             max-width: 880px;
           }
 
           .miniGreeting {
-            max-width: 100%;
+            max-width: calc(100vw - 80px);
           }
         }
-      
-    .soonTag{
-      display:inline-block;padding:6px 10px;border-radius:999px;
-      font-size:12px;font-weight:800;letter-spacing:.2px;color:#120b12;
-      background: linear-gradient(90deg,#ffd6ea,#ffb6c1);
-      box-shadow:0 6px 18px rgba(255,110,167,.25);
-      margin-bottom:6px;
-    }
-    .cta.disabled{cursor:not-allowed;filter:grayscale(.2) brightness(.9);opacity:.7;box-shadow:none}
-    .featureCard.invite.locked{border-color:rgba(160,220,255,.28)}
-    `}</style>
+      `}</style>
     </>
-  );
-}
-
-function Avatar() {
-  const [profile, setProfile] = useState(null);
-
-  useEffect(() => {
-    (async () => {
-      try {
-        if (typeof window === "undefined") return;
-        const uid = localStorage.getItem("uid") || "";
-        const token = localStorage.getItem("token") || "";
-        if (!uid || !token) return;
-        const res = await fetch(`/api/profile/${uid}`, {
-          headers: { Authorization: `Bearer ${token}` },
-        });
-        if (!res.ok) throw new Error("fail");
-        const data = await res.json();
-        setProfile(data);
-      } catch {
-        setProfile({
-          name:
-            (typeof window !== "undefined" &&
-              localStorage.getItem("registered_name")) || "M",
-        });
-      }
-    })();
-  }, []);
-
-  if (!profile) return <div>Loading...</div>;
-
-  const first =
-    (profile.name && profile.name.trim().charAt(0).toUpperCase()) || "M";
-
-  return profile.avatar ? (
-    <img
-      src={profile.avatar}
-      alt="avatar"
-      style={{
-        width: 70,
-        height: 70,
-        borderRadius: "50%",
-        objectFit: "cover",
-      }}
-    />
-  ) : (
-    <div
-      style={{
-        width: 70,
-        height: 70,
-        borderRadius: "50%",
-        background: "#ec4899",
-        display: "flex",
-        alignItems: "center",
-        justifyContent: "center",
-        fontSize: 28,
-        fontWeight: 700,
-        color: "#fff",
-      }}
-    >
-      {first}
-    </div>
   );
 }
