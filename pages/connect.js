@@ -350,9 +350,11 @@ export default function ConnectPage() {
           window.location.href = "/";
         }}
         aria-label="Logout"
+        title="Logout"
       >
-        <span className="logout-icon">🚪</span>
-        <span className="logout-text">Logout</span>
+        <svg viewBox="0 0 24 24" className="logout-icon">
+          <path d="M17 7l-1.41 1.41L18.17 11H8v2h10.17l-2.58 2.58L17 17l5-5zM4 5h8V3H4c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h8v-2H4V5z"/>
+        </svg>
       </button>
 
       {/* Frame */}
@@ -498,6 +500,49 @@ export default function ConnectPage() {
         /* hearts canvas sits below UI */
         #heartsCanvas { position: fixed; inset: 0; z-index: 0; pointer-events: none; }
         #fxCanvas { position: fixed; inset: 0; z-index: 0; pointer-events: none; }
+
+        /* Logout Button */
+        .logout-btn {
+          position: fixed;
+          top: 20px;
+          right: 20px;
+          z-index: 1000;
+          display: flex;
+          align-items: center;
+          gap: 8px;
+          padding: 12px 20px;
+          background: rgba(255, 110, 167, 0.15);
+          border: 2px solid rgba(255, 110, 167, 0.3);
+          border-radius: 16px;
+          color: #fff;
+          font-weight: 700;
+          font-size: 14px;
+          cursor: pointer;
+          backdrop-filter: blur(10px);
+          transition: all 0.3s ease;
+          box-shadow: 0 4px 16px rgba(255, 110, 167, 0.2);
+        }
+
+        .logout-btn:hover {
+          background: rgba(255, 110, 167, 0.25);
+          border-color: rgba(255, 110, 167, 0.5);
+          transform: translateY(-2px);
+          box-shadow: 0 6px 20px rgba(255, 110, 167, 0.3);
+        }
+
+        .logout-btn:active {
+          transform: translateY(0) scale(0.98);
+        }
+
+        .logout-icon {
+          font-size: 18px;
+          display: flex;
+          align-items: center;
+        }
+
+        .logout-text {
+          letter-spacing: 0.3px;
+        }
 
         /* Frame: soft romantic pink glow */
         .frame {
@@ -1074,6 +1119,21 @@ export default function ConnectPage() {
 
         /* Mobile Responsive */
         @media (max-width: 760px) {
+          .logout-btn {
+            top: 15px;
+            right: 15px;
+            padding: 10px 16px;
+            font-size: 13px;
+          }
+
+          .logout-icon {
+            font-size: 16px;
+          }
+
+          .logout-text {
+            display: none;
+          }
+
           .heroWrap {
             padding: calc(var(--brandH) + 40px) 20px 40px;
           }
@@ -1162,6 +1222,12 @@ export default function ConnectPage() {
         }
 
         @media (max-width: 480px) {
+          .logout-btn {
+            top: 12px;
+            right: 12px;
+            padding: 9px 14px;
+          }
+
           .brandBlock {
             top: 60px;
           }
