@@ -4,10 +4,6 @@ import React, { useEffect, useMemo, useRef, useState } from "react";
 import Head from "next/head";
 import io from "socket.io-client";
 
-/**
- * IMPORTANT: This file preserves all original code but disables Diwali-specific visuals.
- * If you ever want to re-enable Diwali fireworks/audio, set ENABLE_DIWALI = true.
- */
 const ENABLE_DIWALI = false;
 
 export default function ConnectPage() {
@@ -61,10 +57,6 @@ export default function ConnectPage() {
     } catch {}
   }, []);
 
-  /** ---------------------------------------------------------
-   * Hearts Canvas - romantic upward-floating hearts (active)
-   * Keeps the romantic vibe: hearts float from bottom -> top.
-   * --------------------------------------------------------- */
   useEffect(() => {
     const cvs = document.getElementById("heartsCanvas");
     if (!cvs) return;
@@ -135,17 +127,12 @@ export default function ConnectPage() {
     };
   }, []);
 
-  /**
-   * Fireworks (Diwali) code remains in the file for parity but is disabled
-   * by the ENABLE_DIWALI flag above. That keeps file lines intact and zero-risk.
-   */
   useEffect(() => {
     if (ENABLE_DIWALI) {
       startFireworks();
       return stopFireworks;
     }
     return () => {};
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   function startFireworks() {
@@ -323,6 +310,13 @@ export default function ConnectPage() {
     setStatusMessage("❤️ जहाँ दिल मिले, वहीं होती है शुरुआत Milan की…");
   }
 
+  const handleLogout = () => {
+    try {
+      localStorage.clear();
+    } catch {}
+    window.location.href = "/";
+  };
+
   return (
     <>
       <Head>
@@ -340,19 +334,14 @@ export default function ConnectPage() {
         />
       </Head>
 
-      {/* Logout Button */}
+      {/* Logout Button - Small circular button in top-right */}
       <button 
         className="logout-btn"
-        onClick={() => {
-          try {
-            localStorage.clear();
-          } catch {}
-          window.location.href = "/";
-        }}
+        onClick={handleLogout}
         aria-label="Logout"
         title="Logout"
       >
-        <svg viewBox="0 0 24 24" className="logout-icon">
+        <svg viewBox="0 0 24 24" className="logout-icon" fill="currentColor">
           <path d="M17 7l-1.41 1.41L18.17 11H8v2h10.17l-2.58 2.58L17 17l5-5zM4 5h8V3H4c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h8v-2H4V5z"/>
         </svg>
       </button>
@@ -497,54 +486,77 @@ export default function ConnectPage() {
         html, body { margin: 0; padding: 0; min-height: 100vh; background: #08060c; color: #f7f7fb; font-family: Poppins, system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, sans-serif; }
         body { overflow-x: hidden; overflow-y: auto; }
         
-        /* hearts canvas sits below UI */
         #heartsCanvas { position: fixed; inset: 0; z-index: 0; pointer-events: none; }
         #fxCanvas { position: fixed; inset: 0; z-index: 0; pointer-events: none; }
 
-        /* Logout Button */
+        /* Logout Button - Small circular button */
         .logout-btn {
           position: fixed;
-          top: 20px;
-          right: 20px;
+          top: 25px;
+          right: 25px;
           z-index: 1000;
+          width: 50px;
+          height: 50px;
           display: flex;
           align-items: center;
-          gap: 8px;
-          padding: 12px 20px;
-          background: rgba(255, 110, 167, 0.15);
-          border: 2px solid rgba(255, 110, 167, 0.3);
-          border-radius: 16px;
-          color: #fff;
-          font-weight: 700;
-          font-size: 14px;
+          justify-content: center;
+          padding: 0;
+          background: linear-gradient(135deg, rgba(255, 110, 167, 0.25), rgba(255, 159, 176, 0.25));
+          border: 2px solid rgba(255, 110, 167, 0.4);
+          border-radius: 50%;
           cursor: pointer;
-          backdrop-filter: blur(10px);
-          transition: all 0.3s ease;
-          box-shadow: 0 4px 16px rgba(255, 110, 167, 0.2);
+          backdrop-filter: blur(12px);
+          transition: all 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);
+          box-shadow: 
+            0 4px 20px rgba(255, 110, 167, 0.3),
+            0 0 30px rgba(255, 110, 167, 0.15),
+            inset 0 1px 1px rgba(255, 255, 255, 0.2);
+          animation: gentlePulse 3s ease-in-out infinite;
+        }
+
+        @keyframes gentlePulse {
+          0%, 100% { 
+            box-shadow: 
+              0 4px 20px rgba(255, 110, 167, 0.3),
+              0 0 30px rgba(255, 110, 167, 0.15),
+              inset 0 1px 1px rgba(255, 255, 255, 0.2);
+          }
+          50% { 
+            box-shadow: 
+              0 6px 28px rgba(255, 110, 167, 0.4),
+              0 0 40px rgba(255, 110, 167, 0.25),
+              inset 0 1px 1px rgba(255, 255, 255, 0.3);
+          }
         }
 
         .logout-btn:hover {
-          background: rgba(255, 110, 167, 0.25);
-          border-color: rgba(255, 110, 167, 0.5);
-          transform: translateY(-2px);
-          box-shadow: 0 6px 20px rgba(255, 110, 167, 0.3);
+          background: linear-gradient(135deg, rgba(255, 110, 167, 0.4), rgba(255, 159, 176, 0.4));
+          border-color: rgba(255, 110, 167, 0.7);
+          transform: translateY(-3px) scale(1.08);
+          box-shadow: 
+            0 8px 32px rgba(255, 110, 167, 0.5),
+            0 0 50px rgba(255, 110, 167, 0.3),
+            inset 0 2px 2px rgba(255, 255, 255, 0.3);
+          animation: none;
         }
 
         .logout-btn:active {
-          transform: translateY(0) scale(0.98);
+          transform: translateY(-1px) scale(1.02);
         }
 
         .logout-icon {
-          font-size: 18px;
-          display: flex;
-          align-items: center;
+          width: 22px;
+          height: 22px;
+          color: #fff;
+          filter: drop-shadow(0 2px 4px rgba(255, 110, 167, 0.6));
+          transition: all 0.3s ease;
         }
 
-        .logout-text {
-          letter-spacing: 0.3px;
+        .logout-btn:hover .logout-icon {
+          transform: translateX(2px);
+          filter: drop-shadow(0 3px 8px rgba(255, 110, 167, 0.8));
         }
 
-        /* Frame: soft romantic pink glow */
         .frame {
           position: fixed;
           top: 10px;
@@ -698,7 +710,6 @@ export default function ConnectPage() {
         .featureCard.invite { border-color: rgba(160, 220, 255, 0.28); }
         .featureCard.studio { border-color: rgba(140, 150, 255, 0.22); }
 
-        /* Coming Soon Styles */
         .featureCard.coming-soon {
           position: relative;
           overflow: hidden;
@@ -843,7 +854,6 @@ export default function ConnectPage() {
           background: rgba(255, 255, 255, 0.1);
         }
 
-        /* Search Modal Styles */
         .search-modal-overlay {
           position: fixed;
           inset: 0;
@@ -1117,21 +1127,17 @@ export default function ConnectPage() {
           letter-spacing: 0.3px;
         }
 
-        /* Mobile Responsive */
         @media (max-width: 760px) {
           .logout-btn {
-            top: 15px;
-            right: 15px;
-            padding: 10px 16px;
-            font-size: 13px;
+            top: 18px;
+            right: 18px;
+            width: 46px;
+            height: 46px;
           }
 
           .logout-icon {
-            font-size: 16px;
-          }
-
-          .logout-text {
-            display: none;
+            width: 20px;
+            height: 20px;
           }
 
           .heroWrap {
@@ -1223,9 +1229,15 @@ export default function ConnectPage() {
 
         @media (max-width: 480px) {
           .logout-btn {
-            top: 12px;
-            right: 12px;
-            padding: 9px 14px;
+            top: 15px;
+            right: 15px;
+            width: 44px;
+            height: 44px;
+          }
+
+          .logout-icon {
+            width: 18px;
+            height: 18px;
           }
 
           .brandBlock {
