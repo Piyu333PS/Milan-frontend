@@ -18,12 +18,19 @@ export default function VideoPage() {
     // timer vars
     let timerInterval = null;
     let timerStartTS = null;
-    let elapsedBeforePause = 0; // keep if needed
+    let elapsedBeforePause = 0;
 
     // Two-Option / Spin state helpers
     let currentQuestion = null;
-    let pendingAnswers = {}; // { questionId: { self: 'A', other: null } } on client side we only keep self until reveal
+    let pendingAnswers = {};
     let twoOptionScore = { total: 0, matched: 0, asked: 0 };
+
+    // NEW: Activity state helpers
+    let rapidFireInterval = null;
+    let rapidFireCount = 0;
+    let mirrorTimer = null;
+    let staringTimer = null;
+    let lyricsCurrentSong = null;
 
     // negotiation flags
     let makingOffer = false;
@@ -111,7 +118,6 @@ export default function VideoPage() {
       ignoreOffer = false;
       try { var rv = get("remoteVideo"); if (rv) rv.srcObject = null; } catch (e) {}
       pendingCandidates.length = 0;
-      // stop timer but keep elapsed shown
       stopTimer(true);
     }
 
@@ -157,9 +163,8 @@ export default function VideoPage() {
     }
     function startTimer() {
       try {
-        if (timerInterval) return; // already running
+        if (timerInterval) return;
         timerStartTS = Date.now();
-        // keep elapsedBeforePause as-is
         updateTimerDisplay();
         timerInterval = setInterval(updateTimerDisplay, 1000);
         log('call timer started');
@@ -202,7 +207,7 @@ export default function VideoPage() {
       }
 
       socket = io(BACKEND_URL, {
-        transports: ['polling'], // force polling only as original
+        transports: ['polling'],
         timeout: 20000,
         reconnection: true,
         reconnectionAttempts: Infinity,
@@ -224,7 +229,6 @@ export default function VideoPage() {
       });
 
       socket.on("disconnect", (reason) => { log("socket disconnected:", reason); socketConnected = false; });
-
       socket.on("connect_error", (err) => { log("socket connect_error:", err); showToast("Socket connect error"); });
 
       const createPC = () => {
@@ -299,10 +303,8 @@ export default function VideoPage() {
           log("pc.iceConnectionState:", pc.iceConnectionState);
           if (pc.iceConnectionState === "connected") {
             log("ICE connected");
-            // start the call timer
             startTimer();
           } else if (pc.iceConnectionState === "disconnected" || pc.iceConnectionState === "failed" || pc.iceConnectionState === "closed") {
-            // stop but preserve elapsed so user can see duration before rating
             stopTimer(true);
           }
         };
@@ -322,8 +324,7 @@ export default function VideoPage() {
         };
       };
 
-      // ---------------- SIGNALING HANDLERS (existing) ---------------------
-
+      // SIGNALING HANDLERS
       socket.on("ready", (data) => {
         log("socket ready", data);
         try { if (data && typeof data.polite !== "undefined") polite = !!data.polite; } catch (e) {}
@@ -344,8 +345,6 @@ export default function VideoPage() {
         })();
       });
 
-      
-      /* ===== Robust signaling handlers (offer/answer/candidate) ===== */
       socket.on("offer", async (offer) => {
         log("socket offer", offer && offer.type);
         try {
@@ -422,7 +421,7 @@ export default function VideoPage() {
           }
 
           if (!cand) {
-            console.warn("[video] could not parse candidate payload — skipping", payload);
+            console.warn("[video] could not parse candidate payload – skipping", payload);
             return;
           }
 
@@ -433,7 +432,7 @@ export default function VideoPage() {
           }
 
           if (!pc || !pc.remoteDescription || !pc.remoteDescription.type) {
-            log("[video] remoteDescription not set yet — queueing candidate");
+            log("[video] remoteDescription not set yet – queueing candidate");
             pendingCandidates.push(cand);
             setTimeout(() => drainPendingCandidates(), 200);
             return;
@@ -451,15 +450,13 @@ export default function VideoPage() {
           console.error("[video] candidate handler unexpected error", err);
         }
       });
-      /* ===== end robust handlers ===== */
+
       socket.on("waitingForPeer", (d) => { log("waitingForPeer", d); showToast("Waiting for partner..."); });
       socket.on("partnerDisconnected", () => { log("partnerDisconnected"); showToast("Partner disconnected"); showRating(); cleanupPeerConnection(); });
       socket.on("partnerLeft", () => { log("partnerLeft"); showToast("Partner left"); showRating(); cleanupPeerConnection(); });
       socket.on("errorMessage", (e) => { console.warn("server errorMessage:", e); showToast(e && e.message ? e.message : "Server error"); });
 
-      // ---------------- NEW: Activities (Two-Option & Spin) SIGNALS ----------------
-
-      // Two-option question arrives
+      // ========== EXISTING ACTIVITIES SIGNALS ==========
       socket.on("twoOptionQuestion", (q) => {
         try {
           log("twoOptionQuestion", q);
@@ -477,7 +474,6 @@ export default function VideoPage() {
         } catch (e) { console.error("twoOptionQuestion handler", e); }
       });
 
-      // Reveal after server confirms both answered
       socket.on("twoOptionReveal", (payload) => {
         try {
           log("twoOptionReveal", payload);
@@ -519,7 +515,6 @@ export default function VideoPage() {
         } catch (e) { console.error("twoOptionResult", e); }
       });
 
-      // SPIN: server tells clients to start animation in sync
       socket.on("spinStarted", ({ spinId, startAt, duration } = {}) => {
         try {
           log("spinStarted", spinId, startAt, duration);
@@ -529,36 +524,31 @@ export default function VideoPage() {
           const now = Date.now();
           const delay = Math.max(0, (startAt || now) - now);
           overlay.style.display = "flex";
-          // reset transform and transition
           bottle.style.transition = `transform ${duration}ms cubic-bezier(.17,.67,.83,.67)`;
           bottle.style.transform = `rotate(0deg)`;
-          // slight timeout to allow layout
           setTimeout(() => {
-            const revolutions = 4 + Math.floor(Math.random() * 3); // 4-6 revs
+            const revolutions = 4 + Math.floor(Math.random() * 3);
             const randomOffset = Math.floor(Math.random() * 360);
             const finalDeg = revolutions * 360 + randomOffset;
             setTimeout(() => {
               bottle.style.transform = `rotate(${finalDeg}deg)`;
             }, delay);
           }, 40);
-          // fallback hide if no result after duration + buffer
           setTimeout(() => {
             try { overlay.style.display = "none"; } catch (e) {}
           }, delay + (duration || 6000) + 6000);
         } catch (e) { console.error("spinStarted handler", e); }
       });
 
-      // SPIN result: who was picked + prompt
       socket.on("spinBottleResult", (payload) => {
         try {
           log("spinBottleResult", payload);
           var modal = get("spinModal");
           if (!modal) return;
-          modal.querySelector(".spin-status").textContent = payload.prompt || (payload.questionType === "truth" ? "Truth..." : "Date...");
+          modal.querySelector(".spin-status").textContent = payload.prompt || (payload.questionType === "truth" ? "Truth..." : "Dare...");
           var who = payload.isYou ? "You" : (payload.partnerName || "Partner");
           modal.querySelector(".spin-who").textContent = `Bottle pointed to: ${who}`;
           modal.style.display = "flex";
-          // ensure spin overlay hidden now
           try { var overlay = get("spinOverlay"); if (overlay) overlay.style.display = "none"; } catch (e) {}
         } catch (e) { console.error("spinBottleResult err", e); }
       });
@@ -572,7 +562,191 @@ export default function VideoPage() {
         } catch (e) {}
       });
 
-      // UI wiring
+      socket.on("twoOptionCancel", () => { try { var m = get("twoOptionModal"); if (m) m.style.display = "none"; } catch (e) {} });
+      socket.on("spinCancel", () => { try { var sm = get("spinModal"); if (sm) sm.style.display = "none"; } catch (e) {} });
+
+      // ========== NEW ACTIVITIES SIGNALS ==========
+
+      // RAPID FIRE
+      socket.on("rapidFireStart", (data) => {
+        try {
+          log("rapidFireStart", data);
+          const modal = get("rapidFireModal");
+          if (!modal) return;
+          rapidFireCount = 0;
+          modal.querySelector(".rf-timer").textContent = "60";
+          modal.querySelector(".rf-question").textContent = "Get ready...";
+          modal.querySelector(".rf-counter").textContent = "0/12";
+          modal.style.display = "flex";
+          showToast("Rapid Fire starting!");
+        } catch (e) { console.error("rapidFireStart", e); }
+      });
+
+      socket.on("rapidFireQuestion", (q) => {
+        try {
+          log("rapidFireQuestion", q);
+          const modal = get("rapidFireModal");
+          if (!modal) return;
+          rapidFireCount++;
+          modal.querySelector(".rf-question").textContent = q.text || "Question...";
+          modal.querySelector(".rf-counter").textContent = `${rapidFireCount}/${q.total || 12}`;
+        } catch (e) { console.error("rapidFireQuestion", e); }
+      });
+
+      socket.on("rapidFireTick", (data) => {
+        try {
+          const modal = get("rapidFireModal");
+          if (!modal) return;
+          modal.querySelector(".rf-timer").textContent = data.remaining || "0";
+        } catch (e) {}
+      });
+
+      socket.on("rapidFireEnd", (data) => {
+        try {
+          log("rapidFireEnd", data);
+          const modal = get("rapidFireModal");
+          if (modal) modal.style.display = "none";
+          showToast(`Rapid Fire Over! ${data.questionsShown || rapidFireCount} questions asked`);
+        } catch (e) { console.error("rapidFireEnd", e); }
+      });
+
+      // MIRROR CHALLENGE
+      socket.on("mirrorStart", (data) => {
+        try {
+          log("mirrorStart", data);
+          const modal = get("mirrorModal");
+          if (!modal) return;
+          const role = data.isLeader ? "LEADER" : "FOLLOWER";
+          modal.querySelector(".mirror-role").textContent = role === "LEADER" ? "👑 LEADER" : "🪞 FOLLOWER";
+          modal.querySelector(".mirror-instructions").textContent = role === "LEADER" 
+            ? "Do funny actions! Your partner will copy you." 
+            : "Mirror your partner's movements!";
+          modal.querySelector(".mirror-timer").textContent = "60";
+          modal.style.display = "flex";
+          showToast(`Mirror Challenge: You are ${role}`);
+        } catch (e) { console.error("mirrorStart", e); }
+      });
+
+      socket.on("mirrorTick", (data) => {
+        try {
+          const modal = get("mirrorModal");
+          if (!modal) return;
+          modal.querySelector(".mirror-timer").textContent = data.remaining || "0";
+        } catch (e) {}
+      });
+
+      socket.on("mirrorEnd", () => {
+        try {
+          log("mirrorEnd");
+          const modal = get("mirrorModal");
+          if (modal) modal.style.display = "none";
+          showToast("Mirror Challenge Complete! 🎉");
+        } catch (e) { console.error("mirrorEnd", e); }
+      });
+
+      // STARING CONTEST
+      socket.on("staringStart", () => {
+        try {
+          log("staringStart");
+          const modal = get("staringModal");
+          if (!modal) return;
+          modal.querySelector(".staring-timer").textContent = "0";
+          modal.querySelector(".staring-status").textContent = "Stare into each other's eyes!";
+          modal.style.display = "flex";
+          showToast("Staring Contest Started! 👀");
+        } catch (e) { console.error("staringStart", e); }
+      });
+
+      socket.on("staringTick", (data) => {
+        try {
+          const modal = get("staringModal");
+          if (!modal) return;
+          modal.querySelector(".staring-timer").textContent = data.elapsed || "0";
+        } catch (e) {}
+      });
+
+      socket.on("staringEnd", (data) => {
+        try {
+          log("staringEnd", data);
+          const modal = get("staringModal");
+          if (!modal) return;
+          const winner = data.winner || "Nobody";
+          const duration = data.duration || "0";
+          modal.querySelector(".staring-status").textContent = `Winner: ${winner} 🏆 (${duration}s)`;
+          setTimeout(() => {
+            if (modal) modal.style.display = "none";
+          }, 3000);
+        } catch (e) { console.error("staringEnd", e); }
+      });
+
+      // FINISH THE LYRICS
+      socket.on("lyricsStart", (data) => {
+        try {
+          log("lyricsStart", data);
+          const modal = get("lyricsModal");
+          if (!modal) return;
+          lyricsCurrentSong = data;
+          modal.querySelector(".lyrics-line").textContent = data.line || "Starting line...";
+          modal.querySelector(".lyrics-song-hint").textContent = `Song: ${data.songName || "Guess it!"}`;
+          modal.querySelector(".lyrics-answer").style.display = "none";
+          modal.querySelector(".lyrics-answer").textContent = "";
+          modal.style.display = "flex";
+          showToast("Finish the Lyrics! 🎤");
+        } catch (e) { console.error("lyricsStart", e); }
+      });
+
+      socket.on("lyricsReveal", (data) => {
+        try {
+          log("lyricsReveal", data);
+          const modal = get("lyricsModal");
+          if (!modal) return;
+          const answerDiv = modal.querySelector(".lyrics-answer");
+          answerDiv.textContent = `Answer: "${data.answer || ""}"`;
+          answerDiv.style.display = "block";
+        } catch (e) { console.error("lyricsReveal", e); }
+      });
+
+      socket.on("lyricsEnd", () => {
+        try {
+          log("lyricsEnd");
+          const modal = get("lyricsModal");
+          if (modal) modal.style.display = "none";
+          showToast("Lyrics Challenge Complete!");
+        } catch (e) { console.error("lyricsEnd", e); }
+      });
+
+      // DANCE DARE
+      socket.on("danceStart", (data) => {
+        try {
+          log("danceStart", data);
+          const modal = get("danceModal");
+          if (!modal) return;
+          modal.querySelector(".dance-song").textContent = data.song || "Random Song";
+          modal.querySelector(".dance-genre").textContent = data.genre || "Party";
+          modal.querySelector(".dance-timer").textContent = "15";
+          modal.style.display = "flex";
+          showToast("Dance Time! 💃");
+        } catch (e) { console.error("danceStart", e); }
+      });
+
+      socket.on("danceTick", (data) => {
+        try {
+          const modal = get("danceModal");
+          if (!modal) return;
+          modal.querySelector(".dance-timer").textContent = data.remaining || "0";
+        } catch (e) {}
+      });
+
+      socket.on("danceEnd", () => {
+        try {
+          log("danceEnd");
+          const modal = get("danceModal");
+          if (modal) modal.style.display = "none";
+          showToast("Dance Dare Complete! 🎉");
+        } catch (e) { console.error("danceEnd", e); }
+      });
+
+      // UI WIRING
       setTimeout(() => {
         var micBtn = get("micBtn");
         if (micBtn) {
@@ -600,13 +774,11 @@ export default function VideoPage() {
           };
         }
 
-        // --- Improved screen-share handler (diagnostic + existing flow) ---
         var screenBtn = get("screenShareBtn");
         if (screenBtn) {
           screenBtn.onclick = async function () {
             if (!pc) return showToast("No connection");
 
-            // Diagnostic check
             const supports = !!(navigator.mediaDevices && (typeof navigator.mediaDevices.getDisplayMedia === 'function' || typeof navigator.getDisplayMedia === 'function'));
             const secure = !!window.isSecureContext;
             const ua = navigator.userAgent || '';
@@ -626,9 +798,7 @@ export default function VideoPage() {
               return;
             }
 
-            // Toggle off if already sharing (we track via data attribute)
             if (screenBtn.dataset.sharing === "true") {
-              // attempt to restore camera track
               try {
                 var sender = pc.getSenders ? pc.getSenders().find(s => s && s.track && s.track.kind === "video") : null;
                 var cam = cameraTrackSaved;
@@ -637,9 +807,8 @@ export default function VideoPage() {
                     const freshStream = await navigator.mediaDevices.getUserMedia({ video: true });
                     cam = freshStream.getVideoTracks()[0];
                     cameraTrackSaved = cam;
-                    // merge into localStream
                     if (localStream && typeof localStream.addTrack === "function") {
-                      try { localStream.addTrack(cam); } catch (e) { /* ignore */ }
+                      try { localStream.addTrack(cam); } catch (e) { }
                     }
                     var lv = get("localVideo");
                     if (lv) lv.srcObject = localStream;
@@ -662,16 +831,13 @@ export default function VideoPage() {
               return;
             }
 
-            // try primary API
             const tryGetDisplayMedia = async () => {
               if (navigator.mediaDevices && typeof navigator.mediaDevices.getDisplayMedia === "function") {
                 return await navigator.mediaDevices.getDisplayMedia({ video: true });
               }
-              // try legacy exposed function (older browsers)
               if (typeof navigator.getDisplayMedia === "function") {
                 return await navigator.getDisplayMedia({ video: true });
               }
-              // not supported
               throw new Error("getDisplayMedia not supported");
             };
 
@@ -686,7 +852,6 @@ export default function VideoPage() {
                 return;
               }
 
-              // Save camera track to restore later
               const savedCam = localStream && localStream.getVideoTracks ? localStream.getVideoTracks()[0] : cameraTrackSaved;
               cameraTrackSaved = savedCam || cameraTrackSaved;
 
@@ -694,14 +859,12 @@ export default function VideoPage() {
                 if (typeof sender.replaceTrack === "function") {
                   await sender.replaceTrack(screenTrack);
                 } else {
-                  // as last resort try addTrack (may create additional sender)
                   try { pc.addTrack(screenTrack, displayStream); } catch (e) { log("addTrack screen failed", e); }
                 }
               } catch (e) {
                 log("replaceTrack/addTrack failed for screen", e);
               }
 
-              // Replace local preview to show screen (optional UX)
               var lv = get("localVideo");
               if (lv) lv.srcObject = displayStream;
 
@@ -709,10 +872,8 @@ export default function VideoPage() {
               screenBtn.classList.add("active");
               showToast("Screen sharing active");
 
-              // when screen stops, restore camera track (robust restore)
               screenTrack.onended = async function () {
                 try {
-                  // try to restore saved camera on sender
                   var sender2 = pc.getSenders ? pc.getSenders().find(s => s && s.track && s.track.kind === "video") : null;
                   var cam = cameraTrackSaved;
                   if (!cam || cam.readyState === "ended") {
@@ -720,20 +881,19 @@ export default function VideoPage() {
                       const fresh = await navigator.mediaDevices.getUserMedia({ video: true });
                       cam = fresh.getVideoTracks()[0];
                       cameraTrackSaved = cam;
-                      // update localStream
                       try {
                         var prev = localStream && localStream.getVideoTracks && localStream.getVideoTracks()[0];
                         if (prev && prev.stop) prev.stop();
                         if (localStream && typeof localStream.removeTrack === "function" && prev) { try { localStream.removeTrack(prev); } catch (e) {} }
                         if (localStream && typeof localStream.addTrack === "function" && cam) { try { localStream.addTrack(cam); } catch (e) {} }
-                      } catch (e) { /* ignore */ }
+                      } catch (e) { }
                     } catch (err) {
                       log("Couldn't reacquire camera after screen share ended", err);
                     }
                   }
                   if (sender2 && cam) {
                     try { await sender2.replaceTrack(cam); } catch (err) { log("restore camera via replaceTrack failed", err); }
-                    showToast("Screen sharing stopped — camera restored");
+                    showToast("Screen sharing stopped – camera restored");
                   } else {
                     showToast("Screen sharing stopped");
                   }
@@ -743,13 +903,11 @@ export default function VideoPage() {
                 } finally {
                   screenBtn.dataset.sharing = 'false';
                   screenBtn.classList.remove("active");
-                  // restore local preview to camera if available
                   try { var lv2 = get("localVideo"); if (lv2 && localStream) lv2.srcObject = localStream; } catch (e) {}
                 }
               };
             } catch (err) {
               log("DisplayMedia error or not supported", err);
-              // friendly instructive notice for mobile users
               const ua2 = navigator.userAgent || "";
               if (/android/i.test(ua2)) {
                 showToast("Screen share not supported in this browser. Use Chrome on Android (latest) for screen sharing.");
@@ -811,7 +969,7 @@ export default function VideoPage() {
         var actClose = get("activitiesClose");
         if (actClose) actClose.onclick = function () { var m = get("activitiesModal"); if (m) m.style.display = "none"; };
 
-        // Start Two-Option Quiz
+        // EXISTING ACTIVITIES
         var startTwo = get("startTwoOption");
         if (startTwo) startTwo.onclick = function () {
           safeEmit("twoOptionStart", { questionsPack: "default", count: 10 });
@@ -819,7 +977,6 @@ export default function VideoPage() {
           showToast("Starting Two-Option Quiz...");
         };
 
-        // Start Spin Bottle
         var startSpin = get("startSpin");
         if (startSpin) startSpin.onclick = function () {
           safeEmit("spinBottleStart", {});
@@ -827,21 +984,93 @@ export default function VideoPage() {
           showToast("Spinning the bottle...");
         };
 
-        // Two-option option buttons
         var optA = get("optA");
         var optB = get("optB");
         if (optA) optA.onclick = function () { submitTwoOptionAnswer("A"); };
         if (optB) optB.onclick = function () { submitTwoOptionAnswer("B"); };
 
-        // Close result modal
         var closeTwoRes = get("closeTwoRes");
         if (closeTwoRes) closeTwoRes.onclick = function () { var r = get("twoOptionResultModal"); if (r) r.style.display = "none"; };
 
-        // Spin modal action buttons
         var spinDone = get("spinDone");
         var spinSkip = get("spinSkip");
         if (spinDone) spinDone.onclick = function () { var sm = get("spinModal"); if (sm) sm.style.display = "none"; safeEmit("spinBottleDone", {}); };
         if (spinSkip) spinSkip.onclick = function () { var sm = get("spinModal"); if (sm) sm.style.display = "none"; safeEmit("spinBottleSkip", {}); };
+
+        // NEW ACTIVITIES BUTTONS
+        var startRapid = get("startRapidFire");
+        if (startRapid) startRapid.onclick = function () {
+          safeEmit("rapidFireStart", {});
+          var m = get("activitiesModal"); if (m) m.style.display = "none";
+        };
+
+        var endRapid = get("endRapidFire");
+        if (endRapid) endRapid.onclick = function () {
+          safeEmit("rapidFireEnd", {});
+          var m = get("rapidFireModal"); if (m) m.style.display = "none";
+        };
+
+        var startMirror = get("startMirror");
+        if (startMirror) startMirror.onclick = function () {
+          safeEmit("mirrorStart", {});
+          var m = get("activitiesModal"); if (m) m.style.display = "none";
+        };
+
+        var endMirror = get("endMirror");
+        if (endMirror) endMirror.onclick = function () {
+          safeEmit("mirrorEnd", {});
+          var m = get("mirrorModal"); if (m) m.style.display = "none";
+        };
+
+        var startStaring = get("startStaring");
+        if (startStaring) startStaring.onclick = function () {
+          safeEmit("staringStart", {});
+          var m = get("activitiesModal"); if (m) m.style.display = "none";
+        };
+
+        var iBlinked = get("iBlinked");
+        if (iBlinked) iBlinked.onclick = function () {
+          safeEmit("staringBlink", { who: "self" });
+        };
+
+        var endStaring = get("endStaring");
+        if (endStaring) endStaring.onclick = function () {
+          safeEmit("staringEnd", {});
+          var m = get("staringModal"); if (m) m.style.display = "none";
+        };
+
+        var startLyrics = get("startLyrics");
+        if (startLyrics) startLyrics.onclick = function () {
+          safeEmit("lyricsStart", {});
+          var m = get("activitiesModal"); if (m) m.style.display = "none";
+        };
+
+        var showLyricsAnswer = get("showLyricsAnswer");
+        if (showLyricsAnswer) showLyricsAnswer.onclick = function () {
+          safeEmit("lyricsReveal", {});
+        };
+
+        var nextLyrics = get("nextLyrics");
+        if (nextLyrics) nextLyrics.onclick = function () {
+          safeEmit("lyricsNext", {});
+        };
+
+        var endLyrics = get("endLyrics");
+        if (endLyrics) endLyrics.onclick = function () {
+          safeEmit("lyricsEnd", {});
+          var m = get("lyricsModal"); if (m) m.style.display = "none";
+        };
+
+        var startDance = get("startDance");
+        if (startDance) startDance.onclick = function () {
+          safeEmit("danceStart", {});
+          var m = get("activitiesModal"); if (m) m.style.display = "none";
+        };
+
+        var skipDance = get("skipDance");
+        if (skipDance) skipDance.onclick = function () {
+          safeEmit("danceSkip", {});
+        };
 
       }, 800);
 
@@ -863,15 +1092,10 @@ export default function VideoPage() {
         } catch (e) { console.error("submitTwoOptionAnswer err", e); }
       }
 
-      socket.on("twoOptionCancel", () => { try { var m = get("twoOptionModal"); if (m) m.style.display = "none"; } catch (e) {} });
-      socket.on("spinCancel", () => { try { var sm = get("spinModal"); if (sm) sm.style.display = "none"; } catch (e) {} });
-
-      // small helper: (kept minimal) no face-detection—badge placed bottom-right so it won't block central face area
       function adjustBadge() {
         try {
           const wbs = document.querySelectorAll('.watermark-badge');
           if (!wbs || !wbs.length) return;
-          // optional: reduce size on very small screens
           const small = window.innerWidth < 420;
           wbs.forEach(w => {
             w.classList.toggle('small', !!small);
@@ -883,11 +1107,9 @@ export default function VideoPage() {
 
     })();
 
-    // on unmount
     return function () { cleanup(); };
-  }, []); // <-- end useEffect
+  }, []);
 
-  // escape helper
   function escapeHtml(s) { return String(s).replace(/[&<>\"']/g, (m) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[m]); }
 
   return (
@@ -897,13 +1119,11 @@ export default function VideoPage() {
         <div id="callTimer" className="call-timer">00:00</div>
         <div className="video-panes">
           <div className="video-box">
-            {/* small modern badge (moved from center to bottom-right) */}
             <div className="watermark-badge" aria-hidden="true"><span>Milan</span><em className="reel-dot"></em></div>
             <video id="remoteVideo" autoPlay playsInline></video>
             <div className="label">Partner</div>
           </div>
           <div className="video-box">
-            {/* small modern badge */}
             <div className="watermark-badge" aria-hidden="true"><span>Milan</span><em className="reel-dot"></em></div>
             <video id="localVideo" autoPlay playsInline muted></video>
             <div className="label">You</div>
@@ -929,27 +1149,67 @@ export default function VideoPage() {
         </button>
       </div>
 
-      {/* Activities Modal */}
+      {/* Activities Modal - UPDATED WITH NEW ACTIVITIES */}
       <div id="activitiesModal" className="overlay-modal" style={{display:'none'}}>
-        <div className="modal-card">
+        <div className="modal-card wide">
           <button id="activitiesClose" className="modal-close">×</button>
-          <h3>Fun Activities</h3>
-          <div className="activities-list">
+          <h3>🎮 Fun Activities</h3>
+          <div className="activities-grid">
+            
             <div className="act-card">
+              <div className="act-icon">❓</div>
               <h4>Two-Option Quiz</h4>
               <p>Answer quick two-choice questions privately. Reveal together and get love %!</p>
-              <button id="startTwoOption">Start Two-Option Quiz</button>
+              <button id="startTwoOption" className="act-btn">Start Quiz</button>
             </div>
+
             <div className="act-card">
-              <h4>Spin the Bottle — Truth & Date</h4>
-              <p>Spin a virtual bottle. When it lands, selected person does truth or date challenge.</p>
-              <button id="startSpin">Spin the Bottle</button>
+              <div className="act-icon">🎯</div>
+              <h4>Truth & Dare</h4>
+              <p>Spin a virtual bottle. When it lands, selected person does truth or dare challenge.</p>
+              <button id="startSpin" className="act-btn">Spin Bottle</button>
             </div>
+
+            <div className="act-card">
+              <div className="act-icon">⚡</div>
+              <h4>Rapid Fire Questions</h4>
+              <p>60 seconds of quick questions! Fast-paced and funny.</p>
+              <button id="startRapidFire" className="act-btn">Start Rapid Fire</button>
+            </div>
+
+            <div className="act-card">
+              <div className="act-icon">🪞</div>
+              <h4>Mirror Challenge</h4>
+              <p>Copy each other's movements! One leads, one follows.</p>
+              <button id="startMirror" className="act-btn">Start Mirror</button>
+            </div>
+
+            <div className="act-card">
+              <div className="act-icon">👀</div>
+              <h4>Staring Contest</h4>
+              <p>Don't blink, don't laugh! First to blink loses.</p>
+              <button id="startStaring" className="act-btn">Start Staring</button>
+            </div>
+
+            <div className="act-card">
+              <div className="act-icon">🎤</div>
+              <h4>Finish the Lyrics</h4>
+              <p>Complete the Bollywood hit! Sing together.</p>
+              <button id="startLyrics" className="act-btn">Start Lyrics</button>
+            </div>
+
+            <div className="act-card">
+              <div className="act-icon">💃</div>
+              <h4>Dance Dare</h4>
+              <p>15 seconds of fun dance moves!</p>
+              <button id="startDance" className="act-btn">Start Dance</button>
+            </div>
+
           </div>
         </div>
       </div>
 
-      {/* Two-Option Modal */}
+      {/* EXISTING MODALS */}
       <div id="twoOptionModal" className="overlay-modal" style={{display:'none'}}>
         <div className="modal-card small">
           <div className="q-counter" style={{textAlign:'right',opacity:.8}}>1/10</div>
@@ -959,7 +1219,6 @@ export default function VideoPage() {
             <button id="optB" className="opt-btn">Option B</button>
           </div>
           <div className="waiting-text" style={{marginTop:12,opacity:.9}}>Choose your answer...</div>
-
           <div id="twoOptionReveal" className="reveal" style={{display:'none',marginTop:12}}>
             <div><strong>You:</strong> <span className="you-choice"></span></div>
             <div><strong>Partner:</strong> <span className="other-choice"></span></div>
@@ -968,7 +1227,6 @@ export default function VideoPage() {
         </div>
       </div>
 
-      {/* Two-Option Result Modal */}
       <div id="twoOptionResultModal" className="overlay-modal" style={{display:'none'}}>
         <div className="modal-card">
           <h2 className="final-percent">0%</h2>
@@ -977,12 +1235,11 @@ export default function VideoPage() {
             <i className="far fa-heart"></i><i className="far fa-heart"></i><i className="far fa-heart"></i><i className="far fa-heart"></i><i className="far fa-heart"></i>
           </div>
           <div style={{marginTop:14}}>
-            <button id="closeTwoRes">Close</button>
+            <button id="closeTwoRes" className="act-btn">Close</button>
           </div>
         </div>
       </div>
 
-      {/* Spin Overlay (animation in sync) */}
       <div id="spinOverlay" className="overlay-modal" style={{display:'none', alignItems:'center', justifyContent:'center'}}>
         <div className="modal-card">
           <div style={{textAlign:'center'}}>
@@ -994,18 +1251,99 @@ export default function VideoPage() {
         </div>
       </div>
 
-      {/* Spin Modal */}
       <div id="spinModal" className="overlay-modal" style={{display:'none'}}>
         <div className="modal-card">
           <h3 className="spin-who">Bottle pointed to: —</h3>
           <p className="spin-status">Prompt / dare</p>
           <div style={{marginTop:16}}>
-            <button id="spinDone">Done</button>
-            <button id="spinSkip" style={{marginLeft:10}}>Skip</button>
+            <button id="spinDone" className="act-btn">Done</button>
+            <button id="spinSkip" className="act-btn" style={{marginLeft:10}}>Skip</button>
           </div>
         </div>
       </div>
 
+      {/* NEW ACTIVITY MODALS */}
+      
+      {/* Rapid Fire Modal */}
+      <div id="rapidFireModal" className="overlay-modal" style={{display:'none'}}>
+        <div className="modal-card">
+          <div className="activity-header">
+            <h3>⚡ Rapid Fire</h3>
+            <div className="rf-timer big-timer">60</div>
+          </div>
+          <div className="rf-question big-text">Get ready...</div>
+          <div className="rf-counter" style={{marginTop:12,opacity:.8}}>0/12</div>
+          <div style={{marginTop:16}}>
+            <button id="endRapidFire" className="act-btn danger-btn">End Game</button>
+          </div>
+        </div>
+      </div>
+
+      {/* Mirror Challenge Modal */}
+      <div id="mirrorModal" className="overlay-modal" style={{display:'none'}}>
+        <div className="modal-card">
+          <div className="activity-header">
+            <h3>🪞 Mirror Challenge</h3>
+            <div className="mirror-timer big-timer">60</div>
+          </div>
+          <div className="mirror-role big-text">👑 LEADER</div>
+          <p className="mirror-instructions">Do funny actions! Your partner will copy you.</p>
+          <div style={{marginTop:16}}>
+            <button id="endMirror" className="act-btn danger-btn">End Challenge</button>
+          </div>
+        </div>
+      </div>
+
+      {/* Staring Contest Modal */}
+      <div id="staringModal" className="overlay-modal" style={{display:'none'}}>
+        <div className="modal-card">
+          <div className="activity-header">
+            <h3>👀 Staring Contest</h3>
+            <div className="staring-timer big-timer">0</div>
+          </div>
+          <div className="staring-status big-text">Stare into each other's eyes!</div>
+          <div style={{marginTop:16,display:'flex',gap:12,justifyContent:'center'}}>
+            <button id="iBlinked" className="act-btn danger-btn">I Blinked 😭</button>
+            <button id="endStaring" className="act-btn">End Contest</button>
+          </div>
+        </div>
+      </div>
+
+      {/* Finish the Lyrics Modal */}
+      <div id="lyricsModal" className="overlay-modal" style={{display:'none'}}>
+        <div className="modal-card">
+          <div className="activity-header">
+            <h3>🎤 Finish the Lyrics</h3>
+          </div>
+          <div className="lyrics-song-hint" style={{opacity:.8,marginBottom:12}}>Song: Guess it!</div>
+          <div className="lyrics-line big-text">"Starting line..."</div>
+          <div className="lyrics-answer" style={{display:'none',marginTop:12,padding:12,background:'rgba(255,255,255,0.05)',borderRadius:8}}>
+            Answer: "..."
+          </div>
+          <div style={{marginTop:16,display:'flex',gap:10,justifyContent:'center',flexWrap:'wrap'}}>
+            <button id="showLyricsAnswer" className="act-btn">Show Answer</button>
+            <button id="nextLyrics" className="act-btn">Next Song</button>
+            <button id="endLyrics" className="act-btn danger-btn">End Game</button>
+          </div>
+        </div>
+      </div>
+
+      {/* Dance Dare Modal */}
+      <div id="danceModal" className="overlay-modal" style={{display:'none'}}>
+        <div className="modal-card">
+          <div className="activity-header">
+            <h3>💃 Dance Dare</h3>
+            <div className="dance-timer big-timer">15</div>
+          </div>
+          <div className="dance-song big-text">Random Song</div>
+          <div className="dance-genre" style={{opacity:.8}}>Party</div>
+          <div style={{marginTop:16}}>
+            <button id="skipDance" className="act-btn">Skip This Dance</button>
+          </div>
+        </div>
+      </div>
+
+      {/* Rating Overlay */}
       <div id="ratingOverlay">
         <div className="rating-content">
           <h2>Rate your partner ❤️</h2>
@@ -1029,20 +1367,12 @@ export default function VideoPage() {
       <style jsx global>{`
         *{margin:0;padding:0;box-sizing:border-box}
         html,body{height:100%;background:#000;font-family:'Segoe UI',sans-serif;overflow:hidden}
-        .video-stage{position:relative;width:100%;height:100vh;padding-bottom:calc(110px + env(safe-area-inset-bottom));background:
-          linear-gradient(180deg,#0b0b0f 0%, #0f0610 100%);}
+        .video-stage{position:relative;width:100%;height:100vh;padding-bottom:calc(110px + env(safe-area-inset-bottom));background:linear-gradient(180deg,#0b0b0f 0%, #0f0610 100%);}
         .call-timer{position:absolute;left:50%;top:12px;transform:translateX(-50%);z-index:3500;background:linear-gradient(90deg,#ff7aa3,#ffb26a);padding:6px 14px;border-radius:999px;color:#fff;font-weight:600;box-shadow:0 6px 20px rgba(0,0,0,.6);backdrop-filter: blur(6px);font-size:14px}
         .video-panes{position:absolute;left:0;right:0;top:0;bottom:calc(110px + env(safe-area-inset-bottom));display:flex;gap:12px;padding:12px;}
         .video-box{position:relative;flex:1 1 50%;border-radius:14px;overflow:hidden;background:linear-gradient(180deg,#08080a,#111);border:1px solid rgba(255,255,255,.04);min-height:120px;box-shadow:0 12px 40px rgba(0,0,0,.6)}
         .video-box video{width:100%;height:100%;object-fit:cover;background:#000;display:block; filter: contrast(1.05) saturate(1.05); -webkit-filter: contrast(1.05) saturate(1.05);}
-        .video-box::after{
-          content:"";
-          position:absolute; inset:0;
-          pointer-events:none;
-          box-shadow: inset 0 80px 120px rgba(0,0,0,0.25);
-          border-radius: inherit;
-          z-index:16;
-        }
+        .video-box::after{content:"";position:absolute; inset:0;pointer-events:none;box-shadow: inset 0 80px 120px rgba(0,0,0,0.25);border-radius: inherit;z-index:16;}
         #localVideo{ transform: scaleX(-1); }
         .label{position:absolute;left:10px;bottom:10px;padding:6px 10px;font-size:12px;color:#fff;background:rgba(0,0,0,.5);border:1px solid rgba(255,255,255,.05);border-radius:10px;pointer-events:none}
         .control-bar{position:fixed;bottom:calc(18px + env(safe-area-inset-bottom));left:50%;transform:translateX(-50%);display:flex;gap:12px;padding:8px 10px;background:linear-gradient(90deg, rgba(255,255,255,0.04), rgba(255,255,255,0.02));border-radius:16px;z-index:3000;backdrop-filter: blur(8px);max-width:calc(100% - 24px);overflow-x:auto;align-items:center;box-shadow:0 12px 30px rgba(0,0,0,.6)}
@@ -1061,62 +1391,43 @@ export default function VideoPage() {
         .rating-buttons button{ padding:14px 24px;font-size:18px;border-radius:14px;border:none;color:#fff;cursor:pointer;background:linear-gradient(135deg,#ff4d8d,#6a5acd);box-shadow:0 10px 28px rgba(0,0,0,.45);backdrop-filter: blur(14px);transition:transform .2s ease,opacity .2s ease }
         #toast{position:fixed;left:50%;bottom:calc(110px + env(safe-area-inset-bottom));transform:translateX(-50%);background:#111;color:#fff;padding:10px 14px;border-radius:8px;display:none;z-index:5000;border:1px solid rgba(255,255,255,.08)}
 
-        /* ---------- new badge watermark (bottom-right) ---------- */
-        .watermark-badge{
-          position:absolute;
-          right:14px;
-          bottom:14px;
-          z-index:40;
-          display:flex;
-          align-items:center;
-          gap:8px;
-          padding:8px 12px;
-          border-radius:26px;
-          background: linear-gradient(135deg, rgba(255,255,255,0.06), rgba(255,255,255,0.02));
-          color: rgba(255,255,255,0.94);
-          font-weight:800;
-          letter-spacing:1px;
-          font-size:14px;
-          transform: rotate(-12deg);
-          box-shadow: 0 8px 30px rgba(0,0,0,0.6);
-          backdrop-filter: blur(6px) saturate(1.1);
-          -webkit-backdrop-filter: blur(6px) saturate(1.1);
-          transition: transform .18s ease, opacity .18s ease;
-          opacity: 0.95;
-          pointer-events: none;
-        }
+        .watermark-badge{position:absolute;right:14px;bottom:14px;z-index:40;display:flex;align-items:center;gap:8px;padding:8px 12px;border-radius:26px;background: linear-gradient(135deg, rgba(255,255,255,0.06), rgba(255,255,255,0.02));color: rgba(255,255,255,0.94);font-weight:800;letter-spacing:1px;font-size:14px;transform: rotate(-12deg);box-shadow: 0 8px 30px rgba(0,0,0,0.6);backdrop-filter: blur(6px) saturate(1.1);-webkit-backdrop-filter: blur(6px) saturate(1.1);transition: transform .18s ease, opacity .18s ease;opacity: 0.95;pointer-events: none;}
         .watermark-badge.small{ font-size:12px; padding:6px 10px; right:10px; bottom:10px; transform: rotate(-10deg) scale(0.92); }
         .watermark-badge span{ display:inline-block; transform: translateY(-1px); }
-        /* little reel-like dot (small accent like Instagram) */
-        .watermark-badge .reel-dot{
-          display:inline-block;
-          width:10px;height:10px;border-radius:50%;
-          background: linear-gradient(45deg,#ff6b8a,#ffd166);
-          box-shadow:0 6px 14px rgba(255,107,138,0.14), inset 0 -2px 6px rgba(0,0,0,0.15);
-          transform: translateY(0) rotate(0);
-        }
-        /* pulse on hover of parent container (not clickable but adds life) */
+        .watermark-badge .reel-dot{display:inline-block;width:10px;height:10px;border-radius:50%;background: linear-gradient(45deg,#ff6b8a,#ffd166);box-shadow:0 6px 14px rgba(255,107,138,0.14), inset 0 -2px 6px rgba(0,0,0,0.15);transform: translateY(0) rotate(0);}
         .video-box:hover .watermark-badge{ transform: translateX(-4px) rotate(-10deg); opacity:1; }
-        /* small breathing animation so badge is alive but not annoying */
         @keyframes badge-breath { 0%{ transform: rotate(-12deg) scale(0.995) } 50%{ transform: rotate(-12deg) scale(1.01) } 100%{ transform: rotate(-12deg) scale(0.995) } }
         .watermark-badge{ animation: badge-breath 4.5s ease-in-out infinite; }
 
-        /* overlay modal styles */
-        .overlay-modal{position:fixed;inset:0;display:flex;align-items:center;justify-content:center;background:rgba(0,0,0,.6);z-index:4500}
-        .modal-card{background:linear-gradient(180deg, rgba(255,255,255,0.02), rgba(255,255,255,0.01));padding:18px;border-radius:12px;min-width:300px;color:#fff;border:1px solid rgba(255,255,255,.06);box-shadow:0 14px 40px rgba(0,0,0,.6)}
+        .overlay-modal{position:fixed;inset:0;display:flex;align-items:center;justify-content:center;background:rgba(0,0,0,.75);z-index:4500;backdrop-filter:blur(4px)}
+        .modal-card{background:linear-gradient(180deg, rgba(20,20,25,0.98), rgba(15,15,20,0.98));padding:24px;border-radius:16px;min-width:320px;max-width:90vw;color:#fff;border:1px solid rgba(255,255,255,.08);box-shadow:0 20px 60px rgba(0,0,0,.8);position:relative}
         .modal-card.small{min-width: min(520px, 92vw)}
-        .modal-close{position:absolute;right:10px;top:6px;background:transparent;border:none;color:#fff;font-size:28px;cursor:pointer}
-        .activities-list{display:flex;gap:12px;flex-direction:column;margin-top:10px}
-        .act-card{padding:12px;border-radius:12px;background:rgba(255,255,255,0.02)}
-        .act-card button{margin-top:10px;padding:10px 14px;border-radius:10px;border:none;background:#ff4d8d;color:#fff;cursor:pointer}
+        .modal-card.wide{min-width: min(800px, 92vw);max-width:95vw}
+        .modal-close{position:absolute;right:12px;top:12px;background:rgba(255,255,255,0.05);border:none;color:#fff;font-size:24px;cursor:pointer;width:32px;height:32px;border-radius:8px;display:flex;align-items:center;justify-content:center;transition:background .2s}
+        .modal-close:hover{background:rgba(255,255,255,0.1)}
+
+        .activities-grid{display:grid;grid-template-columns:repeat(auto-fit, minmax(220px, 1fr));gap:14px;margin-top:16px}
+        .act-card{padding:16px;border-radius:12px;background:rgba(255,255,255,0.03);border:1px solid rgba(255,255,255,0.05);transition:transform .2s, box-shadow .2s}
+        .act-card:hover{transform:translateY(-2px);box-shadow:0 8px 24px rgba(0,0,0,0.4)}
+        .act-icon{font-size:32px;margin-bottom:8px}
+        .act-card h4{font-size:16px;margin:8px 0 6px 0}
+        .act-card p{font-size:13px;opacity:.8;margin-bottom:12px;line-height:1.4}
+        .act-btn{padding:10px 16px;border-radius:10px;border:none;background:linear-gradient(135deg,#ff4d8d,#ff6fa3);color:#fff;cursor:pointer;font-size:14px;font-weight:600;transition:transform .2s,opacity .2s;width:100%}
+        .act-btn:hover{transform:scale(1.02);opacity:.9}
+        .act-btn.danger-btn{background:linear-gradient(135deg,#ff4d4d,#cc0000)}
+
         .options-row{display:flex;gap:12px}
-        .opt-btn{flex:1;padding:12px;border-radius:12px;border:none;background:#222;color:#fff;font-size:16px;cursor:pointer}
-        .opt-btn.disabled{opacity:.5;pointer-events:none}
-        .reveal{background:rgba(255,255,255,0.03);padding:10px;border-radius:10px;margin-top:8px}
-        .result-hearts i{font-size:36px;margin:6px;color:#777}
+        .opt-btn{flex:1;padding:14px;border-radius:12px;border:none;background:rgba(255,255,255,0.08);color:#fff;font-size:16px;cursor:pointer;transition:background .2s}
+        .opt-btn:hover{background:rgba(255,255,255,0.12)}
+        .opt-btn.disabled{opacity:.4;pointer-events:none}
+        .reveal{background:rgba(255,255,255,0.05);padding:12px;border-radius:10px;margin-top:8px;border:1px solid rgba(255,255,255,0.08)}
+        .result-hearts i{font-size:36px;margin:6px;color:#444}
         .result-hearts i.selected{color:#ff1744}
-        /* spin overlay specific */
         #spinBottleImg{ display:block; transform-origin:50% 50%; will-change:transform; }
+
+        .activity-header{display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;padding-bottom:12px;border-bottom:1px solid rgba(255,255,255,0.08)}
+        .big-timer{font-size:32px;font-weight:700;color:#ff6fa3;min-width:60px;text-align:right}
+        .big-text{font-size:22px;font-weight:600;margin:12px 0;line-height:1.4}
 
         @media(max-width: 900px){
           .video-panes{ flex-direction:column; }
@@ -1127,6 +1438,14 @@ export default function VideoPage() {
           .call-timer{ top:8px; font-size:13px; padding:6px 12px }
           .control-btn{ width:64px; height:64px }
           .control-bar{ gap:10px; padding:8px }
+          .activities-grid{grid-template-columns:repeat(auto-fit, minmax(200px, 1fr));gap:12px}
+          .modal-card.wide{min-width:90vw}
+        }
+
+        @media(max-width: 600px){
+          .activities-grid{grid-template-columns:1fr;gap:10px}
+          .big-text{font-size:18px}
+          .big-timer{font-size:28px}
         }
 
         @media(max-width: 480px){
@@ -1139,7 +1458,12 @@ export default function VideoPage() {
           .rating-content{ padding:18px; min-width:86vw }
           .hearts{ font-size:36px }
           .call-timer{ font-size:12px; padding:6px 10px }
+          .modal-card{padding:18px;min-width:90vw}
+          .activities-grid{gap:8px}
         }
+
+        .floating-emoji{position:absolute;font-size:32px;animation:float-up 1.4s ease-out forwards;pointer-events:none}
+        @keyframes float-up{0%{opacity:1;transform:translate(-50%,-50%) scale(1)}100%{opacity:0;transform:translate(-50%,-150%) scale(1.5)}}
       `}</style>
     </>
   );
