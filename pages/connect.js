@@ -340,6 +340,21 @@ export default function ConnectPage() {
         />
       </Head>
 
+      {/* Logout Button */}
+      <button 
+        className="logout-btn"
+        onClick={() => {
+          try {
+            localStorage.clear();
+          } catch {}
+          window.location.href = "/";
+        }}
+        aria-label="Logout"
+      >
+        <span className="logout-icon">🚪</span>
+        <span className="logout-text">Logout</span>
+      </button>
+
       {/* Frame */}
       <div className="frame" aria-hidden />
 
