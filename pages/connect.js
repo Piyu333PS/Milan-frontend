@@ -231,28 +231,6 @@ const fwRef = useRef({ raf: null, burst: () => {}, cleanup: null });
   function stopFireworks() {
     if (fwRef.current.cleanup) fwRef.current.cleanup();
   }
-
-  const handlePhotoPick = (e) => {
-    try {
-      const input = e && e.target ? e.target : null;
-      const files = input && input.files ? input.files : null;
-      const f = files && files.length ? files[0] : null;
-      if (!f) return;
-
-      const r = new FileReader();
-      r.onload = (ev) => {
-        const du = ev && ev.target ? ev.target.result : null;
-        if (!du) return;
-
-        const prev = Array.isArray(profile.photoDataUrls)
-          ? profile.photoDataUrls
-          : [];
-        if (prev.length >= 3) {
-          alert("Max 3 photos");
-          return;
-        }
-        const next = [...prev, du];
-        const p = { ...profile, photoDataUrls: next };
         setProfile(p);
         try {
           localStorage.setItem("milan_profile", JSON.stringify(p));
@@ -403,31 +381,6 @@ function startSearch(type) {
           type="audio/mpeg"
         />
       </audio>
-
-      {/* Sidebar Overlay (Mobile) */}
-      {sidebarOpen && (
-        <div className="name">{profile.name || "Pinky"}</div>
-          <div className="meter">
-            <div className="bar" style={{ width: `${percent}%` }} />
-          </div>
-          <label htmlFor="photoPick" className="photoPick">
-            Change / Add Photo
-          </label>
-          <input
-            id="photoPick"
-            type="file"
-            accept="image/*"
-            style={{ display: "none" }}
-            onChange={handlePhotoPick}
-          />
-        </div>
-        <ul className="nav">
-          <li onClick={handleProfileInfo}>💤 Profile Info</li>
-          <li onClick={handleSecurity}>🔒 Security</li>
-          <li onClick={handleLoveCalculator}>💘 Love Calculator</li>
-          <li onClick={handleLogout}>🚪 Logout</li>
-        </ul>
-      </aside>
 
       {/* Brand */}
       <div className="brandBlock">
@@ -820,7 +773,7 @@ function startSearch(type) {
 
         .heroWrap {
           position: relative;
-          margin-left: 200px;
+          margin-left: 0;
           z-index: 3;
           min-height: 100vh;
           display: flex;
@@ -833,7 +786,7 @@ function startSearch(type) {
         }
 
         .miniGreeting {
-          max-width: min(920px, calc(100vw - 280px));
+          max-width: min(920px, 100%);
           text-align: center;
           font-weight: 700;
           font-size: clamp(14px, 2.5vw, 16px);
@@ -845,7 +798,7 @@ function startSearch(type) {
         }
 
         .featuresGrid {
-          width: min(920px, calc(100vw - 280px));
+          width: min(920px, 100%);
           display: grid;
           grid-template-columns: repeat(2, minmax(240px, 1fr));
           gap: 18px;
@@ -1356,17 +1309,17 @@ function startSearch(type) {
 
         @media (min-width: 761px) and (max-width: 1024px) {
           .heroWrap {
-            margin-left: 200px;
+            margin-left: 0;
             padding: calc(var(--brandH) + 40px) 24px var(--bottomH);
           }
 
           .featuresGrid {
-            width: calc(100vw - 260px);
+            width: 100%;
             max-width: 880px;
           }
 
           .miniGreeting {
-            max-width: calc(100vw - 260px);
+            max-width: 100%;
           }
         }
       
