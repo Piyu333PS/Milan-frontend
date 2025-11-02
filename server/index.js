@@ -1196,7 +1196,89 @@ io.on("connection", (socket) => {
       if (!room) return;
 
       const last = lastGameStart.get(roomCode) || 0;
-      if (Date.now() - last < GAME_COOLDOWN_MS) { return socket.emit("errorMessage", { message: "Please wait before spinning again." }); }
+      if (Date.now() - last < GAME_COOLDOWN_MS) { return socket.emit("errorMessage", { message: "Please wait before spinning again." });
+  // ======== FUN ACTIVITIES (ADDED BY CODE GPT - FIXED LOCATION) ========
+
+  // 1️⃣ Mirror Challenge
+  socket.on("mirrorChallengeStart", ({ roomCode, duration = 30 } = {}) => {
+    if (!roomCode) return;
+    io.to(roomCode).emit("mirrorChallengeStarted", {
+      instruction: "Copy your partner’s moves!",
+      duration: duration * 1000,
+      startedAt: Date.now(),
+    });
+    setTimeout(() => {
+      io.to(roomCode).emit("mirrorChallengeEnd", {
+        message: "Mirror Challenge Complete! 🎉",
+      });
+    }, duration * 1000);
+  });
+
+  // 2️⃣ Staring Contest
+  socket.on("staringContestStart", ({ roomCode, duration = 20 } = {}) => {
+    if (!roomCode) return;
+    io.to(roomCode).emit("staringContestStarted", {
+      instruction: "Don’t blink! Keep staring 👀",
+      startedAt: Date.now(),
+      duration: duration * 1000,
+    });
+    setTimeout(() => {
+      const members = Array.from(io.sockets.adapter.rooms.get(roomCode) || []);
+      if (!members.length) return;
+      const winner = members[Math.floor(Math.random() * members.length)];
+      io.to(roomCode).emit("staringContestEnd", {
+        winnerId: winner,
+        message: "Contest Over!",
+      });
+    }, duration * 1000);
+  });
+
+  // 3️⃣ Lyrics Game
+  socket.on("lyricsGameStart", ({ roomCode, rounds = 3 } = {}) => {
+    if (!roomCode) return;
+    const lyrics = [
+      { lyric: "Tera ban jaunga...", song: "Kabir Singh" },
+      { lyric: "Tum hi ho...", song: "Aashiqui 2" },
+      { lyric: "Apna bana le...", song: "Bhediya" },
+    ];
+    io.to(roomCode).emit("lyricsGameStarted", {
+      instruction: "Complete the lyrics of this Bollywood song! 🎤",
+      totalRounds: rounds,
+    });
+    let index = 0;
+    const interval = setInterval(() => {
+      if (index >= rounds) {
+        clearInterval(interval);
+        io.to(roomCode).emit("lyricsGameEnd", { message: "Lyrics Game Complete!" });
+        return;
+      }
+      const current = lyrics[index % lyrics.length];
+      io.to(roomCode).emit("lyricsRound", {
+        lyric: current.lyric,
+        song: current.song,
+        round: index + 1,
+        totalRounds: rounds,
+      });
+      index++;
+    }, 10000);
+  });
+
+  // 4️⃣ Dance Dare
+  socket.on("danceDareStart", ({ roomCode, duration = 15 } = {}) => {
+    if (!roomCode) return;
+    const moves = ["Freestyle!", "Wave your hands!", "Spin around!", "Jump twice!"];
+    const move = moves[Math.floor(Math.random() * moves.length)];
+    io.to(roomCode).emit("danceDareStarted", {
+      instruction: move,
+      duration: duration * 1000,
+    });
+    setTimeout(() => {
+      io.to(roomCode).emit("danceDareEnd", { message: "Dance Dare Complete! 🕺💃" });
+    }, duration * 1000);
+  });
+
+  // ======== END FUN ACTIVITIES ========
+ }
       const soc = lastGameBySocket.get(socket.id) || {};
       if (Date.now() - (soc.spin || 0) < PER_SOCKET_COOLDOWN_MS) { return socket.emit("errorMessage", { message: "You're spinning too fast." }); }
       lastGameStart.set(roomCode, Date.now());
@@ -1306,86 +1388,4 @@ const PORT = process.env.PORT || 5000;
 http.listen(PORT, "0.0.0.0", () => { 
   console.log(`🚀 Server running at: http://localhost:${PORT}`); 
 
-  // ======== FUN ACTIVITIES (ADDED BY CODE GPT) ========
-
-  // 1️⃣ Mirror Challenge
-  socket.on("mirrorChallengeStart", ({ roomCode, duration = 30 } = {}) => {
-    if (!roomCode) return;
-    io.to(roomCode).emit("mirrorChallengeStarted", {
-      instruction: "Copy your partner’s moves!",
-      duration: duration * 1000,
-      startedAt: Date.now(),
-    });
-    setTimeout(() => {
-      io.to(roomCode).emit("mirrorChallengeEnd", {
-        message: "Mirror Challenge Complete! 🎉",
-      });
-    }, duration * 1000);
-  });
-
-  // 2️⃣ Staring Contest
-  socket.on("staringContestStart", ({ roomCode, duration = 20 } = {}) => {
-    if (!roomCode) return;
-    io.to(roomCode).emit("staringContestStarted", {
-      instruction: "Don’t blink! Keep staring 👀",
-      startedAt: Date.now(),
-      duration: duration * 1000,
-    });
-    setTimeout(() => {
-      const members = Array.from(io.sockets.adapter.rooms.get(roomCode) || []);
-      if (!members.length) return;
-      const winner = members[Math.floor(Math.random() * members.length)];
-      io.to(roomCode).emit("staringContestEnd", {
-        winnerId: winner,
-        message: "Contest Over!",
-      });
-    }, duration * 1000);
-  });
-
-  // 3️⃣ Lyrics Game
-  socket.on("lyricsGameStart", ({ roomCode, rounds = 3 } = {}) => {
-    if (!roomCode) return;
-    const lyrics = [
-      { lyric: "Tera ban jaunga...", song: "Kabir Singh" },
-      { lyric: "Tum hi ho...", song: "Aashiqui 2" },
-      { lyric: "Apna bana le...", song: "Bhediya" },
-    ];
-    io.to(roomCode).emit("lyricsGameStarted", {
-      instruction: "Complete the lyrics of this Bollywood song! 🎤",
-      totalRounds: rounds,
-    });
-    let index = 0;
-    const interval = setInterval(() => {
-      if (index >= rounds) {
-        clearInterval(interval);
-        io.to(roomCode).emit("lyricsGameEnd", { message: "Lyrics Game Complete!" });
-        return;
-      }
-      const current = lyrics[index % lyrics.length];
-      io.to(roomCode).emit("lyricsRound", {
-        lyric: current.lyric,
-        song: current.song,
-        round: index + 1,
-        totalRounds: rounds,
-      });
-      index++;
-    }, 10000);
-  });
-
-  // 4️⃣ Dance Dare
-  socket.on("danceDareStart", ({ roomCode, duration = 15 } = {}) => {
-    if (!roomCode) return;
-    const moves = ["Freestyle!", "Wave your hands!", "Spin around!", "Jump twice!"];
-    const move = moves[Math.floor(Math.random() * moves.length)];
-    io.to(roomCode).emit("danceDareStarted", {
-      instruction: move,
-      duration: duration * 1000,
-    });
-    setTimeout(() => {
-      io.to(roomCode).emit("danceDareEnd", { message: "Dance Dare Complete! 🕺💃" });
-    }, duration * 1000);
-  });
-
-  // ======== END FUN ACTIVITIES ========
-
-});
+  
