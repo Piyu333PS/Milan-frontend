@@ -809,6 +809,62 @@ export default function VideoPage() {
         } catch (e) { console.error("danceDareResult", e); }
       });
 
+// ======== AUTO SYNC FIX FOR FUN ACTIVITIES ========
+// When connected, ask server to re-sync any missed start events
+socket.on("connect", () => {
+  console.log("[FunSync] Socket connected:", socket.id);
+  safeEmit("syncActivities", { roomCode: getRoomCode && getRoomCode() });
+});
+
+// Confirm receipt of any fun activity start events
+socket.on("mirrorChallengeStarted", (data) => {
+  showToast("🪞 Mirror Challenge Started: " + (data.instruction || ""));
+  console.log("[FunSync] Mirror Challenge Started", data);
+});
+
+socket.on("mirrorChallengeEnd", (data) => {
+  showToast("✅ Mirror Challenge Ended: " + data.message);
+  console.log("[FunSync] Mirror Challenge Ended", data);
+});
+
+socket.on("staringContestStarted", (data) => {
+  showToast("👁️ Staring Contest Started!");
+  console.log("[FunSync] Staring Contest Started", data);
+});
+
+socket.on("staringContestEnd", (data) => {
+  showToast("👁️‍🗨️ Staring Contest Ended!");
+  console.log("[FunSync] Staring Contest Ended", data);
+});
+
+socket.on("lyricsGameStarted", (data) => {
+  showToast("🎤 Lyrics Game Started!");
+  console.log("[FunSync] Lyrics Game Started", data);
+});
+
+socket.on("lyricsRound", (data) => {
+  showToast("🎶 " + data.lyric);
+  console.log("[FunSync] Lyrics Round", data);
+});
+
+socket.on("lyricsGameEnd", (data) => {
+  showToast("🎵 Lyrics Game Ended!");
+  console.log("[FunSync] Lyrics Game Ended", data);
+});
+
+socket.on("danceDareStarted", (data) => {
+  showToast("💃 Dance Dare Started: " + (data.instruction || ""));
+  console.log("[FunSync] Dance Dare Started", data);
+});
+
+socket.on("danceDareEnd", (data) => {
+  showToast("🕺 Dance Dare Ended!");
+  console.log("[FunSync] Dance Dare Ended", data);
+});
+// ======== END AUTO SYNC FIX ========
+
+
+
       // ========== END NEW ACTIVITIES SIGNALS ==========
 
       // UI WIRING
