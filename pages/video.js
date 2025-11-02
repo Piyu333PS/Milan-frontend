@@ -486,7 +486,7 @@ export default function VideoPage() {
             reveal.querySelector(".you-choice").textContent = payload.answers.you === "A" ? modal.querySelector("#optA").textContent : modal.querySelector("#optB").textContent;
             reveal.querySelector(".other-choice").textContent = payload.answers.partner === "A" ? modal.querySelector("#optA").textContent : modal.querySelector("#optB").textContent;
             var match = payload.answers.you === payload.answers.partner;
-            reveal.querySelector(".match-text").textContent = match ? "Match! 💖 +1" : "Different — Opposites attract! ✨";
+            reveal.querySelector(".match-text").textContent = match ? "Match! 💖 +1" : "Different – Opposites attract! ✨";
             if (typeof payload.matched !== "undefined") {
               twoOptionScore.asked = payload.totalAsked || twoOptionScore.asked;
               twoOptionScore.matched = payload.matched;
@@ -565,186 +565,251 @@ export default function VideoPage() {
       socket.on("twoOptionCancel", () => { try { var m = get("twoOptionModal"); if (m) m.style.display = "none"; } catch (e) {} });
       socket.on("spinCancel", () => { try { var sm = get("spinModal"); if (sm) sm.style.display = "none"; } catch (e) {} });
 
-      // ========== NEW ACTIVITIES SIGNALS ==========
+      // ========== NEW ACTIVITIES SIGNALS - FIXED ==========
 
-      // RAPID FIRE
-      socket.on("rapidFireStart", (data) => {
+      // 3. RAPID FIRE QUESTIONS (Uses existing startQuestionGame backend)
+      socket.on("newQuestion", (data) => {
         try {
-          log("rapidFireStart", data);
-          const modal = get("rapidFireModal");
-          if (!modal) return;
-          rapidFireCount = 0;
-          modal.querySelector(".rf-timer").textContent = "60";
-          modal.querySelector(".rf-question").textContent = "Get ready...";
-          modal.querySelector(".rf-counter").textContent = "0/12";
-          modal.style.display = "flex";
-          showToast("Rapid Fire starting!");
-        } catch (e) { console.error("rapidFireStart", e); }
-      });
-
-      socket.on("rapidFireQuestion", (q) => {
-        try {
-          log("rapidFireQuestion", q);
+          log("newQuestion (rapid fire)", data);
           const modal = get("rapidFireModal");
           if (!modal) return;
           rapidFireCount++;
-          modal.querySelector(".rf-question").textContent = q.text || "Question...";
-          modal.querySelector(".rf-counter").textContent = `${rapidFireCount}/${q.total || 12}`;
-        } catch (e) { console.error("rapidFireQuestion", e); }
+          modal.querySelector(".rf-question").textContent = data.question || "Question...";
+          modal.querySelector(".rf-counter").textContent = `${rapidFireCount}/10`;
+          if (!modal.style.display || modal.style.display === 'none') {
+            modal.querySelector(".rf-timer").textContent = data.timeout || "30";
+            modal.style.display = "flex";
+            showToast("Rapid Fire Started!");
+          }
+        } catch (e) { console.error("newQuestion", e); }
       });
 
-      socket.on("rapidFireTick", (data) => {
+      socket.on("questionResult", (data) => {
         try {
-          const modal = get("rapidFireModal");
-          if (!modal) return;
-          modal.querySelector(".rf-timer").textContent = data.remaining || "0";
-        } catch (e) {}
-      });
-
-      socket.on("rapidFireEnd", (data) => {
-        try {
-          log("rapidFireEnd", data);
+          log("questionResult", data);
           const modal = get("rapidFireModal");
           if (modal) modal.style.display = "none";
-          showToast(`Rapid Fire Over! ${data.questionsShown || rapidFireCount} questions asked`);
-        } catch (e) { console.error("rapidFireEnd", e); }
+          rapidFireCount = 0;
+          showToast("Rapid Fire completed!");
+        } catch (e) { console.error("questionResult", e); }
       });
 
-      // MIRROR CHALLENGE
-      socket.on("mirrorStart", (data) => {
+      // 4. MIRROR CHALLENGE - FIXED
+      socket.on("mirrorChallengeStarted", (data) => {
         try {
-          log("mirrorStart", data);
+          log("mirrorChallengeStarted", data);
           const modal = get("mirrorModal");
           if (!modal) return;
-          const role = data.isLeader ? "LEADER" : "FOLLOWER";
-          modal.querySelector(".mirror-role").textContent = role === "LEADER" ? "👑 LEADER" : "🪞 FOLLOWER";
-          modal.querySelector(".mirror-instructions").textContent = role === "LEADER" 
-            ? "Do funny actions! Your partner will copy you." 
-            : "Mirror your partner's movements!";
-          modal.querySelector(".mirror-timer").textContent = "60";
+          modal.querySelector(".mirror-role").textContent = "🪞 MIRROR CHALLENGE";
+          modal.querySelector(".mirror-instructions").textContent = data.instruction || "Copy each other's moves!";
+          modal.querySelector(".mirror-timer").textContent = Math.floor((data.duration || 30000) / 1000);
           modal.style.display = "flex";
-          showToast(`Mirror Challenge: You are ${role}`);
-        } catch (e) { console.error("mirrorStart", e); }
+          showToast("Mirror Challenge Started!");
+          
+          // Start countdown
+          if (mirrorTimer) clearInterval(mirrorTimer);
+          let remaining = Math.floor((data.duration || 30000) / 1000);
+          mirrorTimer = setInterval(() => {
+            remaining--;
+            const timerEl = modal.querySelector(".mirror-timer");
+            if (timerEl) timerEl.textContent = remaining;
+            if (remaining <= 0) clearInterval(mirrorTimer);
+          }, 1000);
+        } catch (e) { console.error("mirrorChallengeStarted", e); }
       });
 
-      socket.on("mirrorTick", (data) => {
+      socket.on("mirrorPartnerMove", (data) => {
         try {
-          const modal = get("mirrorModal");
-          if (!modal) return;
-          modal.querySelector(".mirror-timer").textContent = data.remaining || "0";
-        } catch (e) {}
+          log("mirrorPartnerMove", data);
+          showToast(`Partner: ${data.move || "moved!"}`);
+        } catch (e) { console.error("mirrorPartnerMove", e); }
       });
 
-      socket.on("mirrorEnd", () => {
+      socket.on("mirrorChallengeEnd", (data) => {
         try {
-          log("mirrorEnd");
+          log("mirrorChallengeEnd", data);
+          if (mirrorTimer) clearInterval(mirrorTimer);
           const modal = get("mirrorModal");
           if (modal) modal.style.display = "none";
-          showToast("Mirror Challenge Complete! 🎉");
-        } catch (e) { console.error("mirrorEnd", e); }
+          showToast(data.message || "Mirror Challenge Complete! 🎉");
+        } catch (e) { console.error("mirrorChallengeEnd", e); }
       });
 
-      // STARING CONTEST
-      socket.on("staringStart", () => {
+      socket.on("mirrorChallengeResult", (data) => {
         try {
-          log("staringStart");
+          log("mirrorChallengeResult", data);
+          if (data.scores && data.scores.length > 0) {
+            showToast(`Scores: ${data.scores.map(s => s.score).join(" vs ")}`);
+          }
+        } catch (e) { console.error("mirrorChallengeResult", e); }
+      });
+
+      // 5. STARING CONTEST - FIXED
+      socket.on("staringContestStarted", (data) => {
+        try {
+          log("staringContestStarted", data);
           const modal = get("staringModal");
           if (!modal) return;
           modal.querySelector(".staring-timer").textContent = "0";
-          modal.querySelector(".staring-status").textContent = "Stare into each other's eyes!";
+          modal.querySelector(".staring-status").textContent = data.instruction || "Stare into each other's eyes!";
           modal.style.display = "flex";
           showToast("Staring Contest Started! 👀");
-        } catch (e) { console.error("staringStart", e); }
+          
+          // Start timer
+          if (staringTimer) clearInterval(staringTimer);
+          let elapsed = 0;
+          staringTimer = setInterval(() => {
+            elapsed++;
+            const timerEl = modal.querySelector(".staring-timer");
+            if (timerEl) timerEl.textContent = elapsed;
+          }, 1000);
+        } catch (e) { console.error("staringContestStarted", e); }
       });
 
-      socket.on("staringTick", (data) => {
+      socket.on("staringPartnerLaughed", (data) => {
         try {
-          const modal = get("staringModal");
-          if (!modal) return;
-          modal.querySelector(".staring-timer").textContent = data.elapsed || "0";
+          log("staringPartnerLaughed", data);
+          showToast("Partner laughed! 😂");
         } catch (e) {}
       });
 
-      socket.on("staringEnd", (data) => {
+      socket.on("staringContestEnd", (data) => {
         try {
-          log("staringEnd", data);
+          log("staringContestEnd", data);
+          if (staringTimer) clearInterval(staringTimer);
           const modal = get("staringModal");
           if (!modal) return;
-          const winner = data.winner || "Nobody";
-          const duration = data.duration || "0";
-          modal.querySelector(".staring-status").textContent = `Winner: ${winner} 🏆 (${duration}s)`;
+          
+          let message = "Contest Over!";
+          if (data.isWinner) {
+            message = data.message || "You won! 🏆";
+          } else if (data.winnerId) {
+            message = data.message || "Partner won! 😅";
+          } else {
+            message = data.message || "It's a tie!";
+          }
+          
+          modal.querySelector(".staring-status").textContent = message;
           setTimeout(() => {
             if (modal) modal.style.display = "none";
           }, 3000);
-        } catch (e) { console.error("staringEnd", e); }
+        } catch (e) { console.error("staringContestEnd", e); }
       });
 
-      // FINISH THE LYRICS
-      socket.on("lyricsStart", (data) => {
+      // 6. FINISH THE LYRICS - FIXED
+      socket.on("lyricsGameStarted", (data) => {
         try {
-          log("lyricsStart", data);
+          log("lyricsGameStarted", data);
+          const modal = get("lyricsModal");
+          if (!modal) return;
+          modal.querySelector(".lyrics-song-hint").textContent = data.instruction || "Complete the Bollywood lyrics!";
+          modal.querySelector(".lyrics-line").textContent = "Get ready...";
+          modal.querySelector(".lyrics-answer").style.display = "none";
+          modal.style.display = "flex";
+          showToast("Lyrics Game Started! 🎤");
+        } catch (e) { console.error("lyricsGameStarted", e); }
+      });
+
+      socket.on("lyricsRound", (data) => {
+        try {
+          log("lyricsRound", data);
           const modal = get("lyricsModal");
           if (!modal) return;
           lyricsCurrentSong = data;
-          modal.querySelector(".lyrics-line").textContent = data.line || "Starting line...";
-          modal.querySelector(".lyrics-song-hint").textContent = `Song: ${data.songName || "Guess it!"}`;
+          modal.querySelector(".lyrics-line").textContent = data.lyric || "Starting line...";
+          modal.querySelector(".lyrics-song-hint").textContent = `Song: ${data.song || "Guess it!"} (${data.movie || ""}) - ${data.roundNumber || 1}/${data.totalRounds || 5}`;
           modal.querySelector(".lyrics-answer").style.display = "none";
-          modal.querySelector(".lyrics-answer").textContent = "";
-          modal.style.display = "flex";
-          showToast("Finish the Lyrics! 🎤");
-        } catch (e) { console.error("lyricsStart", e); }
+          if (!modal.style.display || modal.style.display === 'none') {
+            modal.style.display = "flex";
+          }
+        } catch (e) { console.error("lyricsRound", e); }
       });
 
-      socket.on("lyricsReveal", (data) => {
+      socket.on("lyricsPartnerAnswered", (data) => {
         try {
-          log("lyricsReveal", data);
-          const modal = get("lyricsModal");
-          if (!modal) return;
-          const answerDiv = modal.querySelector(".lyrics-answer");
-          answerDiv.textContent = `Answer: "${data.answer || ""}"`;
-          answerDiv.style.display = "block";
-        } catch (e) { console.error("lyricsReveal", e); }
-      });
-
-      socket.on("lyricsEnd", () => {
-        try {
-          log("lyricsEnd");
-          const modal = get("lyricsModal");
-          if (modal) modal.style.display = "none";
-          showToast("Lyrics Challenge Complete!");
-        } catch (e) { console.error("lyricsEnd", e); }
-      });
-
-      // DANCE DARE
-      socket.on("danceStart", (data) => {
-        try {
-          log("danceStart", data);
-          const modal = get("danceModal");
-          if (!modal) return;
-          modal.querySelector(".dance-song").textContent = data.song || "Random Song";
-          modal.querySelector(".dance-genre").textContent = data.genre || "Party";
-          modal.querySelector(".dance-timer").textContent = "15";
-          modal.style.display = "flex";
-          showToast("Dance Time! 💃");
-        } catch (e) { console.error("danceStart", e); }
-      });
-
-      socket.on("danceTick", (data) => {
-        try {
-          const modal = get("danceModal");
-          if (!modal) return;
-          modal.querySelector(".dance-timer").textContent = data.remaining || "0";
+          log("lyricsPartnerAnswered", data);
+          showToast("Partner answered!");
         } catch (e) {}
       });
 
-      socket.on("danceEnd", () => {
+      socket.on("lyricsRoundResult", (data) => {
         try {
-          log("danceEnd");
+          log("lyricsRoundResult", data);
+          const modal = get("lyricsModal");
+          if (!modal) return;
+          const answerDiv = modal.querySelector(".lyrics-answer");
+          answerDiv.textContent = `Answer: "${data.correctAnswer || ""}"`;
+          answerDiv.style.display = "block";
+          
+          if (data.results) {
+            setTimeout(() => {
+              const scores = data.results.map(r => `${r.isCorrect ? '✅' : '❌'} ${r.score}pts`).join(' | ');
+              showToast(scores);
+            }, 500);
+          }
+        } catch (e) { console.error("lyricsRoundResult", e); }
+      });
+
+      socket.on("lyricsGameEnd", (data) => {
+        try {
+          log("lyricsGameEnd", data);
+          const modal = get("lyricsModal");
+          if (modal) modal.style.display = "none";
+          
+          let message = data.message || "Lyrics Game Complete!";
+          if (data.winner && data.scores) {
+            const winnerScore = data.scores.find(s => s.socketId === data.winner);
+            if (winnerScore) {
+              message += ` 🏆 Winner: ${winnerScore.score}pts`;
+            }
+          }
+          showToast(message);
+        } catch (e) { console.error("lyricsGameEnd", e); }
+      });
+
+      // 7. DANCE DARE - FIXED
+      socket.on("danceDareStarted", (data) => {
+        try {
+          log("danceDareStarted", data);
+          const modal = get("danceModal");
+          if (!modal) return;
+          modal.querySelector(".dance-song").textContent = data.move || "Random Move";
+          modal.querySelector(".dance-genre").textContent = data.instruction || "Show your moves!";
+          modal.querySelector(".dance-timer").textContent = Math.floor((data.duration || 15000) / 1000);
+          modal.style.display = "flex";
+          showToast("Dance Time! 💃");
+          
+          // Start countdown
+          let remaining = Math.floor((data.duration || 15000) / 1000);
+          const danceInterval = setInterval(() => {
+            remaining--;
+            const timerEl = modal.querySelector(".dance-timer");
+            if (timerEl) timerEl.textContent = remaining;
+            if (remaining <= 0) clearInterval(danceInterval);
+          }, 1000);
+        } catch (e) { console.error("danceDareStarted", e); }
+      });
+
+      socket.on("danceDareEnd", (data) => {
+        try {
+          log("danceDareEnd", data);
+          const modal = get("danceModal");
+          if (!modal) return;
+          modal.querySelector(".dance-genre").textContent = data.message || "Time to rate!";
+          showToast("Rate your partner's dance!");
+        } catch (e) { console.error("danceDareEnd", e); }
+      });
+
+      socket.on("danceDareResult", (data) => {
+        try {
+          log("danceDareResult", data);
           const modal = get("danceModal");
           if (modal) modal.style.display = "none";
-          showToast("Dance Dare Complete! 🎉");
-        } catch (e) { console.error("danceEnd", e); }
+          showToast(`Your Rating: ${data.yourRating || 0}/10 | Partner: ${data.partnerRating || 0}/10 ${data.message || ""}`);
+        } catch (e) { console.error("danceDareResult", e); }
       });
+
+      // ========== END NEW ACTIVITIES SIGNALS ==========
 
       // UI WIRING
       setTimeout(() => {
@@ -956,7 +1021,7 @@ export default function VideoPage() {
           })(hearts[hi]);
         }
 
-        // Activities button - FIXED
+        // Activities button
         var activitiesBtn = get("activitiesBtn");
         if (activitiesBtn) {
           activitiesBtn.onclick = function (e) {
@@ -1019,7 +1084,7 @@ export default function VideoPage() {
           }
         }
 
-        // EXISTING ACTIVITIES - Fixed event handlers
+        // ========== EXISTING ACTIVITIES HANDLERS ==========
         var startTwo = get("startTwoOption");
         if (startTwo) {
           startTwo.onclick = function (e) {
@@ -1055,99 +1120,118 @@ export default function VideoPage() {
         if (spinDone) spinDone.onclick = function () { var sm = get("spinModal"); if (sm) sm.style.display = "none"; safeEmit("spinBottleDone", {}); };
         if (spinSkip) spinSkip.onclick = function () { var sm = get("spinModal"); if (sm) sm.style.display = "none"; safeEmit("spinBottleSkip", {}); };
 
-        // NEW ACTIVITIES BUTTONS - Fixed
+        // ========== NEW ACTIVITIES HANDLERS - FIXED ==========
+
+        // 3. RAPID FIRE
         var startRapid = get("startRapidFire");
         if (startRapid) {
           startRapid.onclick = function (e) {
             e.preventDefault();
             e.stopPropagation();
-            safeEmit("rapidFireStart", {});
+            rapidFireCount = 0;
+            safeEmit("startQuestionGame", { timeout: 30 });
             closeActivitiesModal();
+            showToast("Starting Rapid Fire...");
           };
         }
 
         var endRapid = get("endRapidFire");
         if (endRapid) endRapid.onclick = function () {
-          safeEmit("rapidFireEnd", {});
-          var m = get("rapidFireModal"); if (m) m.style.display = "none";
+          var m = get("rapidFireModal"); 
+          if (m) m.style.display = "none";
+          rapidFireCount = 0;
         };
 
+        // 4. MIRROR CHALLENGE
         var startMirror = get("startMirror");
         if (startMirror) {
           startMirror.onclick = function (e) {
             e.preventDefault();
             e.stopPropagation();
-            safeEmit("mirrorStart", {});
+            safeEmit("mirrorChallengeStart", { duration: 30 });
             closeActivitiesModal();
+            showToast("Starting Mirror Challenge...");
           };
         }
 
         var endMirror = get("endMirror");
         if (endMirror) endMirror.onclick = function () {
-          safeEmit("mirrorEnd", {});
-          var m = get("mirrorModal"); if (m) m.style.display = "none";
+          var m = get("mirrorModal"); 
+          if (m) m.style.display = "none";
+          if (mirrorTimer) clearInterval(mirrorTimer);
         };
 
+        // 5. STARING CONTEST
         var startStaring = get("startStaring");
         if (startStaring) {
           startStaring.onclick = function (e) {
             e.preventDefault();
             e.stopPropagation();
-            safeEmit("staringStart", {});
+            safeEmit("staringContestStart", { duration: 30 });
             closeActivitiesModal();
+            showToast("Starting Staring Contest...");
           };
         }
 
         var iBlinked = get("iBlinked");
         if (iBlinked) iBlinked.onclick = function () {
-          safeEmit("staringBlink", { who: "self" });
+          const roomCode = getRoomCode();
+          safeEmit("staringContestBlink", { roomCode, contestId: "current" });
+          showToast("You blinked! 😅");
         };
 
         var endStaring = get("endStaring");
         if (endStaring) endStaring.onclick = function () {
-          safeEmit("staringEnd", {});
-          var m = get("staringModal"); if (m) m.style.display = "none";
+          var m = get("staringModal"); 
+          if (m) m.style.display = "none";
+          if (staringTimer) clearInterval(staringTimer);
         };
 
+        // 6. FINISH THE LYRICS
         var startLyrics = get("startLyrics");
         if (startLyrics) {
           startLyrics.onclick = function (e) {
             e.preventDefault();
             e.stopPropagation();
-            safeEmit("lyricsStart", {});
+            safeEmit("lyricsGameStart", { rounds: 5 });
             closeActivitiesModal();
+            showToast("Starting Lyrics Game...");
           };
         }
 
         var showLyricsAnswer = get("showLyricsAnswer");
         if (showLyricsAnswer) showLyricsAnswer.onclick = function () {
-          safeEmit("lyricsReveal", {});
+          showToast("Answer revealed!");
         };
 
         var nextLyrics = get("nextLyrics");
         if (nextLyrics) nextLyrics.onclick = function () {
-          safeEmit("lyricsNext", {});
+          showToast("Next round coming...");
         };
 
         var endLyrics = get("endLyrics");
         if (endLyrics) endLyrics.onclick = function () {
-          safeEmit("lyricsEnd", {});
-          var m = get("lyricsModal"); if (m) m.style.display = "none";
+          var m = get("lyricsModal"); 
+          if (m) m.style.display = "none";
         };
 
+        // 7. DANCE DARE
         var startDance = get("startDance");
         if (startDance) {
           startDance.onclick = function (e) {
             e.preventDefault();
             e.stopPropagation();
-            safeEmit("danceStart", {});
+            safeEmit("danceDareStart", { duration: 15 });
             closeActivitiesModal();
+            showToast("Starting Dance Dare...");
           };
         }
 
         var skipDance = get("skipDance");
         if (skipDance) skipDance.onclick = function () {
-          safeEmit("danceSkip", {});
+          var m = get("danceModal"); 
+          if (m) m.style.display = "none";
+          showToast("Dance skipped!");
         };
 
       }, 800);
@@ -1382,7 +1466,7 @@ export default function VideoPage() {
             <h3>🪞 Mirror Challenge</h3>
             <div className="mirror-timer big-timer">60</div>
           </div>
-          <div className="mirror-role big-text">👑 LEADER</div>
+          <div className="mirror-role big-text">🪞 LEADER</div>
           <p className="mirror-instructions">Do funny actions! Your partner will copy you.</p>
           <div style={{marginTop:16}}>
             <button id="endMirror" className="act-btn danger-btn">End Challenge</button>
@@ -1502,7 +1586,7 @@ export default function VideoPage() {
         .modal-close{position:absolute;right:12px;top:12px;background:rgba(255,255,255,0.05);border:none;color:#fff;font-size:24px;cursor:pointer;width:32px;height:32px;border-radius:8px;display:flex;align-items:center;justify-content:center;transition:background .2s}
         .modal-close:hover{background:rgba(255,255,255,0.1)}
 
-        /* NEW: Bottom Sheet Activities Modal */
+        /* Bottom Sheet Activities Modal */
         .activities-overlay{position:fixed;inset:0;z-index:4500;display:none}
         .activities-backdrop{position:absolute;inset:0;background:rgba(0,0,0,0.6);backdrop-filter:blur(4px)}
         .activities-sheet{position:absolute;bottom:0;left:0;right:0;background:linear-gradient(180deg, rgba(20,20,25,0.98), rgba(15,15,20,0.98));border-radius:24px 24px 0 0;max-height:85vh;transform:translateY(100%);transition:transform 0.3s cubic-bezier(0.4, 0, 0.2, 1);border:1px solid rgba(255,255,255,0.1);border-bottom:none;box-shadow:0 -10px 60px rgba(0,0,0,0.8)}
@@ -1523,12 +1607,6 @@ export default function VideoPage() {
         .act-item-content p{color:rgba(255,255,255,0.7);font-size:13px;margin:0;line-height:1.4}
         .act-item-arrow{color:rgba(255,255,255,0.3);font-size:16px;flex-shrink:0}
 
-        .activities-grid{display:grid;grid-template-columns:repeat(auto-fit, minmax(220px, 1fr));gap:14px;margin-top:16px}
-        .act-card{padding:16px;border-radius:12px;background:rgba(255,255,255,0.03);border:1px solid rgba(255,255,255,0.05);transition:transform .2s, box-shadow .2s}
-        .act-card:hover{transform:translateY(-2px);box-shadow:0 8px 24px rgba(0,0,0,0.4)}
-        .act-icon{font-size:32px;margin-bottom:8px}
-        .act-card h4{font-size:16px;margin:8px 0 6px 0}
-        .act-card p{font-size:13px;opacity:.8;margin-bottom:12px;line-height:1.4}
         .act-btn{padding:10px 16px;border-radius:10px;border:none;background:linear-gradient(135deg,#ff4d8d,#ff6fa3);color:#fff;cursor:pointer;font-size:14px;font-weight:600;transition:transform .2s,opacity .2s;width:100%}
         .act-btn:hover{transform:scale(1.02);opacity:.9}
         .act-btn.danger-btn{background:linear-gradient(135deg,#ff4d4d,#cc0000)}
@@ -1560,7 +1638,6 @@ export default function VideoPage() {
         }
 
         @media(max-width: 600px){
-          .activities-grid{grid-template-columns:1fr;gap:10px}
           .big-text{font-size:18px}
           .big-timer{font-size:28px}
           .act-item{padding:14px 16px}
@@ -1580,7 +1657,6 @@ export default function VideoPage() {
           .hearts{ font-size:36px }
           .call-timer{ font-size:12px; padding:6px 10px }
           .modal-card{padding:18px;min-width:90vw}
-          .activities-grid{gap:8px}
           .act-item{padding:12px 14px}
           .act-item-icon{font-size:26px;width:44px;height:44px}
           .sheet-header{padding:14px 16px}
