@@ -1,4 +1,6 @@
 "use client";
+// Coming Soon global flag
+const COMING_SOON = true;
 import { useEffect } from "react";
 import io from "socket.io-client";
 
@@ -1725,3 +1727,16 @@ socket.on("danceDareEnd", (data) => {
     </>
   );
 }
+
+
+// === COMING SOON OVERRIDE ===
+if (typeof document !== 'undefined') {
+  const actIds = [
+    "startTwoOption","startSpin","startRapidFire","startMirror","startStaring","startLyrics","startDance"
+  ];
+  actIds.forEach(id=>{
+    const el=document.getElementById(id);
+    if(el){el.onclick=(e)=>{e.preventDefault();alert("Coming Soon 🔒");};}
+  });
+}
+// === END COMING SOON ===
