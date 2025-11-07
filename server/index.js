@@ -689,7 +689,11 @@ io.on("connection", (socket) => {
 
   // ✅ Partner finding with 12s human-wait + AI fallback (TEXT only)
   socket.on("lookingForPartner", ({ type, token } = {}) => {
-    const mode = type || "video";
+    // 🔑 NORMALIZE MODE: anything not explicitly "video" → treat as TEXT
+    let modeRaw = (type || "").toString().toLowerCase().trim();
+    const mode = modeRaw === "video" ? "video" : "text";
+    console.log("[lookingForPartner] client type =", type, "→ normalized mode =", mode);
+
     enqueue(mode, socket.id);
 
     // 1) Try immediate human match
@@ -750,7 +754,7 @@ io.on("connection", (socket) => {
     // 2) Queue acknowledged
     try { socket.emit("queued", { mode }); } catch (e) {}
 
-    // 3) AI fallback only for TEXT
+    // 3) AI fallback only for TEXT (mode already normalized)
     if (mode !== "text") return;
 
     const myState = socketState.get(socket.id) || {};
@@ -763,6 +767,9 @@ io.on("connection", (socket) => {
       // abort if already in a room
       const stNow = socketState.get(socket.id) || {};
       if (!stNow || stNow.roomCode) return;
+
+      // ✅ ensure out of all queues before creating AI room
+      removeFromQueues(socket.id);
 
       const roomCode = makeRoom("text", socket.id, aiId);
       const r = rooms.get(roomCode) || {};
