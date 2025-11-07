@@ -1,6 +1,6 @@
 // server/index.js
 // ✅ FIXED: Friend request system with proper user tracking
-// NOTE: This is your original file with targeted friend-request improvements only.
+// + AI Text Chat: 12s wait -> AI fallback, gendered persona, 5s opener
 
 require("dotenv").config();
 const express = require("express");
@@ -315,6 +315,42 @@ app.get("/api/profile/:id", async (req, res) => {
 });
 
 // Queue & Room Helpers
+
+// --- AI chat helpers (lightweight) ---
+const AI_WAIT_MS = 12_000;      // 12s tak human ka wait
+const AI_START_MSG_MS = 5_000;  // connect hote 5s baad hello (agar user silent)
+const AI_TYPING_MIN = 1200;     // typing simulation min
+const AI_TYPING_MAX = 2800;     // typing simulation max
+
+// AI rooms meta: roomCode -> { aiId, personaGender, name, lastUserTs, startGreetingTimer }
+const aiRooms = new Map();
+
+function randDelay(min, max) {
+  return Math.floor(min + Math.random() * (max - min + 1));
+}
+function oppositeGender(g) {
+  const s = String(g || "unknown").toLowerCase();
+  if (s.startsWith("m")) return "female";
+  if (s.startsWith("f")) return "male";
+  return Math.random() < 0.5 ? "male" : "female";
+}
+function aiNameForGender(g) {
+  return (String(g).toLowerCase().startsWith("f")) ? "Aisha" : "Arjun";
+}
+function emitTyping(io, roomCode) {
+  try { io.to(roomCode).emit("partnerTyping"); } catch {}
+}
+function sendAiMessage(io, roomCode, text, aiId) {
+  try {
+    io.to(roomCode).emit("message", {
+      id: `${Date.now()}-${Math.random()}`,
+      text: String(text),
+      roomCode,
+      senderId: aiId, // client ko partner-side message lagega
+    });
+  } catch {}
+}
+
 function enqueue(mode, socketId) {
   if (!queues[mode].includes(socketId)) queues[mode].push(socketId);
   setState(socketId, { queuedAt: Date.now() });
@@ -441,6 +477,15 @@ io.on("connection", (socket) => {
         }
       }
     } catch (e) { console.warn("roomMembers cleanup failed:", e); }
+
+    // AI room cleanup (avoid timers/leaks)
+    try {
+      if (st?.roomCode && aiRooms.has(st.roomCode)) {
+        const meta = aiRooms.get(st.roomCode);
+        if (meta?.startGreetingTimer) { try { clearTimeout(meta.startGreetingTimer); } catch {} }
+        aiRooms.delete(st.roomCode);
+      }
+    } catch (e) {}
 
     cleanupInviteMembership(s);
     clearState(s.id);
@@ -642,12 +687,13 @@ io.on("connection", (socket) => {
     }
   });
 
-  // ✅ FIXED: Partner Finding with proper user info sharing
+  // ✅ Partner finding with 12s human-wait + AI fallback (TEXT only)
   socket.on("lookingForPartner", ({ type, token } = {}) => {
     const mode = type || "video";
     enqueue(mode, socket.id);
-    const partnerId = getPartnerFor(mode, socket.id);
 
+    // 1) Try immediate human match
+    const partnerId = getPartnerFor(mode, socket.id);
     if (partnerId) {
       const roomCode = makeRoom(mode, socket.id, partnerId);
       setState(socket.id, { roomCode, partnerId, mode });
@@ -656,11 +702,9 @@ io.on("connection", (socket) => {
       socket.join(roomCode);
       safeGetSocket(partnerId).join(roomCode);
 
-      // ✅ Get user info from state
       const myState = socketState.get(socket.id) || {};
       const partnerState = socketState.get(partnerId) || {};
 
-      // ✅ Share user info with partner
       socket.emit("partnerFound", { 
         partner: { 
           id: partnerId,
@@ -700,16 +744,79 @@ io.on("connection", (socket) => {
           if (sB && sB.connected) sB.emit("playerSymbol", { symbol: playerSymbols[roomObj.b] });
         } catch (e) { console.warn("playerSymbol emit failed", e); }
       }
-    } else {
-      try { socket.emit("queued", { mode }); } catch (e) {}
+      return;
     }
+
+    // 2) Queue acknowledged
+    try { socket.emit("queued", { mode }); } catch (e) {}
+
+    // 3) AI fallback only for TEXT
+    if (mode !== "text") return;
+
+    const myState = socketState.get(socket.id) || {};
+    const personaGender = oppositeGender(myState.gender || "unknown");
+    const aiId = `ai:${randomUUID()}`;
+    const plannedAt = Date.now();
+
+    // Schedule AI fallback after 12s unless human matched before
+    const timer = setTimeout(() => {
+      // abort if already in a room
+      const stNow = socketState.get(socket.id) || {};
+      if (!stNow || stNow.roomCode) return;
+
+      const roomCode = makeRoom("text", socket.id, aiId);
+      const r = rooms.get(roomCode) || {};
+      r.ai = true; // mark as AI room
+      rooms.set(roomCode, r);
+
+      setState(socket.id, { roomCode, partnerId: aiId, mode: "text" });
+      try { socket.join(roomCode); } catch {}
+
+      const partner = { 
+        id: aiId,
+        userId: null,
+        name: aiNameForGender(personaGender),
+        avatar: null,
+        gender: personaGender
+      };
+      try { socket.emit("partnerFound", { partner, roomCode }); } catch {}
+
+      // greet banner
+      sendAiMessage(io, roomCode, "No human available in 12s — connected to AI.", "system");
+
+      // 5s silent opener (cancel if user speaks)
+      const startGreetingTimer = setTimeout(() => {
+        const meta = aiRooms.get(roomCode);
+        if (!meta) return;
+        if (meta.lastUserTs && Date.now() - meta.lastUserTs < AI_START_MSG_MS - 500) return;
+        emitTyping(io, roomCode);
+        setTimeout(() => {
+          sendAiMessage(io, roomCode, "Hey! How are you? 😊", aiId);
+        }, randDelay(AI_TYPING_MIN, AI_TYPING_MAX));
+      }, AI_START_MSG_MS);
+
+      aiRooms.set(roomCode, { aiId, personaGender, name: partner.name, lastUserTs: null, startGreetingTimer });
+    }, AI_WAIT_MS);
+
+    // store timer so cleanup par clear ho sake (optional)
+    setState(socket.id, { _aiPlanAt: plannedAt, _aiTimer: timer });
   });
 
+  // AI-aware joinRoom
   socket.on("joinRoom", ({ roomCode } = {}) => {
     if (!roomCode) { socket.emit("joinError", { reason: "missing_roomCode" }); return; }
     const room = rooms.get(roomCode);
     if (!room) { socket.emit("joinError", { reason: "room_not_found" }); return; }
 
+    // AI room: just join; no partner shuffle
+    if (room.ai === true) {
+      try { socket.join(roomCode); } catch {}
+      const partnerId = (room.a === socket.id ? room.b : room.a);
+      setState(socket.id, { roomCode, partnerId, mode: room.mode });
+      return;
+    }
+
+    // Human-human logic (original)
     const aAlive = safeGetSocket(room.a);
     const bAlive = safeGetSocket(room.b);
 
@@ -754,16 +861,42 @@ io.on("connection", (socket) => {
     io.to(roomCode).emit("rejoined", { by: socket.id });
   });
 
-  // TEXT CHAT CORE
+  // TEXT CHAT CORE (+ AI reply hook)
   socket.on("message", (data = {}) => {
     const { id, text, roomCode, senderId } = data || {};
     if (!roomCode || !text) return;
+
+    // broadcast as-is
     io.to(roomCode).emit("message", {
       id: id || `${Date.now()}-${Math.random()}`,
       text: String(text),
       roomCode,
       senderId: senderId || socket.id
     });
+
+    // If AI room and human sent message → AI replies
+    const room = rooms.get(roomCode);
+    if (room && room.ai === true && (senderId === socket.id || !senderId)) {
+      const meta = aiRooms.get(roomCode);
+      if (meta) { meta.lastUserTs = Date.now(); aiRooms.set(roomCode, meta); }
+
+      emitTyping(io, roomCode);
+      const delay = randDelay(AI_TYPING_MIN, AI_TYPING_MAX);
+
+      setTimeout(() => {
+        const m = aiRooms.get(roomCode);
+        if (!m) return;
+
+        const lower = String(text).toLowerCase();
+        let reply = "Nice! Tell me more. 🙂";
+        if (/[?]$/.test(lower)) reply = "Good question! What do you think?";
+        if (/hello|hi|hey/.test(lower)) reply = "Hello! Great to meet you 🌸";
+        if (/how are you|kaise ho|kya haal/.test(lower)) reply = "I’m good! You tell me, how’s your day going?";
+        if (/name|naam/.test(lower)) reply = `I’m ${m.name}. And you?`;
+
+        sendAiMessage(io, roomCode, reply, m.aiId);
+      }, delay);
+    }
   });
 
   socket.on("fileMessage", (data = {}) => {
@@ -928,7 +1061,7 @@ io.on("connection", (socket) => {
         const otherId = getOtherParticipant(roomCode, socket.id);
         if (otherId) io.to(otherId).emit("partnerLeft");
       }
-    } catch (e) { console.error("leaveVideo error", e); }
+    } catch (e) { console.error("leaveVideo error:", e); }
   });
 
   // Invite Link (Zero-DB)
@@ -1386,6 +1519,5 @@ io.on("connection", (socket) => {
 // Start Server
 const PORT = process.env.PORT || 5000;
 http.listen(PORT, "0.0.0.0", () => { 
-  console.log(`🚀 Server running at: http://localhost:${PORT}`); 
-
-  
+  console.log(`🚀 Server running at: http://localhost:${PORT}`);
+});
