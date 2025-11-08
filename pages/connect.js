@@ -5,6 +5,7 @@ import Head from "next/head";
 import io from "socket.io-client";
 
 const ENABLE_DIWALI = false;
+const HUMAN_SEARCH_TIMEOUT = 12000; // 12 seconds
 
 export default function ConnectPage() {
   const [profile, setProfile] = useState({
@@ -20,13 +21,15 @@ export default function ConnectPage() {
   const [isSearching, setIsSearching] = useState(false);
   const [showLoader, setShowLoader] = useState(false);
   const [statusMessage, setStatusMessage] = useState(
-    "❤️ जहाँ दिल मिले, वहीं होती है शुरुआत Milan की…"
+    "❤️ जहां दिल मिले, वहीं होती है शुरुआत Milan की…"
   );
 
   const fwRef = useRef({ raf: null, burst: () => {}, cleanup: null });
   const socketRef = useRef(null);
   const partnerRef = useRef(null);
   const connectingRef = useRef(false);
+  const searchTimerRef = useRef(null);
+  const searchTypeRef = useRef(null);
 
   const backendUrl = useMemo(
     () =>
@@ -219,16 +222,66 @@ export default function ConnectPage() {
     if (fwRef.current.cleanup) fwRef.current.cleanup();
   }
 
+  function connectToAI(type) {
+    // Store that we're connecting to AI
+    sessionStorage.setItem("connectingToAI", "true");
+    sessionStorage.setItem("aiChatType", type);
+    
+    // Get user info
+    const userGender = localStorage.getItem("gender") || "male";
+    const userName = profile.name || localStorage.getItem("registered_name") || "Friend";
+    
+    // Store AI partner data
+    const aiPartner = {
+      isAI: true,
+      name: userGender === "male" ? "Priya" : "Rahul",
+      gender: userGender === "male" ? "female" : "male",
+      age: "25",
+      city: "Virtual",
+      bio: "Hey! I'm your AI companion. Let's chat! 😊"
+    };
+    
+    sessionStorage.setItem("partnerData", JSON.stringify(aiPartner));
+    sessionStorage.setItem("roomCode", "AI_" + Date.now());
+    
+    setStatusMessage("💖 AI Partner Connected!");
+    
+    // Redirect to chat
+    setTimeout(() => {
+      window.location.href = type === "video" ? "/video" : "/chat";
+    }, 500);
+  }
+
   function startSearch(type) {
     if (isSearching || connectingRef.current) return;
     connectingRef.current = true;
+    searchTypeRef.current = type;
     setIsSearching(true);
     setShowLoader(true);
     setStatusMessage(
       type === "video"
         ? "🎥 Finding your video chat soulmate..."
-        : "💬 Connecting hearts through words..."
+        : "💬 Searching for a human partner..."
     );
+
+    // Start 12-second timer for AI fallback
+    searchTimerRef.current = setTimeout(() => {
+      console.log("12 seconds elapsed - connecting to AI");
+      setStatusMessage("💝 No human partner found. Connecting you with AI...");
+      
+      // Disconnect socket if connected
+      if (socketRef.current && socketRef.current.connected) {
+        try {
+          socketRef.current.emit("disconnectByUser");
+          socketRef.current.disconnect();
+        } catch {}
+      }
+      
+      // Connect to AI after 1 second
+      setTimeout(() => {
+        connectToAI(type);
+      }, 1000);
+    }, HUMAN_SEARCH_TIMEOUT);
 
     try {
       if (!socketRef.current || !socketRef.current.connected) {
@@ -252,19 +305,29 @@ export default function ConnectPage() {
 
       socketRef.current.on("partnerFound", (data) => {
         try {
+          // Clear the AI fallback timer - human partner found!
+          if (searchTimerRef.current) {
+            clearTimeout(searchTimerRef.current);
+            searchTimerRef.current = null;
+          }
+
           const roomCode = data && data.roomCode ? data.roomCode : "";
           partnerRef.current = data && data.partner ? data.partner : {};
           if (!roomCode) {
             setTimeout(() => stopSearch(), 800);
             return;
           }
+          
+          // Mark as human partner
+          partnerRef.current.isAI = false;
+          
           sessionStorage.setItem(
             "partnerData",
             JSON.stringify(partnerRef.current)
           );
           sessionStorage.setItem("roomCode", roomCode);
           localStorage.setItem("lastRoomCode", roomCode);
-          setStatusMessage("💖 Milan Successful!");
+          setStatusMessage("💖 Human Partner Found!");
           setTimeout(() => {
             window.location.href = type === "video" ? "/video" : "/chat";
           }, 120);
@@ -274,15 +337,27 @@ export default function ConnectPage() {
       });
 
       socketRef.current.on("partnerDisconnected", () => {
+        if (searchTimerRef.current) {
+          clearTimeout(searchTimerRef.current);
+          searchTimerRef.current = null;
+        }
         alert("Partner disconnected.");
         stopSearch();
       });
 
       socketRef.current.on("connect_error", () => {
+        if (searchTimerRef.current) {
+          clearTimeout(searchTimerRef.current);
+          searchTimerRef.current = null;
+        }
         alert("Connection error. Please try again.");
         stopSearch();
       });
     } catch {
+      if (searchTimerRef.current) {
+        clearTimeout(searchTimerRef.current);
+        searchTimerRef.current = null;
+      }
       alert("Something went wrong starting the search.");
       stopSearch();
     } finally {
@@ -293,6 +368,12 @@ export default function ConnectPage() {
   }
 
   function stopSearch() {
+    // Clear timer
+    if (searchTimerRef.current) {
+      clearTimeout(searchTimerRef.current);
+      searchTimerRef.current = null;
+    }
+
     if (socketRef.current) {
       try {
         socketRef.current.emit("disconnectByUser");
@@ -307,12 +388,13 @@ export default function ConnectPage() {
     }
     setIsSearching(false);
     setShowLoader(false);
-    setStatusMessage("❤️ जहाँ दिल मिले, वहीं होती है शुरुआत Milan की…");
+    setStatusMessage("❤️ जहां दिल मिले, वहीं होती है शुरुआत Milan की…");
   }
 
   const handleLogout = () => {
     try {
       localStorage.clear();
+      sessionStorage.clear();
     } catch {}
     window.location.href = "/";
   };
@@ -373,7 +455,7 @@ export default function ConnectPage() {
       {/* Center */}
       <main className="heroWrap">
         <p className="miniGreeting">
-          Find gentle connections. Let hearts float up and find each other — welcome to Milan.
+          Find gentle connections. Let hearts float up and find each other – welcome to Milan.
         </p>
 
         <section
@@ -465,7 +547,7 @@ export default function ConnectPage() {
                 </div>
 
                 <p className="modal-description">
-                  We're gently nudging hearts together — finding someone who vibes with your rhythm. Hold on, cupid is working his magic! 💘
+                  We're gently nudging hearts together – finding someone who vibes with your rhythm. Hold on, cupid is working his magic! 💘
                 </p>
 
                 <div className="status-text">{statusMessage}</div>
