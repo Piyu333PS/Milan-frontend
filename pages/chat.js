@@ -440,8 +440,8 @@ socket.on("aiConnected", onAiConnect);
       msgRef.current.value = "";
     }
     
-    setTyping(false),
-  },
+    setTyping(false);
+  };
 
   const handleFile = async (e) => {
     const f = e.target.files?.[0];
