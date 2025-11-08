@@ -423,87 +423,9 @@ socket.on("aiConnected", onAiConnect);
       console.log("Partner disconnected event received");
       
       if (isAiPartnerRef.current) {
-        console.log("AI partner - ignoring disconnect event");
-        return;
-      }
-      
-      if (partnerFoundRef.current && !isCleaningUp.current) {
-        setShowDisconnectAlert(true);
-      }
-    });
-
-    socket.on("friend-request-received", (data) => {
-      console.log("✅ Friend request received:", data);
-      setFriendRequestData(data);
-      setShowFriendRequestPopup(true);
-    });
-
-    socket.on("friend-request-accepted", (data) => {
-      console.log("✅ Friend request accepted:", data);
-      setCelebrationActive(true);
-      createFloatingHearts(20);
-      
-      setTimeout(() => {
-        setResponseType('accepted');
-        setShowResponsePopup(true);
-        setCelebrationActive(false);
-      }, 2000);
-    });
-
-    socket.on("friend-request-rejected", (data) => {
-      console.log("❌ Friend request rejected:", data);
-      
-      setTimeout(() => {
-        setResponseType('rejected');
-        setShowResponsePopup(true);
-      }, 500);
-    });
-
-    return () => {
-      isCleaningUp.current = true;
-      try {
-        socket.off("connect_error");
-        socket.off("disconnect");
-        socket.off("partnerFound");
-        socket.off("message");
-        socket.off("fileMessage");
-        socket.off("partnerTyping");
-        socket.off("partnerDisconnected");
-        socket.off("friend-request-received");
-        socket.off("friend-request-accepted");
-        socket.off("friend-request-rejected");
-        socket.disconnect();
-      } catch {}
-    };
-  }, []);
-
-  // ✅ FIX 5: Send to AI if AI partner, else send to socket
-  const sendText = () => {
-    const val = (msgRef.current?.value || "").trim();
-    if (!val) return;
-    
-    // ✅ AI ke liye roomCode optional hai
-    if (!roomCode && !isAiPartnerRef.current) return;
-    
-    const id = genId();
-    processedMsgIds.current.add(id);
-
-    setMsgs((p) => [
-      ...p,
-      { id, self: true, kind: "text", html: linkify(escapeHtml(val)), time: timeNow(), status: "sent" },
-    ]);
-    scrollToBottom();
-
-    if (isAiPartnerRef.current) {
-      msgRef.current.value = "";
-      
-      // Show typing indicator
-      setTyping(true);
-      setTimeout(() => setTyping(false), 2000);
-      
-      // Send to AI
-      sendToAI(val);
-    } else {
+  msgRef.current.value = "";
+  try { socketRef.current.emit("message", { id, text: val, roomCode: roomCode || "ai-direct", senderId: socketRef.current.id }); } catch (e) { console.error("emit message failed", e); }
+} else {
       try {
         socketRef.current.emit("message", {
           id,
