@@ -1,5 +1,5 @@
 // pages/chat.js
-// ✅ COMPLETE FILE - Token parsing + Friend Request System
+// ✅ COMPLETE FILE - Token parsing + Friend Request System + AI Partner Support
 
 import { useEffect, useRef, useState } from "react";
 import Head from "next/head";
@@ -16,6 +16,7 @@ const getAvatarForGender = (g) => {
   const key = String(g || "").toLowerCase();
   if (key === "male") return "/partner-avatar-male.png";
   if (key === "female") return "/partner-avatar-female.png";
+  if (key === "ai") return "/partner-avatar.png"; // AI avatar
   return "/partner-avatar.png";
 };
 
@@ -77,6 +78,7 @@ export default function ChatPage() {
   const [roomCode, setRoomCode] = useState(null);
   const [partnerId, setPartnerId] = useState(null);
   const [partnerUserId, setPartnerUserId] = useState(null);
+  const [isAiPartner, setIsAiPartner] = useState(false);
 
   const [emojiOpen, setEmojiOpen] = useState(false);
   const EMOJIS = ["😊", "❤️", "😂", "👍", "🔥", "😍", "🤗", "😘", "😎", "🥰"];
@@ -141,7 +143,7 @@ export default function ChatPage() {
       localName = localStorage.getItem("milan_name") || "";
       const token = localStorage.getItem("token");
       
-      console.log("🔐 Token check:", token ? "Found" : "Not found");
+      console.log("🔑 Token check:", token ? "Found" : "Not found");
       
       if (token) {
         try {
@@ -220,9 +222,13 @@ export default function ChatPage() {
       setRoomCode(rc);
       setPartnerId(partner?.id || null);
       
+      // Check if this is an AI partner
+      const isAI = partner?.isAI === true || partner?.type === "ai" || partner?.name === "Milan AI";
+      setIsAiPartner(isAI);
+      
       const pUserId = partner?.userId || null;
-      const pName = partner?.name || "Romantic Stranger";
-      const pAvatar = partner?.avatar || getAvatarForGender(partner?.gender);
+      const pName = partner?.name || (isAI ? "Milan AI" : "Romantic Stranger");
+      const pAvatar = partner?.avatar || getAvatarForGender(isAI ? "ai" : partner?.gender);
 
       setPartnerUserId(pUserId);
       setPartnerName(pName);
@@ -231,14 +237,8 @@ export default function ChatPage() {
       console.log("✅ Partner Info SET:", { 
         name: pName, 
         userId: pUserId,
-        socketId: partner?.id 
-      });
-
-      console.log("🔍 Friend Request Button Check:", {
-        roomCode: rc,
-        partnerUserId: pUserId,
-        myUserId: localUserId,
-        shouldShow: !!(rc && pUserId && localUserId)
+        socketId: partner?.id,
+        isAI: isAI
       });
 
       try {
@@ -250,7 +250,15 @@ export default function ChatPage() {
         processedMsgIds.current.add(sysId);
         setMsgs((p) => [
           ...p,
-          { id: sysId, self: false, kind: "system", html: `You are connected with ${escapeHtml(pName)}.`, time: timeNow() },
+          { 
+            id: sysId, 
+            self: false, 
+            kind: "system", 
+            html: isAI 
+              ? `You are connected with ${escapeHtml(pName)}. Say hi! 👋` 
+              : `You are connected with ${escapeHtml(pName)}.`, 
+            time: timeNow() 
+          },
         ]);
       }
       scrollToBottom();
@@ -404,6 +412,13 @@ export default function ChatPage() {
       return;
     }
 
+    // Don't allow file sending to AI partner
+    if (isAiPartner) {
+      alert("⚠️ File sharing is not available with AI partner. Try sending a text message instead!");
+      e.target.value = "";
+      return;
+    }
+
     if (f.size > MAX_FILE_BYTES) {
       alert("⚠️ File too big – max 15 MB allowed.");
       e.target.value = "";
@@ -474,7 +489,7 @@ export default function ChatPage() {
   };
 
   const onType = () => {
-    if (!socketRef.current || !roomCode) return;
+    if (!socketRef.current || !roomCode || isAiPartner) return;
     try {
       socketRef.current.emit("typing", { roomCode });
     } catch {}
@@ -491,6 +506,12 @@ export default function ChatPage() {
   };
 
   const handleAddToFavourites = () => {
+    // Don't allow friend request for AI partner
+    if (isAiPartner) {
+      alert("⚠️ You cannot send friend requests to AI partners!");
+      return;
+    }
+
     console.log("🔍 Add Friend clicked - Current state:", {
       socketConnected: socketRef.current?.connected,
       currentUserId,
@@ -757,7 +778,10 @@ export default function ChatPage() {
           <div className="header-left">
             <img className="avatar" src={partnerAvatarSrc} alt="DP" />
             <div className="partner">
-              <div className="name">{partnerName}</div>
+              <div className="name">
+                {partnerName}
+                {isAiPartner && <span style={{marginLeft: '6px', fontSize: '0.75rem', opacity: 0.8}}>🤖</span>}
+              </div>
               <div className="status">
                 <span className={`dot ${isConnected && roomCode ? 'online' : ''}`} /> 
                 {typing ? "typing…" : roomCode ? "online" : "searching…"}
@@ -766,7 +790,7 @@ export default function ChatPage() {
           </div>
 
           <div className="header-right">
-            {roomCode && partnerUserId && currentUserId && (
+            {roomCode && partnerUserId && currentUserId && !isAiPartner && (
               <button
                 className="friend-request-btn"
                 onClick={handleAddToFavourites}
@@ -785,7 +809,7 @@ export default function ChatPage() {
             <button className="icon-btn" title="Menu" onClick={() => setMenuOpen((s) => !s)}>⋮</button>
             
             <div className={`menu ${menuOpen ? "open" : ""}`}>
-              {roomCode && partnerUserId && currentUserId && (
+              {roomCode && partnerUserId && currentUserId && !isAiPartner && (
                 <>
                   <button className="menu-item" onClick={handleAddToFavourites} disabled={requestSending}>
                     <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
@@ -810,13 +834,17 @@ export default function ChatPage() {
               }}>
                 🔌 Disconnect
               </button>
-              <div className="sep" />
-              <button className="menu-item" onClick={() => {
-                setMenuOpen(false);
-                alert("🚩 Report submitted. Thank you!");
-              }}>
-                🚩 Report
-              </button>
+              {!isAiPartner && (
+                <>
+                  <div className="sep" />
+                  <button className="menu-item" onClick={() => {
+                    setMenuOpen(false);
+                    alert("🚩 Report submitted. Thank you!");
+                  }}>
+                    🚩 Report
+                  </button>
+                </>
+              )}
             </div>
           </div>
         </header>
@@ -848,7 +876,7 @@ export default function ChatPage() {
 
         <footer className="inputbar">
           <input ref={fileRef} type="file" hidden onChange={handleFile} accept="image/*,video/*,.pdf,.doc,.docx" />
-          <button className="tool" title="Attach" onClick={() => fileRef.current?.click()} disabled={isUploading}>
+          <button className="tool" title="Attach" onClick={() => fileRef.current?.click()} disabled={isUploading || isAiPartner}>
             📎
           </button>
 
@@ -1534,6 +1562,8 @@ export default function ChatPage() {
           text-overflow: ellipsis;
           color: #ffffff;
           font-size: 1rem;
+          display: flex;
+          align-items: center;
         }
         
         .status {
