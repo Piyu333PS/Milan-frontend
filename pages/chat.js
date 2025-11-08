@@ -842,9 +842,8 @@ export default function ChatPage() {
                   <span className="username">{friendRequestData.fromUsername}</span> wants to be your friend on Milan
                 </p>
                 
-                <p className="modal-description
-                  They loved chatting with you and want to stay connected 💖
-                </p>
+                <p className="modal-description">They loved chatting with you and want to stay connected 💖</p>
+
 
                 <div className="modal-buttons">
                   <button onClick={handleRejectRequest} className="btn-reject">
