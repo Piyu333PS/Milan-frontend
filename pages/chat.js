@@ -280,7 +280,6 @@ socket.on("aiConnected", onAiConnect);
       setPartnerId(partner?.id || null);
       
       // Check if this is an AI partner
-      \1
       if (isAI) { searchLockedRef.current = true; try { socket.emit("stopSearching"); } catch {} try { socket.emit("lockWithAI"); } catch {} }// ✅ FIX 3: Properly lock search when AI connects
       if (isAI) { 
         searchLockedRef.current = true;
