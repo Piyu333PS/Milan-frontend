@@ -437,12 +437,6 @@ export default function ConnectPage() {
         id="fxCanvas"
         style={{ position: "fixed", inset: 0, zIndex: 0, pointerEvents: "none" }}
       />
-      <audio id="bellAudio" preload="auto">
-        <source
-          src="https://cdn.pixabay.com/download/audio/2022/03/15/audio_4c76d6de8a.mp3?filename=soft-bell-ambient-10473.mp3"
-          type="audio/mpeg"
-        />
-      </audio>
 
       {/* Brand */}
       <div className="brandBlock">
