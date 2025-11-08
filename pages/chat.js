@@ -98,6 +98,12 @@ export default function ChatPage() {
   const [currentUsername, setCurrentUsername] = useState("");
   const [requestSending, setRequestSending] = useState(false);
 
+// Mirror AI state into a ref to avoid stale closures in socket handlers
+useEffect(() => {
+  isAiPartnerRef.current = isAiPartner;
+}, [isAiPartner]);
+
+
   const socketRef = useRef(null);
   const msgRef = useRef(null);
   const fileRef = useRef(null);
@@ -106,6 +112,8 @@ export default function ChatPage() {
   const processedMsgIds = useRef(new Set());
   const partnerFoundRef = useRef(false);
   const isCleaningUp = useRef(false);
+  const isAiPartnerRef = useRef(false);
+
 
   const timeNow = () => {
     const d = new Date();
@@ -201,7 +209,7 @@ export default function ChatPage() {
       
       console.log("📤 Sending userInfo:", userInfo);
       socket.emit("userInfo", userInfo);
-      if (!searchLockedRef.current && !isAiPartner) {
+      if (!searchLockedRef.current && !isAiPartnerRef.current) {
         socket.emit("lookingForPartner", { type: "text" });
       }
 
@@ -219,7 +227,7 @@ export default function ChatPage() {
     socket.on("partnerFound", ({ roomCode: rc, partner }) => {
       
 // 🛡️ If we're already chatting with AI, ignore any incoming non-AI partnerFound
-if (isAiPartner) {
+if (isAiPartnerRef.current) {
   const incomingIsAI = partner?.isAI === true || partner?.type === "ai" || partner?.name === "Milan AI";
   if (!incomingIsAI) {
     try { socket.emit("declineHumanWhileAI"); } catch {}
@@ -442,7 +450,7 @@ const pUserId = partner?.userId || null;
     }
 
     // Don't allow file sending to AI partner
-    if (isAiPartner) {
+    if (isAiPartnerRef.current) {
       alert("⚠️ File sharing is not available with AI partner. Try sending a text message instead!");
       e.target.value = "";
       return;
@@ -536,7 +544,7 @@ const pUserId = partner?.userId || null;
 
   const handleAddToFavourites = () => {
     // Don't allow friend request for AI partner
-    if (isAiPartner) {
+    if (isAiPartnerRef.current) {
       alert("⚠️ You cannot send friend requests to AI partners!");
       return;
     }
