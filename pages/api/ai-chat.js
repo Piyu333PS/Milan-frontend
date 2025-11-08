@@ -1,8 +1,6 @@
-import OpenAI from 'openai';
+import { GoogleGenerativeAI, HarmCategory, HarmBlockThreshold } from '@google/generative-ai';
 
-const openai = new OpenAI({
-  apiKey: process.env.OPENAI_API_KEY
-});
+const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
 
 export default async function handler(req, res) {
   // Only allow POST requests
@@ -22,7 +20,7 @@ export default async function handler(req, res) {
     const aiName = aiGender === 'female' ? 'Priya' : 'Rahul';
 
     // System prompt
-    const systemPrompt = `You are ${aiName}, a friendly ${aiGender} chat partner on a dating app.
+    const systemPrompt = `You are ${aiName}, a friendly ${aiGender} chat partner on a dating app called Milan.
 
 Rules:
 - Be warm, casual, and engaging
@@ -32,29 +30,65 @@ Rules:
 - Avoid personal info, phone numbers, or meeting requests
 - If user gets inappropriate, politely redirect
 - Be conversational like a real person
+- Show interest in the conversation
+- Ask questions occasionally to keep chat flowing
 
 Examples:
 User: "Hey, kaise ho?"
-You: "Hey! Main theek hoon, thanks! Tum batao, kya chal raha hai? 😊"`;
+You: "Hey! Main theek hoon, thanks! Tum batao, kya chal raha hai? 😊"
 
-    // Prepare messages
-    const messages = [
-      { role: 'system', content: systemPrompt },
-      ...conversationHistory.slice(-10),
-      { role: 'user', content: message }
-    ];
+User: "Bore ho raha hu"
+You: "Arre! Toh kuch interesting baat karte hain... tum kya karte ho usually when you're free?"`;
 
-    // Call OpenAI
-    const response = await openai.chat.completions.create({
-      model: 'gpt-4o-mini',
-      messages: messages,
-      temperature: 0.8,
-      max_tokens: 150,
-      presence_penalty: 0.6,
-      frequency_penalty: 0.3
+    // Build conversation context
+    let contextMessages = '';
+    if (conversationHistory.length > 0) {
+      const recentHistory = conversationHistory.slice(-8); // Last 4 exchanges
+      contextMessages = recentHistory.map(msg => 
+        `${msg.role === 'user' ? 'User' : aiName}: ${msg.content}`
+      ).join('\n');
+    }
+
+    // Final prompt with context
+    const fullPrompt = `${systemPrompt}
+
+${contextMessages ? `Previous conversation:\n${contextMessages}\n` : ''}
+User: ${message}
+${aiName}:`;
+
+    // Initialize Gemini model with safety settings
+    const model = genAI.getGenerativeModel({
+      model: 'gemini-1.5-flash',
+      safetySettings: [
+        {
+          category: HarmCategory.HARM_CATEGORY_HARASSMENT,
+          threshold: HarmBlockThreshold.BLOCK_MEDIUM_AND_ABOVE,
+        },
+        {
+          category: HarmCategory.HARM_CATEGORY_HATE_SPEECH,
+          threshold: HarmBlockThreshold.BLOCK_MEDIUM_AND_ABOVE,
+        },
+        {
+          category: HarmCategory.HARM_CATEGORY_SEXUALLY_EXPLICIT,
+          threshold: HarmBlockThreshold.BLOCK_MEDIUM_AND_ABOVE,
+        },
+        {
+          category: HarmCategory.HARM_CATEGORY_DANGEROUS_CONTENT,
+          threshold: HarmBlockThreshold.BLOCK_MEDIUM_AND_ABOVE,
+        },
+      ],
+      generationConfig: {
+        temperature: 0.9,
+        topP: 0.95,
+        topK: 40,
+        maxOutputTokens: 150,
+      },
     });
 
-    const aiResponse = response.choices[0].message.content;
+    // Generate response
+    const result = await model.generateContent(fullPrompt);
+    const response = await result.response;
+    const aiResponse = response.text().trim();
 
     // Return response
     return res.status(200).json({
@@ -66,7 +100,19 @@ You: "Hey! Main theek hoon, thanks! Tum batao, kya chal raha hai? 😊"`;
     });
 
   } catch (error) {
-    console.error('OpenAI Error:', error);
+    console.error('Gemini Error:', error);
+    
+    // Handle safety blocks
+    if (error.message && error.message.includes('SAFETY')) {
+      return res.status(200).json({
+        success: true,
+        message: 'Hey! Chalo kuch aur interesting baat karte hain... 😊',
+        aiName: userGender === 'male' ? 'Priya' : 'Rahul',
+        aiGender: userGender === 'male' ? 'female' : 'male',
+        timestamp: new Date().toISOString()
+      });
+    }
+
     return res.status(500).json({
       success: false,
       error: 'AI service temporarily unavailable',
