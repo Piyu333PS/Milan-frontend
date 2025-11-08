@@ -441,7 +441,7 @@ socket.on("aiConnected", onAiConnect);
     }
     
     setTyping(false),
-  };
+  },
 
   const handleFile = async (e) => {
     const f = e.target.files?.[0];
