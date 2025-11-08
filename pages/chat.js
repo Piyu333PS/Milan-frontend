@@ -214,7 +214,18 @@ export default function ChatPage() {
     });
 
     socket.on("partnerFound", ({ roomCode: rc, partner }) => {
-      if (!rc) return;
+      console.log("👥 Partner found - RAW EVENT DATA:", { roomCode: rc, partner });
+      
+      if (!rc) {
+        console.error("❌ No roomCode received! Event data:", { roomCode: rc, partner });
+        // For AI partner, create a temporary roomCode if not provided
+        if (partner?.isAI || partner?.type === "ai" || partner?.name === "Milan AI") {
+          rc = `ai-room-${Date.now()}`;
+          console.log("🤖 Creating temporary AI roomCode:", rc);
+        } else {
+          return;
+        }
+      }
       
       console.log("👥 Partner found - FULL DATA:", partner);
       partnerFoundRef.current = true;
@@ -238,12 +249,16 @@ export default function ChatPage() {
         name: pName, 
         userId: pUserId,
         socketId: partner?.id,
-        isAI: isAI
+        isAI: isAI,
+        roomCode: rc
       });
 
       try {
         socket.emit("joinRoom", { roomCode: rc });
-      } catch (e) {}
+        console.log("📤 Emitted joinRoom with roomCode:", rc);
+      } catch (e) {
+        console.error("❌ Failed to emit joinRoom:", e);
+      }
 
       const sysId = `sys-found-${Date.now()}`;
       if (!processedMsgIds.current.has(sysId)) {
