@@ -85,7 +85,10 @@ export default function ChatPage() {
 
   const [showDisconnectAlert, setShowDisconnectAlert] = useState(false);
   const [isUploading, setIsUploading] = useState(false);
-  const [isConnected, setIsConnected] = useState(false);
+  const [isConnected,
+  // 🔒 Once AI connects, lock search so human matchmaking can't steal the session
+  const searchLockedRef = useRef(false);
+ setIsConnected] = useState(false);
 
   // Friend Request States
   const [showFriendRequestPopup, setShowFriendRequestPopup] = useState(false);
@@ -201,7 +204,10 @@ export default function ChatPage() {
       
       console.log("📤 Sending userInfo:", userInfo);
       socket.emit("userInfo", userInfo);
-      socket.emit("lookingForPartner", { type: "text" });
+      if (!searchLockedRef.current && !isAiPartner) {
+        socket.emit("lookingForPartner", { type: "text" });
+      }
+
     });
 
     socket.on("connect_error", (err) => {
@@ -214,7 +220,17 @@ export default function ChatPage() {
     });
 
     socket.on("partnerFound", ({ roomCode: rc, partner }) => {
-      console.log("👥 Partner found - RAW EVENT DATA:", { roomCode: rc, partner });
+      
+// 🛡️ If we're already chatting with AI, ignore any incoming non-AI partnerFound
+if (isAiPartner) {
+  const incomingIsAI = partner?.isAI === true || partner?.type === "ai" || partner?.name === "Milan AI";
+  if (!incomingIsAI) {
+    try { socket.emit("declineHumanWhileAI"); } catch {}
+    console.log("🛡️ Ignored human partnerFound because AI session is locked.");
+    return;
+  }
+}
+console.log("👥 Partner found - RAW EVENT DATA:", { roomCode: rc, partner });
       
       if (!rc) {
         console.error("❌ No roomCode received! Event data:", { roomCode: rc, partner });
@@ -237,7 +253,8 @@ export default function ChatPage() {
       const isAI = partner?.isAI === true || partner?.type === "ai" || partner?.name === "Milan AI";
       setIsAiPartner(isAI);
       
-      const pUserId = partner?.userId || null;
+        if (isAI) { searchLockedRef.current = true; try { socket.emit("stopSearching"); } catch {} try { socket.emit("lockWithAI"); } catch {} }
+const pUserId = partner?.userId || null;
       const pName = partner?.name || (isAI ? "Milan AI" : "Romantic Stranger");
       const pAvatar = partner?.avatar || getAvatarForGender(isAI ? "ai" : partner?.gender);
 
@@ -845,6 +862,7 @@ export default function ChatPage() {
                   socketRef.current.emit("disconnectByUser");
                   socketRef.current.disconnect();
                 } catch {}
+                searchLockedRef.current = false;
                 window.location.href = "https://milanlove.in/connect";
               }}>
                 🔌 Disconnect
