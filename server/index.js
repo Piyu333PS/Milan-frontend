@@ -454,7 +454,19 @@ if (isAiPartnerRef.current || searchLockedRef.current) {
             time: timeNow(),
           },
         ];
-      });
+      
+
+try {
+  const rc = (typeof {} !== "undefined" ? (typeof msg !== "undefined" ? msg.roomCode : undefined) : undefined) || (typeof roomCode !== "undefined" ? roomCode : undefined);
+  const rmeta = rooms.get(rc) || {};
+  if (rmeta.ai) {
+    // user message in AI room; generate AI reply
+    if (msg && msg.text && msg.senderId !== "AI") {
+      handleAiMessage(io, rc, msg.text).catch(console.error);
+    }
+  }
+} catch (e) { console.warn("AI reply hook error", e); }
+});
       scrollToBottom();
     });
 
@@ -2206,3 +2218,37 @@ if (isAiPartnerRef.current || searchLockedRef.current) {
     </>
   );
 }
+
+    // === AI reply via server ===
+    const aiSessions = new Map(); // roomCode -> { history: [...] }
+
+    async function serverGenerateGeminiReply(prompt) {
+      // Minimal Gemini REST call; ensure GEMINI_API_KEY is set on server
+      const fetch = (await import('node-fetch')).default;
+      const apiKey = process.env.GEMINI_API_KEY || process.env.NEXT_PUBLIC_GEMINI_API_KEY;
+      const url = "https://generativelanguage.googleapis.com/v1beta/models/gemini-pro:generateContent?key=" + apiKey;
+      const body = {
+        contents: [{ parts: [{ text: prompt }]}]
+      };
+      const res = await fetch(url, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
+      const data = await res.json();
+      return data?.candidates?.[0]?.content?.parts?.[0]?.text || "Sorry, I couldn't process that. 💕";
+    }
+
+    async function handleAiMessage(io, roomCode, text) {
+      const sess = aiSessions.get(roomCode) || { history: [] };
+      sess.history.push({ role: "user", text });
+      aiSessions.set(roomCode, sess);
+
+      const prompt = `You are Milan AI, a romantic and friendly chatbot on a dating platform. Keep responses under 100 words.
+User: ${text}
+AI:`;
+      const reply = await serverGenerateGeminiReply(prompt);
+
+      const id = Date.now().toString(36) + Math.random().toString(36).slice(2,7);
+      io.to(roomCode).emit("message", { id, text: reply, senderId: "AI" });
+
+      sess.history.push({ role: "assistant", text: reply });
+      aiSessions.set(roomCode, sess);
+    }
+
