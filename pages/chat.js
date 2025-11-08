@@ -1,5 +1,5 @@
 // pages/chat.js
-// ✅ COMPLETE FILE - Token parsing + Friend Request System + AI Partner Support
+// ✅ FIXED: AI Partner Integration + Search Lock + Message Sending
 
 import { useEffect, useRef, useState } from "react";
 import Head from "next/head";
@@ -16,7 +16,7 @@ const getAvatarForGender = (g) => {
   const key = String(g || "").toLowerCase();
   if (key === "male") return "/partner-avatar-male.png";
   if (key === "female") return "/partner-avatar-female.png";
-  if (key === "ai") return "/partner-avatar.png"; // AI avatar
+  if (key === "ai") return "/partner-avatar.png";
   return "/partner-avatar.png";
 };
 
@@ -85,9 +85,10 @@ export default function ChatPage() {
 
   const [showDisconnectAlert, setShowDisconnectAlert] = useState(false);
   const [isUploading, setIsUploading] = useState(false);
-    const [isConnected, setIsConnected] = useState(false);
+  const [isConnected, setIsConnected] = useState(false);
   const searchLockedRef = useRef(false);
-// Friend Request States
+
+  // Friend Request States
   const [showFriendRequestPopup, setShowFriendRequestPopup] = useState(false);
   const [friendRequestData, setFriendRequestData] = useState(null);
   const [showResponsePopup, setShowResponsePopup] = useState(false);
@@ -97,12 +98,6 @@ export default function ChatPage() {
   const [currentUserId, setCurrentUserId] = useState(null);
   const [currentUsername, setCurrentUsername] = useState("");
   const [requestSending, setRequestSending] = useState(false);
-
-// Mirror AI state into a ref to avoid stale closures in socket handlers
-useEffect(() => {
-  isAiPartnerRef.current = isAiPartner;
-}, [isAiPartner]);
-
 
   const socketRef = useRef(null);
   const msgRef = useRef(null);
@@ -114,6 +109,12 @@ useEffect(() => {
   const isCleaningUp = useRef(false);
   const isAiPartnerRef = useRef(false);
 
+  // ✅ NEW: AI conversation history
+  const aiConversationHistory = useRef([]);
+
+  useEffect(() => {
+    isAiPartnerRef.current = isAiPartner;
+  }, [isAiPartner]);
 
   const timeNow = () => {
     const d = new Date();
@@ -121,12 +122,16 @@ useEffect(() => {
     const m = d.getMinutes().toString().padStart(2, "0");
     return `${h}:${m} ${d.getHours() >= 12 ? "PM" : "AM"}`;
   };
+
   const genId = () =>
     Date.now().toString(36) + Math.random().toString(36).slice(2, 7);
+
   const escapeHtml = (s = "") =>
     s.replace(/[&<>"']/g, (m) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[m]));
+
   const linkify = (text = "") =>
     text.replace(/(https?:\/\/[^\s]+)/g, '<a href="$1" target="_blank" rel="noopener">$1</a>');
+
   const scrollToBottom = () =>
     requestAnimationFrame(() => {
       if (listRef.current) listRef.current.scrollTop = listRef.current.scrollHeight;
@@ -141,6 +146,75 @@ useEffect(() => {
     }));
     setFloatingHearts(hearts);
     setTimeout(() => setFloatingHearts([]), 3000);
+  };
+
+  // ✅ NEW: AI Response Function
+  const sendToAI = async (userMessage) => {
+    try {
+      // Add user message to history
+      aiConversationHistory.current.push({
+        role: "user",
+        content: userMessage
+      });
+
+      // Call Gemini API
+      const response = await fetch('https://generativelanguage.googleapis.com/v1beta/models/gemini-pro:generateContent', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'x-goog-api-key': process.env.NEXT_PUBLIC_GEMINI_API_KEY
+        },
+        body: JSON.stringify({
+          contents: [{
+            parts: [{
+              text: `You are Milan AI, a romantic and friendly chatbot on a dating platform. Have a natural, flirty but respectful conversation. Keep responses under 100 words. User said: "${userMessage}"`
+            }]
+          }]
+        })
+      });
+
+      const data = await response.json();
+      const aiText = data?.candidates?.[0]?.content?.parts?.[0]?.text || "Sorry, I couldn't process that. Try again? 💕";
+
+      // Add AI response to history
+      aiConversationHistory.current.push({
+        role: "assistant",
+        content: aiText
+      });
+
+      // Display AI message
+      const aiMsgId = genId();
+      processedMsgIds.current.add(aiMsgId);
+      
+      setMsgs((prev) => [
+        ...prev,
+        {
+          id: aiMsgId,
+          self: false,
+          kind: "text",
+          html: linkify(escapeHtml(aiText)),
+          time: timeNow(),
+        },
+      ]);
+      scrollToBottom();
+
+    } catch (error) {
+      console.error("AI Error:", error);
+      const errorMsgId = genId();
+      processedMsgIds.current.add(errorMsgId);
+      
+      setMsgs((prev) => [
+        ...prev,
+        {
+          id: errorMsgId,
+          self: false,
+          kind: "text",
+          html: "Oops! My AI brain had a hiccup 🤖 Can you say that again?",
+          time: timeNow(),
+        },
+      ]);
+      scrollToBottom();
+    }
   };
 
   useEffect(() => {
@@ -209,10 +283,11 @@ useEffect(() => {
       
       console.log("📤 Sending userInfo:", userInfo);
       socket.emit("userInfo", userInfo);
+      
+      // ✅ FIX 1: Only search if NOT already with AI
       if (!searchLockedRef.current && !isAiPartnerRef.current) {
         socket.emit("lookingForPartner", { type: "text" });
       }
-
     });
 
     socket.on("connect_error", (err) => {
@@ -225,21 +300,20 @@ useEffect(() => {
     });
 
     socket.on("partnerFound", ({ roomCode: rc, partner }) => {
-      
-// 🛡️ If we're already chatting with AI, ignore any incoming non-AI partnerFound
-if (isAiPartnerRef.current) {
-  const incomingIsAI = partner?.isAI === true || partner?.type === "ai" || partner?.name === "Milan AI";
-  if (!incomingIsAI) {
-    try { socket.emit("declineHumanWhileAI"); } catch {}
-    console.log("🛡️ Ignored human partnerFound because AI session is locked.");
-    return;
-  }
-}
-console.log("👥 Partner found - RAW EVENT DATA:", { roomCode: rc, partner });
+      // ✅ FIX 2: Complete AI lock - ignore ALL incoming human partners
+      if (isAiPartnerRef.current || searchLockedRef.current) {
+        const incomingIsAI = partner?.isAI === true || partner?.type === "ai" || partner?.name === "Milan AI";
+        if (!incomingIsAI) {
+          console.log("🛡️ BLOCKED: Already chatting with AI, ignoring human partner");
+          try { socket.emit("declineHumanWhileAI"); } catch {}
+          return; // Complete block
+        }
+      }
+
+      console.log("👥 Partner found - RAW EVENT DATA:", { roomCode: rc, partner });
       
       if (!rc) {
         console.error("❌ No roomCode received! Event data:", { roomCode: rc, partner });
-        // For AI partner, create a temporary roomCode if not provided
         if (partner?.isAI || partner?.type === "ai" || partner?.name === "Milan AI") {
           rc = `ai-room-${Date.now()}`;
           console.log("🤖 Creating temporary AI roomCode:", rc);
@@ -258,8 +332,22 @@ console.log("👥 Partner found - RAW EVENT DATA:", { roomCode: rc, partner });
       const isAI = partner?.isAI === true || partner?.type === "ai" || partner?.name === "Milan AI";
       setIsAiPartner(isAI);
       
-        if (isAI) { searchLockedRef.current = true; try { socket.emit("stopSearching"); } catch {} try { socket.emit("lockWithAI"); } catch {} }
-const pUserId = partner?.userId || null;
+      // ✅ FIX 3: Properly lock search when AI connects
+      if (isAI) { 
+        searchLockedRef.current = true;
+        isAiPartnerRef.current = true;
+        
+        try { socket.emit("stopSearching"); } catch {}
+        try { socket.emit("lockWithAI"); } catch {}
+        
+        // Remove socket listeners for human partners
+        socket.off("partnerFound");
+        socket.off("partnerDisconnected");
+        
+        console.log("🔒 AI LOCKED: Search disabled, socket listeners removed");
+      }
+
+      const pUserId = partner?.userId || null;
       const pName = partner?.name || (isAI ? "Milan AI" : "Romantic Stranger");
       const pAvatar = partner?.avatar || getAvatarForGender(isAI ? "ai" : partner?.gender);
 
@@ -299,6 +387,26 @@ const pUserId = partner?.userId || null;
         ]);
       }
       scrollToBottom();
+
+      // ✅ NEW: AI sends first message
+      if (isAI) {
+        setTimeout(() => {
+          const aiGreetingId = genId();
+          processedMsgIds.current.add(aiGreetingId);
+          
+          setMsgs((prev) => [
+            ...prev,
+            {
+              id: aiGreetingId,
+              self: false,
+              kind: "text",
+              html: "Hey there! 👋 I'm Milan AI, your romantic chat companion. What brings you here today? 💕",
+              time: timeNow(),
+            },
+          ]);
+          scrollToBottom();
+        }, 800);
+      }
     });
 
     socket.on("message", (msg) => {
@@ -355,6 +463,8 @@ const pUserId = partner?.userId || null;
     });
 
     socket.on("partnerTyping", () => {
+      if (isAiPartnerRef.current) return; // Don't show typing for AI
+      
       setTyping(true);
       clearTimeout(socketRef.current?._typingTimer);
       socketRef.current._typingTimer = setTimeout(() => setTyping(false), 1500);
@@ -362,6 +472,12 @@ const pUserId = partner?.userId || null;
 
     socket.on("partnerDisconnected", () => {
       console.log("Partner disconnected event received");
+      
+      // ✅ FIX 4: Don't show disconnect alert for AI
+      if (isAiPartnerRef.current) {
+        console.log("AI partner - ignoring disconnect event");
+        return;
+      }
       
       if (partnerFoundRef.current && !isCleaningUp.current) {
         setShowDisconnectAlert(true);
@@ -415,9 +531,9 @@ const pUserId = partner?.userId || null;
 
   const sendText = () => {
     const val = (msgRef.current?.value || "").trim();
-    if (!val || !socketRef.current || !roomCode) return;
+    if (!val || !roomCode) return;
+    
     const id = genId();
-
     processedMsgIds.current.add(id);
 
     setMsgs((p) => [
@@ -426,19 +542,31 @@ const pUserId = partner?.userId || null;
     ]);
     scrollToBottom();
 
-    try {
-      socketRef.current.emit("message", {
-        id,
-        text: val,
-        roomCode,
-        senderId: socketRef.current.id,
-      });
-    } catch (e) {
-      setMsgs((prev) => prev.map((m) => (m.id === id ? { ...m, status: "failed" } : m)));
-      console.error("emit message failed", e);
+    // ✅ FIX 5: Send to AI if AI partner, else send to socket
+    if (isAiPartnerRef.current) {
+      msgRef.current.value = "";
+      
+      // Show typing indicator
+      setTyping(true);
+      setTimeout(() => setTyping(false), 2000);
+      
+      // Send to AI
+      sendToAI(val);
+    } else {
+      try {
+        socketRef.current.emit("message", {
+          id,
+          text: val,
+          roomCode,
+          senderId: socketRef.current.id,
+        });
+      } catch (e) {
+        setMsgs((prev) => prev.map((m) => (m.id === id ? { ...m, status: "failed" } : m)));
+        console.error("emit message failed", e);
+      }
+      msgRef.current.value = "";
     }
-
-    msgRef.current.value = "";
+    
     setTyping(false);
   };
 
@@ -449,7 +577,6 @@ const pUserId = partner?.userId || null;
       return;
     }
 
-    // Don't allow file sending to AI partner
     if (isAiPartnerRef.current) {
       alert("⚠️ File sharing is not available with AI partner. Try sending a text message instead!");
       e.target.value = "";
@@ -535,6 +662,12 @@ const pUserId = partner?.userId || null;
   const handleDisconnectOk = () => {
     setShowDisconnectAlert(false);
     isCleaningUp.current = true;
+    
+    // Reset AI lock
+    searchLockedRef.current = false;
+    isAiPartnerRef.current = false;
+    aiConversationHistory.current = [];
+    
     try {
       socketRef.current?.emit("disconnectByUser");
       socketRef.current?.disconnect();
@@ -543,13 +676,12 @@ const pUserId = partner?.userId || null;
   };
 
   const handleAddToFavourites = () => {
-    // Don't allow friend request for AI partner
     if (isAiPartnerRef.current) {
       alert("⚠️ You cannot send friend requests to AI partners!");
       return;
     }
 
-    console.log("🔍 Add Friend clicked - Current state:", {
+    console.log("📌 Add Friend clicked - Current state:", {
       socketConnected: socketRef.current?.connected,
       currentUserId,
       partnerUserId,
@@ -863,11 +995,13 @@ const pUserId = partner?.userId || null;
               <button className="menu-item" onClick={() => {
                 setMenuOpen(false);
                 isCleaningUp.current = true;
+                searchLockedRef.current = false;
+                isAiPartnerRef.current = false;
+                aiConversationHistory.current = [];
                 try {
                   socketRef.current.emit("disconnectByUser");
                   socketRef.current.disconnect();
                 } catch {}
-                searchLockedRef.current = false;
                 window.location.href = "https://milanlove.in/connect";
               }}>
                 🔌 Disconnect
