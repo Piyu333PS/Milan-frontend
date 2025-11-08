@@ -148,70 +148,7 @@ export default function ChatPage() {
     setTimeout(() => setFloatingHearts([]), 3000);
   };
 
-  // ✅ AI Response Function
-  const sendToAI = async (userMessage) => {
-    try {
-      aiConversationHistory.current.push({
-        role: "user",
-        content: userMessage
-      });
-
-      const response = await fetch('https://generativelanguage.googleapis.com/v1beta/models/gemini-pro:generateContent', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'x-goog-api-key': process.env.NEXT_PUBLIC_GEMINI_API_KEY
-        },
-        body: JSON.stringify({
-          contents: [{
-            parts: [{
-              text: `You are Milan AI, a romantic and friendly chatbot on a dating platform. Have a natural, flirty but respectful conversation. Keep responses under 100 words. User said: "${userMessage}"`
-            }]
-          }]
-        })
-      });
-
-      const data = await response.json();
-      const aiText = data?.candidates?.[0]?.content?.parts?.[0]?.text || "Sorry, I couldn't process that. Try again? 💕";
-
-      aiConversationHistory.current.push({
-        role: "assistant",
-        content: aiText
-      });
-
-      const aiMsgId = genId();
-      processedMsgIds.current.add(aiMsgId);
-      
-      setMsgs((prev) => [
-        ...prev,
-        {
-          id: aiMsgId,
-          self: false,
-          kind: "text",
-          html: linkify(escapeHtml(aiText)),
-          time: timeNow(),
-        },
-      ]);
-      scrollToBottom();
-
-    } catch (error) {
-      console.error("AI Error:", error);
-      const errorMsgId = genId();
-      processedMsgIds.current.add(errorMsgId);
-      
-      setMsgs((prev) => [
-        ...prev,
-        {
-          id: errorMsgId,
-          self: false,
-          kind: "text",
-          html: "Oops! My AI brain had a hiccup 🤖 Can you say that again?",
-          time: timeNow(),
-        },
-      ]);
-      scrollToBottom();
-    }
-  };
+  // AI Response handled on server now.
 
   useEffect(() => {
     let localName = "";
@@ -283,6 +220,22 @@ export default function ChatPage() {
       // ✅ FIX 1: Only search if NOT already with AI
       if (!searchLockedRef.current && !isAiPartnerRef.current) {
         socket.emit("lookingForPartner", { type: "text" });
+
+// Handle back-end AI attach (UI enable without human)
+const onAiConnect = (payload = {}) => {
+  searchLockedRef.current = true;
+  setIsAiPartner(true);
+  setIsConnected(true);
+  let rc = payload.roomCode || payload.room || payload.sessionId || null;
+  if (!rc) rc = `ai-room-${Date.now()}`;
+  setRoomCode(rc);
+  setPartnerId(payload.partner?.id || null);
+  setPartnerUserId(null);
+  setPartnerName("Milan AI");
+};
+socket.on("ai:connected", onAiConnect);
+socket.on("aiConnected", onAiConnect);
+
       }
     });
 
@@ -327,10 +280,8 @@ export default function ChatPage() {
       setPartnerId(partner?.id || null);
       
       // Check if this is an AI partner
-      const isAI = partner?.isAI === true || partner?.type === "ai" || partner?.name === "Milan AI";
-      setIsAiPartner(isAI);
-      
-      // ✅ FIX 3: Properly lock search when AI connects
+      \1
+      if (isAI) { searchLockedRef.current = true; try { socket.emit("stopSearching"); } catch {} try { socket.emit("lockWithAI"); } catch {} }// ✅ FIX 3: Properly lock search when AI connects
       if (isAI) { 
         searchLockedRef.current = true;
         isAiPartnerRef.current = true;
@@ -953,7 +904,7 @@ export default function ChatPage() {
               </div>
               <div className="status">
                 <span className={`dot ${isConnected && roomCode ? 'online' : ''}`} /> 
-                {typing ? "typing…" : roomCode ? "online" : "searching…"}
+                {typing ? "typing…" : (roomCode || isAiPartner) ? "online" : "searching…"}
               </div>
             </div>
           </div>
