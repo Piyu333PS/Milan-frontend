@@ -85,12 +85,9 @@ export default function ChatPage() {
 
   const [showDisconnectAlert, setShowDisconnectAlert] = useState(false);
   const [isUploading, setIsUploading] = useState(false);
-  const [isConnected,
-  // 🔒 Once AI connects, lock search so human matchmaking can't steal the session
+    const [isConnected, setIsConnected] = useState(false);
   const searchLockedRef = useRef(false);
- setIsConnected] = useState(false);
-
-  // Friend Request States
+// Friend Request States
   const [showFriendRequestPopup, setShowFriendRequestPopup] = useState(false);
   const [friendRequestData, setFriendRequestData] = useState(null);
   const [showResponsePopup, setShowResponsePopup] = useState(false);
