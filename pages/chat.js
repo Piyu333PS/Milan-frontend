@@ -1,5 +1,5 @@
 // pages/chat.js
-// ✅ FIXED: AI Partner Integration + Search Lock + Message Sending
+// ✅ COMPLETE FIXED VERSION - AI Partner Integration + Search Lock + Message Sending
 
 import { useEffect, useRef, useState } from "react";
 import Head from "next/head";
@@ -109,7 +109,7 @@ export default function ChatPage() {
   const isCleaningUp = useRef(false);
   const isAiPartnerRef = useRef(false);
 
-  // ✅ NEW: AI conversation history
+  // ✅ AI conversation history
   const aiConversationHistory = useRef([]);
 
   useEffect(() => {
@@ -148,16 +148,14 @@ export default function ChatPage() {
     setTimeout(() => setFloatingHearts([]), 3000);
   };
 
-  // ✅ NEW: AI Response Function
+  // ✅ AI Response Function
   const sendToAI = async (userMessage) => {
     try {
-      // Add user message to history
       aiConversationHistory.current.push({
         role: "user",
         content: userMessage
       });
 
-      // Call Gemini API
       const response = await fetch('https://generativelanguage.googleapis.com/v1beta/models/gemini-pro:generateContent', {
         method: 'POST',
         headers: {
@@ -176,13 +174,11 @@ export default function ChatPage() {
       const data = await response.json();
       const aiText = data?.candidates?.[0]?.content?.parts?.[0]?.text || "Sorry, I couldn't process that. Try again? 💕";
 
-      // Add AI response to history
       aiConversationHistory.current.push({
         role: "assistant",
         content: aiText
       });
 
-      // Display AI message
       const aiMsgId = genId();
       processedMsgIds.current.add(aiMsgId);
       
@@ -299,13 +295,15 @@ export default function ChatPage() {
       setIsConnected(false);
     });
 
+    // ✅ FIX 2: Complete AI lock - ignore ALL incoming human partners
     socket.on("partnerFound", ({ roomCode: rc, partner }) => {
-      // ✅ FIX 2: Complete AI lock - ignore ALL incoming human partners
       if (isAiPartnerRef.current || searchLockedRef.current) {
         const incomingIsAI = partner?.isAI === true || partner?.type === "ai" || partner?.name === "Milan AI";
         if (!incomingIsAI) {
           console.log("🛡️ BLOCKED: Already chatting with AI, ignoring human partner");
-          try { socket.emit("declineHumanWhileAI"); } catch {}
+          try { 
+            socket.emit("declineHumanWhileAI", { roomCode: rc }); 
+          } catch {}
           return; // Complete block
         }
       }
@@ -388,7 +386,7 @@ export default function ChatPage() {
       }
       scrollToBottom();
 
-      // ✅ NEW: AI sends first message
+      // ✅ AI sends first message
       if (isAI) {
         setTimeout(() => {
           const aiGreetingId = genId();
@@ -470,10 +468,10 @@ export default function ChatPage() {
       socketRef.current._typingTimer = setTimeout(() => setTyping(false), 1500);
     });
 
+    // ✅ FIX 4: Don't show disconnect alert for AI
     socket.on("partnerDisconnected", () => {
       console.log("Partner disconnected event received");
       
-      // ✅ FIX 4: Don't show disconnect alert for AI
       if (isAiPartnerRef.current) {
         console.log("AI partner - ignoring disconnect event");
         return;
@@ -529,9 +527,13 @@ export default function ChatPage() {
     };
   }, []);
 
+  // ✅ FIX 5: Send to AI if AI partner, else send to socket
   const sendText = () => {
     const val = (msgRef.current?.value || "").trim();
-    if (!val || !roomCode) return;
+    if (!val) return;
+    
+    // ✅ AI ke liye roomCode optional hai
+    if (!roomCode && !isAiPartnerRef.current) return;
     
     const id = genId();
     processedMsgIds.current.add(id);
@@ -542,7 +544,6 @@ export default function ChatPage() {
     ]);
     scrollToBottom();
 
-    // ✅ FIX 5: Send to AI if AI partner, else send to socket
     if (isAiPartnerRef.current) {
       msgRef.current.value = "";
       
@@ -841,7 +842,7 @@ export default function ChatPage() {
                   <span className="username">{friendRequestData.fromUsername}</span> wants to be your friend on Milan
                 </p>
                 
-                <p className="modal-description">
+                <p className="modal-description
                   They loved chatting with you and want to stay connected 💖
                 </p>
 
@@ -1085,12 +1086,12 @@ export default function ChatPage() {
             ref={msgRef}
             className="msg-field"
             type="text"
-            placeholder={roomCode ? "Type a message…" : "Finding a partner…"}
-            disabled={!roomCode || isUploading}
+            placeholder={roomCode || isAiPartner ? "Type a message…" : "Finding a partner…"}
+            disabled={(!roomCode && !isAiPartner) || isUploading}
             onChange={onType}
             onKeyDown={(e) => e.key === "Enter" && sendText()}
           />
-          <button className="send" title="Send" onClick={sendText} disabled={!roomCode || isUploading}>
+          <button className="send" title="Send" onClick={sendText} disabled={(!roomCode && !isAiPartner) || isUploading}>
             ➤
           </button>
         </footer>
@@ -2129,6 +2130,49 @@ export default function ChatPage() {
 
           .menu {
             min-width: 200px;
+          }
+        }
+
+        @media (max-width: 480px) {
+          .modal-heading {
+            font-size: 20px;
+          }
+
+          .heart-loader-container {
+            width: 130px;
+            height: 130px;
+          }
+
+          .center-heart {
+            width: 60px;
+            height: 60px;
+          }
+
+          .orbit-heart {
+            font-size: 18px;
+          }
+
+          .featureCard {
+            padding: 14px;
+          }
+
+          .heroWrap {
+            padding: calc(var(--brandH) + 30px) 16px 30px;
+          }
+        }
+
+        @media (min-width: 761px) and (max-width: 1024px) {
+          .heroWrap {
+            padding: calc(var(--brandH) + 40px) 24px var(--bottomH);
+          }
+
+          .featuresGrid {
+            width: calc(100vw - 80px);
+            max-width: 880px;
+          }
+
+          .miniGreeting {
+            max-width: calc(100vw - 80px);
           }
         }
       `}</style>
