@@ -466,6 +466,15 @@ try {
     }
   }
 } catch (e) { console.warn("AI reply hook error", e); }
+
+
+try {
+  const rc = (typeof msg !== "undefined" && msg && msg.roomCode) ? msg.roomCode : undefined;
+  const rmeta = rooms.get(rc) || {};
+  if (rmeta.ai && msg && msg.text && msg.senderId !== "AI") {
+    handleAiMessage(io, rc, msg.text).catch(console.error);
+  }
+} catch (e) { console.warn("AI reply hook error", e); }
 });
       scrollToBottom();
     });
@@ -2226,7 +2235,7 @@ try {
       // Minimal Gemini REST call; ensure GEMINI_API_KEY is set on server
       const fetch = (await import('node-fetch')).default;
       const apiKey = process.env.GEMINI_API_KEY || process.env.NEXT_PUBLIC_GEMINI_API_KEY;
-      const url = "https://generativelanguage.googleapis.com/v1beta/models/gemini-pro:generateContent?key=" + apiKey;
+      const url = "https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-pro:generateContent?key=" + apiKey;
       const body = {
         contents: [{ parts: [{ text: prompt }]}]
       };
