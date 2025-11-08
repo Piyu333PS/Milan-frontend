@@ -496,7 +496,26 @@ io.on("connection", (socket) => {
     cleanupSocket(socket);
   });
 
-  // ✅ FIXED: User Info with userId tracking
+  
+// Lock this socket to AI (client requests)
+socket.on("stopSearching", () => {
+  try {
+    removeFromQueues(socket.id);
+    const st = socketState.get(socket.id) || {};
+    setState(socket.id, { lockedWithAI: true });
+    console.log("[AI lock] stopSearching → removed from queues & lockedWithAI = true for", socket.id);
+  } catch (e) { console.warn("stopSearching handler error", e); }
+});
+
+socket.on("lockWithAI", () => {
+  try {
+    removeFromQueues(socket.id);
+    const st = socketState.get(socket.id) || {};
+    setState(socket.id, { lockedWithAI: true });
+    console.log("[AI lock] lockWithAI → removed from queues & lockedWithAI = true for", socket.id);
+  } catch (e) { console.warn("lockWithAI handler error", e); }
+});
+// ✅ FIXED: User Info with userId tracking
   socket.on("userInfo", (data = {}) => {
     try {
       const { userId, name, avatar, gender } = data || {};
@@ -689,6 +708,14 @@ io.on("connection", (socket) => {
 
   // ✅ Partner finding with 12s human-wait + AI fallback (TEXT only)
   socket.on("lookingForPartner", ({ type, token } = {}) => {
+    // If client is locked with AI, do not enqueue or rematch
+    const st0 = socketState.get(socket.id) || {};
+    if (st0.lockedWithAI) {
+      console.log("[lookingForPartner] ignored because lockedWithAI =", socket.id);
+      try { socket.emit("queued", { mode: "text" }); } catch {}
+      return;
+    }
+
     // 🔑 NORMALIZE MODE: anything not explicitly "video" → treat as TEXT
     let modeRaw = (type || "").toString().toLowerCase().trim();
     const mode = modeRaw === "video" ? "video" : "text";
@@ -779,14 +806,19 @@ io.on("connection", (socket) => {
       setState(socket.id, { roomCode, partnerId: aiId, mode: "text" });
       try { socket.join(roomCode); } catch {}
 
+      
       const partner = { 
         id: aiId,
         userId: null,
-        name: aiNameForGender(personaGender),
+        isAI: true,
+        type: "ai",
+        name: "Milan AI",
         avatar: null,
         gender: personaGender
       };
-      try { socket.emit("partnerFound", { partner, roomCode }); } catch {}
+    
+      try { socket.emit("partnerFound", { partner, roomCode });
+      socket.emit("ai:connected", { roomCode, partner }); } catch {}
 
       // greet banner
       sendAiMessage(io, roomCode, "No human available in 12s — connected to AI.", "system");
