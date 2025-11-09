@@ -440,10 +440,12 @@ socket.on("aiConnected", onAiConnect);
       msgRef.current.value = "";
     }
     
-    setTyping(false);
-  },
+   - setTyping(false);
+- };
++ setTyping(false);
++ },
+const handleFile = async (e) => {
 
-  const handleFile = async (e) => {
     const f = e.target.files?.[0];
     if (!f || !socketRef.current || !roomCode || isUploading) {
       e.target.value = "";
