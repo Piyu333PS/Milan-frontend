@@ -415,7 +415,7 @@ socket.on("aiConnected", onAiConnect);
       
       setTyping(true);
       clearTimeout(socketRef.current?._typingTimer);
-      socketRef.current._typingTimer = setTimeout(() => setTyping(false), 1500);
+      socketRef.current._typingTimer = setTimeout(() => setTyping(false); 1500);
     });
 
     // ✅ FIX 4: Don't show disconnect alert for AI
@@ -441,7 +441,7 @@ socket.on("aiConnected", onAiConnect);
     }
     
     setTyping(false);
-  };
+  },
 
   const handleFile = async (e) => {
     const f = e.target.files?.[0];
