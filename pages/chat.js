@@ -1,5 +1,5 @@
 // pages/chat.js
-// ✅ COMPLETE FIXED VERSION - AI Partner Integration + Search Lock + Message Sending
+// ✅ COMPLETE FILE - Token parsing + Friend Request System
 
 import { useEffect, useRef, useState } from "react";
 import Head from "next/head";
@@ -16,7 +16,6 @@ const getAvatarForGender = (g) => {
   const key = String(g || "").toLowerCase();
   if (key === "male") return "/partner-avatar-male.png";
   if (key === "female") return "/partner-avatar-female.png";
-  if (key === "ai") return "/partner-avatar.png";
   return "/partner-avatar.png";
 };
 
@@ -78,7 +77,6 @@ export default function ChatPage() {
   const [roomCode, setRoomCode] = useState(null);
   const [partnerId, setPartnerId] = useState(null);
   const [partnerUserId, setPartnerUserId] = useState(null);
-  const [isAiPartner, setIsAiPartner] = useState(false);
 
   const [emojiOpen, setEmojiOpen] = useState(false);
   const EMOJIS = ["😊", "❤️", "😂", "👍", "🔥", "😍", "🤗", "😘", "😎", "🥰"];
@@ -86,7 +84,6 @@ export default function ChatPage() {
   const [showDisconnectAlert, setShowDisconnectAlert] = useState(false);
   const [isUploading, setIsUploading] = useState(false);
   const [isConnected, setIsConnected] = useState(false);
-  const searchLockedRef = useRef(false);
 
   // Friend Request States
   const [showFriendRequestPopup, setShowFriendRequestPopup] = useState(false);
@@ -107,14 +104,6 @@ export default function ChatPage() {
   const processedMsgIds = useRef(new Set());
   const partnerFoundRef = useRef(false);
   const isCleaningUp = useRef(false);
-  const isAiPartnerRef = useRef(false);
-
-  // ✅ AI conversation history
-  const aiConversationHistory = useRef([]);
-
-  useEffect(() => {
-    isAiPartnerRef.current = isAiPartner;
-  }, [isAiPartner]);
 
   const timeNow = () => {
     const d = new Date();
@@ -122,16 +111,12 @@ export default function ChatPage() {
     const m = d.getMinutes().toString().padStart(2, "0");
     return `${h}:${m} ${d.getHours() >= 12 ? "PM" : "AM"}`;
   };
-
   const genId = () =>
     Date.now().toString(36) + Math.random().toString(36).slice(2, 7);
-
   const escapeHtml = (s = "") =>
     s.replace(/[&<>"']/g, (m) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[m]));
-
   const linkify = (text = "") =>
     text.replace(/(https?:\/\/[^\s]+)/g, '<a href="$1" target="_blank" rel="noopener">$1</a>');
-
   const scrollToBottom = () =>
     requestAnimationFrame(() => {
       if (listRef.current) listRef.current.scrollTop = listRef.current.scrollHeight;
@@ -148,8 +133,6 @@ export default function ChatPage() {
     setTimeout(() => setFloatingHearts([]), 3000);
   };
 
-  // AI Response handled on server now.
-
   useEffect(() => {
     let localName = "";
     let localUserId = "";
@@ -158,7 +141,7 @@ export default function ChatPage() {
       localName = localStorage.getItem("milan_name") || "";
       const token = localStorage.getItem("token");
       
-      console.log("🔑 Token check:", token ? "Found" : "Not found");
+      console.log("🔐 Token check:", token ? "Found" : "Not found");
       
       if (token) {
         try {
@@ -216,27 +199,7 @@ export default function ChatPage() {
       
       console.log("📤 Sending userInfo:", userInfo);
       socket.emit("userInfo", userInfo);
-      
-      // ✅ FIX 1: Only search if NOT already with AI
-      if (!searchLockedRef.current && !isAiPartnerRef.current) {
-        socket.emit("lookingForPartner", { type: "text" });
-
-// Handle back-end AI attach (UI enable without human)
-const onAiConnect = (payload = {}) => {
-  searchLockedRef.current = true;
-  setIsAiPartner(true);
-  setIsConnected(true);
-  let rc = payload.roomCode || payload.room || payload.sessionId || null;
-  if (!rc) rc = `ai-room-${Date.now()}`;
-  setRoomCode(rc);
-  setPartnerId(payload.partner?.id || null);
-  setPartnerUserId(null);
-  setPartnerName("Milan AI");
-};
-socket.on("ai:connected", onAiConnect);
-socket.on("aiConnected", onAiConnect);
-
-      }
+      socket.emit("lookingForPartner", { type: "text" });
     });
 
     socket.on("connect_error", (err) => {
@@ -248,30 +211,8 @@ socket.on("aiConnected", onAiConnect);
       setIsConnected(false);
     });
 
-    // ✅ FIX 2: Complete AI lock - ignore ALL incoming human partners
     socket.on("partnerFound", ({ roomCode: rc, partner }) => {
-      if (isAiPartnerRef.current || searchLockedRef.current) {
-        const incomingIsAI = partner?.isAI === true || partner?.type === "ai" || partner?.name === "Milan AI";
-        if (!incomingIsAI) {
-          console.log("🛡️ BLOCKED: Already chatting with AI, ignoring human partner");
-          try { 
-            socket.emit("declineHumanWhileAI", { roomCode: rc }); 
-          } catch {}
-          return; // Complete block
-        }
-      }
-
-      console.log("👥 Partner found - RAW EVENT DATA:", { roomCode: rc, partner });
-      
-      if (!rc) {
-        console.error("❌ No roomCode received! Event data:", { roomCode: rc, partner });
-        if (partner?.isAI || partner?.type === "ai" || partner?.name === "Milan AI") {
-          rc = `ai-room-${Date.now()}`;
-          console.log("🤖 Creating temporary AI roomCode:", rc);
-        } else {
-          return;
-        }
-      }
+      if (!rc) return;
       
       console.log("👥 Partner found - FULL DATA:", partner);
       partnerFoundRef.current = true;
@@ -279,25 +220,9 @@ socket.on("aiConnected", onAiConnect);
       setRoomCode(rc);
       setPartnerId(partner?.id || null);
       
-      // Check if this is an AI partner
-      if (isAI) { searchLockedRef.current = true; try { socket.emit("stopSearching"); } catch {} try { socket.emit("lockWithAI"); } catch {} }// ✅ FIX 3: Properly lock search when AI connects
-      if (isAI) { 
-        searchLockedRef.current = true;
-        isAiPartnerRef.current = true;
-        
-        try { socket.emit("stopSearching"); } catch {}
-        try { socket.emit("lockWithAI"); } catch {}
-        
-        // Remove socket listeners for human partners
-        socket.off("partnerFound");
-        socket.off("partnerDisconnected");
-        
-        console.log("🔒 AI LOCKED: Search disabled, socket listeners removed");
-      }
-
       const pUserId = partner?.userId || null;
-      const pName = partner?.name || (isAI ? "Milan AI" : "Romantic Stranger");
-      const pAvatar = partner?.avatar || getAvatarForGender(isAI ? "ai" : partner?.gender);
+      const pName = partner?.name || "Romantic Stranger";
+      const pAvatar = partner?.avatar || getAvatarForGender(partner?.gender);
 
       setPartnerUserId(pUserId);
       setPartnerName(pName);
@@ -306,55 +231,29 @@ socket.on("aiConnected", onAiConnect);
       console.log("✅ Partner Info SET:", { 
         name: pName, 
         userId: pUserId,
-        socketId: partner?.id,
-        isAI: isAI,
-        roomCode: rc
+        socketId: partner?.id 
+      });
+
+      console.log("🔍 Friend Request Button Check:", {
+        roomCode: rc,
+        partnerUserId: pUserId,
+        myUserId: localUserId,
+        shouldShow: !!(rc && pUserId && localUserId)
       });
 
       try {
         socket.emit("joinRoom", { roomCode: rc });
-        console.log("📤 Emitted joinRoom with roomCode:", rc);
-      } catch (e) {
-        console.error("❌ Failed to emit joinRoom:", e);
-      }
+      } catch (e) {}
 
       const sysId = `sys-found-${Date.now()}`;
       if (!processedMsgIds.current.has(sysId)) {
         processedMsgIds.current.add(sysId);
         setMsgs((p) => [
           ...p,
-          { 
-            id: sysId, 
-            self: false, 
-            kind: "system", 
-            html: isAI 
-              ? `You are connected with ${escapeHtml(pName)}. Say hi! 👋` 
-              : `You are connected with ${escapeHtml(pName)}.`, 
-            time: timeNow() 
-          },
+          { id: sysId, self: false, kind: "system", html: `You are connected with ${escapeHtml(pName)}.`, time: timeNow() },
         ]);
       }
       scrollToBottom();
-
-      // ✅ AI sends first message
-      if (isAI) {
-        setTimeout(() => {
-          const aiGreetingId = genId();
-          processedMsgIds.current.add(aiGreetingId);
-          
-          setMsgs((prev) => [
-            ...prev,
-            {
-              id: aiGreetingId,
-              self: false,
-              kind: "text",
-              html: "Hey there! 👋 I'm Milan AI, your romantic chat companion. What brings you here today? 💕",
-              time: timeNow(),
-            },
-          ]);
-          scrollToBottom();
-        }, 800);
-      }
     });
 
     socket.on("message", (msg) => {
@@ -411,47 +310,96 @@ socket.on("aiConnected", onAiConnect);
     });
 
     socket.on("partnerTyping", () => {
-      if (isAiPartnerRef.current) return; // Don't show typing for AI
-      
       setTyping(true);
       clearTimeout(socketRef.current?._typingTimer);
       socketRef.current._typingTimer = setTimeout(() => setTyping(false), 1500);
     });
 
-    // ✅ FIX 4: Don't show disconnect alert for AI
     socket.on("partnerDisconnected", () => {
       console.log("Partner disconnected event received");
       
-      if (isAiPartnerRef.current) {
-  msgRef.current.value = "";
-  try { socketRef.current.emit("message", { id, text: val, roomCode: roomCode || "ai-direct", senderId: socketRef.current.id }); } catch (e) { console.error("emit message failed", e); }
-} else {
-      try {
-        socketRef.current.emit("message", {
-          id,
-          text: val,
-          roomCode,
-          senderId: socketRef.current.id,
-        });
-      } catch (e) {
-        setMsgs((prev) => prev.map((m) => (m.id === id ? { ...m, status: "failed" } : m)));
-        console.error("emit message failed", e);
+      if (partnerFoundRef.current && !isCleaningUp.current) {
+        setShowDisconnectAlert(true);
       }
-      msgRef.current.value = "";
+    });
+
+    socket.on("friend-request-received", (data) => {
+      console.log("✅ Friend request received:", data);
+      setFriendRequestData(data);
+      setShowFriendRequestPopup(true);
+    });
+
+    socket.on("friend-request-accepted", (data) => {
+      console.log("✅ Friend request accepted:", data);
+      setCelebrationActive(true);
+      createFloatingHearts(20);
+      
+      setTimeout(() => {
+        setResponseType('accepted');
+        setShowResponsePopup(true);
+        setCelebrationActive(false);
+      }, 2000);
+    });
+
+    socket.on("friend-request-rejected", (data) => {
+      console.log("❌ Friend request rejected:", data);
+      
+      setTimeout(() => {
+        setResponseType('rejected');
+        setShowResponsePopup(true);
+      }, 500);
+    });
+
+    return () => {
+      isCleaningUp.current = true;
+      try {
+        socket.off("connect_error");
+        socket.off("disconnect");
+        socket.off("partnerFound");
+        socket.off("message");
+        socket.off("fileMessage");
+        socket.off("partnerTyping");
+        socket.off("partnerDisconnected");
+        socket.off("friend-request-received");
+        socket.off("friend-request-accepted");
+        socket.off("friend-request-rejected");
+        socket.disconnect();
+      } catch {}
+    };
+  }, []);
+
+  const sendText = () => {
+    const val = (msgRef.current?.value || "").trim();
+    if (!val || !socketRef.current || !roomCode) return;
+    const id = genId();
+
+    processedMsgIds.current.add(id);
+
+    setMsgs((p) => [
+      ...p,
+      { id, self: true, kind: "text", html: linkify(escapeHtml(val)), time: timeNow(), status: "sent" },
+    ]);
+    scrollToBottom();
+
+    try {
+      socketRef.current.emit("message", {
+        id,
+        text: val,
+        roomCode,
+        senderId: socketRef.current.id,
+      });
+    } catch (e) {
+      setMsgs((prev) => prev.map((m) => (m.id === id ? { ...m, status: "failed" } : m)));
+      console.error("emit message failed", e);
     }
-    
+
+    msgRef.current.value = "";
     setTyping(false);
   };
 
   const handleFile = async (e) => {
     const f = e.target.files?.[0];
     if (!f || !socketRef.current || !roomCode || isUploading) {
-      e.target.value = "";
-      return;
-    }
-
-    if (isAiPartnerRef.current) {
-      alert("⚠️ File sharing is not available with AI partner. Try sending a text message instead!");
       e.target.value = "";
       return;
     }
@@ -526,7 +474,7 @@ socket.on("aiConnected", onAiConnect);
   };
 
   const onType = () => {
-    if (!socketRef.current || !roomCode || isAiPartner) return;
+    if (!socketRef.current || !roomCode) return;
     try {
       socketRef.current.emit("typing", { roomCode });
     } catch {}
@@ -535,12 +483,6 @@ socket.on("aiConnected", onAiConnect);
   const handleDisconnectOk = () => {
     setShowDisconnectAlert(false);
     isCleaningUp.current = true;
-    
-    // Reset AI lock
-    searchLockedRef.current = false;
-    isAiPartnerRef.current = false;
-    aiConversationHistory.current = [];
-    
     try {
       socketRef.current?.emit("disconnectByUser");
       socketRef.current?.disconnect();
@@ -549,12 +491,7 @@ socket.on("aiConnected", onAiConnect);
   };
 
   const handleAddToFavourites = () => {
-    if (isAiPartnerRef.current) {
-      alert("⚠️ You cannot send friend requests to AI partners!");
-      return;
-    }
-
-    console.log("📌 Add Friend clicked - Current state:", {
+    console.log("🔍 Add Friend clicked - Current state:", {
       socketConnected: socketRef.current?.connected,
       currentUserId,
       partnerUserId,
@@ -714,8 +651,9 @@ socket.on("aiConnected", onAiConnect);
                   <span className="username">{friendRequestData.fromUsername}</span> wants to be your friend on Milan
                 </p>
                 
-                <p className="modal-description">They loved chatting with you and want to stay connected 💖</p>
-
+                <p className="modal-description">
+                  They loved chatting with you and want to stay connected 💖
+                </p>
 
                 <div className="modal-buttons">
                   <button onClick={handleRejectRequest} className="btn-reject">
@@ -819,19 +757,16 @@ socket.on("aiConnected", onAiConnect);
           <div className="header-left">
             <img className="avatar" src={partnerAvatarSrc} alt="DP" />
             <div className="partner">
-              <div className="name">
-                {partnerName}
-                {isAiPartner && <span style={{marginLeft: '6px', fontSize: '0.75rem', opacity: 0.8}}>🤖</span>}
-              </div>
+              <div className="name">{partnerName}</div>
               <div className="status">
                 <span className={`dot ${isConnected && roomCode ? 'online' : ''}`} /> 
-                {typing ? "typing…" : (roomCode || isAiPartner) ? "online" : "searching…"}
+                {typing ? "typing…" : roomCode ? "online" : "searching…"}
               </div>
             </div>
           </div>
 
           <div className="header-right">
-            {roomCode && partnerUserId && currentUserId && !isAiPartner && (
+            {roomCode && partnerUserId && currentUserId && (
               <button
                 className="friend-request-btn"
                 onClick={handleAddToFavourites}
@@ -850,7 +785,7 @@ socket.on("aiConnected", onAiConnect);
             <button className="icon-btn" title="Menu" onClick={() => setMenuOpen((s) => !s)}>⋮</button>
             
             <div className={`menu ${menuOpen ? "open" : ""}`}>
-              {roomCode && partnerUserId && currentUserId && !isAiPartner && (
+              {roomCode && partnerUserId && currentUserId && (
                 <>
                   <button className="menu-item" onClick={handleAddToFavourites} disabled={requestSending}>
                     <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
@@ -867,9 +802,6 @@ socket.on("aiConnected", onAiConnect);
               <button className="menu-item" onClick={() => {
                 setMenuOpen(false);
                 isCleaningUp.current = true;
-                searchLockedRef.current = false;
-                isAiPartnerRef.current = false;
-                aiConversationHistory.current = [];
                 try {
                   socketRef.current.emit("disconnectByUser");
                   socketRef.current.disconnect();
@@ -878,17 +810,13 @@ socket.on("aiConnected", onAiConnect);
               }}>
                 🔌 Disconnect
               </button>
-              {!isAiPartner && (
-                <>
-                  <div className="sep" />
-                  <button className="menu-item" onClick={() => {
-                    setMenuOpen(false);
-                    alert("🚩 Report submitted. Thank you!");
-                  }}>
-                    🚩 Report
-                  </button>
-                </>
-              )}
+              <div className="sep" />
+              <button className="menu-item" onClick={() => {
+                setMenuOpen(false);
+                alert("🚩 Report submitted. Thank you!");
+              }}>
+                🚩 Report
+              </button>
             </div>
           </div>
         </header>
@@ -920,7 +848,7 @@ socket.on("aiConnected", onAiConnect);
 
         <footer className="inputbar">
           <input ref={fileRef} type="file" hidden onChange={handleFile} accept="image/*,video/*,.pdf,.doc,.docx" />
-          <button className="tool" title="Attach" onClick={() => fileRef.current?.click()} disabled={isUploading || isAiPartner}>
+          <button className="tool" title="Attach" onClick={() => fileRef.current?.click()} disabled={isUploading}>
             📎
           </button>
 
@@ -957,12 +885,12 @@ socket.on("aiConnected", onAiConnect);
             ref={msgRef}
             className="msg-field"
             type="text"
-            placeholder={roomCode || isAiPartner ? "Type a message…" : "Finding a partner…"}
-            disabled={(!roomCode && !isAiPartner) || isUploading}
+            placeholder={roomCode ? "Type a message…" : "Finding a partner…"}
+            disabled={!roomCode || isUploading}
             onChange={onType}
             onKeyDown={(e) => e.key === "Enter" && sendText()}
           />
-          <button className="send" title="Send" onClick={sendText} disabled={(!roomCode && !isAiPartner) || isUploading}>
+          <button className="send" title="Send" onClick={sendText} disabled={!roomCode || isUploading}>
             ➤
           </button>
         </footer>
@@ -1606,8 +1534,6 @@ socket.on("aiConnected", onAiConnect);
           text-overflow: ellipsis;
           color: #ffffff;
           font-size: 1rem;
-          display: flex;
-          align-items: center;
         }
         
         .status {
@@ -2001,49 +1927,6 @@ socket.on("aiConnected", onAiConnect);
 
           .menu {
             min-width: 200px;
-          }
-        }
-
-        @media (max-width: 480px) {
-          .modal-heading {
-            font-size: 20px;
-          }
-
-          .heart-loader-container {
-            width: 130px;
-            height: 130px;
-          }
-
-          .center-heart {
-            width: 60px;
-            height: 60px;
-          }
-
-          .orbit-heart {
-            font-size: 18px;
-          }
-
-          .featureCard {
-            padding: 14px;
-          }
-
-          .heroWrap {
-            padding: calc(var(--brandH) + 30px) 16px 30px;
-          }
-        }
-
-        @media (min-width: 761px) and (max-width: 1024px) {
-          .heroWrap {
-            padding: calc(var(--brandH) + 40px) 24px var(--bottomH);
-          }
-
-          .featuresGrid {
-            width: calc(100vw - 80px);
-            max-width: 880px;
-          }
-
-          .miniGreeting {
-            max-width: calc(100vw - 80px);
           }
         }
       `}</style>
