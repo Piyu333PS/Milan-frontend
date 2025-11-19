@@ -16,7 +16,7 @@ const DEFAULT_MODEL_CANDIDATES = [
 
 async function callOpenAIImage(apiKey, model, prompt, n = 1, size = "1024x1024") {
   const url = "https://api.openai.com/v1/images/generations";
-  const payload = { model, prompt, n, size };
+  const payload = { model, prompt, n, size, response_format: "b64_json" };
   const resp = await fetch(url, {
     method: "POST",
     headers: {
