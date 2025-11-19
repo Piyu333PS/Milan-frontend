@@ -1,16 +1,38 @@
 // pages/api/generate.js
 export const config = {
-  api: { bodyParser: { sizeLimit: "1mb" } }, // small, safe
+  api: { bodyParser: { sizeLimit: "4mb" } }, // allow slightly bigger JSON bodies if needed
 };
 
 const DEFAULT_MODELS = {
-  romantic: "stabilityai/stable-diffusion-2-1",
-  realistic: "SG161222/Realistic_Vision_V5.1_noVAE",
-  anime: "Linaqruf/anything-v3.0",
-  product: "stabilityai/stable-diffusion-2-1",
+  romantic: process.env.OPENAI_IMAGE_MODEL || "gpt-image-1",
+  realistic: process.env.OPENAI_IMAGE_MODEL || "gpt-image-1",
+  anime: process.env.OPENAI_IMAGE_MODEL || "gpt-image-1",
+  product: process.env.OPENAI_IMAGE_MODEL || "gpt-image-1",
 };
 
 const MAX_STEPS = 50;
+
+async function callOpenAIImages({ apiKey, model, prompt, n = 1, size = "1024x1024" }) {
+  // OpenAI Images endpoint that returns base64 json (b64_json)
+  const url = "https://api.openai.com/v1/images/generations";
+  const payload = {
+    model,
+    prompt,
+    n,
+    size,
+  };
+
+  const resp = await fetch(url, {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${apiKey}`,
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify(payload),
+  });
+
+  return resp;
+}
 
 export default async function handler(req, res) {
   try {
@@ -28,102 +50,80 @@ export default async function handler(req, res) {
       guidance = 7,
     } = req.body || {};
 
-    const HF_TOKEN = process.env.HF_TOKEN;
-    const OVERRIDE_MODEL = process.env.HF_MODEL; // optional
-
-    if (!HF_TOKEN) {
+    const OPENAI_API_KEY = process.env.OPENAI_API_KEY;
+    if (!OPENAI_API_KEY) {
       return res.status(500).json({
-        error:
-          "HF_TOKEN is missing. Add your Hugging Face token in Vercel → Settings → Environment Variables.",
+        error: "OPENAI_API_KEY missing. Add it to your environment variables.",
       });
     }
 
-    const [width, height] = String(size)
-      .split("x")
-      .map((n) => Math.max(256, Math.min(1536, parseInt(n, 10) || 1024)));
+    // Basic size sanitization (width x height)
+    const [widthRaw, heightRaw] = String(size).split("x");
+    const width = Math.max(256, Math.min(2048, parseInt(widthRaw, 10) || 1024));
+    const height = Math.max(256, Math.min(2048, parseInt(heightRaw, 10) || 1024));
+    const normSize = `${width}x${height}`;
 
-    const model =
-      OVERRIDE_MODEL ||
-      DEFAULT_MODELS[String(mode)] ||
-      DEFAULT_MODELS.romantic;
+    // Select model (you can override via OPENAI_IMAGE_MODEL)
+    const model = DEFAULT_MODELS[String(mode)] || DEFAULT_MODELS.romantic;
 
-    const payload = {
-      inputs: prompt?.trim(),
-      parameters: {
-        negative_prompt: negative || "",
-        num_inference_steps: Math.min(MAX_STEPS, Math.max(10, Number(steps) || 25)),
-        guidance_scale: Math.max(1, Math.min(20, Number(guidance) || 7)),
-        width,
-        height,
-      },
-      options: { wait_for_model: true }, // prefer image on first go
-    };
+    // Tweak prompt based on mode and negative prompt
+    let finalPrompt = (prompt || "").trim();
+    if (!finalPrompt) return res.status(400).json({ error: "Prompt is required" });
 
-    // function to call HF, handling 409 warmup by polling
-    const callHF = async (tries = 0) => {
-      const r = await fetch(`https://api-inference.huggingface.co/models/${encodeURIComponent(model)}`, {
-        method: "POST",
-        headers: {
-          Authorization: `Bearer ${HF_TOKEN}`,
-          "Content-Type": "application/json",
-          Accept: "image/png", // force binary image
-        },
-        body: JSON.stringify(payload),
-      });
+    // Append stylistic hints
+    if (mode === "romantic") {
+      finalPrompt = `${finalPrompt}, romantic, warm cinematic lighting, soft bokeh, delicate color grading, portrait`;
+    } else if (mode === "anime") {
+      finalPrompt = `${finalPrompt}, anime style, vibrant colors, clean line art, expressive eyes, cinematic composition`;
+    } else if (mode === "realistic") {
+      finalPrompt = `${finalPrompt}, photorealistic, studio lighting, ultra-detailed, high resolution`;
+    } else if (mode === "product") {
+      finalPrompt = `${finalPrompt}, product shot, white background, sharp details, studio lighting`;
+    }
 
-      // Model still loading
-      if (r.status === 409 && tries < 6) {
-        // wait then retry (exponential-ish)
-        await new Promise((s) => setTimeout(s, 1200 + tries * 500));
-        return callHF(tries + 1);
-      }
-      return r;
-    };
+    // negative prompt: OpenAI Images API may not have a direct field; append as instruction to avoid elements
+    if (negative && String(negative).trim()) {
+      finalPrompt = `${finalPrompt}. Avoid: ${negative}`;
+    }
 
-    const resp = await callHF();
+    // Call OpenAI images endpoint
+    const resp = await callOpenAIImages({
+      apiKey: OPENAI_API_KEY,
+      model,
+      prompt: finalPrompt,
+      n: 1,
+      size: normSize,
+    });
 
     const ctype = resp.headers.get("content-type") || "";
 
-    // If HF returns an error JSON
-    if (!resp.ok && ctype.includes("application/json")) {
-      const j = await resp.json().catch(() => ({}));
-      return res
-        .status(resp.status)
-        .json({ error: j.error || `HF error ${resp.status}`, details: j });
+    // OpenAI normally returns JSON with b64_json in data
+    if (!resp.ok) {
+      // attempt to read json for error details
+      const txt = await resp.text().catch(() => "");
+      try {
+        const j = JSON.parse(txt);
+        return res.status(resp.status).json({ error: j.error || j });
+      } catch {
+        return res.status(resp.status).json({ error: `OpenAI error: ${resp.status}`, details: txt.slice(0, 500) });
+      }
     }
 
-    // If HF returns HTML (e.g., auth/URL wrong)
-    if (ctype.includes("text/html")) {
-      const text = await resp.text();
-      return res.status(400).json({
-        error:
-          "Upstream returned HTML instead of an image. Check HF token/model or headers.",
-        snippet: text.slice(0, 300),
-      });
+    const json = await resp.json().catch(() => null);
+    if (!json || !Array.isArray(json.data) || !json.data.length) {
+      return res.status(500).json({ error: "OpenAI returned no image data", raw: json });
     }
 
-    // Success: Binary image
-    if (ctype.startsWith("image/")) {
-      const buf = Buffer.from(await resp.arrayBuffer());
-      res.setHeader("Content-Type", ctype);
-      res.setHeader("Cache-Control", "no-store");
-      return res.status(200).send(buf);
-    }
+    const b64 = json.data[0].b64_json;
+    if (!b64) return res.status(500).json({ error: "OpenAI response missing b64_json" });
 
-    // Fallback: try to parse as JSON or text
-    const txt = await resp.text();
-    try {
-      const j = JSON.parse(txt);
-      return res
-        .status(resp.ok ? 200 : resp.status || 500)
-        .json(j);
-    } catch {
-      return res.status(resp.ok ? 200 : 500).json({
-        error: "Unrecognized response from model.",
-        snippet: txt.slice(0, 300),
-      });
-    }
+    const buf = Buffer.from(b64, "base64");
+    // Return binary image; keep same Content-Type behavior as HF flow (image/png)
+    res.setHeader("Content-Type", "image/png");
+    res.setHeader("Cache-Control", "no-store");
+    return res.status(200).send(buf);
   } catch (err) {
+    console.error("[/api/generate] error:", err);
     return res.status(500).json({ error: String(err?.message || err) });
   }
 }
