@@ -1,403 +1,638 @@
-// pages/ai.js
-import React, { useEffect, useRef, useState } from "react";
+import { useEffect, useState } from "react";
 
-/**
- * Milan AI Studio — Futuristic Romantic + Cyberpunk UI
- * Single-file Next.js page (no Tailwind). Calls POST /api/generate
- * Expects image/png binary on success; error JSON on failure.
- */
+/** Milan AI Studio – Modern, Attractive & Stylish UI */
 
-export default function AIPage() {
-  const [prompt, setPrompt] = useState("romantic cinematic portrait, soft warm light");
+const MODES = [
+  { key: "romantic", label: "Romantic", desc: "Warm tones, depth, soft bokeh.", icon: "💖",
+    preset: "romantic cinematic portrait, warm tones, soft bokeh, masterpiece, ultra detail, volumetric light",
+    gradient: "from-pink-500 to-rose-500" },
+  { key: "realistic", label: "Realistic", desc: "Photographic, true-to-life.", icon: "📸",
+    preset: "highly detailed, photorealistic, 35mm, natural lighting, film grain, masterpiece",
+    gradient: "from-blue-500 to-cyan-500" },
+  { key: "anime", label: "Anime", desc: "Ghibli / anime vibe.", icon: "🌸",
+    preset: "ghibli style, vibrant colors, crisp line art, anime style, dynamic composition, cinematic",
+    gradient: "from-purple-500 to-pink-500" },
+  { key: "product", label: "Product", desc: "Studio, e-commerce.", icon: "🛍️",
+    preset: "studio product photo, soft light, seamless background, crisp shadows, highly detailed",
+    gradient: "from-amber-500 to-orange-500" },
+];
+
+const TEMPLATES = {
+  romantic: [
+    "Golden hour couple portrait, soft backlight, pastel grading, dreamy",
+    "Rainy street umbrella moment, reflections, bokeh lights, cinematic",
+    "Candle-lit indoor close-up, luminous skin, shallow DOF, warm tones",
+    "Beach sunset silhouette, lens flare, gentle wind, emotional",
+  ],
+  realistic: [
+    "Natural light portrait, 85mm lens, subtle film grain, skin texture",
+    "Street candid, Kodak Porta look, high dynamic range, tack sharp",
+    "Editorial studio portrait, Rembrandt lighting, seamless background",
+    "Landscape at blue hour, long exposure, crisp details",
+  ],
+  anime: [
+    "Anime couple in blooming garden, floating petals, dynamic composition, vibrant palette",
+    "Ghibli-style temple under cherry blossoms, soft diffuse light",
+    "City rooftop at dusk, neon signs, energetic pose, manga lines",
+    "Forest spirits glowing, whimsical, painterly brushwork",
+  ],
+  product: [
+    "Minimal product lay flat, soft shadow, seamless cyc wall, glossy reflections, editorial style",
+    "Cosmetics bottle on wet marble, water droplets, studio rim light",
+    "Sneaker levitating with motion blur, gradient backdrop, hero shot",
+    "Watch macro on brushed steel, specular highlights, premium",
+  ],
+};
+
+const SIZES = ["768x768", "1024x1024", "1024x1536", "1536x1024"];
+const defaultNegative = "text, watermark, blurry, low quality, jpeg artifacts, extra fingers, missing limbs";
+
+export default function AIStudioPage() {
+  const [theme, setTheme] = useDarkTheme();
   const [mode, setMode] = useState("romantic");
+  const [prompt, setPrompt] = useState("");
+  const [negative, setNegative] = useState(defaultNegative);
   const [size, setSize] = useState("1024x1024");
-  const [isLoading, setIsLoading] = useState(false);
-  const [imageUrl, setImageUrl] = useState("");
+  const [steps, setSteps] = useState(25);
+  const [guidance, setGuidance] = useState(7);
+  const [advancedOpen, setAdvancedOpen] = useState(false);
+
+  const [history, setHistory] = useState([]);
+  const [saved, setSaved] = useState([]);
+
+  const [loading, setLoading] = useState(false);
+  const [imageUrl, setImageUrl] = useState(null);
   const [error, setError] = useState("");
-  const [recent, setRecent] = useState([]);
-  const [variations, setVariations] = useState(1);
-  const imgRef = useRef(null);
+  const [compareUrls, setCompareUrls] = useState([]);
+  const [templatesOpen, setTemplatesOpen] = useState(false);
 
   useEffect(() => {
-    try {
-      const r = JSON.parse(localStorage.getItem("milan_recent") || "[]");
-      setRecent(r || []);
-    } catch (e) {}
-  }, []);
+    if (!prompt?.trim()) {
+      const m = MODES.find((m) => m.key === mode);
+      if (m) setPrompt(m.preset);
+    }
+  }, [mode]);
 
-  function saveRecent(p) {
-    try {
-      const arr = [p, ...(JSON.parse(localStorage.getItem("milan_recent") || "[]") || [])].filter(
-        (v, i, a) => a.indexOf(v) === i
-      );
-      localStorage.setItem("milan_recent", JSON.stringify(arr.slice(0, 30)));
-      setRecent(arr.slice(0, 10));
-    } catch (e) {}
+  const onInspire = () => {
+    const bank = [
+      "Moonlit riverside, soft fog, glowing lanterns, reflective water, cinematic",
+      "Old library with golden sunbeams, dust motes, warm wood, cozy vibe",
+      "Neon alley, rain-slick streets, reflections, cyberpunk framing",
+      "Art deco hotel lobby, marble floor reflections, wide angle, dramatic",
+    ];
+    setPrompt(bank[Math.floor(Math.random() * bank.length)]);
+  };
+
+  async function imageUrlFromImageResponse(res) {
+    const blob = await res.blob();
+    return URL.createObjectURL(blob);
   }
 
-  function boostPrompt() {
-    const boost = `${prompt}, ultra-detailed, cinematic lighting, volumetric glow, soft bokeh, film grain`;
-    setPrompt(boost);
-  }
-
-  async function generateImage() {
+  const onGenerate = async () => {
+    const finalPrompt = prompt?.trim();
+    if (!finalPrompt) return;
+    setLoading(true);
     setError("");
-    setIsLoading(true);
-    setImageUrl("");
-    try {
-      if (!prompt || !prompt.trim()) {
-        setError("Please write a short prompt.");
-        setIsLoading(false);
-        return;
-      }
-      saveRecent(prompt);
 
+    setHistory((prev) => [
+      { ts: Date.now(), prompt: finalPrompt, negative, mode, size, steps, guidance },
+      ...prev.filter((h) => h.prompt !== finalPrompt).slice(0, 49),
+    ]);
+
+    try {
       const res = await fetch("/api/generate", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ prompt, mode, size, n: variations }),
+        body: JSON.stringify({ prompt: finalPrompt, negative, mode, size, steps, guidance }),
       });
 
+      const ctype = res.headers.get("content-type") || "";
+
       if (!res.ok) {
-        // try to read JSON error
-        let body;
-        try {
-          body = await res.json();
-        } catch (e) {
-          const txt = await res.text().catch(() => "");
-          setError(`Generation failed: ${res.status} ${txt.slice(0,200)}`);
-          setIsLoading(false);
-          return;
-        }
-        // show the most helpful message possible
-        setError(body?.openai_body?.error?.message || body?.error?.message || JSON.stringify(body).slice(0,300));
-        setIsLoading(false);
+        let bodyText = "";
+        try { bodyText = ctype.includes("application/json") ? JSON.stringify(await res.json()) : await res.text(); }
+        catch { bodyText = "Unknown server error"; }
+        setImageUrl(null);
+        setError(`Generation failed (${res.status}). ${truncate(String(bodyText), 300)}`);
         return;
       }
 
-      const blob = await res.blob();
-      const url = URL.createObjectURL(blob);
-      setImageUrl(url);
-      setTimeout(() => {
-        if (imgRef.current) imgRef.current.classList.add("reveal");
-      }, 80);
-    } catch (err) {
-      setError(String(err?.message || err));
+      if (ctype.includes("application/json")) {
+        const data = await res.json();
+        if (data?.imageUrl) {
+          setImageUrl(data.imageUrl);
+          setCompareUrls((prev) => [data.imageUrl, ...prev].slice(0, 6));
+          if (data?.error) setError(truncate(String(data.error), 240));
+          return;
+        }
+        setImageUrl(null);
+        setError(truncate(String(data?.error || "No image returned by API."), 240));
+        return;
+      }
+
+      if (ctype.startsWith("image/")) {
+        const url = await imageUrlFromImageResponse(res);
+        setImageUrl(url);
+        setCompareUrls((prev) => [url, ...prev].slice(0, 6));
+        return;
+      }
+
+      const txt = await res.text();
+      const trimmed = txt.trim();
+      if (trimmed.startsWith("data:image") || /^https?:\/\//i.test(trimmed)) {
+        setImageUrl(trimmed);
+        setCompareUrls((prev) => [trimmed, ...prev].slice(0, 6));
+        return;
+      }
+      setImageUrl(null);
+      setError("Unrecognized response from server.");
+    } catch (e) {
+      setImageUrl(null);
+      setError(`Network error: ${e.message}`);
     } finally {
-      setIsLoading(false);
+      setLoading(false);
     }
-  }
-
-  function downloadImage() {
-    if (!imageUrl) return;
-    const a = document.createElement("a");
-    a.href = imageUrl;
-    a.download = `milan-${mode}-${Date.now()}.png`;
-    document.body.appendChild(a);
-    a.click();
-    a.remove();
-  }
-
-  function clearPrompt() {
-    setPrompt("");
-  }
-
-  const styles = {
-    accent1: "#ff7ab6",
-    accent2: "#8b5cf6",
-    cyber1: "#00f0ff",
-    cyber2: "#8b5cf6",
   };
 
+  const onSave = () => {
+    if (!imageUrl) return;
+    setSaved((prev) => [{ url: imageUrl, prompt, mode, ts: Date.now() }, ...prev]);
+  };
+
+  const onDownload = async () => {
+    if (!imageUrl) return;
+    try {
+      if (imageUrl.startsWith("data:image")) {
+        const a = document.createElement("a");
+        a.href = imageUrl;
+        a.download = `milan-${Date.now()}.png`;
+        document.body.appendChild(a);
+        a.click();
+        a.remove();
+        return;
+      }
+      const resp = await fetch(imageUrl, { mode: "cors" });
+      const blob = await resp.blob();
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `milan-${Date.now()}.png`;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      URL.revokeObjectURL(url);
+    } catch {
+      const a = document.createElement("a");
+      a.href = imageUrl;
+      a.download = `milan-${Date.now()}.png`;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+    }
+  };
+
+  const onShare = async () => {
+    if (!imageUrl) return;
+    try {
+      if (navigator.share) {
+        await navigator.share({ title: "Milan AI Studio", text: prompt, url: imageUrl });
+      } else {
+        await navigator.clipboard.writeText(imageUrl);
+        alert("Link copied! Paste anywhere to share.");
+      }
+    } catch {}
+  };
+
+  const currentMode = MODES.find(m => m.key === mode);
+
   return (
-    <div className="milan-root">
-      <header className="milan-header">
-        <div className="brand">
-          <div className="logo">💘</div>
-          <div>
-            <div className="title">Milan AI Studio</div>
-            <div className="subtitle">Turn romantic ideas into visuals — dreamy, premium, instant.</div>
+    <div className={`min-h-screen ${theme === "dark" ? "bg-gradient-to-br from-slate-950 via-slate-900 to-slate-950" : "bg-gradient-to-br from-slate-50 via-white to-slate-50"} transition-colors duration-300`}>
+      {/* Header */}
+      <header className={`sticky top-0 z-50 backdrop-blur-xl ${theme === "dark" ? "bg-slate-950/80 border-slate-800" : "bg-white/80 border-slate-200"} border-b transition-colors`}>
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-3">
+              <div className="text-3xl">💘</div>
+              <h1 className={`text-xl sm:text-2xl font-bold bg-gradient-to-r from-pink-500 to-rose-500 bg-clip-text text-transparent`}>
+                Milan AI Studio
+              </h1>
+            </div>
+            <div className="flex items-center gap-2 sm:gap-3">
+              <button 
+                onClick={() => setTheme(theme === "dark" ? "light" : "dark")} 
+                className={`px-3 sm:px-4 py-2 rounded-xl ${theme === "dark" ? "bg-slate-800 hover:bg-slate-700" : "bg-slate-100 hover:bg-slate-200"} transition-all duration-200 text-sm font-medium`}
+              >
+                {theme === "dark" ? "🌙" : "☀️"}
+              </button>
+              <a 
+                href="/connect" 
+                className={`hidden sm:flex px-4 py-2 rounded-xl ${theme === "dark" ? "bg-slate-800 hover:bg-slate-700" : "bg-slate-100 hover:bg-slate-200"} transition-all duration-200 text-sm font-medium`}
+              >
+                ← Dashboard
+              </a>
+            </div>
           </div>
-        </div>
-        <div className="top-actions">
-          <button className="ghost">Dark</button>
-          <a className="cta" href="/dashboard">Back to Dashboard</a>
         </div>
       </header>
 
-      <main className="milan-main">
-        <aside className="controls">
-          <div className="card style-card">
-            <div className="card-title">Style</div>
-            <div className="card-sub">Choose a base style to guide the image</div>
-            <div className="pills">
-              {[
-                { id: "romantic", t: "Romantic", e: "🌹" },
-                { id: "realistic", t: "Realistic", e: "📷" },
-                { id: "anime", t: "Anime", e: "🎎" },
-                { id: "product", t: "Product", e: "🛍️" },
-              ].map((p) => (
-                <button
-                  key={p.id}
-                  onClick={() => setMode(p.id)}
-                  className={`pill ${mode === p.id ? "active" : ""}`}
+      {/* Hero Section */}
+      <section className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 sm:py-12">
+        <div className="text-center mb-8 sm:mb-12">
+          <h2 className={`text-3xl sm:text-5xl font-bold mb-4 ${theme === "dark" ? "text-white" : "text-slate-900"}`}>
+            Turn imagination into <span className="bg-gradient-to-r from-pink-500 via-purple-500 to-cyan-500 bg-clip-text text-transparent">reality</span> ✨
+          </h2>
+          <p className={`text-base sm:text-lg ${theme === "dark" ? "text-slate-400" : "text-slate-600"} max-w-2xl mx-auto`}>
+            Generate stunning images with AI. Choose your style, describe your vision, and watch magic happen.
+          </p>
+        </div>
+
+        {/* Mode Selection - Modern Cards */}
+        <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4 mb-8">
+          {MODES.map((m) => (
+            <button
+              key={m.key}
+              onClick={() => setMode(m.key)}
+              className={`group relative p-4 sm:p-6 rounded-2xl transition-all duration-300 transform hover:scale-105 ${
+                mode === m.key
+                  ? `bg-gradient-to-br ${m.gradient} shadow-2xl`
+                  : theme === "dark" 
+                    ? "bg-slate-800/50 hover:bg-slate-800 border border-slate-700" 
+                    : "bg-white hover:bg-slate-50 border border-slate-200 shadow-sm"
+              }`}
+            >
+              <div className={`text-3xl sm:text-4xl mb-2 sm:mb-3 ${mode === m.key ? "animate-bounce" : ""}`}>{m.icon}</div>
+              <h3 className={`font-bold text-sm sm:text-base mb-1 ${mode === m.key ? "text-white" : theme === "dark" ? "text-white" : "text-slate-900"}`}>
+                {m.label}
+              </h3>
+              <p className={`text-xs ${mode === m.key ? "text-white/90" : theme === "dark" ? "text-slate-400" : "text-slate-600"}`}>
+                {m.desc}
+              </p>
+              {mode === m.key && (
+                <div className="absolute inset-0 rounded-2xl bg-white/20 animate-pulse" />
+              )}
+            </button>
+          ))}
+        </div>
+
+        {/* Quick Actions */}
+        <div className="flex flex-wrap gap-3 justify-center mb-8">
+          <button 
+            onClick={() => setTemplatesOpen(true)}
+            className={`px-4 sm:px-6 py-2.5 sm:py-3 rounded-xl font-medium transition-all duration-200 ${
+              theme === "dark" 
+                ? "bg-slate-800 hover:bg-slate-700 text-white" 
+                : "bg-white hover:bg-slate-50 text-slate-900 shadow-sm border border-slate-200"
+            }`}
+          >
+            🧰 Templates
+          </button>
+          <button 
+            onClick={onInspire}
+            className={`px-4 sm:px-6 py-2.5 sm:py-3 rounded-xl font-medium transition-all duration-200 ${
+              theme === "dark" 
+                ? "bg-slate-800 hover:bg-slate-700 text-white" 
+                : "bg-white hover:bg-slate-50 text-slate-900 shadow-sm border border-slate-200"
+            }`}
+          >
+            💡 Inspire Me
+          </button>
+        </div>
+      </section>
+
+      {/* Main Content */}
+      <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pb-12">
+        <div className="grid lg:grid-cols-3 gap-6 lg:gap-8">
+          {/* Left Column - Controls */}
+          <div className="lg:col-span-1 space-y-6">
+            {/* Prompt Card */}
+            <div className={`rounded-2xl p-6 ${theme === "dark" ? "bg-slate-800/50 border border-slate-700" : "bg-white border border-slate-200 shadow-lg"}`}>
+              <label className={`block text-sm font-semibold mb-3 ${theme === "dark" ? "text-slate-200" : "text-slate-900"}`}>
+                Your Prompt
+              </label>
+              <div className="relative">
+                <textarea
+                  className={`w-full rounded-xl p-4 min-h-[160px] resize-none ${
+                    theme === "dark" 
+                      ? "bg-slate-900 border-slate-600 text-white placeholder-slate-500" 
+                      : "bg-slate-50 border-slate-300 text-slate-900 placeholder-slate-400"
+                  } border-2 focus:border-pink-500 focus:ring-2 focus:ring-pink-500/20 outline-none transition-all`}
+                  placeholder="Describe your dream image..."
+                  value={prompt}
+                  onChange={(e) => setPrompt(e.target.value)}
+                />
+                <div className={`absolute bottom-3 right-3 text-xs px-2 py-1 rounded-lg ${
+                  theme === "dark" ? "bg-slate-800 text-slate-400" : "bg-white text-slate-500"
+                }`}>
+                  {prompt.length} chars
+                </div>
+              </div>
+
+              <button
+                onClick={onGenerate}
+                disabled={loading || !prompt.trim()}
+                className={`w-full mt-4 py-4 rounded-xl font-bold text-white transition-all duration-200 transform hover:scale-[1.02] disabled:opacity-50 disabled:cursor-not-allowed disabled:transform-none ${
+                  loading 
+                    ? "bg-gradient-to-r from-pink-400 to-rose-400" 
+                    : "bg-gradient-to-r from-pink-500 to-rose-500 hover:from-pink-600 hover:to-rose-600 shadow-lg shadow-pink-500/30"
+                }`}
+              >
+                {loading ? (
+                  <span className="flex items-center justify-center gap-2">
+                    <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                    Creating Magic...
+                  </span>
+                ) : (
+                  "✨ Create with Milan"
+                )}
+              </button>
+            </div>
+
+            {/* Advanced Settings */}
+            <div className={`rounded-2xl overflow-hidden ${theme === "dark" ? "bg-slate-800/50 border border-slate-700" : "bg-white border border-slate-200 shadow-lg"}`}>
+              <button 
+                onClick={() => setAdvancedOpen(!advancedOpen)}
+                className={`w-full p-4 flex items-center justify-between ${theme === "dark" ? "hover:bg-slate-700/50" : "hover:bg-slate-50"} transition-colors`}
+              >
+                <span className={`font-semibold ${theme === "dark" ? "text-white" : "text-slate-900"}`}>⚙️ Advanced Settings</span>
+                <span className={`text-sm ${theme === "dark" ? "text-slate-400" : "text-slate-600"}`}>
+                  {advancedOpen ? "Hide" : "Show"}
+                </span>
+              </button>
+
+              {advancedOpen && (
+                <div className="p-6 space-y-6 border-t border-slate-700">
+                  <div className="grid sm:grid-cols-2 gap-4">
+                    <div>
+                      <label className={`block text-sm font-medium mb-2 ${theme === "dark" ? "text-slate-300" : "text-slate-700"}`}>Size</label>
+                      <select 
+                        value={size} 
+                        onChange={(e) => setSize(e.target.value)}
+                        className={`w-full rounded-lg p-2.5 ${
+                          theme === "dark" 
+                            ? "bg-slate-900 border-slate-600 text-white" 
+                            : "bg-slate-50 border-slate-300 text-slate-900"
+                        } border-2 focus:border-pink-500 outline-none`}
+                      >
+                        {SIZES.map((s) => <option key={s} value={s}>{s}</option>)}
+                      </select>
+                    </div>
+                    <div>
+                      <label className={`block text-sm font-medium mb-2 ${theme === "dark" ? "text-slate-300" : "text-slate-700"}`}>
+                        Steps <span className="text-pink-500">{steps}</span>
+                      </label>
+                      <input 
+                        type="range" 
+                        min={10} 
+                        max={50} 
+                        value={steps} 
+                        onChange={(e) => setSteps(parseInt(e.target.value, 10))}
+                        className="w-full accent-pink-500"
+                      />
+                    </div>
+                  </div>
+
+                  <div>
+                    <label className={`block text-sm font-medium mb-2 ${theme === "dark" ? "text-slate-300" : "text-slate-700"}`}>
+                      Guidance <span className="text-pink-500">{guidance}</span>
+                    </label>
+                    <input 
+                      type="range" 
+                      min={1} 
+                      max={20} 
+                      value={guidance} 
+                      onChange={(e) => setGuidance(parseInt(e.target.value, 10))}
+                      className="w-full accent-pink-500"
+                    />
+                  </div>
+
+                  <div>
+                    <label className={`block text-sm font-medium mb-2 ${theme === "dark" ? "text-slate-300" : "text-slate-700"}`}>Negative Prompt</label>
+                    <input 
+                      type="text"
+                      value={negative} 
+                      onChange={(e) => setNegative(e.target.value)}
+                      placeholder="Unwanted elements..."
+                      className={`w-full rounded-lg p-2.5 ${
+                        theme === "dark" 
+                          ? "bg-slate-900 border-slate-600 text-white placeholder-slate-500" 
+                          : "bg-slate-50 border-slate-300 text-slate-900 placeholder-slate-400"
+                      } border-2 focus:border-pink-500 outline-none`}
+                    />
+                  </div>
+                </div>
+              )}
+            </div>
+
+            {/* Saved Images */}
+            <div className={`rounded-2xl p-6 ${theme === "dark" ? "bg-slate-800/50 border border-slate-700" : "bg-white border border-slate-200 shadow-lg"}`}>
+              <div className="flex items-center justify-between mb-4">
+                <h3 className={`font-semibold ${theme === "dark" ? "text-white" : "text-slate-900"}`}>📁 Saved</h3>
+                {saved.length > 0 && (
+                  <button 
+                    onClick={() => setSaved([])}
+                    className="text-xs text-pink-500 hover:text-pink-600"
+                  >
+                    Clear
+                  </button>
+                )}
+              </div>
+              {saved.length === 0 ? (
+                <p className={`text-sm ${theme === "dark" ? "text-slate-400" : "text-slate-600"}`}>
+                  Nothing saved yet. Generate and hit "Save".
+                </p>
+              ) : (
+                <div className="grid grid-cols-3 gap-2">
+                  {saved.map((s, i) => (
+                    <button 
+                      key={s.ts + "-" + i} 
+                      onClick={() => setImageUrl(s.url)}
+                      className="aspect-square rounded-lg overflow-hidden hover:ring-2 hover:ring-pink-500 transition-all"
+                    >
+                      <img src={s.url} alt="saved" className="w-full h-full object-cover" />
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
+          </div>
+
+          {/* Right Column - Preview */}
+          <div className="lg:col-span-2 space-y-6">
+            {/* Main Preview */}
+            <div className={`rounded-2xl overflow-hidden ${theme === "dark" ? "bg-slate-800/50 border border-slate-700" : "bg-white border border-slate-200 shadow-lg"}`}>
+              <div className={`p-4 flex items-center justify-between border-b ${theme === "dark" ? "border-slate-700" : "border-slate-200"}`}>
+                <div className={`text-sm ${theme === "dark" ? "text-slate-400" : "text-slate-600"}`}>
+                  {imageUrl ? `${size} • ${mode}` : "Preview"}
+                </div>
+                <div className="flex gap-2">
+                  <button 
+                    onClick={onSave} 
+                    disabled={!imageUrl}
+                    className={`px-3 py-1.5 rounded-lg text-sm font-medium transition-all ${
+                      imageUrl 
+                        ? theme === "dark" 
+                          ? "bg-slate-700 hover:bg-slate-600 text-white" 
+                          : "bg-slate-100 hover:bg-slate-200 text-slate-900"
+                        : "opacity-50 cursor-not-allowed"
+                    }`}
+                  >
+                    💾 Save
+                  </button>
+                  <button 
+                    onClick={onDownload} 
+                    disabled={!imageUrl}
+                    className={`px-3 py-1.5 rounded-lg text-sm font-medium transition-all ${
+                      imageUrl 
+                        ? theme === "dark" 
+                          ? "bg-slate-700 hover:bg-slate-600 text-white" 
+                          : "bg-slate-100 hover:bg-slate-200 text-slate-900"
+                        : "opacity-50 cursor-not-allowed"
+                    }`}
+                  >
+                    ⬇️ Download
+                  </button>
+                  <button 
+                    onClick={onShare} 
+                    disabled={!imageUrl}
+                    className={`px-3 py-1.5 rounded-lg text-sm font-medium transition-all ${
+                      imageUrl 
+                        ? theme === "dark" 
+                          ? "bg-slate-700 hover:bg-slate-600 text-white" 
+                          : "bg-slate-100 hover:bg-slate-200 text-slate-900"
+                        : "opacity-50 cursor-not-allowed"
+                    }`}
+                  >
+                    📤 Share
+                  </button>
+                </div>
+              </div>
+
+              <div className={`relative aspect-[4/3] flex items-center justify-center ${theme === "dark" ? "bg-slate-900" : "bg-slate-100"}`}>
+                {loading ? (
+                  <div className="flex flex-col items-center gap-4">
+                    <div className="relative">
+                      <div className="w-16 h-16 border-4 border-slate-700 rounded-full" />
+                      <div className="absolute inset-0 w-16 h-16 border-4 border-pink-500 border-t-transparent rounded-full animate-spin" />
+                    </div>
+                    <p className={`text-sm ${theme === "dark" ? "text-slate-400" : "text-slate-600"}`}>
+                      ✨ Creating magic...
+                    </p>
+                  </div>
+                ) : imageUrl ? (
+                  <img 
+                    src={imageUrl} 
+                    alt="Generated" 
+                    className="max-w-full max-h-full object-contain rounded-lg animate-fadeIn"
+                  />
+                ) : (
+                  <div className="text-center p-8">
+                    <div className="text-6xl mb-4">🎨</div>
+                    <p className={`${theme === "dark" ? "text-slate-400" : "text-slate-600"}`}>
+                      Your masterpiece will appear here
+                    </p>
+                  </div>
+                )}
+              </div>
+
+              {error && (
+                <div className="m-4 p-4 rounded-lg bg-red-500/10 border border-red-500/30 text-red-400 text-sm">
+                  {error}
+                </div>
+              )}
+            </div>
+
+            {/* Recent Results */}
+            {compareUrls.length > 0 && (
+              <div className={`rounded-2xl p-6 ${theme === "dark" ? "bg-slate-800/50 border border-slate-700" : "bg-white border border-slate-200 shadow-lg"}`}>
+                <h3 className={`font-semibold mb-4 ${theme === "dark" ? "text-white" : "text-slate-900"}`}>
+                  🎭 Recent Results
+                </h3>
+                <div className="grid grid-cols-3 sm:grid-cols-6 gap-3">
+                  {compareUrls.map((u, i) => (
+                    <button 
+                      key={u + "-" + i} 
+                      onClick={() => setImageUrl(u)}
+                      className="aspect-square rounded-lg overflow-hidden hover:ring-2 hover:ring-pink-500 transition-all transform hover:scale-105"
+                    >
+                      <img src={u} alt="recent" className="w-full h-full object-cover" />
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
+          </div>
+        </div>
+      </main>
+
+      {/* Templates Modal */}
+      {templatesOpen && (
+        <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-0 sm:p-4">
+          <div 
+            className="absolute inset-0 bg-black/60 backdrop-blur-sm"
+            onClick={() => setTemplatesOpen(false)}
+          />
+          <div className={`relative w-full sm:max-w-2xl sm:rounded-2xl overflow-hidden ${
+            theme === "dark" ? "bg-slate-900" : "bg-white"
+          } animate-slideUp sm:animate-fadeIn max-h-[80vh] sm:max-h-[90vh] flex flex-col`}>
+            <div className={`p-6 border-b ${theme === "dark" ? "border-slate-700" : "border-slate-200"} flex items-center justify-between`}>
+              <h3 className={`text-xl font-bold ${theme === "dark" ? "text-white" : "text-slate-900"}`}>
+                Templates • {currentMode?.label}
+              </h3>
+              <button 
+                onClick={() => setTemplatesOpen(false)}
+                className={`px-4 py-2 rounded-lg ${theme === "dark" ? "bg-slate-800 hover:bg-slate-700" : "bg-slate-100 hover:bg-slate-200"} transition-colors`}
+              >
+                Close
+              </button>
+            </div>
+            <div className="p-6 space-y-3 overflow-y-auto">
+              {(TEMPLATES[mode] || []).map((t, i) => (
+                <button 
+                  key={i}
+                  onClick={() => { setPrompt(t); setTemplatesOpen(false); }}
+                  className={`w-full p-4 rounded-xl text-left transition-all transform hover:scale-[1.02] ${
+                    theme === "dark" 
+                      ? "bg-slate-800 hover:bg-slate-700 text-white" 
+                      : "bg-slate-50 hover:bg-slate-100 text-slate-900 border border-slate-200"
+                  }`}
                 >
-                  <span className="emoji">{p.e}</span>
-                  <span className="txt">{p.t}</span>
+                  <div className="flex items-start gap-3">
+                    <span className="text-2xl">{currentMode?.icon}</span>
+                    <span className="flex-1 text-sm leading-relaxed">{t}</span>
+                  </div>
                 </button>
               ))}
             </div>
           </div>
-
-          <div className="card prompt-card">
-            <div className="card-title">Describe the scene</div>
-            <textarea
-              value={prompt}
-              onChange={(e) => setPrompt(e.target.value)}
-              placeholder="e.g. couple under a blooming tree, golden hour, warm cinematic lighting..."
-            />
-            <div className="prompt-actions">
-              <button onClick={boostPrompt} className="ghost">Boost Prompt</button>
-              <button onClick={clearPrompt} className="ghost">Clear</button>
-              <div className="charcount">{prompt.length} chars</div>
-            </div>
-          </div>
-
-          <div className="card advanced">
-            <div className="card-title">Advanced</div>
-            <div className="row">
-              <label>Size</label>
-              <select value={size} onChange={(e) => setSize(e.target.value)}>
-                <option>512x512</option>
-                <option>768x768</option>
-                <option>1024x1024</option>
-                <option>1536x1536</option>
-              </select>
-            </div>
-
-            <div className="row">
-              <label>Variations</label>
-              <input type="number" min="1" max="4" value={variations} onChange={(e) => setVariations(Math.max(1, Math.min(4, Number(e.target.value))))} />
-            </div>
-
-            <div className="row actions">
-              <button onClick={generateImage} className="primary" disabled={isLoading}>
-                {isLoading ? <HeartPulse /> : "Create with Milan"}
-              </button>
-              <button onClick={downloadImage} className="ghost" disabled={!imageUrl}>Download</button>
-            </div>
-
-            <div className="hint">Tip: Use Boost to make a short prompt cinematic. Free users get 1 free image / day.</div>
-          </div>
-
-          <div className="card recent">
-            <div className="card-title">Recent Prompts</div>
-            <div className="recent-list">
-              {recent.length ? recent.map((r, i) => (
-                <button key={i} onClick={() => setPrompt(r)} className="recent-item">{r.length > 36 ? r.slice(0,36)+"…" : r}</button>
-              )) : <div className="muted">You don't have recent prompts yet.</div>}
-            </div>
-          </div>
-        </aside>
-
-        <section className="preview">
-          <div className="preview-header">
-            <div>
-              <div className="preview-title">Preview</div>
-              <div className="preview-sub">Download, use as profile picture, or share</div>
-            </div>
-
-            <div className="preview-actions">
-              <button className="ghost" onClick={() => setPrompt("couple under the tree, warm golden hour, cinematic")}>Quick sample</button>
-              <div className="mode-info">Mode: <strong>{mode}</strong></div>
-            </div>
-          </div>
-
-          <div className="preview-frame">
-            <div className="frame-inner">
-              {!imageUrl && !isLoading && (
-                <div className="placeholder">
-                  <svg width="64" height="64" viewBox="0 0 24 24" fill="currentColor"><path d="M21,19V5C21,3.9 20.1,3 19,3H5C3.9,3 3,3.9 3,5V19C3,20.1 3.9,21 5,21H19C20.1,21 21,20.1 21,19M8.5,13.5C9.3,13.5 10,12.8 10,12C10,11.2 9.3,10.5 8.5,10.5C7.7,10.5 7,11.2 7,12C7,12.8 7.7,13.5 8.5,13.5M21,19L17,14L13,18L10,14L3,21"/></svg>
-                  <div className="ph-text">Your image will appear here — add a prompt & tap Create</div>
-                </div>
-              )}
-
-              {isLoading && (
-                <div className="loading">
-                  <HeartPulse big />
-                  <div className="loading-text">Creating dreamy image…</div>
-                </div>
-              )}
-
-              {imageUrl && (
-                <img ref={imgRef} src={imageUrl} alt="Generated" className="generated" />
-              )}
-            </div>
-          </div>
-
-          <div className="right-controls">
-            <div className="mini-card">
-              <div className="mini-title">Actions</div>
-              <button onClick={downloadImage} className="mini-btn" disabled={!imageUrl}>Download</button>
-              <button onClick={() => alert("Set as profile pic (demo).")} className="mini-btn" disabled={!imageUrl}>Use as Profile Pic</button>
-              <button onClick={() => { navigator.clipboard?.writeText(prompt); alert("Prompt copied"); }} className="mini-btn">Copy Prompt</button>
-            </div>
-
-            <div className="mini-card status">
-              <div className="mini-title">Status</div>
-              <div className="status-val">{error ? <span className="err">{error}</span> : <span className="ok">Ready</span>}</div>
-              <div className="credits">Credits: <strong>free 1/day</strong></div>
-            </div>
-
-            <div className="mini-card tips">
-              <div className="mini-title">Tips</div>
-              <ul>
-                <li>Short nouns + 1-2 style tags work best.</li>
-                <li>Use Boost for cinematic feel.</li>
-                <li>Try different sizes for composition.</li>
-              </ul>
-            </div>
-          </div>
-        </section>
-      </main>
-
-      <footer className="milan-footer">© Milan — built with ❤️ for creative romantics</footer>
+        </div>
+      )}
 
       <style jsx>{`
-        :root {
-          --bg:#071018;
-          --panel: rgba(255,255,255,0.03);
-          --border: rgba(255,255,255,0.04);
-          --muted: rgba(255,255,255,0.45);
-          --accent1: ${styles.accent1};
-          --accent2: ${styles.accent2};
-          --cyber1: ${styles.cyber1};
+        @keyframes fadeIn {
+          from { opacity: 0; }
+          to { opacity: 1; }
         }
-        *{box-sizing:border-box}
-        .milan-root {
-          min-height:100vh;
-          background: radial-gradient(1200px 600px at 10% 10%, rgba(139,92,246,0.06), transparent),
-                      linear-gradient(180deg, #071018 0%, #05060a 100%);
-          color:#e8eef7;
-          padding:24px;
-          font-family:Inter, ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial;
+        @keyframes slideUp {
+          from { transform: translateY(100%); }
+          to { transform: translateY(0); }
         }
-
-        .milan-header{
-          max-width:1200px;
-          margin:0 auto 22px;
-          display:flex;
-          align-items:center;
-          justify-content:space-between;
+        .animate-fadeIn {
+          animation: fadeIn 0.3s ease-out;
         }
-        .brand{display:flex;gap:14px;align-items:center}
-        .logo{
-          width:56px;height:56px;border-radius:12px;
-          background: linear-gradient(135deg,var(--accent1),var(--accent2));
-          display:flex;align-items:center;justify-content:center;
-          box-shadow: 0 6px 30px rgba(139,92,246,0.16), inset 0 -6px 20px rgba(255,255,255,0.03);
-          font-size:22px;
+        .animate-slideUp {
+          animation: slideUp 0.3s ease-out;
         }
-        .title{font-weight:700;font-size:20px}
-        .subtitle{font-size:12px;color:var(--muted);margin-top:2px}
-
-        .top-actions{display:flex;gap:10px;align-items:center}
-        .ghost{background:transparent;border:1px solid rgba(255,255,255,0.04);padding:8px 12px;border-radius:10px;color:var(--muted);cursor:pointer}
-        .ghost:disabled{opacity:0.5;cursor:not-allowed}
-        .cta{background:linear-gradient(90deg,var(--accent1),var(--accent2));padding:9px 14px;border-radius:10px;color:white;text-decoration:none;font-weight:600;box-shadow:0 10px 30px rgba(139,92,246,0.12)}
-
-        .milan-main{max-width:1200px;margin:0 auto;display:grid;grid-template-columns: 380px 1fr;gap:18px}
-        @media(max-width:900px){
-          .milan-main{grid-template-columns:1fr; padding-bottom:40px}
-        }
-
-        .controls{display:flex;flex-direction:column;gap:14px}
-        .card{background:var(--panel);border:1px solid var(--border);padding:14px;border-radius:14px;box-shadow: 0 6px 30px rgba(2,6,23,0.6);backdrop-filter: blur(6px)}
-        .card-title{font-weight:700;margin-bottom:6px}
-        .card-sub{font-size:12px;color:var(--muted);margin-bottom:10px}
-
-        .pills{display:flex;flex-wrap:wrap;gap:8px}
-        .pill{display:flex;align-items:center;gap:8px;padding:8px 10px;border-radius:10px;background:transparent;border:1px solid rgba(255,255,255,0.03);cursor:pointer;color:var(--muted)}
-        .pill.active{background:linear-gradient(90deg,var(--accent1),var(--accent2));color:white;box-shadow:0 8px 30px rgba(139,92,246,0.14)}
-        .pill .emoji{font-size:16px}
-
-        textarea{width:100%;min-height:100px;background:transparent;border:1px solid rgba(255,255,255,0.03);padding:10px;border-radius:10px;color:inherit;outline:none}
-        .prompt-actions{display:flex;align-items:center;gap:8px;margin-top:8px}
-        .charcount{margin-left:auto;color:var(--muted);font-size:12px}
-
-        .advanced .row{display:flex;align-items:center;gap:10px;margin-bottom:10px}
-        .advanced select,.advanced input{flex:1;padding:8px;border-radius:8px;background:transparent;border:1px solid rgba(255,255,255,0.03);color:inherit}
-
-        .actions{display:flex;gap:8px;align-items:center}
-        .primary{flex:1;padding:12px;border-radius:999px;background:linear-gradient(90deg,var(--accent1),var(--accent2));border:none;color:white;font-weight:700;cursor:pointer;box-shadow:0 12px 40px rgba(139,92,246,0.16)}
-        .primary:disabled{opacity:0.6;cursor:not-allowed}
-        .hint{font-size:12px;color:var(--muted);margin-top:8px}
-
-        .recent-list{display:flex;flex-wrap:wrap;gap:8px}
-        .recent-item{padding:6px 8px;border-radius:8px;background:rgba(255,255,255,0.02);border:1px solid rgba(255,255,255,0.03);font-size:12px;cursor:pointer}
-
-        .preview{padding-left:10px}
-        @media(max-width:900px){.preview{padding-left:0;margin-top:6px}}
-
-        .preview-header{display:flex;justify-content:space-between;align-items:center;margin-bottom:12px}
-        .preview-title{font-weight:700;font-size:18px}
-        .preview-sub{font-size:12px;color:var(--muted)}
-
-        .preview-frame{background: linear-gradient(180deg, rgba(255,255,255,0.01), rgba(0,0,0,0.02));padding:18px;border-radius:16px;border:1px solid rgba(255,255,255,0.03);box-shadow: 0 20px 60px rgba(2,6,23,0.7)}
-        .frame-inner{height:520px;border-radius:12px;display:flex;align-items:center;justify-content:center;position:relative;overflow:hidden;background:linear-gradient(180deg, rgba(8,12,18,0.6), rgba(4,6,10,0.4));border:1px solid rgba(255,255,255,0.02)}
-        .placeholder{display:flex;flex-direction:column;align-items:center;color:var(--muted)}
-        .ph-text{margin-top:12px;font-size:13px;color:var(--muted)}
-
-        .loading{display:flex;flex-direction:column;align-items:center;gap:10px}
-        .loading-text{color:var(--muted)}
-
-        .generated{max-height:100%;max-width:100%;border-radius:10px;transform:scale(0.99);opacity:0;transition: all 420ms cubic-bezier(.2,.9,.3,1); box-shadow: 0 26px 60px rgba(8,12,30,0.6);border:1px solid rgba(255,255,255,0.02)}
-        .generated.reveal{opacity:1;transform:scale(1)}
-
-        .right-controls{display:flex;flex-direction:column;gap:12px;margin-top:12px}
-        .mini-card{background:linear-gradient(90deg, rgba(255,255,255,0.01), rgba(255,255,255,0.006));padding:12px;border-radius:10px;border:1px solid rgba(255,255,255,0.03)}
-        .mini-title{font-size:13px;font-weight:700;margin-bottom:8px}
-        .mini-btn{display:block;width:100%;padding:8px;border-radius:8px;margin-bottom:8px;background:transparent;border:1px solid rgba(255,255,255,0.03);color:var(--muted);cursor:pointer}
-        .mini-btn:disabled{opacity:0.5;cursor:not-allowed}
-        .status .ok{color:#7ef3c5}
-        .status .err{color:#ff8aa2}
-        .credits{font-size:12px;color:var(--muted);margin-top:8px}
-
-        .milan-footer{text-align:center;margin-top:22px;color:rgba(255,255,255,0.35);font-size:12px}
-
-        /* subtle neon glow for active pill */
-        .pill.active{box-shadow:0 8px 30px rgba(255,122,182,0.12), 0 0 26px rgba(139,92,246,0.06)}
-        /* heart pulse */
-        @keyframes pulse {
-          0%{transform:scale(1);opacity:1}
-          50%{transform:scale(1.08);opacity:0.9}
-          100%{transform:scale(1);opacity:1}
-        }
-      `}</style>
-
-      {/* inline small components */}
-      <style jsx>{`
-        .reveal { opacity: 1; transform: scale(1) }
       `}</style>
     </div>
   );
 }
 
-/* HeartPulse component */
-function HeartPulse({ big = false }) {
-  const size = big ? 72 : 18;
-  return (
-    <div style={{display:'flex',alignItems:'center',justifyContent:'center',gap:10}}>
-      <svg style={{animation:'pulse 1s ease-in-out infinite'}} width={size} height={size} viewBox="0 0 24 24">
-        <defs>
-          <linearGradient id="gA" x1="0" x2="1">
-            <stop offset="0%" stopColor="#ff7ab6" />
-            <stop offset="100%" stopColor="#8b5cf6" />
-          </linearGradient>
-        </defs>
-        <path fill="url(#gA)" d="M12 21s-7-4.35-9-7.35C0.5 10.5 3 6 7 6c2 0 3 1.2 5 3.2C13 7.2 14 6 16 6c4 0 6.5 4.5 4 7.65C19 16.65 12 21 12 21z" />
-      </svg>
-      {big ? <div style={{color:'rgba(255,255,255,0.7)'}}>Creating...</div> : null}
-    </div>
-  );
+/* Hooks & utils */
+function useDarkTheme() {
+  const [theme, setTheme] = useState("dark");
+  return [theme, setTheme];
+}
+function truncate(str, n) { 
+  if (!str) return ""; 
+  return str.length > n ? str.slice(0, n - 1) + "…" : str; 
 }
