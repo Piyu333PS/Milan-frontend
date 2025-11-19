@@ -8,7 +8,7 @@ const fetchFn = (typeof fetch !== "undefined")
 const PROVIDER = process.env.AI_PROVIDER || "openai";   // "openai" | "mock"
 const OPENAI_API_KEY = process.env.OPENAI_API_KEY || "";
 const OPENAI_CHAT_MODEL = process.env.AI_MODEL || "gpt-4o-mini";
-const OPENAI_IMAGE_MODEL = process.env.AI_IMAGE_MODEL || "gpt-image-1"; // default image model
+const OPENAI_IMAGE_MODEL = process.env.OPENAI_IMAGE_MODEL || process.env.AI_IMAGE_MODEL || "gpt-image-1"; // default image model
 
 // --- Chat (existing) ---
 async function openaiChat(messages) {
@@ -28,24 +28,31 @@ async function openaiChat(messages) {
   });
   if (!res.ok) {
     const t = await res.text().catch(() => "");
-    throw new Error(`OpenAI error: ${res.status} ${t}`);
+    throw new Error(`OpenAI chat error: ${res.status} ${t}`);
   }
   const json = await res.json();
   return json.choices?.[0]?.message?.content?.trim() || "Okay!";
 }
 
-// --- Image generation helper (returns data:image/png;base64... as string) ---
-async function openaiImage({ prompt, size = "1024x1024", n = 1, negative = "" } = {}) {
+/**
+ * openaiImage(options)
+ *  - prompt: string (required)
+ *  - size: "1024x1024" etc.
+ *  - n: number of images
+ *  - negative: negative prompt (appended as instruction)
+ *  - returnType: "datauri" | "buffer"  (default: "datauri")
+ *
+ * Returns either a data URI string or a Buffer depending on returnType.
+ */
+async function openaiImage({ prompt, size = "1024x1024", n = 1, negative = "", returnType = "datauri" } = {}) {
   if (!OPENAI_API_KEY) throw new Error("OPENAI_API_KEY missing");
-  // Use OpenAI Images API - request base64 so we return a data URL easily.
-  // Endpoint used: /v1/images/generations (legacy DALL·E style) — many OpenAI SDKs support returning b64_json.
-  // If your account uses a different images endpoint, adjust accordingly.
+  if (!prompt || !String(prompt).trim()) throw new Error("Prompt is required");
+
   const body = {
     model: OPENAI_IMAGE_MODEL,
     prompt,
     n,
     size,
-    // negative prompt handling: some backends ignore it; we pass it in 'negative_prompt' where supported
     ...(negative ? { negative_prompt: negative } : {})
   };
 
@@ -55,7 +62,8 @@ async function openaiImage({ prompt, size = "1024x1024", n = 1, negative = "" } 
       "Authorization": `Bearer ${OPENAI_API_KEY}`,
       "Content-Type": "application/json"
     },
-    body: JSON.stringify(body)
+    body: JSON.stringify(body),
+    // Note: you can add timeout logic externally if needed
   });
 
   if (!res.ok) {
@@ -64,14 +72,21 @@ async function openaiImage({ prompt, size = "1024x1024", n = 1, negative = "" } 
   }
 
   const json = await res.json();
-
-  // Typical response shape for image generations: { data: [{ b64_json: "..." }, ...] }
   if (!json?.data?.length) throw new Error("No image returned from OpenAI");
 
-  // Return first image as data URI
   const b64 = json.data[0].b64_json;
   if (!b64) throw new Error("OpenAI returned no base64 image");
+
+  if (returnType === "buffer") {
+    return Buffer.from(b64, "base64");
+  }
+  // default: data uri
   return `data:image/png;base64,${b64}`;
+}
+
+// alias for convenience (explicit binary)
+async function openaiImageBuffer(opts = {}) {
+  return openaiImage({ ...opts, returnType: "buffer" });
 }
 
 // Tiny backup if provider/key not available (keeps chat fallback behavior)
@@ -100,4 +115,4 @@ Mirror the user's language (Hindi/English/Hinglish), keep replies short (1–2 s
   return mockReply(lastUser, persona);
 }
 
-module.exports = { generateReply, openaiImage };
+module.exports = { generateReply, openaiImage, openaiImageBuffer };
