@@ -9,9 +9,7 @@ export const config = { api: { bodyParser: { sizeLimit: "6mb" } } };
  */
 
 const DEFAULT_MODEL_CANDIDATES = [
-  // recommended order: prefer gpt-image-1 if available (best quality), fallback to others
-  "gpt-image-1",
-  "gpt-image-1-mini",
+  // recommended order: prefer dall-e-3 (best quality), fallback to dall-e-2
   "dall-e-3",
   "dall-e-2"
 ];
@@ -125,7 +123,7 @@ export default async function handler(req, res) {
       }
     } // end for candidates
 
-    // all models exhausted — return helpful message and lastError for debugging
+    // all models exhausted – return helpful message and lastError for debugging
     console.error("[/api/generate] all models failed:", lastError);
     return sendJson(res, 502, { error: "All image models failed or are unsupported for this API key.", details: lastError, tried: candidates });
   } catch (err) {
