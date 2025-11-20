@@ -122,7 +122,7 @@ export default function AIPage() {
         </div>
         <div className="header-right">
           <span className="badge">{mode}</span>
-          <a href="/dashboard" className="dash-link">Dashboard</a>
+          <a href="/connect" className="dash-link">Back to Dashboard</a>
         </div>
       </header>
 
