@@ -359,7 +359,6 @@ export default function AIPage() {
 
         @media (max-width: 640px) {
           .brand-text { display: none; }
-          .dash-link { display: none; }
         }
 
         .main {
