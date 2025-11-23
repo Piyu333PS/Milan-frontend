@@ -1,7 +1,8 @@
-import React, { useState } from 'react';
-import { Camera, Heart, Music, Coffee, MapPin, Mic, Users, Sparkles, Star, ChevronDown, Save, Moon, Sun, Cloud, Zap } from 'lucide-react';
+import React, { useState, useRef } from 'react';
+import { Camera, Heart, Music, Coffee, MapPin, Save, Star, Users, Sparkles } from 'lucide-react';
 
 export default function Profile() {
+  const fileInputRef = useRef(null);
   const [activeTab, setActiveTab] = useState('basic');
   const [profileData, setProfileData] = useState({
     name: '',
@@ -9,7 +10,7 @@ export default function Profile() {
     city: '',
     bio: '',
     currentVibe: null,
-    photos: [],
+    photo: null,
     hobbies: [],
     music: { bollywood: 50, indie: 50, ghazal: 50 },
     beverage: 'chai',
@@ -50,6 +51,21 @@ export default function Profile() {
     'Good cook', 'Pet lover', 'Financially stable', 'Emotionally mature'
   ];
 
+  const handlePhotoClick = () => {
+    fileInputRef.current?.click();
+  };
+
+  const handlePhotoChange = (e) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      const reader = new FileReader();
+      reader.onloadend = () => {
+        setProfileData({ ...profileData, photo: reader.result });
+      };
+      reader.readAsDataURL(file);
+    }
+  };
+
   const handleVibeSelect = (vibe) => {
     setProfileData({ ...profileData, currentVibe: vibe });
   };
@@ -69,6 +85,11 @@ export default function Profile() {
     });
   };
 
+  const handleSaveProfile = () => {
+    console.log('Profile Data:', profileData);
+    alert('Profile saved successfully! ✅\n\nData:\n' + JSON.stringify(profileData, null, 2));
+  };
+
   return (
     <div className="min-h-screen bg-gradient-to-br from-pink-50 via-white to-purple-50">
       {/* Header */}
@@ -86,12 +107,29 @@ export default function Profile() {
         <div className="bg-white rounded-2xl shadow-xl p-6 mb-6 border-2 border-pink-100">
           <div className="flex flex-col items-center">
             <div className="relative">
-              <div className="w-32 h-32 bg-gradient-to-br from-pink-200 to-purple-200 rounded-full flex items-center justify-center">
-                <Camera size={40} className="text-pink-600" />
+              <div 
+                onClick={handlePhotoClick}
+                className="w-32 h-32 bg-gradient-to-br from-pink-200 to-purple-200 rounded-full flex items-center justify-center cursor-pointer hover:opacity-80 transition overflow-hidden"
+              >
+                {profileData.photo ? (
+                  <img src={profileData.photo} alt="Profile" className="w-full h-full object-cover" />
+                ) : (
+                  <Camera size={40} className="text-pink-600" />
+                )}
               </div>
-              <button className="absolute bottom-0 right-0 bg-pink-500 text-white p-2 rounded-full hover:bg-pink-600 transition">
+              <button 
+                onClick={handlePhotoClick}
+                className="absolute bottom-0 right-0 bg-pink-500 text-white p-2 rounded-full hover:bg-pink-600 transition"
+              >
                 <Camera size={16} />
               </button>
+              <input 
+                ref={fileInputRef}
+                type="file" 
+                accept="image/*" 
+                onChange={handlePhotoChange}
+                className="hidden"
+              />
             </div>
             <p className="text-sm text-gray-500 mt-3">Click to upload photo</p>
           </div>
@@ -181,7 +219,7 @@ export default function Profile() {
                   onClick={() => handleVibeSelect(vibe)}
                   className={`p-4 rounded-xl border-2 transition-all transform hover:scale-105 ${
                     profileData.currentVibe?.label === vibe.label
-                      ? `${vibe.color} border-current shadow-lg scale-105`
+                      ? `${vibe.color} border-current shadow-lg scale-105 ring-2 ring-offset-2 ring-pink-400`
                       : 'bg-white border-gray-200 hover:border-pink-300'
                   }`}
                 >
@@ -206,22 +244,23 @@ export default function Profile() {
                 <Music className="text-pink-500" /> Music Taste Meter
               </h3>
               
-              {Object.keys(profileData.music).map((genre) => (
-                <div key={genre} className="mb-4">
+              {[
+                { key: 'bollywood', label: '🎬 Bollywood' },
+                { key: 'indie', label: '🎸 Indie/Pop' },
+                { key: 'ghazal', label: '🎵 Ghazal/Classical' }
+              ].map((genre) => (
+                <div key={genre.key} className="mb-4">
                   <div className="flex justify-between mb-2">
-                    <span className="capitalize font-medium">{genre}</span>
-                    <span className="text-pink-500">{profileData.music[genre]}%</span>
+                    <span className="font-medium">{genre.label}</span>
+                    <span className="text-pink-500">{profileData.music[genre.key]}%</span>
                   </div>
                   <input
                     type="range"
                     min="0"
                     max="100"
-                    value={profileData.music[genre]}
-                    onChange={(e) => handleSliderChange(genre, e.target.value)}
-                    className="w-full h-2 bg-pink-200 rounded-lg appearance-none cursor-pointer"
-                    style={{
-                      background: `linear-gradient(to right, #ec4899 0%, #ec4899 ${profileData.music[genre]}%, #fce7f3 ${profileData.music[genre]}%, #fce7f3 100%)`
-                    }}
+                    value={profileData.music[genre.key]}
+                    onChange={(e) => handleSliderChange(genre.key, e.target.value)}
+                    className="w-full h-2 bg-pink-200 rounded-lg appearance-none cursor-pointer accent-pink-500"
                   />
                 </div>
               ))}
@@ -232,12 +271,12 @@ export default function Profile() {
               <h3 className="text-xl font-bold text-gray-800 mb-4 flex items-center gap-2">
                 <Coffee className="text-pink-500" /> Chai ya Coffee?
               </h3>
-              <div className="flex gap-4">
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
                 {['chai', 'coffee', 'both', 'neither'].map((option) => (
                   <button
                     key={option}
                     onClick={() => setProfileData({...profileData, beverage: option})}
-                    className={`flex-1 p-3 rounded-lg border-2 transition ${
+                    className={`p-3 rounded-lg border-2 transition ${
                       profileData.beverage === option
                         ? 'bg-pink-500 text-white border-pink-500'
                         : 'bg-white border-gray-200 hover:border-pink-300'
@@ -261,12 +300,12 @@ export default function Profile() {
               <h2 className="text-2xl font-bold text-gray-800 mb-4 flex items-center gap-2">
                 <Star className="text-pink-500" /> Hobbies & Interests
               </h2>
-              <div className="flex flex-wrap gap-2">
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
                 {hobbyOptions.map((hobby) => (
                   <button
                     key={hobby}
                     onClick={() => toggleItem('hobbies', hobby)}
-                    className={`px-4 py-2 rounded-full border-2 transition ${
+                    className={`px-3 py-2 rounded-full border-2 transition text-sm ${
                       profileData.hobbies.includes(hobby)
                         ? 'bg-pink-500 text-white border-pink-500'
                         : 'bg-white border-gray-200 hover:border-pink-300'
@@ -282,12 +321,12 @@ export default function Profile() {
               <h3 className="text-xl font-bold text-gray-800 mb-4 flex items-center gap-2">
                 <Users className="text-pink-500" /> Languages
               </h3>
-              <div className="flex flex-wrap gap-2">
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
                 {languages.map((lang) => (
                   <button
                     key={lang}
                     onClick={() => toggleItem('languages', lang)}
-                    className={`px-4 py-2 rounded-full border-2 transition ${
+                    className={`px-3 py-2 rounded-full border-2 transition text-sm ${
                       profileData.languages.includes(lang)
                         ? 'bg-purple-500 text-white border-purple-500'
                         : 'bg-white border-gray-200 hover:border-purple-300'
@@ -303,12 +342,12 @@ export default function Profile() {
               <h3 className="text-xl font-bold text-gray-800 mb-4 flex items-center gap-2">
                 <Sparkles className="text-pink-500" /> Festivals I Love
               </h3>
-              <div className="flex flex-wrap gap-2">
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
                 {festivals.map((fest) => (
                   <button
                     key={fest}
                     onClick={() => toggleItem('festivals', fest)}
-                    className={`px-4 py-2 rounded-full border-2 transition ${
+                    className={`px-3 py-2 rounded-full border-2 transition text-sm ${
                       profileData.festivals.includes(fest)
                         ? 'bg-orange-500 text-white border-orange-500'
                         : 'bg-white border-gray-200 hover:border-orange-300'
@@ -328,7 +367,7 @@ export default function Profile() {
                 max="100"
                 value={profileData.foodieLevel}
                 onChange={(e) => setProfileData({...profileData, foodieLevel: e.target.value})}
-                className="w-full h-2 bg-pink-200 rounded-lg appearance-none cursor-pointer"
+                className="w-full h-2 bg-pink-200 rounded-lg appearance-none cursor-pointer accent-pink-500"
               />
               <div className="flex justify-between mt-2 text-sm">
                 <span>Khana = Fuel</span>
@@ -347,12 +386,12 @@ export default function Profile() {
                 🚩 Deal Breakers
               </h2>
               <p className="text-gray-600 mb-4">Ye cheezein bilkul nahi chalegi</p>
-              <div className="flex flex-wrap gap-2">
+              <div className="grid grid-cols-2 md:grid-cols-3 gap-2">
                 {commonDealBreakers.map((item) => (
                   <button
                     key={item}
                     onClick={() => toggleItem('dealBreakers', item)}
-                    className={`px-4 py-2 rounded-full border-2 transition ${
+                    className={`px-3 py-2 rounded-full border-2 transition text-sm ${
                       profileData.dealBreakers.includes(item)
                         ? 'bg-red-500 text-white border-red-500'
                         : 'bg-white border-gray-200 hover:border-red-300'
@@ -369,12 +408,12 @@ export default function Profile() {
                 ✅ Green Flags
               </h2>
               <p className="text-gray-600 mb-4">Ye qualities zaroori hain</p>
-              <div className="flex flex-wrap gap-2">
+              <div className="grid grid-cols-2 md:grid-cols-3 gap-2">
                 {commonGreenFlags.map((item) => (
                   <button
                     key={item}
                     onClick={() => toggleItem('greenFlags', item)}
-                    className={`px-4 py-2 rounded-full border-2 transition ${
+                    className={`px-3 py-2 rounded-full border-2 transition text-sm ${
                       profileData.greenFlags.includes(item)
                         ? 'bg-green-500 text-white border-green-500'
                         : 'bg-white border-gray-200 hover:border-green-300'
@@ -390,7 +429,7 @@ export default function Profile() {
               <h3 className="text-xl font-bold text-gray-800 mb-4 flex items-center gap-2">
                 <MapPin className="text-pink-500" /> Travel Style
               </h3>
-              <div className="grid grid-cols-2 gap-3">
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
                 {['explorer', 'planner', 'spontaneous', 'homebody'].map((style) => (
                   <button
                     key={style}
@@ -410,7 +449,10 @@ export default function Profile() {
         )}
 
         {/* Save Button */}
-        <button className="w-full mt-6 bg-gradient-to-r from-pink-500 to-purple-600 text-white py-4 rounded-xl font-bold text-lg shadow-lg hover:shadow-xl transition flex items-center justify-center gap-2">
+        <button 
+          onClick={handleSaveProfile}
+          className="w-full mt-6 bg-gradient-to-r from-pink-500 to-purple-600 text-white py-4 rounded-xl font-bold text-lg shadow-lg hover:shadow-xl transition flex items-center justify-center gap-2"
+        >
           <Save size={24} />
           Save Profile
         </button>
