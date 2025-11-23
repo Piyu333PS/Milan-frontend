@@ -1,7 +1,9 @@
 import React, { useState, useRef } from 'react';
 import { Camera, Heart, Music, Coffee, MapPin, Save, Star, Users, Sparkles } from 'lucide-react';
+import { useRouter } from 'next/router';
 
 export default function Profile() {
+  const router = useRouter();
   const fileInputRef = useRef(null);
   const [activeTab, setActiveTab] = useState('basic');
   const [profileData, setProfileData] = useState({
@@ -86,8 +88,15 @@ export default function Profile() {
   };
 
   const handleSaveProfile = () => {
+    // Save to localStorage
+    localStorage.setItem('milanProfile', JSON.stringify(profileData));
     console.log('Profile Data:', profileData);
-    alert('Profile saved successfully! ✅\n\nData:\n' + JSON.stringify(profileData, null, 2));
+    
+    // Show success message
+    alert('Profile saved successfully! ✅');
+    
+    // Redirect to connect page
+    router.push('/connect');
   };
 
   return (
@@ -166,7 +175,7 @@ export default function Profile() {
                 type="text"
                 value={profileData.name}
                 onChange={(e) => setProfileData({...profileData, name: e.target.value})}
-                className="w-full px-4 py-2 border-2 border-pink-200 rounded-lg focus:border-pink-500 focus:outline-none"
+                className="w-full px-4 py-2 border-2 border-pink-200 rounded-lg focus:border-pink-500 focus:outline-none text-gray-900"
                 placeholder="Apna naam likho"
               />
             </div>
@@ -178,7 +187,7 @@ export default function Profile() {
                   type="number"
                   value={profileData.age}
                   onChange={(e) => setProfileData({...profileData, age: e.target.value})}
-                  className="w-full px-4 py-2 border-2 border-pink-200 rounded-lg focus:border-pink-500 focus:outline-none"
+                  className="w-full px-4 py-2 border-2 border-pink-200 rounded-lg focus:border-pink-500 focus:outline-none text-gray-900"
                   placeholder="Umra"
                 />
               </div>
@@ -188,7 +197,7 @@ export default function Profile() {
                   type="text"
                   value={profileData.city}
                   onChange={(e) => setProfileData({...profileData, city: e.target.value})}
-                  className="w-full px-4 py-2 border-2 border-pink-200 rounded-lg focus:border-pink-500 focus:outline-none"
+                  className="w-full px-4 py-2 border-2 border-pink-200 rounded-lg focus:border-pink-500 focus:outline-none text-gray-900"
                   placeholder="Sheher"
                 />
               </div>
@@ -199,7 +208,7 @@ export default function Profile() {
               <textarea
                 value={profileData.bio}
                 onChange={(e) => setProfileData({...profileData, bio: e.target.value})}
-                className="w-full px-4 py-2 border-2 border-pink-200 rounded-lg focus:border-pink-500 focus:outline-none h-24"
+                className="w-full px-4 py-2 border-2 border-pink-200 rounded-lg focus:border-pink-500 focus:outline-none h-24 text-gray-900"
                 placeholder="Apne baare mein kuch batao..."
               />
             </div>
@@ -231,7 +240,7 @@ export default function Profile() {
 
             {profileData.currentVibe && (
               <div className="mt-6 p-4 bg-gradient-to-r from-pink-100 to-purple-100 rounded-xl">
-                <p className="text-center">
+                <p className="text-center text-gray-800">
                   <span className="text-2xl mr-2">{profileData.currentVibe.emoji}</span>
                   <span className="font-medium">Current Vibe: {profileData.currentVibe.label}</span>
                 </p>
@@ -251,7 +260,7 @@ export default function Profile() {
               ].map((genre) => (
                 <div key={genre.key} className="mb-4">
                   <div className="flex justify-between mb-2">
-                    <span className="font-medium">{genre.label}</span>
+                    <span className="font-medium text-gray-800">{genre.label}</span>
                     <span className="text-pink-500">{profileData.music[genre.key]}%</span>
                   </div>
                   <input
@@ -279,7 +288,7 @@ export default function Profile() {
                     className={`p-3 rounded-lg border-2 transition ${
                       profileData.beverage === option
                         ? 'bg-pink-500 text-white border-pink-500'
-                        : 'bg-white border-gray-200 hover:border-pink-300'
+                        : 'bg-white border-gray-200 hover:border-pink-300 text-gray-800'
                     }`}
                   >
                     {option === 'chai' && '☕ Chai'}
@@ -308,7 +317,7 @@ export default function Profile() {
                     className={`px-3 py-2 rounded-full border-2 transition text-sm ${
                       profileData.hobbies.includes(hobby)
                         ? 'bg-pink-500 text-white border-pink-500'
-                        : 'bg-white border-gray-200 hover:border-pink-300'
+                        : 'bg-white border-gray-200 hover:border-pink-300 text-gray-800'
                     }`}
                   >
                     {hobby}
@@ -329,7 +338,7 @@ export default function Profile() {
                     className={`px-3 py-2 rounded-full border-2 transition text-sm ${
                       profileData.languages.includes(lang)
                         ? 'bg-purple-500 text-white border-purple-500'
-                        : 'bg-white border-gray-200 hover:border-purple-300'
+                        : 'bg-white border-gray-200 hover:border-purple-300 text-gray-800'
                     }`}
                   >
                     {lang}
@@ -350,7 +359,7 @@ export default function Profile() {
                     className={`px-3 py-2 rounded-full border-2 transition text-sm ${
                       profileData.festivals.includes(fest)
                         ? 'bg-orange-500 text-white border-orange-500'
-                        : 'bg-white border-gray-200 hover:border-orange-300'
+                        : 'bg-white border-gray-200 hover:border-orange-300 text-gray-800'
                     }`}
                   >
                     {fest}
@@ -369,7 +378,7 @@ export default function Profile() {
                 onChange={(e) => setProfileData({...profileData, foodieLevel: e.target.value})}
                 className="w-full h-2 bg-pink-200 rounded-lg appearance-none cursor-pointer accent-pink-500"
               />
-              <div className="flex justify-between mt-2 text-sm">
+              <div className="flex justify-between mt-2 text-sm text-gray-800">
                 <span>Khana = Fuel</span>
                 <span className="font-bold text-pink-500">{profileData.foodieLevel}%</span>
                 <span>Food is Life! 🍕</span>
@@ -394,7 +403,7 @@ export default function Profile() {
                     className={`px-3 py-2 rounded-full border-2 transition text-sm ${
                       profileData.dealBreakers.includes(item)
                         ? 'bg-red-500 text-white border-red-500'
-                        : 'bg-white border-gray-200 hover:border-red-300'
+                        : 'bg-white border-gray-200 hover:border-red-300 text-gray-800'
                     }`}
                   >
                     {item}
@@ -416,7 +425,7 @@ export default function Profile() {
                     className={`px-3 py-2 rounded-full border-2 transition text-sm ${
                       profileData.greenFlags.includes(item)
                         ? 'bg-green-500 text-white border-green-500'
-                        : 'bg-white border-gray-200 hover:border-green-300'
+                        : 'bg-white border-gray-200 hover:border-green-300 text-gray-800'
                     }`}
                   >
                     {item}
@@ -437,7 +446,7 @@ export default function Profile() {
                     className={`p-3 rounded-lg border-2 transition capitalize ${
                       profileData.travelStyle === style
                         ? 'bg-blue-500 text-white border-blue-500'
-                        : 'bg-white border-gray-200 hover:border-blue-300'
+                        : 'bg-white border-gray-200 hover:border-blue-300 text-gray-800'
                     }`}
                   >
                     {style}
