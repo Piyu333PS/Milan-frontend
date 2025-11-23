@@ -32,6 +32,9 @@ export default function HomePage() {
   const [loadingRegister, setLoadingRegister] = useState(false);
   const [loadingLogin, setLoadingLogin] = useState(false);
 
+  // Register button enable/disable based on mandatory fields
+  const [canRegister, setCanRegister] = useState(false);
+
   // Consent
   const [showConsent, setShowConsent] = useState(false);
   const [consentAccepted, setConsentAccepted] = useState(false);
@@ -115,8 +118,10 @@ export default function HomePage() {
       const spawnProb = heartsRef.current.smallMode ? 0.08 : 0.15;
       if (Math.random() < spawnProb) hearts.push(createHeart());
 
-      if (heartsRef.current.smallMode && hearts.length > 80) hearts = hearts.slice(-80);
-      if (!heartsRef.current.smallMode && hearts.length > 250) hearts = hearts.slice(-250);
+      if (heartsRef.current.smallMode && hearts.length > 80)
+        hearts = hearts.slice(-80);
+      if (!heartsRef.current.smallMode && hearts.length > 250)
+        hearts = hearts.slice(-250);
 
       heartsRef.current.raf = requestAnimationFrame(drawHearts);
     }
@@ -167,6 +172,59 @@ export default function HomePage() {
     setTimeout(() => circle.remove(), 700);
   }
 
+  // --- EXTRA EFFECTS / VALIDATIONS ---
+
+  // 1) Mobile number: if only digits, max 10 allowed
+  useEffect(() => {
+    function handleContactInput(e) {
+      if (!e.target || e.target.id !== "contact") return;
+      const value = e.target.value;
+      // sirf digits ho to 10 se zyada cut kar do
+      if (/^\d+$/.test(value) && value.length > 10) {
+        e.target.value = value.slice(0, 10);
+      }
+    }
+
+    document.addEventListener("input", handleContactInput);
+    return () => {
+      document.removeEventListener("input", handleContactInput);
+    };
+  }, []);
+
+  // 2) Register button enable only when all mandatory fields filled + T&C tick
+  useEffect(() => {
+    function validateRegisterForm() {
+      const name = document.getElementById("name")?.value.trim();
+      const gender = document.getElementById("gender")?.value;
+      const contact = document.getElementById("contact")?.value.trim();
+      const password = document.getElementById("password")?.value.trim();
+      const dob = document.getElementById("dob")?.value;
+      const city = document.getElementById("city")?.value.trim();
+      const reason = document.getElementById("reason")?.value;
+      const termsAccepted = document.getElementById("terms")?.checked;
+
+      const allFilled =
+        name &&
+        gender &&
+        contact &&
+        password &&
+        dob &&
+        city &&
+        reason &&
+        termsAccepted;
+
+      setCanRegister(Boolean(allFilled));
+    }
+
+    document.addEventListener("input", validateRegisterForm);
+    document.addEventListener("change", validateRegisterForm);
+
+    return () => {
+      document.removeEventListener("input", validateRegisterForm);
+      document.removeEventListener("change", validateRegisterForm);
+    };
+  }, []);
+
   // Register
   function onRegisterClick(e) {
     rippleEffect(e);
@@ -191,6 +249,28 @@ export default function HomePage() {
       return showError("Please fill all required fields!");
     if (!termsAccepted)
       return showError("Please accept Terms & Conditions to continue.");
+
+    // Contact validation: either 10-digit mobile or valid email
+    const isNumericContact = /^\d+$/.test(contact);
+    if (isNumericContact) {
+      if (contact.length !== 10) {
+        return showError("Mobile number must be exactly 10 digits.");
+      }
+    } else {
+      const emailRegex = /^[\w-.]+@([\w-]+\.)+[\w-]{2,4}$/;
+      if (!emailRegex.test(contact)) {
+        return showError("Please enter a valid Email address.");
+      }
+    }
+
+    // Password validation: 6–12 chars, alphanumeric with at least 1 letter & 1 number
+    const passRegex = /^(?=.*[A-Za-z])(?=.*\d)[A-Za-z\d]{6,12}$/;
+    if (!passRegex.test(password)) {
+      return showError(
+        "Password must be 6–12 characters and alphanumeric (letters & numbers)."
+      );
+    }
+
     const userAge = calculateAge(dob);
     if (isNaN(userAge)) return showError("Please enter a valid Date of Birth.");
     if (userAge < 18) return showError("Milan is strictly 18+ only.");
@@ -257,14 +337,19 @@ export default function HomePage() {
   async function handleReset(e) {
     rippleEffect(e);
     const contact = document.getElementById("resetContact")?.value.trim();
-    const newPassword = document.getElementById("newPassword")?.value.trim();
+    const newPassword = document
+      .getElementById("newPassword")
+      ?.value.trim();
     if (!contact || !newPassword) return showError("Fill all fields");
     try {
       setLoadingLogin(true);
       const res = await fetch(`${API_BASE}/reset-password`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ emailOrMobile: contact, password: newPassword }),
+        body: JSON.stringify({
+          emailOrMobile: contact,
+          password: newPassword,
+        }),
       });
       const data = await res.json();
       if (res.ok) {
@@ -305,9 +390,16 @@ export default function HomePage() {
       <div className="page-wrap">
         <div className="container">
           <div className="left">
-            <div className="welcome-box" role="region" aria-label="Welcome to Milan">
+            <div
+              className="welcome-box"
+              role="region"
+              aria-label="Welcome to Milan"
+            >
               {/* ==== BRAND HERO START (updated) ==== */}
-              <div className="brand-logo-stack" aria-label="Milan brand">
+              <div
+                className="brand-logo-stack"
+                aria-label="Milan brand"
+              >
                 <img
                   src="/logo_clean_transparent.png"
                   alt="Milan logo"
@@ -319,50 +411,65 @@ export default function HomePage() {
 
               <h3 className="tagline main-tagline anim-fadeUp">
                 <span>Where Hearts Connect</span>
-                <span className="beating-heart" aria-hidden>💕</span>
+                <span className="beating-heart" aria-hidden>
+                  💕
+                </span>
               </h3>
 
               <p className="welcome-text">
-                "Love recognizes no barriers. It jumps hurdles, leaps fences,
-                penetrates walls to arrive at its destination full of hope."
+                "Love recognizes no barriers. It jumps hurdles, leaps
+                fences, penetrates walls to arrive at its destination
+                full of hope."
               </p>
-              <p className="age-note">🔞 Milan is strictly for 18+ users.</p>
+              <p className="age-note">
+                🔞 Milan is strictly for 18+ users.
+              </p>
 
               <div className="why-grid">
                 <div className="why-card">
                   <div className="why-emoji">🔒</div>
                   <h4>Safe & Moderated</h4>
                   <p>
-                    Profiles monitored, community guidelines & reporting tools keep
-                    things safe.
+                    Profiles monitored, community guidelines & reporting
+                    tools keep things safe.
                   </p>
                 </div>
                 <div className="why-card">
                   <div className="why-emoji">🌹</div>
                   <h4>Romantic Vibes</h4>
                   <p>
-                    Romantic UI, soft animations and a gentle atmosphere for real
-                    connections.
+                    Romantic UI, soft animations and a gentle atmosphere
+                    for real connections.
                   </p>
                 </div>
                 <div className="why-card">
                   <div className="why-emoji">🕶️</div>
                   <h4>Anonymous & Fun</h4>
-                  <p>Chat anonymously, express freely – it's light, friendly & playful.</p>
+                  <p>
+                    Chat anonymously, express freely – it's light,
+                    friendly & playful.
+                  </p>
                 </div>
               </div>
             </div>
           </div>
 
           <div className="right">
-            <div className="form-container" role="form" aria-label="Signup or Login">
+            <div
+              className="form-container"
+              role="form"
+              aria-label="Signup or Login"
+            >
               {!showLogin && !showReset && (
                 <div id="registerForm">
                   <h2>Create Your Account</h2>
                   <label>
                     Name <span className="star">*</span>
                   </label>
-                  <input id="name" placeholder="Your name or nickname" />
+                  <input
+                    id="name"
+                    placeholder="Your name or nickname"
+                  />
                   <label>
                     Gender <span className="star">*</span>
                   </label>
@@ -373,15 +480,24 @@ export default function HomePage() {
                     <option value="Other">Other</option>
                   </select>
                   <label>
-                    Email or Mobile <span className="star">*</span>
+                    Email or Mobile{" "}
+                    <span className="star">*</span>
                   </label>
-                  <input id="contact" placeholder="Email or 10-digit Mobile number" />
+                  <input
+                    id="contact"
+                    placeholder="Email or 10-digit Mobile number"
+                  />
                   <label>
                     Password <span className="star">*</span>
                   </label>
-                  <input type="password" id="password" placeholder="Enter password" />
+                  <input
+                    type="password"
+                    id="password"
+                    placeholder="Enter password"
+                  />
                   <label>
-                    Date of Birth <span className="star">*</span>
+                    Date of Birth{" "}
+                    <span className="star">*</span>
                   </label>
                   <input
                     type="date"
@@ -389,23 +505,33 @@ export default function HomePage() {
                     max={new Date().toISOString().split("T")[0]}
                   />
                   <label>
-                    City/Country <span className="star">*</span>
+                    City/Country{" "}
+                    <span className="star">*</span>
                   </label>
                   <input id="city" placeholder="City / Country" />
                   <label>
-                    Reason for Joining <span className="star">*</span>
+                    Reason for Joining{" "}
+                    <span className="star">*</span>
                   </label>
                   <select
                     id="reason"
                     onChange={(e) =>
-                      (document.getElementById("otherReason").style.display =
-                        e.target.value === "Other" ? "block" : "none")
+                      (document.getElementById(
+                        "otherReason"
+                      ).style.display =
+                        e.target.value === "Other"
+                          ? "block"
+                          : "none")
                     }
                   >
                     <option value="">Select reason</option>
-                    <option value="Looking for Love">Looking for Love ❤️</option>
+                    <option value="Looking for Love">
+                      Looking for Love ❤️
+                    </option>
                     <option value="Friendship">Friendship 🤗</option>
-                    <option value="Casual Chat">Casual Chat 🎈</option>
+                    <option value="Casual Chat">
+                      Casual Chat 🎈
+                    </option>
                     <option value="Exploring">Exploring 🌎</option>
                     <option value="Other">Other</option>
                   </select>
@@ -416,35 +542,61 @@ export default function HomePage() {
                   />
                   <div className="terms-container">
                     <input type="checkbox" id="terms" />
-                    <label htmlFor="terms" className="terms-label">
+                    <label
+                      htmlFor="terms"
+                      className="terms-label"
+                    >
                       I agree to the{" "}
-                      <a href="/terms.html" target="_blank" rel="noreferrer">
+                      <a
+                        href="/terms.html"
+                        target="_blank"
+                        rel="noreferrer"
+                      >
                         Terms & Conditions
                       </a>
                       ,{" "}
-                      <a href="/privacy.html" target="_blank" rel="noreferrer">
+                      <a
+                        href="/privacy.html"
+                        target="_blank"
+                        rel="noreferrer"
+                      >
                         Privacy Policy
                       </a>{" "}
                       and{" "}
-                      <a href="/guidelines.html" target="_blank" rel="noreferrer">
+                      <a
+                        href="/guidelines.html"
+                        target="_blank"
+                        rel="noreferrer"
+                      >
                         Community Guidelines
                       </a>
                     </label>
                   </div>
                   <button
+                    id="registerBtn"
                     className="primary-btn"
                     onClick={onRegisterClick}
-                    disabled={loadingRegister}
-                    aria-disabled={loadingRegister}
+                    disabled={loadingRegister || !canRegister}
+                    aria-disabled={loadingRegister || !canRegister}
                     aria-busy={loadingRegister}
                     onMouseDown={rippleEffect}
                   >
-                    {loadingRegister ? <span className="btn-loader" aria-hidden></span> : null}
+                    {loadingRegister ? (
+                      <span
+                        className="btn-loader"
+                        aria-hidden
+                      ></span>
+                    ) : null}
                     Register & Start
                   </button>
 
                   {/* Changed to <a> to keep semantics and improve clickability */}
-                  <a className="link-text" onClick={() => setShowLogin(true)} role="button" tabIndex={0}>
+                  <a
+                    className="link-text"
+                    onClick={() => setShowLogin(true)}
+                    role="button"
+                    tabIndex={0}
+                  >
                     Already Registered? Login here
                   </a>
                 </div>
@@ -454,9 +606,16 @@ export default function HomePage() {
                 <div id="loginForm">
                   <h2>Login to Milan</h2>
                   <label>Email or Mobile</label>
-                  <input id="loginContact" placeholder="Enter Email/Mobile" />
+                  <input
+                    id="loginContact"
+                    placeholder="Enter Email/Mobile"
+                  />
                   <label>Password</label>
-                  <input type="password" id="loginPassword" placeholder="Enter password" />
+                  <input
+                    type="password"
+                    id="loginPassword"
+                    placeholder="Enter password"
+                  />
                   <button
                     className="primary-btn"
                     onClick={handleLogin}
@@ -465,13 +624,23 @@ export default function HomePage() {
                     aria-busy={loadingLogin}
                     onMouseDown={rippleEffect}
                   >
-                    {loadingLogin ? <span className="btn-loader" /> : null}
+                    {loadingLogin ? (
+                      <span className="btn-loader" />
+                    ) : null}
                     Login
                   </button>
-                  <a className="link-text" onClick={() => setShowLogin(false)} role="button" tabIndex={0}>
+                  <a
+                    className="link-text"
+                    onClick={() => setShowLogin(false)}
+                    role="button"
+                    tabIndex={0}
+                  >
                     New User? Register here
                   </a>
-                  <p className="reset-link" onClick={() => setShowReset(true)}>
+                  <p
+                    className="reset-link"
+                    onClick={() => setShowReset(true)}
+                  >
                     Forgot Password?
                   </p>
                 </div>
@@ -481,9 +650,16 @@ export default function HomePage() {
                 <div id="resetForm">
                   <h2>Reset Password</h2>
                   <label>Email or Mobile</label>
-                  <input id="resetContact" placeholder="Enter your Email/Mobile" />
+                  <input
+                    id="resetContact"
+                    placeholder="Enter your Email/Mobile"
+                  />
                   <label>New Password</label>
-                  <input type="password" id="newPassword" placeholder="Enter new password" />
+                  <input
+                    type="password"
+                    id="newPassword"
+                    placeholder="Enter new password"
+                  />
                   <button
                     className="primary-btn"
                     onClick={handleReset}
@@ -491,10 +667,20 @@ export default function HomePage() {
                     aria-disabled={loadingLogin}
                     onMouseDown={rippleEffect}
                   >
-                    {loadingLogin ? <span className="btn-loader" /> : null}
+                    {loadingLogin ? (
+                      <span className="btn-loader" />
+                    ) : null}
                     Reset Password
                   </button>
-                  <a className="link-text" onClick={() => { setShowReset(false); setShowLogin(true); }} role="button" tabIndex={0}>
+                  <a
+                    className="link-text"
+                    onClick={() => {
+                      setShowReset(false);
+                      setShowLogin(true);
+                    }}
+                    role="button"
+                    tabIndex={0}
+                  >
                     Back to Login
                   </a>
                 </div>
@@ -503,40 +689,84 @@ export default function HomePage() {
           </div>
         </div>
 
-        <footer className="footer-section" role="contentinfo">
+        <footer
+          className="footer-section"
+          role="contentinfo"
+        >
           <div className="footer-links">
-            <a href="/terms.html" target="_blank" rel="noreferrer">Terms & Conditions</a>
-            <a href="/privacy.html" target="_blank" rel="noreferrer">Privacy Policy</a>
-            <a href="/guidelines.html" target="_blank" rel="noreferrer">Community Guidelines</a>
+            <a
+              href="/terms.html"
+              target="_blank"
+              rel="noreferrer"
+            >
+              Terms & Conditions
+            </a>
+            <a
+              href="/privacy.html"
+              target="_blank"
+              rel="noreferrer"
+            >
+              Privacy Policy
+            </a>
+            <a
+              href="/guidelines.html"
+              target="_blank"
+              rel="noreferrer"
+            >
+              Community Guidelines
+            </a>
           </div>
           <p className="support-text">
             For any support, contact us at{" "}
-            <a href="mailto:Support@milanlove.in">Support@milanlove.in</a>
+            <a href="mailto:Support@milanlove.in">
+              Support@milanlove.in
+            </a>
           </p>
           <p className="copyright">
-            © {new Date().getFullYear()} Milan. All rights reserved
+            © {new Date().getFullYear()} Milan. All rights
+            reserved
           </p>
         </footer>
       </div>
 
       {showConsent && (
-        <div className="modal-back" role="dialog" aria-modal>
+        <div
+          className="modal-back"
+          role="dialog"
+          aria-modal
+        >
           <div className="modal">
             <h3>Before you continue – A quick consent</h3>
             <p className="modal-desc">
-              By continuing you agree to Milan's Terms & Privacy. We value your safety –
-              we moderate content, do not share personal data, and provide reporting tools.
+              By continuing you agree to Milan&apos;s Terms &
+              Privacy. We value your safety – we moderate
+              content, do not share personal data, and provide
+              reporting tools.
             </p>
             <ul className="modal-list">
               <li>We moderate chats & profiles.</li>
-              <li>We do not share your email/mobile with strangers.</li>
-              <li>You can report/block anyone from the profile options.</li>
+              <li>
+                We do not share your email/mobile with
+                strangers.
+              </li>
+              <li>
+                You can report/block anyone from the profile
+                options.
+              </li>
             </ul>
             <div className="modal-actions">
-              <button className="ghost-btn" onClick={() => setShowConsent(false)} onMouseDown={rippleEffect}>
+              <button
+                className="ghost-btn"
+                onClick={() => setShowConsent(false)}
+                onMouseDown={rippleEffect}
+              >
                 Cancel
               </button>
-              <button className="primary-btn" onClick={acceptConsent} onMouseDown={rippleEffect}>
+              <button
+                className="primary-btn"
+                onClick={acceptConsent}
+                onMouseDown={rippleEffect}
+              >
                 I Accept & Continue
               </button>
             </div>
@@ -546,7 +776,8 @@ export default function HomePage() {
 
       {/* GLOBAL overrides: ensure scroll works on all mobiles */}
       <style jsx global>{`
-        html, body {
+        html,
+        body {
           overflow-y: auto !important;
           height: auto !important;
           -webkit-overflow-scrolling: touch !important;
@@ -554,7 +785,9 @@ export default function HomePage() {
           touch-action: pan-y !important;
           background: #0b1220;
         }
-        #__next { min-height: 100%; }
+        #__next {
+          min-height: 100%;
+        }
       `}</style>
 
       <style>{`
