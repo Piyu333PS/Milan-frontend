@@ -291,7 +291,7 @@ export default function ConnectPage() {
 
     searchTimerRef.current = setTimeout(() => {
       console.log("12 seconds elapsed - connecting to AI");
-      setStatusMessage("💝 No human partner found. Connecting you with AI...");
+      setStatusMessage("💔 No human partner found. Connecting you with AI...");
       
       if (socketRef.current && socketRef.current.connected) {
         try {
@@ -418,6 +418,10 @@ export default function ConnectPage() {
     window.location.href = "/";
   };
 
+  const handleProfileClick = () => {
+    window.location.href = "/profile";
+  };
+
   return (
     <>
       <Head>
@@ -435,21 +439,19 @@ export default function ConnectPage() {
         />
       </Head>
 
-      {/* Full Screen Welcome Popup - Shows FIRST before everything */}
+      {/* Full Screen Welcome Popup */}
       {showWelcome && (
         <div className="welcome-fullscreen">
           <div className="welcome-content-wrapper">
-            {/* Animated floating hearts in background */}
             <div className="floating-hearts">
               <div className="float-heart heart-1">💕</div>
               <div className="float-heart heart-2">💖</div>
               <div className="float-heart heart-3">💗</div>
-              <div className="float-heart heart-4">💝</div>
+              <div className="float-heart heart-4">💓</div>
               <div className="float-heart heart-5">💘</div>
               <div className="float-heart heart-6">💞</div>
             </div>
 
-            {/* Main welcome message */}
             <div className="welcome-box">
               <div className="sparkles-top">
                 <span className="sparkle">✨</span>
@@ -481,7 +483,7 @@ export default function ConnectPage() {
         </div>
       )}
 
-      {/* Main Connect Page - Only visible after welcome is closed */}
+      {/* Main Connect Page */}
       {!showWelcome && (
         <>
           {/* Logout Button */}
@@ -496,17 +498,14 @@ export default function ConnectPage() {
             </svg>
           </button>
 
-          {/* Frame */}
           <div className="frame" aria-hidden />
 
-          {/* Background layers */}
           <canvas id="heartsCanvas" />
           <canvas
             id="fxCanvas"
             style={{ position: "fixed", inset: 0, zIndex: 0, pointerEvents: "none" }}
           />
 
-          {/* Brand */}
           <div className="brandBlock">
             <div className="heroBrand">Milan</div>
             <div className="brandTagline">
@@ -514,7 +513,6 @@ export default function ConnectPage() {
             </div>
           </div>
 
-          {/* Center */}
           <main className="heroWrap">
             <p className="miniGreeting">
               Find gentle connections. Let hearts float up and find each other – welcome to Milan.
@@ -525,6 +523,38 @@ export default function ConnectPage() {
               role="navigation"
               aria-label="Choose a mode"
             >
+              {/* PROFILE CARD - FIRST POSITION */}
+              <article className="featureCard profile-card">
+                <div className="profile-icon-wrapper">
+                  <div className="profile-avatar">
+                    {profile.name ? (
+                      <span className="profile-initial">{profile.name.charAt(0).toUpperCase()}</span>
+                    ) : (
+                      <svg viewBox="0 0 24 24" className="profile-icon" fill="currentColor">
+                        <path d="M12 12c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm0 2c-2.67 0-8 1.34-8 4v2h16v-2c0-2.66-5.33-4-8-4z"/>
+                      </svg>
+                    )}
+                  </div>
+                  <div className="profile-pulse-ring"></div>
+                </div>
+                
+                <header>
+                  <h3>My Profile</h3>
+                  <p>Complete your story. Show who you are. ✨</p>
+                </header>
+                
+                <button className="cta profile-cta" onClick={handleProfileClick}>
+                  📝 Complete Profile
+                </button>
+                
+                {profile.name && (
+                  <div className="profile-completion-hint">
+                    <span className="hint-icon">👋</span>
+                    <span className="hint-text">Hey {profile.name}!</span>
+                  </div>
+                )}
+              </article>
+
               <article className="featureCard text">
                 <header>
                   <h3>Text Chat</h3>
@@ -626,13 +656,154 @@ export default function ConnectPage() {
         </>
       )}
 
-      <style>{`
+      <style jsx>{`
         :root { --brandH: 140px; --bottomH: 60px; }
         *, *::before, *::after { box-sizing: border-box; min-width: 0; }
         html, body { margin: 0; padding: 0; min-height: 100vh; background: #08060c; color: #f7f7fb; font-family: Poppins, system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, sans-serif; }
         body { overflow-x: hidden; overflow-y: auto; }
         
-        /* Full Screen Welcome Overlay */
+        /* Profile Card Specific Styles */
+        .featureCard.profile-card {
+          border-color: rgba(255, 215, 0, 0.3);
+          background: linear-gradient(145deg, 
+            rgba(255, 215, 0, 0.08) 0%, 
+            rgba(255, 110, 167, 0.08) 100%);
+          position: relative;
+          overflow: visible;
+        }
+
+        .featureCard.profile-card::before {
+          content: '';
+          position: absolute;
+          inset: 0;
+          background: radial-gradient(circle at 30% 30%, 
+            rgba(255, 215, 0, 0.15) 0%, 
+            transparent 70%);
+          pointer-events: none;
+          animation: profileGlow 3s ease-in-out infinite;
+        }
+
+        @keyframes profileGlow {
+          0%, 100% { opacity: 0.5; }
+          50% { opacity: 1; }
+        }
+
+        .featureCard.profile-card:hover {
+          border-color: rgba(255, 215, 0, 0.5);
+          box-shadow: 
+            0 18px 56px rgba(0, 0, 0, 0.45),
+            0 0 40px rgba(255, 215, 0, 0.2);
+        }
+
+        .profile-icon-wrapper {
+          position: relative;
+          width: 80px;
+          height: 80px;
+          margin: 0 auto 16px;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+        }
+
+        .profile-avatar {
+          width: 70px;
+          height: 70px;
+          border-radius: 50%;
+          background: linear-gradient(135deg, #ffd700 0%, #ff9fb0 100%);
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          box-shadow: 
+            0 10px 30px rgba(255, 215, 0, 0.4),
+            0 0 40px rgba(255, 110, 167, 0.3),
+            inset 0 2px 2px rgba(255, 255, 255, 0.3);
+          position: relative;
+          z-index: 2;
+          transition: all 0.3s ease;
+        }
+
+        .featureCard.profile-card:hover .profile-avatar {
+          transform: scale(1.1) rotate(5deg);
+          box-shadow: 
+            0 15px 40px rgba(255, 215, 0, 0.5),
+            0 0 50px rgba(255, 110, 167, 0.4),
+            inset 0 2px 2px rgba(255, 255, 255, 0.4);
+        }
+
+        .profile-initial {
+          font-size: 32px;
+          font-weight: 900;
+          color: #fff;
+          text-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
+        }
+
+        .profile-icon {
+          width: 36px;
+          height: 36px;
+          color: #fff;
+          filter: drop-shadow(0 2px 8px rgba(0, 0, 0, 0.3));
+        }
+
+        .profile-pulse-ring {
+          position: absolute;
+          inset: -8px;
+          border: 3px solid rgba(255, 215, 0, 0.5);
+          border-radius: 50%;
+          animation: pulsateRing 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+        }
+
+        @keyframes pulsateRing {
+          0% {
+            transform: scale(0.85);
+            opacity: 1;
+          }
+          100% {
+            transform: scale(1.15);
+            opacity: 0;
+          }
+        }
+
+        .profile-cta {
+          background: linear-gradient(135deg, #ffd700 0%, #ff9fb0 100%);
+          box-shadow: 0 10px 30px rgba(255, 215, 0, 0.35);
+        }
+
+        .profile-cta:hover {
+          background: linear-gradient(135deg, #ff9fb0 0%, #ffd700 100%);
+          box-shadow: 0 14px 40px rgba(255, 215, 0, 0.45);
+        }
+
+        .profile-completion-hint {
+          position: absolute;
+          top: -10px;
+          right: -10px;
+          background: linear-gradient(135deg, #ffd700, #ffed4e);
+          color: #1a1a1a;
+          padding: 6px 12px;
+          border-radius: 20px;
+          font-size: 11px;
+          font-weight: 900;
+          display: flex;
+          align-items: center;
+          gap: 5px;
+          box-shadow: 0 4px 16px rgba(255, 215, 0, 0.5);
+          animation: hintBounce 2s ease-in-out infinite;
+        }
+
+        @keyframes hintBounce {
+          0%, 100% { transform: translateY(0); }
+          50% { transform: translateY(-5px); }
+        }
+
+        .hint-icon {
+          font-size: 14px;
+        }
+
+        .hint-text {
+          letter-spacing: 0.3px;
+        }
+
+        /* Welcome Popup Styles */
         .welcome-fullscreen {
           position: fixed;
           inset: 0;
@@ -669,7 +840,6 @@ export default function ConnectPage() {
           }
         }
 
-        /* Floating hearts in background */
         .floating-hearts {
           position: absolute;
           inset: 0;
@@ -685,60 +855,20 @@ export default function ConnectPage() {
           filter: drop-shadow(0 4px 20px rgba(255, 110, 167, 0.5));
         }
 
-        .float-heart.heart-1 {
-          left: 10%;
-          animation-delay: 0s;
-          animation-duration: 18s;
-        }
-
-        .float-heart.heart-2 {
-          left: 25%;
-          animation-delay: 3s;
-          animation-duration: 16s;
-        }
-
-        .float-heart.heart-3 {
-          left: 50%;
-          animation-delay: 1s;
-          animation-duration: 20s;
-        }
-
-        .float-heart.heart-4 {
-          left: 65%;
-          animation-delay: 4s;
-          animation-duration: 17s;
-        }
-
-        .float-heart.heart-5 {
-          left: 80%;
-          animation-delay: 2s;
-          animation-duration: 19s;
-        }
-
-        .float-heart.heart-6 {
-          left: 90%;
-          animation-delay: 5s;
-          animation-duration: 15s;
-        }
+        .float-heart.heart-1 { left: 10%; animation-delay: 0s; animation-duration: 18s; }
+        .float-heart.heart-2 { left: 25%; animation-delay: 3s; animation-duration: 16s; }
+        .float-heart.heart-3 { left: 50%; animation-delay: 1s; animation-duration: 20s; }
+        .float-heart.heart-4 { left: 65%; animation-delay: 4s; animation-duration: 17s; }
+        .float-heart.heart-5 { left: 80%; animation-delay: 2s; animation-duration: 19s; }
+        .float-heart.heart-6 { left: 90%; animation-delay: 5s; animation-duration: 15s; }
 
         @keyframes floatUp {
-          0% {
-            transform: translateY(100vh) rotate(0deg) scale(0.8);
-            opacity: 0;
-          }
-          10% {
-            opacity: 0.3;
-          }
-          90% {
-            opacity: 0.3;
-          }
-          100% {
-            transform: translateY(-100vh) rotate(360deg) scale(1.2);
-            opacity: 0;
-          }
+          0% { transform: translateY(100vh) rotate(0deg) scale(0.8); opacity: 0; }
+          10% { opacity: 0.3; }
+          90% { opacity: 0.3; }
+          100% { transform: translateY(-100vh) rotate(360deg) scale(1.2); opacity: 0; }
         }
 
-        /* Welcome content wrapper */
         .welcome-content-wrapper {
           position: relative;
           z-index: 1;
@@ -749,17 +879,10 @@ export default function ConnectPage() {
         }
 
         @keyframes welcomeSlideIn {
-          from {
-            opacity: 0;
-            transform: scale(0.8) translateY(50px);
-          }
-          to {
-            opacity: 1;
-            transform: scale(1) translateY(0);
-          }
+          from { opacity: 0; transform: scale(0.8) translateY(50px); }
+          to { opacity: 1; transform: scale(1) translateY(0); }
         }
 
-        /* Welcome box */
         .welcome-box {
           background: linear-gradient(145deg, 
             rgba(255, 110, 167, 0.15) 0%, 
@@ -789,17 +912,10 @@ export default function ConnectPage() {
         }
 
         @keyframes welcomeGlowPulse {
-          0%, 100% { 
-            opacity: 0.5;
-            transform: scale(1);
-          }
-          50% { 
-            opacity: 1;
-            transform: scale(1.05);
-          }
+          0%, 100% { opacity: 0.5; transform: scale(1); }
+          50% { opacity: 1; transform: scale(1.05); }
         }
 
-        /* Sparkles top */
         .sparkles-top {
           position: relative;
           display: flex;
@@ -822,26 +938,15 @@ export default function ConnectPage() {
         }
 
         @keyframes sparkleRotate {
-          0%, 100% {
-            transform: rotate(0deg) scale(1);
-            opacity: 0.8;
-          }
-          50% {
-            transform: rotate(180deg) scale(1.2);
-            opacity: 1;
-          }
+          0%, 100% { transform: rotate(0deg) scale(1); opacity: 0.8; }
+          50% { transform: rotate(180deg) scale(1.2); opacity: 1; }
         }
 
         @keyframes sparkleBounce {
-          0%, 100% {
-            transform: translateY(0) scale(1);
-          }
-          50% {
-            transform: translateY(-15px) scale(1.15);
-          }
+          0%, 100% { transform: translateY(0) scale(1); }
+          50% { transform: translateY(-15px) scale(1.15); }
         }
 
-        /* Welcome heading */
         .welcome-heading {
           position: relative;
           z-index: 1;
@@ -863,12 +968,8 @@ export default function ConnectPage() {
         }
 
         @keyframes headingShimmer {
-          0%, 100% { 
-            filter: brightness(1);
-          }
-          50% { 
-            filter: brightness(1.3);
-          }
+          0%, 100% { filter: brightness(1); }
+          50% { filter: brightness(1.3); }
         }
 
         .user-name {
@@ -883,15 +984,10 @@ export default function ConnectPage() {
         }
 
         @keyframes nameGlow {
-          0%, 100% {
-            filter: drop-shadow(0 0 10px rgba(255, 110, 167, 0.8));
-          }
-          50% {
-            filter: drop-shadow(0 0 20px rgba(255, 110, 167, 1));
-          }
+          0%, 100% { filter: drop-shadow(0 0 10px rgba(255, 110, 167, 0.8)); }
+          50% { filter: drop-shadow(0 0 20px rgba(255, 110, 167, 1)); }
         }
 
-        /* Welcome text */
         .welcome-text {
           position: relative;
           z-index: 1;
@@ -903,7 +999,6 @@ export default function ConnectPage() {
           text-shadow: 0 2px 12px rgba(0, 0, 0, 0.5);
         }
 
-        /* Sparkles bottom */
         .sparkles-bottom {
           position: relative;
           z-index: 1;
@@ -927,18 +1022,11 @@ export default function ConnectPage() {
         }
 
         @keyframes heartBeatWelcome {
-          0%, 100% {
-            transform: scale(1);
-          }
-          10%, 30% {
-            transform: scale(1.2);
-          }
-          20%, 40% {
-            transform: scale(1.1);
-          }
+          0%, 100% { transform: scale(1); }
+          10%, 30% { transform: scale(1.2); }
+          20%, 40% { transform: scale(1.1); }
         }
 
-        /* Start Journey Button */
         .start-journey-btn {
           position: relative;
           z-index: 1;
@@ -1005,10 +1093,10 @@ export default function ConnectPage() {
           letter-spacing: 1.5px;
         }
 
+        /* Main Page Styles */
         #heartsCanvas { position: fixed; inset: 0; z-index: 0; pointer-events: none; }
         #fxCanvas { position: fixed; inset: 0; z-index: 0; pointer-events: none; }
 
-        /* Logout Button */
         .logout-btn {
           position: fixed;
           top: 25px;
@@ -1421,14 +1509,8 @@ export default function ConnectPage() {
         }
 
         @keyframes modalSlideUp {
-          from {
-            opacity: 0;
-            transform: translateY(30px) scale(0.95);
-          }
-          to {
-            opacity: 1;
-            transform: translateY(0) scale(1);
-          }
+          from { opacity: 0; transform: translateY(30px) scale(0.95); }
+          to { opacity: 1; transform: translateY(0) scale(1); }
         }
 
         @keyframes bgPulse {
@@ -1493,55 +1575,16 @@ export default function ConnectPage() {
         }
 
         @keyframes pulse {
-          0%, 100% { 
-            transform: scale(1); 
-            opacity: 0.8;
-          }
-          50% { 
-            transform: scale(1.3); 
-            opacity: 1;
-          }
+          0%, 100% { transform: scale(1); opacity: 0.8; }
+          50% { transform: scale(1.3); opacity: 1; }
         }
 
-        .orbit-heart.heart-1 {
-          top: 0;
-          left: 50%;
-          transform: translateX(-50%);
-          animation-delay: 0s;
-        }
-
-        .orbit-heart.heart-2 {
-          top: 25%;
-          right: 10%;
-          animation-delay: 0.2s;
-        }
-
-        .orbit-heart.heart-3 {
-          top: 50%;
-          right: 0;
-          transform: translateY(-50%);
-          animation-delay: 0.4s;
-        }
-
-        .orbit-heart.heart-4 {
-          bottom: 25%;
-          right: 10%;
-          animation-delay: 0.6s;
-        }
-
-        .orbit-heart.heart-5 {
-          bottom: 0;
-          left: 50%;
-          transform: translateX(-50%);
-          animation-delay: 0.8s;
-        }
-
-        .orbit-heart.heart-6 {
-          top: 50%;
-          left: 0;
-          transform: translateY(-50%);
-          animation-delay: 1s;
-        }
+        .orbit-heart.heart-1 { top: 0; left: 50%; transform: translateX(-50%); animation-delay: 0s; }
+        .orbit-heart.heart-2 { top: 25%; right: 10%; animation-delay: 0.2s; }
+        .orbit-heart.heart-3 { top: 50%; right: 0; transform: translateY(-50%); animation-delay: 0.4s; }
+        .orbit-heart.heart-4 { bottom: 25%; right: 10%; animation-delay: 0.6s; }
+        .orbit-heart.heart-5 { bottom: 0; left: 50%; transform: translateX(-50%); animation-delay: 0.8s; }
+        .orbit-heart.heart-6 { top: 50%; left: 0; transform: translateY(-50%); animation-delay: 1s; }
 
         .center-heart {
           width: 80px;
@@ -1551,15 +1594,9 @@ export default function ConnectPage() {
         }
 
         @keyframes heartBeat {
-          0%, 100% { 
-            transform: scale(1); 
-          }
-          10%, 30% { 
-            transform: scale(1.15); 
-          }
-          20%, 40% { 
-            transform: scale(1.05); 
-          }
+          0%, 100% { transform: scale(1); }
+          10%, 30% { transform: scale(1.15); }
+          20%, 40% { transform: scale(1.05); }
         }
 
         .heart-pulse {
@@ -1567,14 +1604,8 @@ export default function ConnectPage() {
         }
 
         @keyframes fillPulse {
-          0%, 100% { 
-            opacity: 1;
-            filter: brightness(1);
-          }
-          50% { 
-            opacity: 0.85;
-            filter: brightness(1.3);
-          }
+          0%, 100% { opacity: 1; filter: brightness(1); }
+          50% { opacity: 0.85; filter: brightness(1.3); }
         }
 
         .modal-description {
@@ -1648,6 +1679,35 @@ export default function ConnectPage() {
 
         /* Mobile Responsive Styles */
         @media (max-width: 760px) {
+          .profile-icon-wrapper {
+            width: 70px;
+            height: 70px;
+            margin-bottom: 14px;
+          }
+
+          .profile-avatar {
+            width: 60px;
+            height: 60px;
+          }
+
+          .profile-initial {
+            font-size: 28px;
+          }
+
+          .profile-icon {
+            width: 32px;
+            height: 32px;
+          }
+
+          .profile-completion-hint {
+            padding: 5px 10px;
+            font-size: 10px;
+          }
+
+          .hint-icon {
+            font-size: 12px;
+          }
+
           .welcome-box {
             padding: 50px 30px;
             border-radius: 32px;
@@ -1790,6 +1850,31 @@ export default function ConnectPage() {
         }
 
         @media (max-width: 480px) {
+          .profile-icon-wrapper {
+            width: 65px;
+            height: 65px;
+            margin-bottom: 12px;
+          }
+
+          .profile-avatar {
+            width: 55px;
+            height: 55px;
+          }
+
+          .profile-initial {
+            font-size: 24px;
+          }
+
+          .profile-icon {
+            width: 28px;
+            height: 28px;
+          }
+
+          .profile-pulse-ring {
+            inset: -6px;
+            border-width: 2px;
+          }
+
           .welcome-box {
             padding: 40px 24px;
             border-radius: 28px;
@@ -1924,6 +2009,42 @@ export default function ConnectPage() {
         }
 
         @media (max-width: 360px) {
+          .profile-icon-wrapper {
+            width: 60px;
+            height: 60px;
+            margin-bottom: 10px;
+          }
+
+          .profile-avatar {
+            width: 50px;
+            height: 50px;
+          }
+
+          .profile-initial {
+            font-size: 20px;
+          }
+
+          .profile-icon {
+            width: 24px;
+            height: 24px;
+          }
+
+          .profile-pulse-ring {
+            inset: -5px;
+            border-width: 2px;
+          }
+
+          .profile-completion-hint {
+            padding: 4px 8px;
+            font-size: 9px;
+            top: -8px;
+            right: -8px;
+          }
+
+          .hint-icon {
+            font-size: 11px;
+          }
+
           .welcome-box {
             padding: 36px 20px;
           }
