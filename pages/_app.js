@@ -3,7 +3,7 @@ import { useEffect } from "react";
 import Head from "next/head";
 import { useRouter } from "next/router";
 
-// Keep your global styles as-is (important for the whole app)
+// Import global styles WITH Tailwind CSS
 import "../styles/globals.css";
 
 export default function App({ Component, pageProps }) {
@@ -33,6 +33,7 @@ export default function App({ Component, pageProps }) {
     <>
       <Head>
         <meta name="viewport" content="width=device-width, initial-scale=1" />
+        <title>Milan Love - Connect, Chat, Create</title>
         {/* Chat-specific stylesheet is injected ONLY on /chat to avoid bleeding into Studio or other pages */}
         {isChatRoute && (
           <link rel="stylesheet" href="/styles/chat.css" />
