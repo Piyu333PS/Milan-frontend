@@ -143,7 +143,11 @@ export default function HomePage() {
     if (!n) return;
     n.textContent = msg;
     n.style.display = "block";
-    setTimeout(() => (n.style.display = "none"), 3500);
+    n.classList.add("show");
+    setTimeout(() => {
+      n.classList.remove("show");
+      n.style.display = "none";
+    }, 3500);
   }
 
   function calculateAge(dateInput) {
@@ -294,6 +298,18 @@ export default function HomePage() {
     if (!termsAccepted)
       return showError("Please accept Terms & Conditions to continue.");
 
+    // DOB parse + age validation FIRST (18+ rule)
+    const dobDate = parseDob(dobStr);
+    if (!dobDate) {
+      return showError("Please enter Date of Birth in DD-MM-YYYY format.");
+    }
+    const userAge = calculateAge(dobDate);
+    if (isNaN(userAge)) return showError("Please enter a valid Date of Birth.");
+    if (userAge < 18)
+      return showError(
+        "You are not eligible to use Milan. Only 18+ users can register."
+      );
+
     // Contact validation: either 10-digit mobile or valid email
     const isNumericContact = /^\d+$/.test(contact);
     if (isNumericContact) {
@@ -307,26 +323,13 @@ export default function HomePage() {
       }
     }
 
-    // Password validation: 6–12 chars, alphanumeric with at least 1 letter & 1 number
-    const passRegex = /^(?=.*[A-Za-z])(?=.*\d)[A-Za-z\d]{6,12}$/;
+    // Password validation: only length 6–12, alphanumeric allowed
+    const passRegex = /^[A-Za-z\d]{6,12}$/;
     if (!passRegex.test(password)) {
       return showError(
         "Password must be 6–12 characters and alphanumeric (letters & numbers)."
       );
     }
-
-    // DOB parse + age validation
-    const dobDate = parseDob(dobStr);
-    if (!dobDate) {
-      return showError("Please enter Date of Birth in DD-MM-YYYY format.");
-    }
-
-    const userAge = calculateAge(dobDate);
-    if (isNaN(userAge)) return showError("Please enter a valid Date of Birth.");
-    if (userAge < 18)
-      return showError(
-        "You are not eligible to use Milan. Only 18+ users can register."
-      );
 
     try {
       setLoadingRegister(true);
@@ -335,7 +338,7 @@ export default function HomePage() {
         password,
         name,
         gender,
-        dob: dobStr,
+        dob: dobStr, // DD-MM-YYYY string
         city,
         reason,
       };
@@ -837,7 +840,7 @@ export default function HomePage() {
           overflow-y: auto !important;
           height: auto !important;
           -webkit-overflow-scrolling: touch !important;
-          overscroll-behavior-y: auto !important;
+          overscroll-behavior-y: auto !Important;
           touch-action: pan-y !important;
           background: #0b1220;
         }
@@ -870,19 +873,30 @@ export default function HomePage() {
           pointer-events:none; 
         }
         
+        /* Cute toast error message */
         #errorMessage{ 
           position:fixed; 
           top:18px; 
           left:50%; 
           transform:translateX(-50%); 
-          background:rgba(0,0,0,0.85); 
+          background:linear-gradient(135deg,#ff4fa0,#ff1493); 
           color:#fff; 
-          padding:12px 18px; 
-          border-radius:12px; 
+          padding:10px 18px; 
+          border-radius:999px; 
           display:none; 
           z-index:9999; 
-          font-weight:700; 
-          box-shadow: 0 8px 24px rgba(255,79,160,0.3);
+          font-weight:600; 
+          font-size:13px;
+          max-width:90%;
+          text-align:center;
+          box-shadow: 0 10px 30px rgba(255,79,160,0.4);
+          opacity:0;
+          transition: opacity .25s ease, transform .25s ease;
+          pointer-events:none;
+        }
+        #errorMessage.show{
+          opacity:1;
+          transform:translateX(-50%) translateY(4px);
         }
 
         .page-wrap{ 
@@ -938,7 +952,6 @@ export default function HomePage() {
           backdrop-filter: blur(10px);
         }
         
-        /* NEW: stacked brand block */
         .brand-logo-stack{
           display:flex;
           flex-direction:column;
@@ -948,7 +961,6 @@ export default function HomePage() {
           margin-bottom:10px;
         }
 
-        /* NEW: responsive logo size */
         .brand-logo{
           width: clamp(120px, 22vw, 220px);
           height: auto;
@@ -957,7 +969,6 @@ export default function HomePage() {
           border-radius: 16px;
         }
 
-        /* Old title/heart kept off just in case */
         .welcome-title, .pulse-heart { 
           display:none !important; 
         }
@@ -970,7 +981,6 @@ export default function HomePage() {
           margin-bottom: 10px;
         }
         
-        /* Base tagline style */
         .tagline {
           font-size: 24px;
           margin: 14px 0 20px;
@@ -983,7 +993,6 @@ export default function HomePage() {
           text-shadow: 0 2px 12px rgba(255,107,157,0.3);
         }
 
-        /* NEW: place tagline just under logo + premium sizing */
         .main-tagline {
           margin-top: 8px;
           margin-bottom: 28px;
@@ -1247,7 +1256,6 @@ export default function HomePage() {
           h2 { font-size: 20px; }
         }
 
-        /* ===== ANIMATIONS: logo pop-in + float, tagline fade-up, heartbeat ===== */
         @keyframes popIn {
           0%   { transform: scale(0.8) translateY(10px); opacity: 0; }
           60%  { transform: scale(1.06) translateY(0);  opacity: 1; }
