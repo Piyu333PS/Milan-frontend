@@ -514,10 +514,8 @@ export default function ConnectPage() {
           </div>
 
           <main className="heroWrap">
-            <p className="miniGreeting">
-              Find gentle connections. Let hearts float up and find each other – welcome to Milan.
-            </p>
-
+            {/* REMOVED THE GREETING TEXT HERE AS REQUESTED */}
+            
             <section
               className="featuresGrid"
               role="navigation"
@@ -1196,11 +1194,10 @@ export default function ConnectPage() {
           box-shadow: 0 0 20px rgba(255,110,167,0.06) inset;
         }
 
+        /* MODIFIED: Changed to relative to fix overlapping issue */
         .brandBlock {
-          position: fixed;
-          left: 50%;
-          transform: translateX(-50%);
-          top: 40px;
+          position: relative; /* Changed from fixed */
+          margin: 40px auto 20px auto; /* Added margin for spacing */
           text-align: center;
           z-index: 3;
           pointer-events: none;
@@ -1245,29 +1242,18 @@ export default function ConnectPage() {
           box-shadow: 0 0 12px rgba(255, 110, 167, 0.15);
         }
 
+        /* MODIFIED: Adjusted layout for responsiveness */
         .heroWrap {
           position: relative;
           z-index: 3;
-          min-height: 100vh;
+          /* Removed fixed height constraint to allow natural flow */
           display: flex;
           flex-direction: column;
           align-items: center;
-          justify-content: center;
-          padding: calc(var(--brandH) + 20px) 30px var(--bottomH);
+          justify-content: flex-start; /* Changed from center to prevent push-up */
+          padding: 10px 30px var(--bottomH); /* Simplified padding */
           box-sizing: border-box;
           gap: 20px;
-        }
-
-        .miniGreeting {
-          max-width: min(920px, calc(100vw - 60px));
-          text-align: center;
-          font-weight: 700;
-          font-size: clamp(13px, 2.5vw, 15px);
-          line-height: 1.5;
-          color: #ffd6ea;
-          text-shadow: 0 0 14px rgba(255, 110, 167, 0.12);
-          margin: 0;
-          padding: 0 10px;
         }
 
         .featuresGrid {
@@ -1776,12 +1762,14 @@ export default function ConnectPage() {
             height: 20px;
           }
 
+          /* UPDATED RESPONSIVE */
           .heroWrap {
-            padding: calc(var(--brandH) + 30px) 20px 30px;
+            padding: 10px 20px 30px;
           }
 
           .brandBlock {
-            top: 45px;
+            margin-top: 30px;
+            margin-bottom: 15px;
           }
 
           .heroBrand {
@@ -1799,12 +1787,6 @@ export default function ConnectPage() {
             max-width: 500px;
             gap: 12px;
             padding: 0;
-          }
-
-          .miniGreeting {
-            max-width: 100%;
-            font-size: 12px;
-            line-height: 1.4;
           }
 
           .featureCard {
@@ -1966,7 +1948,7 @@ export default function ConnectPage() {
           }
 
           .brandBlock {
-            top: 60px;
+            margin-top: 40px;
           }
 
           .heroBrand {
@@ -2001,7 +1983,7 @@ export default function ConnectPage() {
           }
 
           .heroWrap {
-            padding: calc(var(--brandH) + 25px) 16px 25px;
+            padding: 10px 16px 25px;
           }
         }
 
@@ -2011,16 +1993,12 @@ export default function ConnectPage() {
           }
 
           .heroWrap {
-            padding: calc(var(--brandH) + 40px) 24px var(--bottomH);
+            padding: 20px 24px var(--bottomH);
           }
 
           .featuresGrid {
             width: calc(100vw - 80px);
             max-width: 880px;
-          }
-
-          .miniGreeting {
-            max-width: calc(100vw - 80px);
           }
         }
 
