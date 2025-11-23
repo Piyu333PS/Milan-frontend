@@ -381,6 +381,8 @@ export default function HomePage() {
       if (res.ok) {
         localStorage.setItem("token", data.token);
         localStorage.setItem("milan_name", name);
+        sessionStorage.setItem("newUser", "true");
+        sessionStorage.setItem("userName", name);
         window.location.href = "/connect";
       } else
         showError(
