@@ -146,13 +146,36 @@ export default function HomePage() {
     setTimeout(() => (n.style.display = "none"), 3500);
   }
 
-  function calculateAge(d) {
+  function calculateAge(dateInput) {
     const t = new Date();
-    const b = new Date(d);
+    const b =
+      dateInput instanceof Date ? dateInput : new Date(dateInput);
     let a = t.getFullYear() - b.getFullYear();
     const m = t.getMonth() - b.getMonth();
     if (m < 0 || (m === 0 && t.getDate() < b.getDate())) a--;
     return a;
+  }
+
+  // Parse DOB in DD-MM-YYYY format
+  function parseDob(dobStr) {
+    if (!dobStr) return null;
+    const match = dobStr.match(/^(\d{2})-(\d{2})-(\d{4})$/);
+    if (!match) return null;
+
+    const day = parseInt(match[1], 10);
+    const month = parseInt(match[2], 10) - 1; // 0-based
+    const year = parseInt(match[3], 10);
+
+    const d = new Date(year, month, day);
+    // Check if date is actually valid
+    if (
+      d.getFullYear() !== year ||
+      d.getMonth() !== month ||
+      d.getDate() !== day
+    ) {
+      return null;
+    }
+    return d;
   }
 
   // Ripple
@@ -188,6 +211,27 @@ export default function HomePage() {
     document.addEventListener("input", handleContactInput);
     return () => {
       document.removeEventListener("input", handleContactInput);
+    };
+  }, []);
+
+  // 1b) DOB: auto format to DD-MM-YYYY while typing (digits only)
+  useEffect(() => {
+    function handleDobInput(e) {
+      if (!e.target || e.target.id !== "dob") return;
+      let v = e.target.value.replace(/[^\d]/g, "");
+      if (v.length > 8) v = v.slice(0, 8);
+
+      if (v.length >= 5) {
+        v = `${v.slice(0, 2)}-${v.slice(2, 4)}-${v.slice(4)}`;
+      } else if (v.length >= 3) {
+        v = `${v.slice(0, 2)}-${v.slice(2)}`;
+      }
+      e.target.value = v;
+    }
+
+    document.addEventListener("input", handleDobInput);
+    return () => {
+      document.removeEventListener("input", handleDobInput);
     };
   }, []);
 
@@ -240,12 +284,12 @@ export default function HomePage() {
     const gender = document.getElementById("gender")?.value;
     const contact = document.getElementById("contact")?.value.trim();
     const password = document.getElementById("password")?.value.trim();
-    const dob = document.getElementById("dob")?.value;
+    const dobStr = document.getElementById("dob")?.value;
     const city = document.getElementById("city")?.value.trim();
     const reason = document.getElementById("reason")?.value;
     const termsAccepted = document.getElementById("terms")?.checked;
 
-    if (!name || !gender || !contact || !password || !dob || !city || !reason)
+    if (!name || !gender || !contact || !password || !dobStr || !city || !reason)
       return showError("Please fill all required fields!");
     if (!termsAccepted)
       return showError("Please accept Terms & Conditions to continue.");
@@ -271,9 +315,18 @@ export default function HomePage() {
       );
     }
 
-    const userAge = calculateAge(dob);
+    // DOB parse + age validation
+    const dobDate = parseDob(dobStr);
+    if (!dobDate) {
+      return showError("Please enter Date of Birth in DD-MM-YYYY format.");
+    }
+
+    const userAge = calculateAge(dobDate);
     if (isNaN(userAge)) return showError("Please enter a valid Date of Birth.");
-    if (userAge < 18) return showError("Milan is strictly 18+ only.");
+    if (userAge < 18)
+      return showError(
+        "You are not eligible to use Milan. Only 18+ users can register."
+      );
 
     try {
       setLoadingRegister(true);
@@ -282,7 +335,7 @@ export default function HomePage() {
         password,
         name,
         gender,
-        dob,
+        dob: dobStr,
         city,
         reason,
       };
@@ -494,15 +547,18 @@ export default function HomePage() {
                     type="password"
                     id="password"
                     placeholder="Enter password"
+                    minLength={6}
+                    maxLength={12}
                   />
                   <label>
                     Date of Birth{" "}
                     <span className="star">*</span>
                   </label>
                   <input
-                    type="date"
+                    type="text"
                     id="dob"
-                    max={new Date().toISOString().split("T")[0]}
+                    placeholder="DD-MM-YYYY"
+                    maxLength={10}
                   />
                   <label>
                     City/Country{" "}
