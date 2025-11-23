@@ -697,17 +697,17 @@ export default function ConnectPage() {
 
         .profile-icon-wrapper {
           position: relative;
-          width: 80px;
-          height: 80px;
-          margin: 0 auto 16px;
+          width: 70px;
+          height: 70px;
+          margin: 0 auto 12px;
           display: flex;
           align-items: center;
           justify-content: center;
         }
 
         .profile-avatar {
-          width: 70px;
-          height: 70px;
+          width: 60px;
+          height: 60px;
           border-radius: 50%;
           background: linear-gradient(135deg, #ffd700 0%, #ff9fb0 100%);
           display: flex;
@@ -731,15 +731,15 @@ export default function ConnectPage() {
         }
 
         .profile-initial {
-          font-size: 32px;
+          font-size: 28px;
           font-weight: 900;
           color: #fff;
           text-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
         }
 
         .profile-icon {
-          width: 36px;
-          height: 36px;
+          width: 32px;
+          height: 32px;
           color: #fff;
           filter: drop-shadow(0 2px 8px rgba(0, 0, 0, 0.3));
         }
@@ -1253,17 +1253,17 @@ export default function ConnectPage() {
           flex-direction: column;
           align-items: center;
           justify-content: center;
-          padding: calc(var(--brandH) + 10px) 30px var(--bottomH);
+          padding: calc(var(--brandH) + 20px) 30px var(--bottomH);
           box-sizing: border-box;
-          gap: 24px;
+          gap: 20px;
         }
 
         .miniGreeting {
           max-width: min(920px, calc(100vw - 60px));
           text-align: center;
           font-weight: 700;
-          font-size: clamp(14px, 2.5vw, 16px);
-          line-height: 1.6;
+          font-size: clamp(13px, 2.5vw, 15px);
+          line-height: 1.5;
           color: #ffd6ea;
           text-shadow: 0 0 14px rgba(255, 110, 167, 0.12);
           margin: 0;
@@ -1274,7 +1274,7 @@ export default function ConnectPage() {
           width: min(920px, calc(100vw - 60px));
           display: grid;
           grid-template-columns: repeat(2, minmax(240px, 1fr));
-          gap: 18px;
+          gap: 16px;
           padding: 0 10px;
         }
 
@@ -1282,17 +1282,17 @@ export default function ConnectPage() {
           background: rgba(16, 13, 22, 0.46);
           border: 1px solid rgba(255, 255, 255, 0.08);
           border-radius: 18px;
-          padding: 20px;
+          padding: 18px 16px;
           backdrop-filter: blur(8px);
           box-shadow: 0 14px 44px rgba(0, 0, 0, 0.35);
           display: flex;
           flex-direction: column;
           align-items: center;
           justify-content: space-between;
-          gap: 12px;
+          gap: 10px;
           transition: transform 0.15s ease, box-shadow 0.15s ease, border-color 0.15s ease;
           position: relative;
-          min-height: 240px;
+          min-height: 200px;
         }
 
         .featureCard header {
@@ -1303,20 +1303,22 @@ export default function ConnectPage() {
           flex-direction: column;
           align-items: center;
           justify-content: center;
+          gap: 4px;
         }
 
         .featureCard header h3 {
           margin: 0;
-          font-size: 20px;
+          font-size: 19px;
           font-weight: 900;
           letter-spacing: 0.2px;
+          line-height: 1.2;
         }
 
         .featureCard header p {
-          margin: 4px 0 0 0;
+          margin: 0;
           opacity: 0.9;
-          font-size: 13px;
-          line-height: 1.4;
+          font-size: 12px;
+          line-height: 1.3;
         }
 
         .featureCard:hover {
@@ -1429,10 +1431,10 @@ export default function ConnectPage() {
 
         .cta {
           width: 100%;
-          padding: 12px 16px;
+          padding: 10px 14px;
           border-radius: 12px;
           font-weight: 900;
-          font-size: 14px;
+          font-size: 13px;
           border: none;
           cursor: pointer;
           display: inline-flex;
@@ -1692,32 +1694,32 @@ export default function ConnectPage() {
         /* Mobile Responsive Styles */
         @media (max-width: 760px) {
           .profile-icon-wrapper {
-            width: 70px;
-            height: 70px;
-            margin-bottom: 14px;
+            width: 60px;
+            height: 60px;
+            margin-bottom: 10px;
           }
 
           .profile-avatar {
-            width: 60px;
-            height: 60px;
+            width: 50px;
+            height: 50px;
           }
 
           .profile-initial {
-            font-size: 28px;
+            font-size: 22px;
           }
 
           .profile-icon {
-            width: 32px;
-            height: 32px;
+            width: 26px;
+            height: 26px;
           }
 
           .profile-completion-hint {
-            padding: 5px 10px;
-            font-size: 10px;
+            padding: 4px 8px;
+            font-size: 9px;
           }
 
           .hint-icon {
-            font-size: 12px;
+            font-size: 11px;
           }
 
           .welcome-box {
@@ -1775,11 +1777,11 @@ export default function ConnectPage() {
           }
 
           .heroWrap {
-            padding: calc(var(--brandH) + 40px) 20px 40px;
+            padding: calc(var(--brandH) + 30px) 20px 30px;
           }
 
           .brandBlock {
-            top: 50px;
+            top: 45px;
           }
 
           .heroBrand {
@@ -1795,31 +1797,32 @@ export default function ConnectPage() {
             grid-template-columns: 1fr;
             width: 100%;
             max-width: 500px;
-            gap: 14px;
+            gap: 12px;
             padding: 0;
           }
 
           .miniGreeting {
             max-width: 100%;
-            font-size: 13px;
-            line-height: 1.5;
+            font-size: 12px;
+            line-height: 1.4;
           }
 
           .featureCard {
-            padding: 16px;
+            padding: 14px 12px;
+            min-height: 180px;
           }
 
           .featureCard header h3 {
-            font-size: 18px;
+            font-size: 17px;
           }
 
           .featureCard header p {
-            font-size: 12px;
+            font-size: 11px;
           }
 
           .cta {
-            padding: 11px 14px;
-            font-size: 13px;
+            padding: 9px 12px;
+            font-size: 12px;
           }
 
           .hover-message {
@@ -1863,27 +1866,27 @@ export default function ConnectPage() {
 
         @media (max-width: 480px) {
           .profile-icon-wrapper {
-            width: 65px;
-            height: 65px;
-            margin-bottom: 12px;
+            width: 55px;
+            height: 55px;
+            margin-bottom: 8px;
           }
 
           .profile-avatar {
-            width: 55px;
-            height: 55px;
+            width: 45px;
+            height: 45px;
           }
 
           .profile-initial {
-            font-size: 24px;
+            font-size: 20px;
           }
 
           .profile-icon {
-            width: 28px;
-            height: 28px;
+            width: 24px;
+            height: 24px;
           }
 
           .profile-pulse-ring {
-            inset: -6px;
+            inset: -5px;
             border-width: 2px;
           }
 
@@ -1993,11 +1996,12 @@ export default function ConnectPage() {
           }
 
           .featureCard {
-            padding: 14px;
+            padding: 12px 10px;
+            min-height: 170px;
           }
 
           .heroWrap {
-            padding: calc(var(--brandH) + 30px) 16px 30px;
+            padding: calc(var(--brandH) + 25px) 16px 25px;
           }
         }
 
@@ -2022,39 +2026,44 @@ export default function ConnectPage() {
 
         @media (max-width: 360px) {
           .profile-icon-wrapper {
-            width: 60px;
-            height: 60px;
-            margin-bottom: 10px;
+            width: 50px;
+            height: 50px;
+            margin-bottom: 6px;
           }
 
           .profile-avatar {
-            width: 50px;
-            height: 50px;
+            width: 40px;
+            height: 40px;
           }
 
           .profile-initial {
-            font-size: 20px;
+            font-size: 18px;
           }
 
           .profile-icon {
-            width: 24px;
-            height: 24px;
+            width: 20px;
+            height: 20px;
           }
 
           .profile-pulse-ring {
-            inset: -5px;
+            inset: -4px;
             border-width: 2px;
           }
 
           .profile-completion-hint {
-            padding: 4px 8px;
-            font-size: 9px;
-            top: -8px;
-            right: -8px;
+            padding: 3px 6px;
+            font-size: 8px;
+            top: -6px;
+            right: -6px;
           }
 
           .hint-icon {
-            font-size: 11px;
+            font-size: 10px;
+          }
+
+          .featureCard {
+            min-height: 160px;
+            padding: 10px 8px;
           }
 
           .welcome-box {
