@@ -23,6 +23,8 @@ export default function ConnectPage() {
   const [statusMessage, setStatusMessage] = useState(
     "❤️ जहां दिल मिले, वहीं होती है शुरुआत Milan की…"
   );
+  const [showWelcome, setShowWelcome] = useState(false);
+  const [userName, setUserName] = useState("");
 
   const fwRef = useRef({ raf: null, burst: () => {}, cleanup: null });
   const socketRef = useRef(null);
@@ -60,7 +62,34 @@ export default function ConnectPage() {
     } catch {}
   }, []);
 
+  // Welcome Popup Logic - Show immediately on page load if new user
   useEffect(() => {
+    if (typeof window === "undefined") return;
+    
+    // Check if user just registered
+    const isNewUser = sessionStorage.getItem("newUser");
+    if (isNewUser === "true") {
+      const name = sessionStorage.getItem("userName") || 
+                   localStorage.getItem("registered_name") || 
+                   "Friend";
+      setUserName(name);
+      
+      // Show welcome popup immediately
+      setShowWelcome(true);
+      
+      // Clear the flag so popup doesn't show again
+      sessionStorage.removeItem("newUser");
+    }
+  }, []);
+
+  const handleStartJourney = () => {
+    setShowWelcome(false);
+  };
+
+  useEffect(() => {
+    // Only start canvas animations if welcome is not showing
+    if (showWelcome) return;
+    
     const cvs = document.getElementById("heartsCanvas");
     if (!cvs) return;
     const ctx = cvs.getContext("2d");
@@ -128,15 +157,15 @@ export default function ConnectPage() {
       cancelAnimationFrame(rafId);
       window.removeEventListener("resize", resize);
     };
-  }, []);
+  }, [showWelcome]);
 
   useEffect(() => {
-    if (ENABLE_DIWALI) {
+    if (ENABLE_DIWALI && !showWelcome) {
       startFireworks();
       return stopFireworks;
     }
     return () => {};
-  }, []);
+  }, [showWelcome]);
 
   function startFireworks() {
     const cvs = document.getElementById("fxCanvas");
@@ -223,15 +252,12 @@ export default function ConnectPage() {
   }
 
   function connectToAI(type) {
-    // Store that we're connecting to AI
     sessionStorage.setItem("connectingToAI", "true");
     sessionStorage.setItem("aiChatType", type);
     
-    // Get user info
     const userGender = localStorage.getItem("gender") || "male";
     const userName = profile.name || localStorage.getItem("registered_name") || "Friend";
     
-    // Store AI partner data
     const aiPartner = {
       isAI: true,
       name: userGender === "male" ? "Priya" : "Rahul",
@@ -246,7 +272,6 @@ export default function ConnectPage() {
     
     setStatusMessage("💖 AI Partner Connected!");
     
-    // Redirect to chat
     setTimeout(() => {
       window.location.href = type === "video" ? "/video" : "/chat";
     }, 500);
@@ -264,12 +289,10 @@ export default function ConnectPage() {
         : "💬 Searching for a human partner..."
     );
 
-    // Start 12-second timer for AI fallback
     searchTimerRef.current = setTimeout(() => {
       console.log("12 seconds elapsed - connecting to AI");
       setStatusMessage("💝 No human partner found. Connecting you with AI...");
       
-      // Disconnect socket if connected
       if (socketRef.current && socketRef.current.connected) {
         try {
           socketRef.current.emit("disconnectByUser");
@@ -277,7 +300,6 @@ export default function ConnectPage() {
         } catch {}
       }
       
-      // Connect to AI after 1 second
       setTimeout(() => {
         connectToAI(type);
       }, 1000);
@@ -305,7 +327,6 @@ export default function ConnectPage() {
 
       socketRef.current.on("partnerFound", (data) => {
         try {
-          // Clear the AI fallback timer - human partner found!
           if (searchTimerRef.current) {
             clearTimeout(searchTimerRef.current);
             searchTimerRef.current = null;
@@ -318,7 +339,6 @@ export default function ConnectPage() {
             return;
           }
           
-          // Mark as human partner
           partnerRef.current.isAI = false;
           
           sessionStorage.setItem(
@@ -368,7 +388,6 @@ export default function ConnectPage() {
   }
 
   function stopSearch() {
-    // Clear timer
     if (searchTimerRef.current) {
       clearTimeout(searchTimerRef.current);
       searchTimerRef.current = null;
@@ -416,145 +435,196 @@ export default function ConnectPage() {
         />
       </Head>
 
-      {/* Logout Button - Small circular button in top-right */}
-      <button 
-        className="logout-btn"
-        onClick={handleLogout}
-        aria-label="Logout"
-        title="Logout"
-      >
-        <svg viewBox="0 0 24 24" className="logout-icon" fill="currentColor">
-          <path d="M17 7l-1.41 1.41L18.17 11H8v2h10.17l-2.58 2.58L17 17l5-5zM4 5h8V3H4c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h8v-2H4V5z"/>
-        </svg>
-      </button>
-
-      {/* Frame */}
-      <div className="frame" aria-hidden />
-
-      {/* Background layers */}
-      <canvas id="heartsCanvas" />
-      <canvas
-        id="fxCanvas"
-        style={{ position: "fixed", inset: 0, zIndex: 0, pointerEvents: "none" }}
-      />
-
-      {/* Brand */}
-      <div className="brandBlock">
-        <div className="heroBrand">Milan</div>
-        <div className="brandTagline">
-          Where hearts connect <span aria-hidden>❤️</span>
-        </div>
-      </div>
-
-      {/* Center */}
-      <main className="heroWrap">
-        <p className="miniGreeting">
-          Find gentle connections. Let hearts float up and find each other – welcome to Milan.
-        </p>
-
-        <section
-          className="featuresGrid"
-          role="navigation"
-          aria-label="Choose a mode"
-        >
-          <article className="featureCard text">
-            <header>
-              <h3>Text Chat</h3>
-              <p>Say hello. Trade vibes. Let the story find you.</p>
-            </header>
-            <button className="cta" onClick={() => startSearch("text")}>
-              💬 Start Text Chat
-            </button>
-          </article>
-
-          <article className="featureCard video">
-            <header>
-              <h3>Video Chat</h3>
-              <p>Face-to-face chemistry. Zero setup, all spark.</p>
-            </header>
-            <button className="cta" onClick={() => startSearch("video")}>
-              🎥 Start Video Chat
-            </button>
-          </article>
-
-          <article className="featureCard invite coming-soon">
-            <div className="coming-soon-badge">
-              <span className="badge-sparkle">✨</span>
-              <span className="badge-text">Coming Soon</span>
-              <span className="badge-sparkle">✨</span>
+      {/* Full Screen Welcome Popup - Shows FIRST before everything */}
+      {showWelcome && (
+        <div className="welcome-fullscreen">
+          <div className="welcome-content-wrapper">
+            {/* Animated floating hearts in background */}
+            <div className="floating-hearts">
+              <div className="float-heart heart-1">💕</div>
+              <div className="float-heart heart-2">💖</div>
+              <div className="float-heart heart-3">💗</div>
+              <div className="float-heart heart-4">💝</div>
+              <div className="float-heart heart-5">💘</div>
+              <div className="float-heart heart-6">💞</div>
             </div>
-            <header>
-              <h3>Invite Link (Zero-DB)</h3>
-              <p>Share a link. Partner clicks. You're connected.</p>
-            </header>
-            <button className="cta disabled">
-              🔗 Create Invite Link
-            </button>
-            <div className="hover-message">
-              💕 Patience, love! This magical feature is almost ready to bring hearts together... 💕
-            </div>
-          </article>
 
-          <article className="featureCard studio">
-            <header>
-              <h3>Milan AI Studio</h3>
-              <p>Create dreamy prompts & reels—love, but make it aesthetic.</p>
-            </header>
-            <a href="/ai" className="cta">
-              🎨 Open AI Studio
-            </a>
-          </article>
-        </section>
-
-        {showLoader && isSearching && (
-          <div className="search-modal-overlay" role="dialog" aria-modal="true">
-            <div className="search-modal">
-              <div className="modal-content">
-                <h2 className="modal-heading">
-                  💖 Your Milan story is about to begin…
-                </h2>
-                
-                <div className="heart-loader-container">
-                  <div className="orbiting-hearts">
-                    <div className="orbit-heart heart-1">💗</div>
-                    <div className="orbit-heart heart-2">💕</div>
-                    <div className="orbit-heart heart-3">💖</div>
-                    <div className="orbit-heart heart-4">💓</div>
-                    <div className="orbit-heart heart-5">💙</div>
-                    <div className="orbit-heart heart-6">💞</div>
-                  </div>
-                  
-                  <svg className="center-heart" viewBox="0 0 32 29" aria-hidden>
-                    <defs>
-                      <linearGradient id="heartGrad" x1="0" x2="1" y1="0" y2="1">
-                        <stop offset="0%" stopColor="#ff6ea7" />
-                        <stop offset="50%" stopColor="#ff9fb0" />
-                        <stop offset="100%" stopColor="#ff6ea7" />
-                      </linearGradient>
-                    </defs>
-                    <path 
-                      fill="url(#heartGrad)" 
-                      d="M23.6,0c-2.9,0-4.6,1.8-5.6,3.1C16.9,1.8,15.2,0,12.3,0C8.1,0,5.3,3,5.3,6.7c0,7.1,11.7,13.9,11.7,13.9s11.7-6.8,11.7-13.9C28.7,3,25.9,0,23.6,0z"
-                      className="heart-pulse"
-                    />
-                  </svg>
-                </div>
-
-                <p className="modal-description">
-                  We're gently nudging hearts together – finding someone who vibes with your rhythm. Hold on, cupid is working his magic! 💘
-                </p>
-
-                <div className="status-text">{statusMessage}</div>
-
-                <button className="stop-search-btn" onClick={() => stopSearch()}>
-                  <span className="btn-icon">✕</span>
-                  <span className="btn-text">Stop Searching</span>
-                </button>
+            {/* Main welcome message */}
+            <div className="welcome-box">
+              <div className="sparkles-top">
+                <span className="sparkle">✨</span>
+                <span className="sparkle big">💕</span>
+                <span className="sparkle">✨</span>
               </div>
+              
+              <h1 className="welcome-heading">
+                Welcome to Milan, <span className="user-name">{userName}</span>! 💕
+              </h1>
+              
+              <p className="welcome-text">
+                Tumhari love story yahan se shuru hoti hai. Ready? ✨
+              </p>
+
+              <div className="sparkles-bottom">
+                <span className="sparkle-line">━━━━━</span>
+                <span className="sparkle-heart">❤️</span>
+                <span className="sparkle-line">━━━━━</span>
+              </div>
+
+              <button className="start-journey-btn" onClick={handleStartJourney}>
+                <span className="btn-sparkle">✨</span>
+                <span className="btn-text">Start Milan Journey</span>
+                <span className="btn-sparkle">✨</span>
+              </button>
             </div>
           </div>
-        )}
-      </main>
+        </div>
+      )}
+
+      {/* Main Connect Page - Only visible after welcome is closed */}
+      {!showWelcome && (
+        <>
+          {/* Logout Button */}
+          <button 
+            className="logout-btn"
+            onClick={handleLogout}
+            aria-label="Logout"
+            title="Logout"
+          >
+            <svg viewBox="0 0 24 24" className="logout-icon" fill="currentColor">
+              <path d="M17 7l-1.41 1.41L18.17 11H8v2h10.17l-2.58 2.58L17 17l5-5zM4 5h8V3H4c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h8v-2H4V5z"/>
+            </svg>
+          </button>
+
+          {/* Frame */}
+          <div className="frame" aria-hidden />
+
+          {/* Background layers */}
+          <canvas id="heartsCanvas" />
+          <canvas
+            id="fxCanvas"
+            style={{ position: "fixed", inset: 0, zIndex: 0, pointerEvents: "none" }}
+          />
+
+          {/* Brand */}
+          <div className="brandBlock">
+            <div className="heroBrand">Milan</div>
+            <div className="brandTagline">
+              Where hearts connect <span aria-hidden>❤️</span>
+            </div>
+          </div>
+
+          {/* Center */}
+          <main className="heroWrap">
+            <p className="miniGreeting">
+              Find gentle connections. Let hearts float up and find each other – welcome to Milan.
+            </p>
+
+            <section
+              className="featuresGrid"
+              role="navigation"
+              aria-label="Choose a mode"
+            >
+              <article className="featureCard text">
+                <header>
+                  <h3>Text Chat</h3>
+                  <p>Say hello. Trade vibes. Let the story find you.</p>
+                </header>
+                <button className="cta" onClick={() => startSearch("text")}>
+                  💬 Start Text Chat
+                </button>
+              </article>
+
+              <article className="featureCard video">
+                <header>
+                  <h3>Video Chat</h3>
+                  <p>Face-to-face chemistry. Zero setup, all spark.</p>
+                </header>
+                <button className="cta" onClick={() => startSearch("video")}>
+                  🎥 Start Video Chat
+                </button>
+              </article>
+
+              <article className="featureCard invite coming-soon">
+                <div className="coming-soon-badge">
+                  <span className="badge-sparkle">✨</span>
+                  <span className="badge-text">Coming Soon</span>
+                  <span className="badge-sparkle">✨</span>
+                </div>
+                <header>
+                  <h3>Invite Link (Zero-DB)</h3>
+                  <p>Share a link. Partner clicks. You're connected.</p>
+                </header>
+                <button className="cta disabled">
+                  🔗 Create Invite Link
+                </button>
+                <div className="hover-message">
+                  💕 Patience, love! This magical feature is almost ready to bring hearts together... 💕
+                </div>
+              </article>
+
+              <article className="featureCard studio">
+                <header>
+                  <h3>Milan AI Studio</h3>
+                  <p>Create dreamy prompts & reels—love, but make it aesthetic.</p>
+                </header>
+                <a href="/ai" className="cta">
+                  🎨 Open AI Studio
+                </a>
+              </article>
+            </section>
+
+            {showLoader && isSearching && (
+              <div className="search-modal-overlay" role="dialog" aria-modal="true">
+                <div className="search-modal">
+                  <div className="modal-content">
+                    <h2 className="modal-heading">
+                      💖 Your Milan story is about to begin…
+                    </h2>
+                    
+                    <div className="heart-loader-container">
+                      <div className="orbiting-hearts">
+                        <div className="orbit-heart heart-1">💗</div>
+                        <div className="orbit-heart heart-2">💕</div>
+                        <div className="orbit-heart heart-3">💖</div>
+                        <div className="orbit-heart heart-4">💓</div>
+                        <div className="orbit-heart heart-5">💙</div>
+                        <div className="orbit-heart heart-6">💞</div>
+                      </div>
+                      
+                      <svg className="center-heart" viewBox="0 0 32 29" aria-hidden>
+                        <defs>
+                          <linearGradient id="heartGrad" x1="0" x2="1" y1="0" y2="1">
+                            <stop offset="0%" stopColor="#ff6ea7" />
+                            <stop offset="50%" stopColor="#ff9fb0" />
+                            <stop offset="100%" stopColor="#ff6ea7" />
+                          </linearGradient>
+                        </defs>
+                        <path 
+                          fill="url(#heartGrad)" 
+                          d="M23.6,0c-2.9,0-4.6,1.8-5.6,3.1C16.9,1.8,15.2,0,12.3,0C8.1,0,5.3,3,5.3,6.7c0,7.1,11.7,13.9,11.7,13.9s11.7-6.8,11.7-13.9C28.7,3,25.9,0,23.6,0z"
+                          className="heart-pulse"
+                        />
+                      </svg>
+                    </div>
+
+                    <p className="modal-description">
+                      We're gently nudging hearts together – finding someone who vibes with your rhythm. Hold on, cupid is working his magic! 💘
+                    </p>
+
+                    <div className="status-text">{statusMessage}</div>
+
+                    <button className="stop-search-btn" onClick={() => stopSearch()}>
+                      <span className="btn-icon">✕</span>
+                      <span className="btn-text">Stop Searching</span>
+                    </button>
+                  </div>
+                </div>
+              </div>
+            )}
+          </main>
+        </>
+      )}
 
       <style>{`
         :root { --brandH: 140px; --bottomH: 60px; }
@@ -562,10 +632,383 @@ export default function ConnectPage() {
         html, body { margin: 0; padding: 0; min-height: 100vh; background: #08060c; color: #f7f7fb; font-family: Poppins, system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, sans-serif; }
         body { overflow-x: hidden; overflow-y: auto; }
         
+        /* Full Screen Welcome Overlay */
+        .welcome-fullscreen {
+          position: fixed;
+          inset: 0;
+          z-index: 99999;
+          background: linear-gradient(135deg, 
+            #08060c 0%, 
+            #1a0d1f 25%,
+            #2d1333 50%,
+            #1a0d1f 75%,
+            #08060c 100%);
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          animation: welcomeBackgroundPulse 8s ease-in-out infinite;
+          overflow: hidden;
+        }
+
+        @keyframes welcomeBackgroundPulse {
+          0%, 100% { 
+            background: linear-gradient(135deg, 
+              #08060c 0%, 
+              #1a0d1f 25%,
+              #2d1333 50%,
+              #1a0d1f 75%,
+              #08060c 100%);
+          }
+          50% { 
+            background: linear-gradient(135deg, 
+              #0a0812 0%, 
+              #1f1025 25%,
+              #331638 50%,
+              #1f1025 75%,
+              #0a0812 100%);
+          }
+        }
+
+        /* Floating hearts in background */
+        .floating-hearts {
+          position: absolute;
+          inset: 0;
+          overflow: hidden;
+          pointer-events: none;
+        }
+
+        .float-heart {
+          position: absolute;
+          font-size: 40px;
+          opacity: 0.3;
+          animation: floatUp 15s ease-in infinite;
+          filter: drop-shadow(0 4px 20px rgba(255, 110, 167, 0.5));
+        }
+
+        .float-heart.heart-1 {
+          left: 10%;
+          animation-delay: 0s;
+          animation-duration: 18s;
+        }
+
+        .float-heart.heart-2 {
+          left: 25%;
+          animation-delay: 3s;
+          animation-duration: 16s;
+        }
+
+        .float-heart.heart-3 {
+          left: 50%;
+          animation-delay: 1s;
+          animation-duration: 20s;
+        }
+
+        .float-heart.heart-4 {
+          left: 65%;
+          animation-delay: 4s;
+          animation-duration: 17s;
+        }
+
+        .float-heart.heart-5 {
+          left: 80%;
+          animation-delay: 2s;
+          animation-duration: 19s;
+        }
+
+        .float-heart.heart-6 {
+          left: 90%;
+          animation-delay: 5s;
+          animation-duration: 15s;
+        }
+
+        @keyframes floatUp {
+          0% {
+            transform: translateY(100vh) rotate(0deg) scale(0.8);
+            opacity: 0;
+          }
+          10% {
+            opacity: 0.3;
+          }
+          90% {
+            opacity: 0.3;
+          }
+          100% {
+            transform: translateY(-100vh) rotate(360deg) scale(1.2);
+            opacity: 0;
+          }
+        }
+
+        /* Welcome content wrapper */
+        .welcome-content-wrapper {
+          position: relative;
+          z-index: 1;
+          width: 100%;
+          max-width: 600px;
+          padding: 40px 20px;
+          animation: welcomeSlideIn 0.8s cubic-bezier(0.34, 1.56, 0.64, 1);
+        }
+
+        @keyframes welcomeSlideIn {
+          from {
+            opacity: 0;
+            transform: scale(0.8) translateY(50px);
+          }
+          to {
+            opacity: 1;
+            transform: scale(1) translateY(0);
+          }
+        }
+
+        /* Welcome box */
+        .welcome-box {
+          background: linear-gradient(145deg, 
+            rgba(255, 110, 167, 0.15) 0%, 
+            rgba(255, 159, 176, 0.12) 50%,
+            rgba(255, 110, 167, 0.15) 100%);
+          border: 3px solid rgba(255, 110, 167, 0.4);
+          border-radius: 40px;
+          padding: 60px 40px;
+          text-align: center;
+          box-shadow: 
+            0 40px 100px rgba(255, 110, 167, 0.5),
+            0 0 80px rgba(255, 110, 167, 0.3),
+            inset 0 2px 2px rgba(255, 255, 255, 0.2);
+          position: relative;
+          overflow: hidden;
+          backdrop-filter: blur(20px);
+        }
+
+        .welcome-box::before {
+          content: '';
+          position: absolute;
+          inset: 0;
+          background: radial-gradient(circle at 50% 0%, 
+            rgba(255, 110, 167, 0.3) 0%, 
+            transparent 70%);
+          animation: welcomeGlowPulse 4s ease-in-out infinite;
+        }
+
+        @keyframes welcomeGlowPulse {
+          0%, 100% { 
+            opacity: 0.5;
+            transform: scale(1);
+          }
+          50% { 
+            opacity: 1;
+            transform: scale(1.05);
+          }
+        }
+
+        /* Sparkles top */
+        .sparkles-top {
+          position: relative;
+          display: flex;
+          justify-content: center;
+          align-items: center;
+          gap: 20px;
+          margin-bottom: 30px;
+          z-index: 1;
+        }
+
+        .sparkle {
+          font-size: 36px;
+          animation: sparkleRotate 3s ease-in-out infinite;
+          filter: drop-shadow(0 4px 16px rgba(255, 110, 167, 0.8));
+        }
+
+        .sparkle.big {
+          font-size: 50px;
+          animation: sparkleBounce 2s ease-in-out infinite;
+        }
+
+        @keyframes sparkleRotate {
+          0%, 100% {
+            transform: rotate(0deg) scale(1);
+            opacity: 0.8;
+          }
+          50% {
+            transform: rotate(180deg) scale(1.2);
+            opacity: 1;
+          }
+        }
+
+        @keyframes sparkleBounce {
+          0%, 100% {
+            transform: translateY(0) scale(1);
+          }
+          50% {
+            transform: translateY(-15px) scale(1.15);
+          }
+        }
+
+        /* Welcome heading */
+        .welcome-heading {
+          position: relative;
+          z-index: 1;
+          margin: 0 0 25px 0;
+          font-size: clamp(28px, 5vw, 42px);
+          font-weight: 900;
+          line-height: 1.3;
+          background: linear-gradient(135deg, 
+            #fff 0%, 
+            #ffd6ea 30%, 
+            #ff9fb0 60%,
+            #ff6ea7 100%);
+          -webkit-background-clip: text;
+          background-clip: text;
+          color: transparent;
+          letter-spacing: 0.5px;
+          text-shadow: 0 4px 30px rgba(255, 110, 167, 0.6);
+          animation: headingShimmer 3s ease-in-out infinite;
+        }
+
+        @keyframes headingShimmer {
+          0%, 100% { 
+            filter: brightness(1);
+          }
+          50% { 
+            filter: brightness(1.3);
+          }
+        }
+
+        .user-name {
+          display: inline-block;
+          color: #ff9fb0;
+          background: linear-gradient(135deg, #ff6ea7, #ffb6c1);
+          -webkit-background-clip: text;
+          background-clip: text;
+          color: transparent;
+          font-weight: 900;
+          animation: nameGlow 2s ease-in-out infinite;
+        }
+
+        @keyframes nameGlow {
+          0%, 100% {
+            filter: drop-shadow(0 0 10px rgba(255, 110, 167, 0.8));
+          }
+          50% {
+            filter: drop-shadow(0 0 20px rgba(255, 110, 167, 1));
+          }
+        }
+
+        /* Welcome text */
+        .welcome-text {
+          position: relative;
+          z-index: 1;
+          margin: 0 0 35px 0;
+          font-size: clamp(18px, 3vw, 22px);
+          line-height: 1.6;
+          color: #ffdfe8;
+          font-weight: 600;
+          text-shadow: 0 2px 12px rgba(0, 0, 0, 0.5);
+        }
+
+        /* Sparkles bottom */
+        .sparkles-bottom {
+          position: relative;
+          z-index: 1;
+          display: flex;
+          justify-content: center;
+          align-items: center;
+          gap: 15px;
+          margin-bottom: 40px;
+        }
+
+        .sparkle-line {
+          color: rgba(255, 110, 167, 0.5);
+          font-size: 20px;
+          letter-spacing: 4px;
+        }
+
+        .sparkle-heart {
+          font-size: 28px;
+          animation: heartBeatWelcome 1.5s ease-in-out infinite;
+          filter: drop-shadow(0 4px 16px rgba(255, 110, 167, 0.8));
+        }
+
+        @keyframes heartBeatWelcome {
+          0%, 100% {
+            transform: scale(1);
+          }
+          10%, 30% {
+            transform: scale(1.2);
+          }
+          20%, 40% {
+            transform: scale(1.1);
+          }
+        }
+
+        /* Start Journey Button */
+        .start-journey-btn {
+          position: relative;
+          z-index: 1;
+          padding: 20px 50px;
+          background: linear-gradient(135deg, #ff6ea7 0%, #ff9fb0 100%);
+          color: #fff;
+          border: none;
+          border-radius: 60px;
+          font-size: 20px;
+          font-weight: 900;
+          cursor: pointer;
+          display: inline-flex;
+          align-items: center;
+          gap: 12px;
+          box-shadow: 
+            0 15px 40px rgba(255, 110, 167, 0.6),
+            0 0 60px rgba(255, 110, 167, 0.4),
+            inset 0 2px 2px rgba(255, 255, 255, 0.3);
+          transition: all 0.4s cubic-bezier(0.34, 1.56, 0.64, 1);
+          letter-spacing: 1px;
+          text-transform: uppercase;
+          animation: buttonPulse 3s ease-in-out infinite;
+        }
+
+        @keyframes buttonPulse {
+          0%, 100% {
+            box-shadow: 
+              0 15px 40px rgba(255, 110, 167, 0.6),
+              0 0 60px rgba(255, 110, 167, 0.4),
+              inset 0 2px 2px rgba(255, 255, 255, 0.3);
+          }
+          50% {
+            box-shadow: 
+              0 20px 50px rgba(255, 110, 167, 0.8),
+              0 0 80px rgba(255, 110, 167, 0.6),
+              inset 0 2px 2px rgba(255, 255, 255, 0.4);
+          }
+        }
+
+        .start-journey-btn:hover {
+          transform: translateY(-5px) scale(1.05);
+          box-shadow: 
+            0 25px 60px rgba(255, 110, 167, 0.8),
+            0 0 100px rgba(255, 110, 167, 0.6),
+            inset 0 2px 2px rgba(255, 255, 255, 0.4);
+          background: linear-gradient(135deg, #ff9fb0 0%, #ff6ea7 100%);
+        }
+
+        .start-journey-btn:active {
+          transform: translateY(-2px) scale(1.02);
+        }
+
+        .btn-sparkle {
+          font-size: 22px;
+          animation: btnSparkleRotate 2s linear infinite;
+        }
+
+        @keyframes btnSparkleRotate {
+          from { transform: rotate(0deg); }
+          to { transform: rotate(360deg); }
+        }
+
+        .btn-text {
+          letter-spacing: 1.5px;
+        }
+
         #heartsCanvas { position: fixed; inset: 0; z-index: 0; pointer-events: none; }
         #fxCanvas { position: fixed; inset: 0; z-index: 0; pointer-events: none; }
 
-        /* Logout Button - Small circular button */
+        /* Logout Button */
         .logout-btn {
           position: fixed;
           top: 25px;
@@ -1203,7 +1646,50 @@ export default function ConnectPage() {
           letter-spacing: 0.3px;
         }
 
+        /* Mobile Responsive Styles */
         @media (max-width: 760px) {
+          .welcome-box {
+            padding: 50px 30px;
+            border-radius: 32px;
+          }
+
+          .welcome-heading {
+            font-size: clamp(24px, 6vw, 32px);
+            margin-bottom: 20px;
+          }
+
+          .welcome-text {
+            font-size: clamp(16px, 4vw, 19px);
+            margin-bottom: 30px;
+          }
+
+          .sparkles-top {
+            gap: 15px;
+            margin-bottom: 25px;
+          }
+
+          .sparkle {
+            font-size: 30px;
+          }
+
+          .sparkle.big {
+            font-size: 42px;
+          }
+
+          .start-journey-btn {
+            padding: 16px 40px;
+            font-size: 17px;
+            gap: 10px;
+          }
+
+          .btn-sparkle {
+            font-size: 20px;
+          }
+
+          .float-heart {
+            font-size: 32px;
+          }
+
           .logout-btn {
             top: 18px;
             right: 18px;
@@ -1304,6 +1790,69 @@ export default function ConnectPage() {
         }
 
         @media (max-width: 480px) {
+          .welcome-box {
+            padding: 40px 24px;
+            border-radius: 28px;
+            border-width: 2px;
+          }
+
+          .sparkles-top {
+            gap: 12px;
+            margin-bottom: 20px;
+          }
+
+          .sparkle {
+            font-size: 26px;
+          }
+
+          .sparkle.big {
+            font-size: 38px;
+          }
+
+          .welcome-heading {
+            font-size: clamp(22px, 7vw, 28px);
+            margin-bottom: 18px;
+          }
+
+          .welcome-text {
+            font-size: clamp(15px, 4.5vw, 17px);
+            margin-bottom: 28px;
+          }
+
+          .sparkles-bottom {
+            gap: 10px;
+            margin-bottom: 35px;
+          }
+
+          .sparkle-line {
+            font-size: 16px;
+            letter-spacing: 3px;
+          }
+
+          .sparkle-heart {
+            font-size: 24px;
+          }
+
+          .start-journey-btn {
+            padding: 14px 32px;
+            font-size: 16px;
+            gap: 8px;
+            border-radius: 50px;
+          }
+
+          .btn-sparkle {
+            font-size: 18px;
+          }
+
+          .btn-text {
+            letter-spacing: 1px;
+            font-size: 15px;
+          }
+
+          .float-heart {
+            font-size: 28px;
+          }
+
           .logout-btn {
             top: 15px;
             right: 15px;
@@ -1356,6 +1905,10 @@ export default function ConnectPage() {
         }
 
         @media (min-width: 761px) and (max-width: 1024px) {
+          .welcome-box {
+            padding: 55px 35px;
+          }
+
           .heroWrap {
             padding: calc(var(--brandH) + 40px) 24px var(--bottomH);
           }
@@ -1367,6 +1920,25 @@ export default function ConnectPage() {
 
           .miniGreeting {
             max-width: calc(100vw - 80px);
+          }
+        }
+
+        @media (max-width: 360px) {
+          .welcome-box {
+            padding: 36px 20px;
+          }
+
+          .welcome-heading {
+            font-size: 20px;
+          }
+
+          .welcome-text {
+            font-size: 14px;
+          }
+
+          .start-journey-btn {
+            padding: 12px 28px;
+            font-size: 14px;
           }
         }
       `}</style>
