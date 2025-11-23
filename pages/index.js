@@ -1019,3 +1019,7 @@ export default function HomePage() {
             animation: none !important;
           }
         }
+      `}</style>
+    </>
+  );
+}
