@@ -539,18 +539,18 @@ export default function ConnectPage() {
                 </div>
                 
                 <header>
-                  <h3>My Profile</h3>
-                  <p>Complete your story. Show who you are. ✨</p>
+                  <h3>Meri Kahaani</h3>
+                  <p>Apni pehchaan banao. Dikhao tum kaun ho. ✨</p>
                 </header>
                 
                 <button className="cta profile-cta" onClick={handleProfileClick}>
-                  📝 Complete Profile
+                  ✍️ Apna Profile Banao
                 </button>
                 
                 {profile.name && (
                   <div className="profile-completion-hint">
                     <span className="hint-icon">👋</span>
-                    <span className="hint-text">Hey {profile.name}!</span>
+                    <span className="hint-text">Namaste {profile.name}!</span>
                   </div>
                 )}
               </article>
@@ -1287,10 +1287,22 @@ export default function ConnectPage() {
           box-shadow: 0 14px 44px rgba(0, 0, 0, 0.35);
           display: flex;
           flex-direction: column;
-          align-items: flex-start;
+          align-items: center;
+          justify-content: space-between;
           gap: 12px;
           transition: transform 0.15s ease, box-shadow 0.15s ease, border-color 0.15s ease;
           position: relative;
+          min-height: 240px;
+        }
+
+        .featureCard header {
+          width: 100%;
+          text-align: center;
+          flex-grow: 1;
+          display: flex;
+          flex-direction: column;
+          align-items: center;
+          justify-content: center;
         }
 
         .featureCard header h3 {
