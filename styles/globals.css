@@ -1,4 +1,9 @@
-/* 🌸 Milan Global Styles — mobile scroll unlock build */
+/* Add Tailwind CSS */
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* 🌸 Milan Global Styles – mobile scroll unlock build */
 
 /* Theme vars */
 :root {
@@ -22,7 +27,7 @@
 /* 🚫 FIX: Body scroll was locked earlier.
    - overflow-y: auto allows page scroll
    - overflow-x: hidden prevents sideways jiggle
-   - remove forced height:100% — lets content decide height */
+   - remove forced height:100% – lets content decide height */
 html, body {
   margin: 0;
   padding: 0;
@@ -293,7 +298,7 @@ label { display: block; margin-top: 5px; font-weight: bold; font-size: 14px; }
 }
 .milan-thumb img{ width:100%; height:96px; object-fit:cover; display:block; }
 
-/* CTA — show ONE button depending on viewport */
+/* CTA – show ONE button depending on viewport */
 .sm-only{ display:block; }
 .lg-only{ display:none; }
 .milan-sticky{ position:fixed; left:0; right:0; bottom:10px; padding:0 12px; z-index:40; }
@@ -328,4 +333,4 @@ label { display: block; margin-top: 5px; font-weight: bold; font-size: 14px; }
   .sm-only{ display:none; }
   .lg-only{ display:block; }
 }
-/* ===== End — Milan AI Studio ===== */
+/* ===== End – Milan AI Studio ===== */
