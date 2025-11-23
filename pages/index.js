@@ -39,6 +39,10 @@ export default function HomePage() {
   const [showConsent, setShowConsent] = useState(false);
   const [consentAccepted, setConsentAccepted] = useState(false);
 
+  // Error modal (Option C)
+  const [showErrorModal, setShowErrorModal] = useState(false);
+  const [errorModalMessage, setErrorModalMessage] = useState("");
+
   // Background hearts
   const [enableHearts, setEnableHearts] = useState(true);
   const heartsRef = useRef({ raf: null, smallMode: false, cleanup: null });
@@ -98,7 +102,7 @@ export default function HomePage() {
 
         // Wobble effect
         h.wobble += 0.02;
-        ctx.rotate(Math.sin(h.wobble) * 0.1);
+        ctx.rotate(Math.sin(h.wble || h.wobble) * 0.1);
 
         ctx.fillStyle = h.color;
         ctx.beginPath();
@@ -137,17 +141,39 @@ export default function HomePage() {
     heartsRef.current.cleanup && heartsRef.current.cleanup();
   }
 
-  // Toast
-  function showError(msg) {
-    const n = document.getElementById("errorMessage");
-    if (!n) return;
-    n.textContent = msg;
-    n.style.display = "block";
-    n.classList.add("show");
-    setTimeout(() => {
-      n.classList.remove("show");
-      n.style.display = "none";
-    }, 3500);
+  // Inline error (Option A)
+  function clearInlineErrors() {
+    if (typeof document === "undefined") return;
+    document
+      .querySelectorAll(".field-error-text")
+      .forEach((el) => {
+        el.textContent = "";
+        el.style.display = "none";
+      });
+    document
+      .querySelectorAll(".has-error")
+      .forEach((el) => el.classList.remove("has-error"));
+  }
+
+  function setFieldError(fieldId, message) {
+    if (!fieldId || typeof document === "undefined") return;
+    const input = document.getElementById(fieldId);
+    if (input) input.classList.add("has-error");
+    const err = document.querySelector(
+      `.field-error-text[data-error-for="${fieldId}"]`
+    );
+    if (err) {
+      err.textContent = message;
+      err.style.display = "block";
+    }
+  }
+
+  // Combo: inline + heart modal
+  function showError(fieldId, message) {
+    clearInlineErrors();
+    if (fieldId) setFieldError(fieldId, message);
+    setErrorModalMessage(message);
+    setShowErrorModal(true);
   }
 
   function calculateAge(dateInput) {
@@ -171,7 +197,6 @@ export default function HomePage() {
     const year = parseInt(match[3], 10);
 
     const d = new Date(year, month, day);
-    // Check if date is actually valid
     if (
       d.getFullYear() !== year ||
       d.getMonth() !== month ||
@@ -283,6 +308,8 @@ export default function HomePage() {
   }
 
   async function registerUser() {
+    clearInlineErrors();
+
     const name = document.getElementById("name")?.value.trim();
     const gender = document.getElementById("gender")?.value;
     const contact = document.getElementById("contact")?.value.trim();
@@ -293,19 +320,27 @@ export default function HomePage() {
     const termsAccepted = document.getElementById("terms")?.checked;
 
     if (!name || !gender || !contact || !password || !dobStr || !city || !reason)
-      return showError("Please fill all required fields!");
+      return showError(null, "Please fill all required fields!");
     if (!termsAccepted)
-      return showError("Please accept Terms & Conditions to continue.");
+      return showError(
+        "terms",
+        "Please accept Terms & Conditions to continue."
+      );
 
     // DOB parse + age validation FIRST (18+ rule)
     const dobDate = parseDob(dobStr);
     if (!dobDate) {
-      return showError("Please enter Date of Birth in DD-MM-YYYY format.");
+      return showError(
+        "dob",
+        "Please enter Date of Birth in DD-MM-YYYY format."
+      );
     }
     const userAge = calculateAge(dobDate);
-    if (isNaN(userAge)) return showError("Please enter a valid Date of Birth.");
+    if (isNaN(userAge))
+      return showError("dob", "Please enter a valid Date of Birth.");
     if (userAge < 18)
       return showError(
+        "dob",
         "You are not eligible to use Milan. Only 18+ users can register."
       );
 
@@ -313,16 +348,19 @@ export default function HomePage() {
     const isNumericContact = /^\d+$/.test(contact);
     if (isNumericContact) {
       if (contact.length !== 10) {
-        return showError("Mobile number must be exactly 10 digits.");
+        return showError(
+          "contact",
+          "Mobile number must be exactly 10 digits."
+        );
       }
     } else {
       const emailRegex = /^[\w-.]+@([\w-]+\.)+[\w-]{2,4}$/;
       if (!emailRegex.test(contact)) {
-        return showError("Please enter a valid Email address.");
+        return showError("contact", "Please enter a valid Email address.");
       }
     }
 
-    // Password: only non-empty (already checked), no pattern / length restriction
+    // Password: only non-empty (already ensured)
     try {
       setLoadingRegister(true);
       const payload = {
@@ -330,7 +368,7 @@ export default function HomePage() {
         password,
         name,
         gender,
-        dob: dobStr, // DD-MM-YYYY string
+        dob: dobStr,
         city,
         reason,
       };
@@ -344,10 +382,14 @@ export default function HomePage() {
         localStorage.setItem("token", data.token);
         localStorage.setItem("milan_name", name);
         window.location.href = "/connect";
-      } else showError(data.message || data.error || "Registration failed");
+      } else
+        showError(
+          null,
+          data.message || data.error || "Registration failed"
+        );
     } catch (err) {
       console.error(err);
-      showError("Server error");
+      showError(null, "Server error");
     } finally {
       setLoadingRegister(false);
     }
@@ -355,10 +397,12 @@ export default function HomePage() {
 
   async function handleLogin(e) {
     rippleEffect(e);
+    clearInlineErrors();
+
     const contact = document.getElementById("loginContact")?.value.trim();
     const password = document.getElementById("loginPassword")?.value.trim();
     if (!contact || !password)
-      return showError("Enter Email/Mobile and Password");
+      return showError(null, "Enter Email/Mobile and Password");
     try {
       setLoadingLogin(true);
       const res = await fetch(`${API_BASE}/login`, {
@@ -373,10 +417,11 @@ export default function HomePage() {
           localStorage.setItem("milan_name", data.user.name);
         }
         window.location.href = "/connect";
-      } else showError(data.message || data.error || "Login failed");
+      } else
+        showError(null, data.message || data.error || "Login failed");
     } catch (err) {
       console.error(err);
-      showError("Server error");
+      showError(null, "Server error");
     } finally {
       setLoadingLogin(false);
     }
@@ -384,11 +429,14 @@ export default function HomePage() {
 
   async function handleReset(e) {
     rippleEffect(e);
+    clearInlineErrors();
+
     const contact = document.getElementById("resetContact")?.value.trim();
     const newPassword = document
       .getElementById("newPassword")
       ?.value.trim();
-    if (!contact || !newPassword) return showError("Fill all fields");
+    if (!contact || !newPassword)
+      return showError(null, "Fill all fields");
     try {
       setLoadingLogin(true);
       const res = await fetch(`${API_BASE}/reset-password`, {
@@ -404,9 +452,10 @@ export default function HomePage() {
         alert("Password reset successful, please login again.");
         setShowReset(false);
         setShowLogin(true);
-      } else showError(data.message || data.error || "Reset failed");
+      } else
+        showError(null, data.message || data.error || "Reset failed");
     } catch {
-      showError("Server error");
+      showError(null, "Server error");
     } finally {
       setLoadingLogin(false);
     }
@@ -432,8 +481,6 @@ export default function HomePage() {
 
       {/* Background hearts */}
       <canvas id="heartsCanvas" aria-hidden={!enableHearts}></canvas>
-
-      <div id="errorMessage" style={{ display: "none" }} role="alert"></div>
 
       <div className="page-wrap">
         <div className="container">
@@ -509,6 +556,7 @@ export default function HomePage() {
               {!showLogin && !showReset && (
                 <div id="registerForm">
                   <h2>Create Your Account</h2>
+
                   <label>
                     Name <span className="star">*</span>
                   </label>
@@ -516,6 +564,11 @@ export default function HomePage() {
                     id="name"
                     placeholder="Your name or nickname"
                   />
+                  <div
+                    className="field-error-text"
+                    data-error-for="name"
+                  ></div>
+
                   <label>
                     Gender <span className="star">*</span>
                   </label>
@@ -525,6 +578,11 @@ export default function HomePage() {
                     <option value="Female">Female</option>
                     <option value="Other">Other</option>
                   </select>
+                  <div
+                    className="field-error-text"
+                    data-error-for="gender"
+                  ></div>
+
                   <label>
                     Email or Mobile{" "}
                     <span className="star">*</span>
@@ -533,6 +591,11 @@ export default function HomePage() {
                     id="contact"
                     placeholder="Email or 10-digit Mobile number"
                   />
+                  <div
+                    className="field-error-text"
+                    data-error-for="contact"
+                  ></div>
+
                   <label>
                     Password <span className="star">*</span>
                   </label>
@@ -541,6 +604,11 @@ export default function HomePage() {
                     id="password"
                     placeholder="Create a password"
                   />
+                  <div
+                    className="field-error-text"
+                    data-error-for="password"
+                  ></div>
+
                   <label>
                     Date of Birth{" "}
                     <span className="star">*</span>
@@ -551,11 +619,21 @@ export default function HomePage() {
                     placeholder="DD-MM-YYYY"
                     maxLength={10}
                   />
+                  <div
+                    className="field-error-text"
+                    data-error-for="dob"
+                  ></div>
+
                   <label>
                     City/Country{" "}
                     <span className="star">*</span>
                   </label>
                   <input id="city" placeholder="City / Country" />
+                  <div
+                    className="field-error-text"
+                    data-error-for="city"
+                  ></div>
+
                   <label>
                     Reason for Joining{" "}
                     <span className="star">*</span>
@@ -582,11 +660,17 @@ export default function HomePage() {
                     <option value="Exploring">Exploring 🌎</option>
                     <option value="Other">Other</option>
                   </select>
+                  <div
+                    className="field-error-text"
+                    data-error-for="reason"
+                  ></div>
+
                   <textarea
                     id="otherReason"
                     placeholder="If other, please describe"
                     style={{ display: "none" }}
                   />
+
                   <div className="terms-container">
                     <input type="checkbox" id="terms" />
                     <label
@@ -619,6 +703,11 @@ export default function HomePage() {
                       </a>
                     </label>
                   </div>
+                  <div
+                    className="field-error-text"
+                    data-error-for="terms"
+                  ></div>
+
                   <button
                     id="registerBtn"
                     className="primary-btn"
@@ -775,6 +864,7 @@ export default function HomePage() {
         </footer>
       </div>
 
+      {/* Consent Modal */}
       {showConsent && (
         <div
           className="modal-back"
@@ -820,6 +910,27 @@ export default function HomePage() {
         </div>
       )}
 
+      {/* Error Heart Modal (Option C) */}
+      {showErrorModal && (
+        <div
+          className="error-modal-back"
+          role="alertdialog"
+          aria-modal="true"
+        >
+          <div className="error-modal">
+            <div className="error-heart">💔</div>
+            <p className="error-modal-text">{errorModalMessage}</p>
+            <button
+              className="primary-btn error-modal-btn"
+              onClick={() => setShowErrorModal(false)}
+              onMouseDown={rippleEffect}
+            >
+              Okay
+            </button>
+          </div>
+        </div>
+      )}
+
       {/* GLOBAL overrides: ensure scroll works on all mobiles */}
       <style jsx global>{`
         html,
@@ -858,32 +969,6 @@ export default function HomePage() {
           inset:0; 
           z-index:0; 
           pointer-events:none; 
-        }
-        
-        /* Small cute toast */
-        #errorMessage{ 
-          position:fixed; 
-          top:70px; 
-          left:50%; 
-          transform:translateX(-50%); 
-          background:linear-gradient(135deg,#ff4fa0,#ff1493); 
-          color:#fff; 
-          padding:8px 14px; 
-          border-radius:999px; 
-          display:none; 
-          z-index:9999; 
-          font-weight:600; 
-          font-size:12px;
-          max-width:320px;
-          text-align:center;
-          box-shadow: 0 10px 30px rgba(255,79,160,0.4);
-          opacity:0;
-          transition: opacity .25s ease, transform .25s ease;
-          pointer-events:none;
-        }
-        #errorMessage.show{
-          opacity:1;
-          transform:translateX(-50%) translateY(4px);
         }
 
         .page-wrap{ 
@@ -956,14 +1041,6 @@ export default function HomePage() {
           border-radius: 16px;
         }
 
-        .welcome-row{ 
-          display:flex; 
-          align-items:center; 
-          gap:20px; 
-          justify-content:center; 
-          margin-bottom: 10px;
-        }
-        
         .tagline {
           font-size: 24px;
           margin: 14px 0 20px;
@@ -1092,6 +1169,20 @@ export default function HomePage() {
         }
         
         .star { color: #ff6b9d; }
+
+        .field-error-text {
+          display:none;
+          margin-top:4px;
+          font-size:11px;
+          color:#ffb3c7;
+          text-align:left;
+          padding-left:4px;
+        }
+
+        .has-error {
+          border-color: rgba(255,99,132,0.9) !important;
+          box-shadow: 0 0 0 1px rgba(255,99,132,0.6);
+        }
         
         input,select,textarea{ 
           width:100%; 
@@ -1193,6 +1284,44 @@ export default function HomePage() {
         .modal-list{ margin:0 0 20px 20px; color:#c7d7ea; line-height: 1.8; }
         .modal-list li { margin-bottom: 8px; }
         .modal-actions{ display:flex; gap:12px; justify-content:flex-end; margin-top: 24px; }
+
+        /* Error heart modal (C) */
+        .error-modal-back{
+          position:fixed;
+          inset:0;
+          background:rgba(0,0,0,0.55);
+          display:flex;
+          align-items:center;
+          justify-content:center;
+          z-index:99998;
+          padding:16px;
+        }
+        .error-modal{
+          width:90%;
+          max-width:360px;
+          background:linear-gradient(145deg, rgba(255,79,160,0.2), rgba(15,23,42,0.95));
+          border-radius:20px;
+          border:1px solid rgba(255,107,129,0.5);
+          box-shadow:0 20px 60px rgba(0,0,0,0.7);
+          padding:18px 18px 16px;
+          text-align:center;
+        }
+        .error-heart{
+          font-size:32px;
+          margin-bottom:8px;
+        }
+        .error-modal-text{
+          font-size:14px;
+          color:#ffeef8;
+          margin-bottom:10px;
+        }
+        .error-modal-btn{
+          width:auto !important;
+          min-width:120px;
+          padding:10px 22px;
+          font-size:14px;
+          margin-top:6px;
+        }
 
         .footer-section{ text-align:center; padding: 20px 18px; z-index:2; color:#dcdfea; background: rgba(0,0,0,0.2); border-top: 1px solid rgba(255,107,129,0.1); position: relative; }
         .footer-links{ display:flex; gap:20px; justify-content:center; flex-wrap:wrap; margin-bottom:10px; }
