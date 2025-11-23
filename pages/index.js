@@ -201,12 +201,11 @@ export default function HomePage() {
 
   // --- EXTRA EFFECTS / VALIDATIONS ---
 
-  // 1) Mobile number: if only digits, max 10 allowed
+  // Mobile: if only digits, max 10 allowed
   useEffect(() => {
     function handleContactInput(e) {
       if (!e.target || e.target.id !== "contact") return;
       const value = e.target.value;
-      // sirf digits ho to 10 se zyada cut kar do
       if (/^\d+$/.test(value) && value.length > 10) {
         e.target.value = value.slice(0, 10);
       }
@@ -218,7 +217,7 @@ export default function HomePage() {
     };
   }, []);
 
-  // 1b) DOB: auto format to DD-MM-YYYY while typing (digits only)
+  // DOB: auto format to DD-MM-YYYY while typing (digits only)
   useEffect(() => {
     function handleDobInput(e) {
       if (!e.target || e.target.id !== "dob") return;
@@ -239,7 +238,7 @@ export default function HomePage() {
     };
   }, []);
 
-  // 2) Register button enable only when all mandatory fields filled + T&C tick
+  // Register button enable only when all mandatory fields filled + T&C tick
   useEffect(() => {
     function validateRegisterForm() {
       const name = document.getElementById("name")?.value.trim();
@@ -323,14 +322,7 @@ export default function HomePage() {
       }
     }
 
-    // Password validation: only length 6–12, alphanumeric allowed
-    const passRegex = /^[A-Za-z\d]{6,12}$/;
-    if (!passRegex.test(password)) {
-      return showError(
-        "Password must be 6–12 characters and alphanumeric (letters & numbers)."
-      );
-    }
-
+    // Password: only non-empty (already checked), no pattern / length restriction
     try {
       setLoadingRegister(true);
       const payload = {
@@ -451,7 +443,6 @@ export default function HomePage() {
               role="region"
               aria-label="Welcome to Milan"
             >
-              {/* ==== BRAND HERO START (updated) ==== */}
               <div
                 className="brand-logo-stack"
                 aria-label="Milan brand"
@@ -463,7 +454,6 @@ export default function HomePage() {
                   decoding="async"
                 />
               </div>
-              {/* ==== BRAND HERO END ==== */}
 
               <h3 className="tagline main-tagline anim-fadeUp">
                 <span>Where Hearts Connect</span>
@@ -549,9 +539,7 @@ export default function HomePage() {
                   <input
                     type="password"
                     id="password"
-                    placeholder="Enter password"
-                    minLength={6}
-                    maxLength={12}
+                    placeholder="Create a password"
                   />
                   <label>
                     Date of Birth{" "}
@@ -649,7 +637,6 @@ export default function HomePage() {
                     Register & Start
                   </button>
 
-                  {/* Changed to <a> to keep semantics and improve clickability */}
                   <a
                     className="link-text"
                     onClick={() => setShowLogin(true)}
@@ -840,7 +827,7 @@ export default function HomePage() {
           overflow-y: auto !important;
           height: auto !important;
           -webkit-overflow-scrolling: touch !important;
-          overscroll-behavior-y: auto !Important;
+          overscroll-behavior-y: auto !important;
           touch-action: pan-y !important;
           background: #0b1220;
         }
@@ -873,21 +860,21 @@ export default function HomePage() {
           pointer-events:none; 
         }
         
-        /* Cute toast error message */
+        /* Small cute toast */
         #errorMessage{ 
           position:fixed; 
-          top:18px; 
+          top:70px; 
           left:50%; 
           transform:translateX(-50%); 
           background:linear-gradient(135deg,#ff4fa0,#ff1493); 
           color:#fff; 
-          padding:10px 18px; 
+          padding:8px 14px; 
           border-radius:999px; 
           display:none; 
           z-index:9999; 
           font-weight:600; 
-          font-size:13px;
-          max-width:90%;
+          font-size:12px;
+          max-width:320px;
           text-align:center;
           box-shadow: 0 10px 30px rgba(255,79,160,0.4);
           opacity:0;
@@ -967,10 +954,6 @@ export default function HomePage() {
           display:block;
           filter: drop-shadow(0 16px 44px rgba(255,79,160,0.45));
           border-radius: 16px;
-        }
-
-        .welcome-title, .pulse-heart { 
-          display:none !important; 
         }
 
         .welcome-row{ 
