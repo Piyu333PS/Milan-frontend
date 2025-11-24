@@ -1,4 +1,4 @@
-import React, { useState, useRef } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import { Camera, Heart, Music, Coffee, MapPin, Save, Star, Users, Sparkles } from 'lucide-react';
 import { useRouter } from 'next/router';
 
@@ -23,6 +23,19 @@ export default function Profile() {
     foodieLevel: 50,
     travelStyle: 'explorer'
   });
+
+  // Load saved profile data on mount
+  useEffect(() => {
+    try {
+      const savedProfile = localStorage.getItem('milanProfile');
+      if (savedProfile) {
+        const parsed = JSON.parse(savedProfile);
+        setProfileData(parsed);
+      }
+    } catch (error) {
+      console.error('Error loading profile:', error);
+    }
+  }, []);
 
   const vibes = [
     { emoji: '☕', label: 'Chai pe charcha', color: 'bg-amber-100 text-amber-700' },
@@ -88,15 +101,20 @@ export default function Profile() {
   };
 
   const handleSaveProfile = () => {
-    // Save to localStorage
-    localStorage.setItem('milanProfile', JSON.stringify(profileData));
-    console.log('Profile Data:', profileData);
-    
-    // Show success message
-    alert('Profile saved successfully! ✅');
-    
-    // Redirect to connect page
-    router.push('/connect');
+    try {
+      // Save to localStorage
+      localStorage.setItem('milanProfile', JSON.stringify(profileData));
+      console.log('Profile Data Saved:', profileData);
+      
+      // Show success message
+      alert('Profile saved successfully! ✅');
+      
+      // Redirect to connect page
+      router.push('/connect');
+    } catch (error) {
+      console.error('Error saving profile:', error);
+      alert('Failed to save profile. Please try again.');
+    }
   };
 
   return (
@@ -175,7 +193,7 @@ export default function Profile() {
                 type="text"
                 value={profileData.name}
                 onChange={(e) => setProfileData({...profileData, name: e.target.value})}
-                className="w-full px-4 py-2 border-2 border-pink-200 rounded-lg focus:border-pink-500 focus:outline-none text-gray-900"
+                className="w-full px-4 py-2 border-2 border-pink-200 rounded-lg focus:border-pink-500 focus:outline-none text-gray-900 bg-white placeholder-gray-400"
                 placeholder="Apna naam likho"
               />
             </div>
@@ -187,7 +205,7 @@ export default function Profile() {
                   type="number"
                   value={profileData.age}
                   onChange={(e) => setProfileData({...profileData, age: e.target.value})}
-                  className="w-full px-4 py-2 border-2 border-pink-200 rounded-lg focus:border-pink-500 focus:outline-none text-gray-900"
+                  className="w-full px-4 py-2 border-2 border-pink-200 rounded-lg focus:border-pink-500 focus:outline-none text-gray-900 bg-white placeholder-gray-400"
                   placeholder="Umra"
                 />
               </div>
@@ -197,7 +215,7 @@ export default function Profile() {
                   type="text"
                   value={profileData.city}
                   onChange={(e) => setProfileData({...profileData, city: e.target.value})}
-                  className="w-full px-4 py-2 border-2 border-pink-200 rounded-lg focus:border-pink-500 focus:outline-none text-gray-900"
+                  className="w-full px-4 py-2 border-2 border-pink-200 rounded-lg focus:border-pink-500 focus:outline-none text-gray-900 bg-white placeholder-gray-400"
                   placeholder="Sheher"
                 />
               </div>
@@ -208,7 +226,7 @@ export default function Profile() {
               <textarea
                 value={profileData.bio}
                 onChange={(e) => setProfileData({...profileData, bio: e.target.value})}
-                className="w-full px-4 py-2 border-2 border-pink-200 rounded-lg focus:border-pink-500 focus:outline-none h-24 text-gray-900"
+                className="w-full px-4 py-2 border-2 border-pink-200 rounded-lg focus:border-pink-500 focus:outline-none h-24 text-gray-900 bg-white placeholder-gray-400"
                 placeholder="Apne baare mein kuch batao..."
               />
             </div>
