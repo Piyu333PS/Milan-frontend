@@ -5,6 +5,8 @@ import { useRouter } from 'next/router';
 export default function Profile() {
   const router = useRouter();
   const fileInputRef = useRef(null);
+  const [uploading, setUploading] = useState(false);
+
   const [activeTab, setActiveTab] = useState('basic');
   const [profileData, setProfileData] = useState({
     name: '',
@@ -70,14 +72,47 @@ export default function Profile() {
     fileInputRef.current?.click();
   };
 
-  const handlePhotoChange = (e) => {
+  // upload helper (calls your Render backend)
+  async function uploadProfilePic(file) {
+    const fd = new FormData();
+    fd.append('image', file);
+
+    // Use your deployed backend URL (already working)
+    const res = await fetch('https://milan-j9u9.onrender.com/api/upload/profile', {
+      method: 'POST',
+      headers: {
+        // include token if user is logged in; if not, upload still works but won't auto-save to DB
+        Authorization: 'Bearer ' + (localStorage.getItem('token') || '')
+      },
+      body: fd
+    });
+
+    if (!res.ok) {
+      const text = await res.text();
+      throw new Error('Upload failed: ' + text);
+    }
+    return res.json(); // { url, public_id }
+  }
+
+  // New handler: uploads to Cloudinary via backend and sets the returned URL for preview
+  const handlePhotoChange = async (e) => {
     const file = e.target.files?.[0];
-    if (file) {
-      const reader = new FileReader();
-      reader.onloadend = () => {
-        setProfileData({ ...profileData, photo: reader.result });
-      };
-      reader.readAsDataURL(file);
+    if (!file) return;
+
+    try {
+      setUploading(true);
+      const data = await uploadProfilePic(file);
+      if (data?.url) {
+        setProfileData({ ...profileData, photo: data.url });
+      } else {
+        console.warn('Upload returned unexpected data:', data);
+        alert('Upload succeeded but no URL returned. Check server logs.');
+      }
+    } catch (err) {
+      console.error('Photo upload error:', err);
+      alert('Photo upload failed. Open console for details.');
+    } finally {
+      setUploading(false);
     }
   };
 
@@ -136,17 +171,23 @@ export default function Profile() {
             <div className="relative">
               <div 
                 onClick={handlePhotoClick}
-                className="w-32 h-32 bg-gradient-to-br from-pink-200 to-purple-200 rounded-full flex items-center justify-center cursor-pointer hover:opacity-80 transition overflow-hidden"
+                className={`w-32 h-32 bg-gradient-to-br from-pink-200 to-purple-200 rounded-full flex items-center justify-center cursor-pointer hover:opacity-80 transition overflow-hidden ${uploading ? 'opacity-60' : ''}`}
               >
                 {profileData.photo ? (
                   <img src={profileData.photo} alt="Profile" className="w-full h-full object-cover" />
                 ) : (
                   <Camera size={40} className="text-pink-600" />
                 )}
+                {uploading && (
+                  <div className="absolute inset-0 flex items-center justify-center bg-black bg-opacity-25 text-white text-sm">
+                    Uploading...
+                  </div>
+                )}
               </div>
               <button 
                 onClick={handlePhotoClick}
                 className="absolute bottom-0 right-0 bg-pink-500 text-white p-2 rounded-full hover:bg-pink-600 transition"
+                disabled={uploading}
               >
                 <Camera size={16} />
               </button>
