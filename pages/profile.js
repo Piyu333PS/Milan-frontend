@@ -26,10 +26,10 @@ export default function Profile() {
     travelStyle: 'explorer'
   });
 
-  // Load saved profile data on mount
+  // Load saved profile data on mount (local fallback)
   useEffect(() => {
     try {
-      const savedProfile = localStorage.getItem('milanProfile');
+      const savedProfile = localStorage.getItem('milanProfile') || localStorage.getItem('milanUser');
       if (savedProfile) {
         const parsed = JSON.parse(savedProfile);
         setProfileData(parsed);
@@ -77,11 +77,10 @@ export default function Profile() {
     const fd = new FormData();
     fd.append('image', file);
 
-    // Use your deployed backend URL (already working)
+    // backend URL (Render)
     const res = await fetch('https://milan-j9u9.onrender.com/api/upload/profile', {
       method: 'POST',
       headers: {
-        // include token if user is logged in; if not, upload still works but won't auto-save to DB
         Authorization: 'Bearer ' + (localStorage.getItem('token') || '')
       },
       body: fd
@@ -94,7 +93,7 @@ export default function Profile() {
     return res.json(); // { url, public_id }
   }
 
-  // New handler: uploads to Cloudinary via backend and sets the returned URL for preview
+  // New handler: uploads to Cloudinary via backend and sets the returned URL for preview + notifies header
   const handlePhotoChange = async (e) => {
     const file = e.target.files?.[0];
     if (!file) return;
@@ -103,7 +102,18 @@ export default function Profile() {
       setUploading(true);
       const data = await uploadProfilePic(file);
       if (data?.url) {
-        setProfileData({ ...profileData, photo: data.url });
+        const newProfile = { ...profileData, photo: data.url };
+        setProfileData(newProfile);
+
+        // Update localStorage so header can read it
+        try {
+          // If backend saved user and returned user object on save, we will store that later.
+          // For now we store the profile preview data so header shows preview immediately.
+          localStorage.setItem('milanProfile', JSON.stringify(newProfile));
+        } catch (err) { console.warn('localStorage set failed', err); }
+
+        // Dispatch event to update header UI instantly
+        window.dispatchEvent(new CustomEvent('milan:user-updated', { detail: newProfile }));
       } else {
         console.warn('Upload returned unexpected data:', data);
         alert('Upload succeeded but no URL returned. Check server logs.');
@@ -121,7 +131,7 @@ export default function Profile() {
   };
 
   const toggleItem = (field, item) => {
-    const current = profileData[field];
+    const current = profileData[field] || [];
     const updated = current.includes(item)
       ? current.filter(i => i !== item)
       : [...current, item];
@@ -131,20 +141,42 @@ export default function Profile() {
   const handleSliderChange = (category, value) => {
     setProfileData({
       ...profileData,
-      music: { ...profileData.music, [category]: value }
+      music: { ...profileData.music, [category]: Number(value) }
     });
   };
 
-  const handleSaveProfile = () => {
+  // SAVE: calls backend to persist profile (requires JWT in localStorage.token)
+  const handleSaveProfile = async () => {
     try {
-      // Save to localStorage
-      localStorage.setItem('milanProfile', JSON.stringify(profileData));
-      console.log('Profile Data Saved:', profileData);
-      
-      // Show success message
+      const token = localStorage.getItem('token') || '';
+      const res = await fetch('https://milan-j9u9.onrender.com/api/user/profile', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          ...(token ? { Authorization: 'Bearer ' + token } : {})
+        },
+        body: JSON.stringify(profileData)
+      });
+
+      if (!res.ok) {
+        const text = await res.text();
+        console.error('Save failed:', text);
+        alert('Profile save failed: ' + (text || res.status));
+        return;
+      }
+
+      const json = await res.json();
+      // if backend returns updated user, store it
+      if (json.user) {
+        localStorage.setItem('milanUser', JSON.stringify(json.user));
+        window.dispatchEvent(new CustomEvent('milan:user-updated', { detail: json.user }));
+      } else {
+        // fallback: store profile preview
+        localStorage.setItem('milanProfile', JSON.stringify(profileData));
+        window.dispatchEvent(new CustomEvent('milan:user-updated', { detail: profileData }));
+      }
+
       alert('Profile saved successfully! ✅');
-      
-      // Redirect to connect page
       router.push('/connect');
     } catch (error) {
       console.error('Error saving profile:', error);
@@ -203,7 +235,7 @@ export default function Profile() {
           </div>
         </div>
 
-        {/* Tabs */}
+        {/* Tabs and other UI (same as before) */}
         <div className="flex overflow-x-auto gap-2 mb-6 pb-2">
           {['basic', 'vibe', 'personality', 'preferences'].map((tab) => (
             <button
@@ -223,11 +255,9 @@ export default function Profile() {
           ))}
         </div>
 
-        {/* Basic Info Tab */}
         {activeTab === 'basic' && (
           <div className="bg-white rounded-2xl shadow-xl p-6 space-y-4">
             <h2 className="text-2xl font-bold text-gray-800 mb-4">Basic Information</h2>
-            
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-2">Name</label>
               <input
@@ -274,12 +304,10 @@ export default function Profile() {
           </div>
         )}
 
-        {/* Vibe Check Tab */}
         {activeTab === 'vibe' && (
           <div className="bg-white rounded-2xl shadow-xl p-6">
             <h2 className="text-2xl font-bold text-gray-800 mb-2">The Vibe Check 🌟</h2>
             <p className="text-gray-600 mb-6">Aaj ka mood kaisa hai? Select karo!</p>
-            
             <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
               {vibes.map((vibe) => (
                 <button
@@ -306,12 +334,10 @@ export default function Profile() {
               </div>
             )}
 
-            {/* Music Taste Slider */}
             <div className="mt-8">
               <h3 className="text-xl font-bold text-gray-800 mb-4 flex items-center gap-2">
                 <Music className="text-pink-500" /> Music Taste Meter
               </h3>
-              
               {[
                 { key: 'bollywood', label: '🎬 Bollywood' },
                 { key: 'indie', label: '🎸 Indie/Pop' },
@@ -334,7 +360,6 @@ export default function Profile() {
               ))}
             </div>
 
-            {/* Chai vs Coffee */}
             <div className="mt-8">
               <h3 className="text-xl font-bold text-gray-800 mb-4 flex items-center gap-2">
                 <Coffee className="text-pink-500" /> Chai ya Coffee?
@@ -361,7 +386,6 @@ export default function Profile() {
           </div>
         )}
 
-        {/* Personality Tab */}
         {activeTab === 'personality' && (
           <div className="bg-white rounded-2xl shadow-xl p-6 space-y-6">
             <div>
@@ -446,7 +470,6 @@ export default function Profile() {
           </div>
         )}
 
-        {/* Preferences Tab */}
         {activeTab === 'preferences' && (
           <div className="bg-white rounded-2xl shadow-xl p-6 space-y-6">
             <div>
