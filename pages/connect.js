@@ -25,6 +25,9 @@ export default function ConnectPage() {
   );
   const [showWelcome, setShowWelcome] = useState(false);
   const [userName, setUserName] = useState("");
+  // START: ADDED STATE FOR LOGOUT MODAL
+  const [showLogoutModal, setShowLogoutModal] = useState(false);
+  // END: ADDED STATE FOR LOGOUT MODAL
 
   const fwRef = useRef({ raf: null, burst: () => {}, cleanup: null });
   const socketRef = useRef(null);
@@ -410,24 +413,27 @@ export default function ConnectPage() {
     setStatusMessage("❤️ जहां दिल मिले, वहीं होती है शुरुआत Milan की…");
   }
 
+  // START: UPDATED LOGOUT FUNCTIONS
   const handleLogout = () => {
-  const confirmed = window.confirm(
-    "Are you sure you want to logout?\nWe’ll miss your presence here on Milan ❤️"
-  );
+    // Show the custom modal instead of the default window.confirm
+    setShowLogoutModal(true);
+  };
 
-  if (!confirmed) {
-    // User clicked "Stay Logged In"
-    return;
-  }
+  const confirmLogout = () => {
+    setShowLogoutModal(false); // Close modal
+    try {
+      localStorage.clear();
+      sessionStorage.clear();
+    } catch {}
 
-  // User clicked "Logout"
-  try {
-    localStorage.clear();
-    sessionStorage.clear();
-  } catch {}
+    window.location.href = "/"; // Redirect to homepage
+  };
 
-  window.location.href = "/";
-};
+  const handleStayLoggedIn = () => {
+    setShowLogoutModal(false); // Close modal
+    // No further action, user stays on the page
+  };
+  // END: UPDATED LOGOUT FUNCTIONS
 
 
   const handleProfileClick = () => {
@@ -495,13 +501,49 @@ export default function ConnectPage() {
         </div>
       )}
 
+      {/* Logout Confirmation Modal - ADDED */}
+      {showLogoutModal && (
+        <div className="logout-modal-overlay" role="dialog" aria-modal="true">
+          <div className="logout-modal">
+            <div className="modal-content">
+              <div className="heart-icon-large">💔</div>
+              <h2 className="modal-heading-logout">
+                Going so soon?
+              </h2>
+              
+              <p className="modal-description-logout">
+                Are you sure you want to logout?
+                <br />
+                We’ll miss your presence here on Milan ❤️
+              </p>
+
+              <div className="modal-actions">
+                <button 
+                  className="btn-stay-logged-in" 
+                  onClick={handleStayLoggedIn}
+                >
+                  Stay Logged In
+                </button>
+                <button 
+                  className="btn-logout-confirm" 
+                  onClick={confirmLogout}
+                >
+                  Logout
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+      {/* End Logout Confirmation Modal */}
+
       {/* Main Connect Page */}
       {!showWelcome && (
         <>
           {/* Logout Button */}
           <button 
             className="logout-btn"
-            onClick={handleLogout}
+            onClick={handleLogout} // Calls the function to show modal
             aria-label="Logout"
             title="Logout"
           >
@@ -1689,6 +1731,108 @@ export default function ConnectPage() {
           letter-spacing: 0.3px;
         }
 
+        /* Logout Modal Styles - ADDED */
+        .logout-modal-overlay {
+          position: fixed;
+          inset: 0;
+          z-index: 9999;
+          display: grid;
+          place-items: center;
+          background: rgba(8, 6, 12, 0.95);
+          backdrop-filter: blur(16px);
+          animation: fadeIn 0.3s ease;
+        }
+
+        .logout-modal {
+          width: min(450px, calc(100% - 32px));
+          background: linear-gradient(145deg, 
+            rgba(255, 110, 167, 0.2) 0%, 
+            rgba(255, 159, 176, 0.15) 50%,
+            rgba(255, 110, 167, 0.2) 100%);
+          border: 3px solid rgba(255, 110, 167, 0.4);
+          border-radius: 32px;
+          padding: 40px 32px;
+          text-align: center;
+          box-shadow: 
+            0 40px 100px rgba(255, 110, 167, 0.4),
+            0 0 80px rgba(255, 110, 167, 0.25),
+            inset 0 2px 2px rgba(255, 255, 255, 0.2);
+          position: relative;
+          overflow: hidden;
+          animation: modalSlideUp 0.4s cubic-bezier(0.34, 1.56, 0.64, 1);
+        }
+
+        .heart-icon-large {
+          font-size: 60px;
+          margin-bottom: 10px;
+          animation: heartBeatLogout 1.5s ease-in-out infinite;
+          filter: drop-shadow(0 4px 20px rgba(255, 110, 167, 0.8));
+        }
+
+        @keyframes heartBeatLogout {
+          0%, 100% { transform: scale(1); }
+          10%, 30% { transform: scale(1.1); }
+          20%, 40% { transform: scale(1.05); }
+        }
+
+        .modal-heading-logout {
+          margin: 0 0 10px 0;
+          font-size: 28px;
+          font-weight: 900;
+          background: linear-gradient(135deg, #fff 0%, #ffc4e1 50%, #ff9fb0 100%);
+          -webkit-background-clip: text;
+          background-clip: text;
+          color: transparent;
+          text-shadow: 0 4px 20px rgba(255, 110, 167, 0.3);
+        }
+
+        .modal-description-logout {
+          margin: 0 0 30px 0;
+          font-size: 16px;
+          line-height: 1.6;
+          color: #ffdfe8;
+          font-weight: 600;
+        }
+
+        .modal-actions {
+          display: flex;
+          justify-content: center;
+          gap: 15px;
+        }
+
+        .btn-stay-logged-in, .btn-logout-confirm {
+          padding: 14px 28px;
+          border-radius: 18px;
+          font-size: 16px;
+          font-weight: 700;
+          cursor: pointer;
+          border: none;
+          transition: all 0.3s ease;
+          letter-spacing: 0.5px;
+          box-shadow: 0 8px 20px rgba(0, 0, 0, 0.2);
+        }
+
+        .btn-stay-logged-in {
+          background: linear-gradient(135deg, #ffd700 0%, #ffed4e 100%);
+          color: #1a1a1a;
+        }
+
+        .btn-stay-logged-in:hover {
+          transform: translateY(-3px) scale(1.05);
+          box-shadow: 0 12px 30px rgba(255, 215, 0, 0.5);
+        }
+
+        .btn-logout-confirm {
+          background: linear-gradient(135deg, #ff6ea7 0%, #ff4d6d 100%);
+          color: #fff;
+        }
+
+        .btn-logout-confirm:hover {
+          transform: translateY(-3px) scale(1.05);
+          box-shadow: 0 12px 30px rgba(255, 79, 160, 0.5);
+        }
+        /* End Logout Modal Styles */
+
         /* Mobile Responsive Styles */
         @media (max-width: 760px) {
           .profile-icon-wrapper {
@@ -1856,6 +2000,30 @@ export default function ConnectPage() {
             padding: 12px 28px;
             font-size: 15px;
           }
+
+          /* Logout Modal Responsive */
+          .logout-modal {
+            padding: 30px 20px;
+            border-radius: 28px;
+          }
+          .heart-icon-large {
+            font-size: 50px;
+          }
+          .modal-heading-logout {
+            font-size: 24px;
+          }
+          .modal-description-logout {
+            font-size: 14px;
+            margin-bottom: 25px;
+          }
+          .modal-actions {
+            flex-direction: column;
+            gap: 10px;
+          }
+          .btn-stay-logged-in, .btn-logout-confirm {
+            padding: 12px;
+            width: 100%;
+          }
         }
 
         @media (max-width: 480px) {
@@ -1919,6 +2087,7 @@ export default function ConnectPage() {
           }
 
           .sparkle-line {
+            color: rgba(255, 110, 167, 0.5);
             font-size: 16px;
             letter-spacing: 3px;
           }
