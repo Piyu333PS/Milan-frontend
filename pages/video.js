@@ -788,7 +788,7 @@ export default function VideoPage() {
           modal.style.display = "flex";
           showToast("Dance Time! 💃");
           
-          // Start countdown
+          if (danceInterval) clearInterval(danceInterval);
           let remaining = Math.floor((data.duration || 15000) / 1000);
           const danceInterval = setInterval(() => {
             remaining--;
@@ -1029,8 +1029,9 @@ socket.on("danceDareEnd", (data) => {
           };
         }
         
-        // Removed quitBtn and newPartnerBtn handlers from here, now managed by modal functions
-        
+        // Removed quitBtn handler, using handleConfirmDisconnect instead
+        // Removed newPartnerBtn handler from here, it's used in rating overlay
+
       }, 800);
 
       function submitTwoOptionAnswer(choice) {
@@ -1075,11 +1076,19 @@ socket.on("danceDareEnd", (data) => {
   // NEW FUNCTIONS FOR DISCONNECT MODAL
   // ------------------------------------------
   const handleConfirmDisconnect = () => {
+    // 1. Close confirmation modal
     setShowDisconnectConfirm(false);
-    // Proceed with disconnection (calls showRating() internally)
+    
+    // 2. Signal disconnection to partner
     try { safeEmit("partnerLeft"); } catch (e) { log("emit partnerLeft err", e); }
+    
+    // 3. Clean up PC resources
     cleanupPeerConnection();
+    
+    // 4. Show rating modal
     showRating();
+    
+    // Note: Redirection happens via the 'Search New Partner' button on the Rating Overlay.
   };
   
   const handleKeepChatting = () => {
@@ -1625,6 +1634,9 @@ socket.on("danceDareEnd", (data) => {
           .act-item-icon{font-size:26px;width:44px;height:44px}
           .sheet-header{padding:14px 16px}
           .sheet-header h3{font-size:18px}
+          .disconnect-confirm-modal { padding: 2rem 1.5rem; max-width: 340px; }
+          .modal-actions { flex-direction: column; }
+          .btn-keep, .btn-end { padding: 0.8rem; }
         }
 
         .floating-emoji{position:absolute;font-size:32px;animation:float-up 1.4s ease-out forwards;pointer-events:none}
