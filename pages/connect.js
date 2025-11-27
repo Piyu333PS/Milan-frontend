@@ -5,8 +5,8 @@ import Head from "next/head";
 import io from "socket.io-client";
 
 const ENABLE_DIWALI = false;
-const HUMAN_SEARCH_TIMEOUT = 12000; // 12 seconds (Original duration)
-const VIDEO_EXTENDED_TIMEOUT = 20000; // New timeout for showing extended message (20 seconds)
+const HUMAN_SEARCH_TIMEOUT = 12000; // 12 seconds
+const VIDEO_EXTENDED_TIMEOUT = 20000; // 20 seconds for the cute message
 
 export default function ConnectPage() {
   const [profile, setProfile] = useState({
@@ -38,7 +38,7 @@ export default function ConnectPage() {
   const partnerRef = useRef(null);
   const connectingRef = useRef(false);
   const searchTimerRef = useRef(null);
-  const extendedTimerRef = useRef(null); // New ref for extended timer
+  const extendedTimerRef = useRef(null); // Ref for the 20s video message
   const searchTypeRef = useRef(null);
 
   const backendUrl = useMemo(
@@ -326,21 +326,23 @@ export default function ConnectPage() {
             // The search continues indefinitely until a partner is found or the user stops it manually.
         }, VIDEO_EXTENDED_TIMEOUT);
 
-        // We use the original search timeout (12s) to show an intermediate message, 
-        // and then the extended timer (20s) to show the final message. 
-        // The previous logic of ending search after HUMAN_SEARCH_TIMEOUT (12s) for video is removed.
-    }
-    
-    // Set a timer for TEXT chat AI fallback or the initial timeout message
-    searchTimerRef.current = setTimeout(() => {
-        console.log(`${HUMAN_SEARCH_TIMEOUT / 1000} seconds elapsed - initial check`);
-        
-        if (type === "text") {
+        // Set a timer for the initial video chat message update (12s)
+        searchTimerRef.current = setTimeout(() => {
+            console.log(`${HUMAN_SEARCH_TIMEOUT / 1000} seconds elapsed - initial video check`);
+            // VIDEO CHAT: Update status message after initial 12 seconds but keep searching.
+            setStatusMessage("Hold on, real partners are taking a moment to connect. Searching continues... ⏳");
+        }, HUMAN_SEARCH_TIMEOUT);
+
+    } else {
+        // TEXT CHAT: Set a single timer for AI fallback (12s)
+        searchTimerRef.current = setTimeout(() => {
+            console.log("12 seconds elapsed - text chat AI fallback");
             // TEXT CHAT: Fallback to AI
             setStatusMessage("💔 No human partner found. Connecting you with AI...");
             
             if (socketRef.current && socketRef.current.connected) {
                 try {
+                    // Explicitly disconnect search socket before connecting to AI
                     socketRef.current.emit("stopLookingForPartner");
                     socketRef.current.disconnect();
                 } catch {}
@@ -349,12 +351,8 @@ export default function ConnectPage() {
             setTimeout(() => {
                 connectToAI(type);
             }, 1000);
-        } else {
-            // VIDEO CHAT: Update status message after initial 12 seconds but keep searching.
-            // The extendedTimerRef will handle the second message update.
-            setStatusMessage("Hold on, real partners are taking a moment to connect. Searching continues... ⏳");
-        }
-    }, HUMAN_SEARCH_TIMEOUT);
+        }, HUMAN_SEARCH_TIMEOUT);
+    }
     // END: MODIFIED LOGIC FOR EXTENDED SEARCH
 
 
@@ -761,7 +759,7 @@ export default function ConnectPage() {
                         <div className="orbit-heart heart-6">💞</div>
                       </div>
                       
-                      <svg className="center-heart" viewBox="0 0 32 29" aria-hidden>
+                      <svg className="center-heart" viewBox="0 0 24 24" aria-hidden>
                         <defs>
                           <linearGradient id="heartGrad" x1="0" x2="1" y1="0" y2="1">
                             <stop offset="0%" stopColor="#ff6ea7" />
@@ -771,10 +769,11 @@ export default function ConnectPage() {
                         </defs>
                         <path 
                           fill="url(#heartGrad)" 
-                          d="M23.6,0c-2.9,0-4.6,1.8-5.6,3.1C16.9,1.8,15.2,0,12.3,0C8.1,0,5.3,3,5.3,6.7c0,7.1,11.7,13.9,11.7,13.9s11.7-6.8,11.7-13.9C28.7,3,25.9,0,23.6,0z"
+                          d="M12 21.35l-1.45-1.32C5.4 15.36 2 12.28 2 8.5 2 5.42 4.42 3 7.5 3c1.74 0 3.41.81 4.5 2.19C13.09 3.81 14.76 3 16.5 3 19.58 3 22 5.42 22 8.5c0 3.78-3.4 6.86-8.55 11.54L12 21.35z"
                           className="heart-pulse"
                         />
                       </svg>
+
                     </div>
 
                     <p className="modal-description">
@@ -783,7 +782,7 @@ export default function ConnectPage() {
 
                     <div className="status-text">{statusMessage}</div>
 
-                    <button className="stop-search-btn" onClick={() => stopSearch()}>
+                    <button className="stop-search-btn" onClick={() => stopSearch(true)}>
                       <span className="btn-icon">✕</span>
                       <span className="btn-text">Stop Searching</span>
                     </button>
