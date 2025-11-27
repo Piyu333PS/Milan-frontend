@@ -1,5 +1,5 @@
 // pages/chat.js
-// ✅ COMPLETE FILE - Token parsing + Friend Request System
+// ✅ COMPLETE FILE - Token parsing + Friend Request System + AUTH GUARD
 
 import { useEffect, useRef, useState } from "react";
 import Head from "next/head";
@@ -95,6 +95,10 @@ export default function ChatPage() {
   const [currentUserId, setCurrentUserId] = useState(null);
   const [currentUsername, setCurrentUsername] = useState("");
   const [requestSending, setRequestSending] = useState(false);
+  
+  // START: AUTH GUARD STATE
+  const [isAuthenticated, setIsAuthenticated] = useState(false);
+  // END: AUTH GUARD STATE
 
   const socketRef = useRef(null);
   const msgRef = useRef(null);
@@ -133,39 +137,47 @@ export default function ChatPage() {
     setTimeout(() => setFloatingHearts([]), 3000);
   };
 
+  // START: AUTHENTICATION GUARD & INITIAL SETUP
   useEffect(() => {
+    if (typeof window === "undefined") return;
+
+    const token = localStorage.getItem("token");
+    if (!token) {
+      // If no token, redirect to homepage (login/register page)
+      window.location.href = "/";
+      return;
+    }
+    
+    // If token exists, set auth status and proceed with setup
+    setIsAuthenticated(true);
+    
     let localName = "";
     let localUserId = "";
     
     try {
       localName = localStorage.getItem("milan_name") || "";
-      const token = localStorage.getItem("token");
       
-      console.log("🔐 Token check:", token ? "Found" : "Not found");
+      console.log("🔐 Token check: Found");
       
-      if (token) {
-        try {
-          const parts = token.split('.');
-          if (parts.length === 3) {
-            const payload = JSON.parse(atob(parts[1]));
-            console.log("📦 Token payload:", payload);
-            
-            localUserId = payload.id || payload.userId || payload._id || payload.sub || "";
-            
-            if (localUserId) {
-              setCurrentUserId(localUserId);
-              console.log("✅ Successfully extracted userId:", localUserId);
-            } else {
-              console.error("❌ No ID field found in token payload:", Object.keys(payload));
-            }
+      try {
+        const parts = token.split('.');
+        if (parts.length === 3) {
+          const payload = JSON.parse(atob(parts[1]));
+          console.log("📦 Token payload:", payload);
+          
+          localUserId = payload.id || payload.userId || payload._id || payload.sub || "";
+          
+          if (localUserId) {
+            setCurrentUserId(localUserId);
+            console.log("✅ Successfully extracted userId:", localUserId);
           } else {
-            console.error("❌ Invalid token format - expected 3 parts, got:", parts.length);
+            console.error("❌ No ID field found in token payload:", Object.keys(payload));
           }
-        } catch (e) {
-          console.error("❌ Token parse error:", e);
+        } else {
+          console.error("❌ Invalid token format - expected 3 parts, got:", parts.length);
         }
-      } else {
-        console.warn("⚠️ No token in localStorage");
+      } catch (e) {
+        console.error("❌ Token parse error:", e);
       }
       
       setCurrentUsername(localName || "You");
@@ -367,6 +379,7 @@ export default function ChatPage() {
       } catch {}
     };
   }, []);
+  // END: AUTHENTICATION GUARD & INITIAL SETUP
 
   const sendText = () => {
     const val = (msgRef.current?.value || "").trim();
@@ -611,6 +624,36 @@ export default function ChatPage() {
     document.addEventListener("click", handler);
     return () => document.removeEventListener("click", handler);
   }, []);
+
+  // If user is not authenticated yet, return null or a simple loader to prevent UI flicker
+  if (!isAuthenticated) {
+    return (
+        <div style={{ 
+            background: '#08060c', 
+            minHeight: '100vh', 
+            display: 'flex', 
+            alignItems: 'center', 
+            justifyContent: 'center',
+            color: '#fff',
+            fontSize: '24px',
+            fontFamily: 'Poppins, sans-serif'
+        }}>
+            <div className="loading-spinner-heart">💖</div>
+            <style jsx global>{`
+                .loading-spinner-heart {
+                    font-size: 3rem;
+                    animation: pulse 1.5s infinite;
+                    margin-right: 10px;
+                }
+                @keyframes pulse {
+                    0%, 100% { transform: scale(1); }
+                    50% { transform: scale(1.2); }
+                }
+            `}</style>
+            Checking Authentication...
+        </div>
+    );
+  }
 
   return (
     <>
