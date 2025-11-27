@@ -95,37 +95,26 @@ export default function VideoPage() {
       } catch (e) { log("safeEmit err", e); }
     };
 
-    // START: IMPROVED DRAIN CANDIDATE LOGIC
     const drainPendingCandidates = async () => {
       if (draining) return;
       draining = true;
       try {
         if (!pendingCandidates || pendingCandidates.length === 0) return;
-        
-        // Ensure remoteDescription is set before draining. Drain only when PC is ready.
-        if (!pc || !pc.remoteDescription || (pc.remoteDescription.type !== 'offer' && pc.remoteDescription.type !== 'answer')) {
-            log("[video] drain: PC not ready, delaying candidates.", pendingCandidates.length);
-            draining = false;
-            setTimeout(() => drainPendingCandidates(), 500); // Re-attempt later
-            return;
-        }
-
         log("[video] draining", pendingCandidates.length, "pending candidates");
         const copy = pendingCandidates.slice();
         pendingCandidates.length = 0;
-        
         for (const cand of copy) {
           try {
+            if (!pc || !pc.remoteDescription || !pc.remoteDescription.type) {
+              log("[video] drain: remoteDescription not ready yet, re-queueing candidate", cand);
+              pendingCandidates.push(cand);
+              continue;
+            }
             await pc.addIceCandidate(new RTCIceCandidate(cand));
             log("[video] drained candidate success");
           } catch (err) {
-            // If addIceCandidate fails due to transient error, re-queue (but log is crucial)
-            if (err.name === 'OperationError' || err.name === 'InvalidStateError') {
-              console.warn("[video] drained candidate failed (re-queueing)", err, cand);
-              pendingCandidates.push(cand);
-            } else {
-              console.error("[video] drained candidate failed (dropping)", err, cand);
-            }
+            console.warn("[video] drained candidate failed", err, cand);
+            pendingCandidates.push(cand);
           }
         }
       } catch (err) {
@@ -137,7 +126,6 @@ export default function VideoPage() {
         }
       }
     };
-    // END: IMPROVED DRAIN CANDIDATE LOGIC
 
     function cleanupPeerConnection() {
       try {
@@ -156,6 +144,8 @@ export default function VideoPage() {
       try { var rv = get("remoteVideo"); if (rv) rv.srcObject = null; } catch (e) {}
       pendingCandidates.length = 0;
       stopTimer(true);
+      // Ensure rating is shown after cleanup
+      showRating(); 
     }
 
     var cleanup = function (opts) {
@@ -170,7 +160,7 @@ export default function VideoPage() {
         }
       } catch (e) { log("socket cleanup err", e); }
 
-      cleanupPeerConnection();
+      cleanupPeerConnection(); // This now calls showRating
 
       try {
         if (localStream) {
@@ -181,7 +171,8 @@ export default function VideoPage() {
       localStream = null;
       cameraTrackSaved = null;
       setTimeout(() => { isCleaning = false; }, 300);
-      if (opts.goToConnect) window.location.href = "/connect";
+      // Removed direct redirection logic from general cleanup, except if room not found
+      if (opts.goToConnect) window.location.href = "/connect"; 
     };
 
     // Timer helpers
@@ -277,7 +268,7 @@ export default function VideoPage() {
         log("creating RTCPeerConnection");
         pc = new RTCPeerConnection(ICE_CONFIG);
 
-        // Add local tracks to senders using addTransceiver
+        // Add local tracks to senders using addTransceiver (for proper enable/disable via senders)
         try { pc.addTransceiver(localStream.getAudioTracks()[0], { direction: "sendrecv" }); } catch (e) { log("addTransceiver audio failed", e); }
         try { pc.addTransceiver(localStream.getVideoTracks()[0], { direction: "sendrecv" }); } catch (e) { log("addTransceiver video failed", e); }
 
@@ -314,8 +305,7 @@ export default function VideoPage() {
           log("pc.connectionState:", pc.connectionState);
           if (pc.connectionState === "disconnected" || pc.connectionState === "failed") {
             showToast("Partner disconnected");
-            showRating();
-            cleanupPeerConnection();
+            cleanupPeerConnection(); // Triggers showRating inside
           }
         };
 
@@ -472,8 +462,8 @@ export default function VideoPage() {
       });
 
       socket.on("waitingForPeer", (d) => { log("waitingForPeer", d); showToast("Waiting for partner..."); });
-      socket.on("partnerDisconnected", () => { log("partnerDisconnected"); showToast("Partner disconnected"); showRating(); cleanupPeerConnection(); });
-      socket.on("partnerLeft", () => { log("partnerLeft"); showToast("Partner left"); showRating(); cleanupPeerConnection(); });
+      socket.on("partnerDisconnected", () => { log("partnerDisconnected"); showToast("Partner disconnected"); cleanupPeerConnection(); }); // showRating moved inside cleanupPC
+      socket.on("partnerLeft", () => { log("partnerLeft"); showToast("Partner left"); cleanupPeerConnection(); }); // showRating moved inside cleanupPC
       socket.on("errorMessage", (e) => { console.warn("server errorMessage:", e); showToast(e && e.message ? e.message : "Server error"); });
 
       // ========== ACTIVITIES SIGNALS (Omitted for brevity, kept consistent with previous versions) ==========
@@ -1082,11 +1072,8 @@ socket.on("danceDareEnd", (data) => {
     // 2. Signal disconnection to partner
     try { safeEmit("partnerLeft"); } catch (e) { log("emit partnerLeft err", e); }
     
-    // 3. Clean up PC resources
-    cleanupPeerConnection();
-    
-    // 4. Show rating modal
-    showRating();
+    // 3. Clean up PC resources and show rating modal (showRating is now inside cleanupPeerConnection)
+    cleanupPeerConnection(); 
     
     // Note: Redirection happens via the 'Search New Partner' button on the Rating Overlay.
   };
