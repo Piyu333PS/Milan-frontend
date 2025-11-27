@@ -16,7 +16,7 @@ export default function ConnectPage() {
     age: "",
     city: "",
     language: "",
-    bio: "",
+    outerBio: "", // Using outerBio for consistency, though 'bio' is used in old profile setup
   });
   const [isSearching, setIsSearching] = useState(false);
   const [showLoader, setShowLoader] = useState(false);
@@ -28,6 +28,9 @@ export default function ConnectPage() {
   // START: ADDED STATE FOR LOGOUT MODAL
   const [showLogoutModal, setShowLogoutModal] = useState(false);
   // END: ADDED STATE FOR LOGOUT MODAL
+  
+  // NEW STATE: To prevent content flicker during auth check
+  const [isAuthenticated, setIsAuthenticated] = useState(false);
 
   const fwRef = useRef({ raf: null, burst: () => {}, cleanup: null });
   const socketRef = useRef(null);
@@ -43,9 +46,21 @@ export default function ConnectPage() {
     []
   );
 
+  // START: AUTHENTICATION GUARD LOGIC (First useEffect)
   useEffect(() => {
+    if (typeof window === "undefined") return;
+
+    const token = localStorage.getItem("token");
+    if (!token) {
+      // If no token, redirect to homepage (login/register page)
+      window.location.href = "/";
+      return;
+    }
+    
+    // If token exists, proceed with loading user profile and setting auth status
+    setIsAuthenticated(true);
+
     try {
-      if (typeof window === "undefined") return;
       const saved = localStorage.getItem("milan_profile");
       if (saved) {
         const p = JSON.parse(saved);
@@ -62,12 +77,15 @@ export default function ConnectPage() {
           contact: localStorage.getItem("registered_contact") || "",
         }));
       }
-    } catch {}
+    } catch (e) {
+      console.error("Error loading profile:", e);
+    }
   }, []);
+  // END: AUTHENTICATION GUARD LOGIC
 
   // Welcome Popup Logic - Show immediately on page load if new user
   useEffect(() => {
-    if (typeof window === "undefined") return;
+    if (typeof window === "undefined" || !isAuthenticated) return;
     
     // Check if user just registered
     const isNewUser = sessionStorage.getItem("newUser");
@@ -83,15 +101,15 @@ export default function ConnectPage() {
       // Clear the flag so popup doesn't show again
       sessionStorage.removeItem("newUser");
     }
-  }, []);
+  }, [isAuthenticated]); // Rerun when isAuthenticated changes
 
   const handleStartJourney = () => {
     setShowWelcome(false);
   };
 
   useEffect(() => {
-    // Only start canvas animations if welcome is not showing
-    if (showWelcome) return;
+    // Only start canvas animations if welcome is not showing AND authenticated
+    if (showWelcome || !isAuthenticated) return;
     
     const cvs = document.getElementById("heartsCanvas");
     if (!cvs) return;
@@ -160,15 +178,15 @@ export default function ConnectPage() {
       cancelAnimationFrame(rafId);
       window.removeEventListener("resize", resize);
     };
-  }, [showWelcome]);
+  }, [showWelcome, isAuthenticated]); // Added isAuthenticated dependency
 
   useEffect(() => {
-    if (ENABLE_DIWALI && !showWelcome) {
+    if (ENABLE_DIWALI && !showWelcome && isAuthenticated) {
       startFireworks();
       return stopFireworks;
     }
     return () => {};
-  }, [showWelcome]);
+  }, [showWelcome, isAuthenticated]); // Added isAuthenticated dependency
 
   function startFireworks() {
     const cvs = document.getElementById("fxCanvas");
@@ -413,7 +431,7 @@ export default function ConnectPage() {
     setStatusMessage("❤️ जहां दिल मिले, वहीं होती है शुरुआत Milan की…");
   }
 
-  // START: UPDATED LOGOUT FUNCTIONS
+  // START: LOGOUT FUNCTIONS
   const handleLogout = () => {
     // Show the custom modal instead of the default window.confirm
     setShowLogoutModal(true);
@@ -433,12 +451,29 @@ export default function ConnectPage() {
     setShowLogoutModal(false); // Close modal
     // No further action, user stays on the page
   };
-  // END: UPDATED LOGOUT FUNCTIONS
+  // END: LOGOUT FUNCTIONS
 
 
   const handleProfileClick = () => {
     window.location.href = "/profile";
   };
+
+  // If user is not authenticated yet, return null or a simple loader to prevent UI flicker
+  if (!isAuthenticated) {
+    return (
+        <div style={{ 
+            background: '#08060c', 
+            minHeight: '100vh', 
+            display: 'flex', 
+            alignItems: 'center', 
+            justifyContent: 'center',
+            color: '#fff',
+            fontSize: '24px'
+        }}>
+            Loading Milan... ❤️
+        </div>
+    );
+  }
 
   return (
     <>
