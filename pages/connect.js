@@ -26,11 +26,10 @@ export default function ConnectPage() {
   );
   const [showWelcome, setShowWelcome] = useState(false);
   const [userName, setUserName] = useState("");
-  // START: ADDED STATE FOR LOGOUT MODAL
+  // LOGOUT MODAL STATE
   const [showLogoutModal, setShowLogoutModal] = useState(false);
-  // END: ADDED STATE FOR LOGOUT MODAL
   
-  // NEW STATE: To prevent content flicker during auth check
+  // AUTH STATE
   const [isAuthenticated, setIsAuthenticated] = useState(false);
 
   const fwRef = useRef({ raf: null, burst: () => {}, cleanup: null });
@@ -48,18 +47,16 @@ export default function ConnectPage() {
     []
   );
 
-  // START: AUTHENTICATION GUARD LOGIC (First useEffect)
+  // 1. AUTHENTICATION GUARD & PROFILE LOAD
   useEffect(() => {
     if (typeof window === "undefined") return;
 
     const token = localStorage.getItem("token");
     if (!token) {
-      // If no token, redirect to homepage (login/register page)
       window.location.href = "/";
       return;
     }
     
-    // If token exists, proceed with loading user profile and setting auth status
     setIsAuthenticated(true);
 
     try {
@@ -83,34 +80,28 @@ export default function ConnectPage() {
       console.error("Error loading profile:", e);
     }
   }, []);
-  // END: AUTHENTICATION GUARD LOGIC
 
-  // Welcome Popup Logic - Show immediately on page load if new user
+  // 2. WELCOME POPUP
   useEffect(() => {
     if (typeof window === "undefined" || !isAuthenticated) return;
     
-    // Check if user just registered
     const isNewUser = sessionStorage.getItem("newUser");
     if (isNewUser === "true") {
       const name = sessionStorage.getItem("userName") || 
                    localStorage.getItem("registered_name") || 
                    "Friend";
       setUserName(name);
-      
-      // Show welcome popup immediately
       setShowWelcome(true);
-      
-      // Clear the flag so popup doesn't show again
       sessionStorage.removeItem("newUser");
     }
-  }, [isAuthenticated]); // Rerun when isAuthenticated changes
+  }, [isAuthenticated]);
 
   const handleStartJourney = () => {
     setShowWelcome(false);
   };
 
+  // 3. HEARTS CANVAS ANIMATION
   useEffect(() => {
-    // Only start canvas animations if welcome is not showing AND authenticated
     if (showWelcome || !isAuthenticated) return;
     
     const cvs = document.getElementById("heartsCanvas");
@@ -180,15 +171,16 @@ export default function ConnectPage() {
       cancelAnimationFrame(rafId);
       window.removeEventListener("resize", resize);
     };
-  }, [showWelcome, isAuthenticated]); // Added isAuthenticated dependency
+  }, [showWelcome, isAuthenticated]);
 
+  // 4. FIREWORKS (Conditional)
   useEffect(() => {
     if (ENABLE_DIWALI && !showWelcome && isAuthenticated) {
       startFireworks();
       return stopFireworks;
     }
     return () => {};
-  }, [showWelcome, isAuthenticated]); // Added isAuthenticated dependency
+  }, [showWelcome, isAuthenticated]);
 
   function startFireworks() {
     const cvs = document.getElementById("fxCanvas");
@@ -268,8 +260,12 @@ export default function ConnectPage() {
       cancelAnimationFrame(rafId);
       window.removeEventListener("resize", resize);
     };
-  }, [showWelcome, isAuthenticated]); // Added isAuthenticated dependency
+  }
+  function stopFireworks() {
+    if (fwRef.current.cleanup) fwRef.current.cleanup();
+  }
 
+  // 5. AI CONNECTION FUNCTION
   function connectToAI(type) {
     sessionStorage.setItem("connectingToAI", "true");
     sessionStorage.setItem("aiChatType", type);
@@ -296,6 +292,7 @@ export default function ConnectPage() {
     }, 500);
   }
 
+  // 6. START SEARCH FUNCTION (Core Logic)
   function startSearch(type) {
     if (isSearching || connectingRef.current) return;
     connectingRef.current = true;
@@ -308,7 +305,7 @@ export default function ConnectPage() {
         : "💬 Searching for a human partner..."
     );
 
-    // START: MODIFIED LOGIC FOR EXTENDED SEARCH
+    // Clear any existing timers
     if (searchTimerRef.current) {
         clearTimeout(searchTimerRef.current);
         searchTimerRef.current = null;
@@ -319,11 +316,10 @@ export default function ConnectPage() {
     }
 
     if (type === "video") {
-        // Video Chat: Set a timeout to update the message, but DO NOT stop the search.
+        // Video Chat: Set a timeout to update the message after 20s (Extended Message)
         extendedTimerRef.current = setTimeout(() => {
             console.log("20 seconds elapsed - showing extended video message");
             setStatusMessage("Sit tight! Cupid is checking every corner of Milan for your perfect match! 🏹💖");
-            // The search continues indefinitely until a partner is found or the user stops it manually.
         }, VIDEO_EXTENDED_TIMEOUT);
 
         // Set a timer for the initial video chat message update (12s)
@@ -342,7 +338,6 @@ export default function ConnectPage() {
             
             if (socketRef.current && socketRef.current.connected) {
                 try {
-                    // Explicitly disconnect search socket before connecting to AI
                     socketRef.current.emit("stopLookingForPartner");
                     socketRef.current.disconnect();
                 } catch {}
@@ -353,8 +348,6 @@ export default function ConnectPage() {
             }, 1000);
         }, HUMAN_SEARCH_TIMEOUT);
     }
-    // END: MODIFIED LOGIC FOR EXTENDED SEARCH
-
 
     try {
       if (!socketRef.current || !socketRef.current.connected) {
@@ -454,6 +447,7 @@ export default function ConnectPage() {
     }
   }
 
+  // 7. STOP SEARCH FUNCTION
   function stopSearch(shouldDisconnect = true) {
     if (searchTimerRef.current) {
       clearTimeout(searchTimerRef.current);
@@ -481,27 +475,24 @@ export default function ConnectPage() {
     setStatusMessage("❤️ जहां दिल मिले, वहीं होती है शुरुआत Milan की…");
   }
 
-  // START: LOGOUT FUNCTIONS
+  // 8. LOGOUT FUNCTIONS
   const handleLogout = () => {
-    // Show the custom modal instead of the default window.confirm
     setShowLogoutModal(true);
   };
 
   const confirmLogout = () => {
-    setShowLogoutModal(false); // Close modal
+    setShowLogoutModal(false);
     try {
       localStorage.clear();
       sessionStorage.clear();
     } catch {}
 
-    window.location.href = "/"; // Redirect to homepage
+    window.location.href = "/";
   };
 
   const handleStayLoggedIn = () => {
-    setShowLogoutModal(false); // Close modal
-    // No further action, user stays on the page
+    setShowLogoutModal(false);
   };
-  // END: LOGOUT FUNCTIONS
 
 
   const handleProfileClick = () => {
@@ -773,7 +764,6 @@ export default function ConnectPage() {
                           className="heart-pulse"
                         />
                       </svg>
-
                     </div>
 
                     <p className="modal-description">
