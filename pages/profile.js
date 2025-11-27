@@ -6,6 +6,10 @@ export default function Profile() {
   const router = useRouter();
   const fileInputRef = useRef(null);
   const [uploading, setUploading] = useState(false);
+  
+  // START: AUTH GUARD STATE
+  const [isAuthenticated, setIsAuthenticated] = useState(false);
+  // END: AUTH GUARD STATE
 
   const [activeTab, setActiveTab] = useState('basic');
   const [profileData, setProfileData] = useState({
@@ -26,8 +30,21 @@ export default function Profile() {
     travelStyle: 'explorer'
   });
 
-  // Load saved profile data on mount (local fallback)
+  // START: AUTH GUARD LOGIC
   useEffect(() => {
+    if (typeof window === "undefined") return;
+
+    const token = localStorage.getItem("token");
+    if (!token) {
+      // If no token, redirect to homepage (login/register page)
+      router.push("/");
+      return;
+    }
+    
+    // If token exists, set auth status and proceed with loading profile
+    setIsAuthenticated(true);
+
+    // Load saved profile data only if authenticated
     try {
       const savedProfile = localStorage.getItem('milanProfile') || localStorage.getItem('milanUser');
       if (savedProfile) {
@@ -37,7 +54,8 @@ export default function Profile() {
     } catch (error) {
       console.error('Error loading profile:', error);
     }
-  }, []);
+  }, [router]);
+  // END: AUTH GUARD LOGIC
 
   const vibes = [
     { emoji: '☕', label: 'Chai pe charcha', color: 'bg-amber-100 text-amber-700' },
@@ -183,6 +201,17 @@ export default function Profile() {
       alert('Failed to save profile. Please try again.');
     }
   };
+
+  // If user is not authenticated yet, show a loading screen/spinner
+  if (!isAuthenticated) {
+    return (
+        <div className="min-h-screen bg-gradient-to-br from-pink-50 via-white to-purple-50 flex items-center justify-center">
+            <div className="text-2xl text-pink-600 font-bold flex items-center gap-2 animate-pulse">
+                <Heart className="fill-pink-600 w-8 h-8" /> Loading Profile...
+            </div>
+        </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-pink-50 via-white to-purple-50">
