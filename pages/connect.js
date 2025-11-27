@@ -411,12 +411,24 @@ export default function ConnectPage() {
   }
 
   const handleLogout = () => {
-    try {
-      localStorage.clear();
-      sessionStorage.clear();
-    } catch {}
-    window.location.href = "/";
-  };
+  const confirmed = window.confirm(
+    "Are you sure you want to logout?\nWe’ll miss your presence here on Milan ❤️"
+  );
+
+  if (!confirmed) {
+    // User clicked "Stay Logged In"
+    return;
+  }
+
+  // User clicked "Logout"
+  try {
+    localStorage.clear();
+    sessionStorage.clear();
+  } catch {}
+
+  window.location.href = "/";
+};
+
 
   const handleProfileClick = () => {
     window.location.href = "/profile";
