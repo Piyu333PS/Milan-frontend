@@ -12,6 +12,26 @@ export default function AIPage() {
   const messagesEndRef = useRef(null);
   const textareaRef = useRef(null);
 
+  // START: AUTH GUARD STATE
+  const [isAuthenticated, setIsAuthenticated] = useState(false);
+  // END: AUTH GUARD STATE
+
+  // START: AUTH GUARD LOGIC
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+
+    const token = localStorage.getItem("token");
+    if (!token) {
+      // If no token, redirect to homepage (login/register page)
+      window.location.href = "/";
+      return;
+    }
+    
+    // If token exists, set auth status
+    setIsAuthenticated(true);
+  }, []);
+  // END: AUTH GUARD LOGIC
+
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages]);
@@ -108,6 +128,35 @@ export default function AIPage() {
     "Modern minimalist product photography",
     "Fantasy landscape with magical atmosphere"
   ];
+
+  // Check isAuthenticated and show a loading screen if not authenticated yet
+  if (!isAuthenticated) {
+    return (
+        <div style={{ 
+            background: '#0a0e1a', 
+            minHeight: '100vh', 
+            display: 'flex', 
+            alignItems: 'center', 
+            justifyContent: 'center',
+            color: '#fff',
+            fontSize: '24px',
+            fontFamily: 'Poppins, sans-serif'
+        }}>
+            <div className="loading-spinner-heart" style={{marginRight: '10px'}}>💘</div>
+            <style jsx global>{`
+                .loading-spinner-heart {
+                    font-size: 3rem;
+                    animation: pulse 1.5s infinite;
+                }
+                @keyframes pulse {
+                    0%, 100% { transform: scale(1); }
+                    50% { transform: scale(1.2); }
+                }
+            `}</style>
+            Checking Authentication...
+        </div>
+    );
+  }
 
   return (
     <div className="root">
