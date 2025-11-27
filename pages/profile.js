@@ -10,6 +10,10 @@ export default function Profile() {
   // START: AUTH GUARD STATE
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   // END: AUTH GUARD STATE
+  
+  // START: ADDED STATE FOR SUCCESS MODAL
+  const [showSuccessModal, setShowSuccessModal] = useState(false);
+  // END: ADDED STATE FOR SUCCESS MODAL
 
   const [activeTab, setActiveTab] = useState('basic');
   const [profileData, setProfileData] = useState({
@@ -194,12 +198,19 @@ export default function Profile() {
         window.dispatchEvent(new CustomEvent('milan:user-updated', { detail: profileData }));
       }
 
-      alert('Profile saved successfully! ✅');
-      router.push('/connect');
+      // 🚨 ORIGINAL CHANGE: Show custom success modal instead of alert
+      setShowSuccessModal(true); 
+      
     } catch (error) {
       console.error('Error saving profile:', error);
       alert('Failed to save profile. Please try again.');
     }
+  };
+  
+  // New handler to close modal and redirect
+  const handleSuccessModalClose = () => {
+      setShowSuccessModal(false);
+      router.push('/connect');
   };
 
   // If user is not authenticated yet, show a loading screen/spinner
@@ -577,6 +588,171 @@ export default function Profile() {
           Save Profile
         </button>
       </div>
+      
+      {/* START: Custom Success Modal JSX */}
+      {showSuccessModal && (
+        <div className="success-modal-overlay">
+          <div className="success-modal">
+            <div className="modal-content">
+              <div className="sparkle-icon">✨</div>
+              <div className="heart-icon-small">💖</div>
+              <h2 className="modal-title-success">Profile Saved Successfully!</h2>
+              
+              <p className="modal-message-success">
+                Your story is ready! You can now connect with beautiful hearts on Milan. ✨
+              </p>
+
+              <button 
+                onClick={handleSuccessModalClose} 
+                className="modal-btn-action"
+              >
+                Go to Dashboard
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+      {/* END: Custom Success Modal JSX */}
+
+      <style jsx global>{`
+        /* --- START OF CUSTOM SUCCESS MODAL STYLES --- */
+        .success-modal-overlay {
+          position: fixed;
+          inset: 0;
+          z-index: 10000;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          background: rgba(8, 6, 12, 0.9);
+          backdrop-filter: blur(12px);
+          animation: fadeIn 0.3s ease;
+          padding: 20px;
+        }
+
+        .success-modal {
+          width: min(480px, 100%);
+          background: linear-gradient(145deg, 
+            rgba(255, 110, 167, 0.2) 0%, 
+            rgba(139, 92, 246, 0.15) 100%);
+          border: 3px solid rgba(255, 110, 167, 0.5);
+          border-radius: 28px;
+          padding: 40px 30px;
+          text-align: center;
+          box-shadow: 
+            0 40px 100px rgba(255, 110, 167, 0.4),
+            0 0 80px rgba(139, 92, 246, 0.25),
+            inset 0 2px 2px rgba(255, 255, 255, 0.2);
+          position: relative;
+          overflow: hidden;
+          animation: modalPop 0.4s cubic-bezier(0.34, 1.56, 0.64, 1);
+        }
+        
+        .success-modal::before {
+            content: '';
+            position: absolute;
+            inset: -5px;
+            border-radius: inherit;
+            background: radial-gradient(circle at top left, rgba(255, 110, 167, 0.2), transparent 70%);
+            animation: pulseGlow 4s ease-in-out infinite;
+            pointer-events: none;
+        }
+
+        @keyframes modalPop {
+          from { opacity: 0; transform: scale(0.8); }
+          to { opacity: 1; transform: scale(1); }
+        }
+        
+        @keyframes pulseGlow {
+            0%, 100% { opacity: 0.8; }
+            50% { opacity: 1; }
+        }
+
+        .sparkle-icon {
+            font-size: 4rem;
+            margin-bottom: 5px;
+            animation: sparklePulse 1.5s ease-in-out infinite;
+            filter: drop-shadow(0 4px 16px rgba(255, 255, 255, 0.5));
+        }
+
+        @keyframes sparklePulse {
+            0%, 100% { transform: scale(1); }
+            50% { transform: scale(1.1); }
+        }
+
+        .heart-icon-small {
+            font-size: 2.5rem;
+            margin-bottom: 15px;
+            color: #ff6ea7;
+            animation: heartBeatSuccess 1s ease-in-out infinite;
+        }
+
+        @keyframes heartBeatSuccess {
+            0%, 100% { transform: scale(1); }
+            25% { transform: scale(1.2); }
+            50% { transform: scale(1.1); }
+        }
+
+        .modal-title-success {
+          font-size: 26px;
+          font-weight: 900;
+          margin: 0 0 10px 0;
+          background: linear-gradient(90deg, #ffc4e1, #ffffff, #ff6ea7);
+          -webkit-background-clip: text;
+          background-clip: text;
+          color: transparent;
+          text-shadow: 0 3px 15px rgba(255, 110, 167, 0.5);
+        }
+
+        .modal-message-success {
+          font-size: 16px;
+          line-height: 1.6;
+          color: #ffdfe8;
+          margin-bottom: 30px;
+          font-weight: 500;
+        }
+
+        .modal-btn-action {
+          padding: 15px 40px;
+          background: linear-gradient(135deg, #4cd964, #34c759); /* Green for action/go */
+          color: #ffffff;
+          border: none;
+          border-radius: 14px;
+          font-size: 16px;
+          font-weight: 700;
+          cursor: pointer;
+          box-shadow: 0 10px 30px rgba(76, 217, 100, 0.4);
+          transition: all 0.3s ease;
+          text-transform: uppercase;
+        }
+
+        .modal-btn-action:hover {
+          transform: translateY(-2px);
+          box-shadow: 0 12px 35px rgba(76, 217, 100, 0.5);
+        }
+
+        @media (max-width: 480px) {
+          .success-modal {
+            padding: 30px 20px;
+          }
+          .sparkle-icon {
+            font-size: 3rem;
+          }
+          .heart-icon-small {
+            font-size: 2rem;
+          }
+          .modal-title-success {
+            font-size: 22px;
+          }
+          .modal-message-success {
+            font-size: 14px;
+          }
+          .modal-btn-action {
+            padding: 12px 30px;
+            font-size: 15px;
+          }
+        }
+        /* --- END OF CUSTOM SUCCESS MODAL STYLES --- */
+      `}</style>
     </div>
   );
 }
