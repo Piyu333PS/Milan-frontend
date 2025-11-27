@@ -31,6 +31,9 @@ export default function ConnectPage() {
   
   // AUTH STATE
   const [isAuthenticated, setIsAuthenticated] = useState(false);
+  
+  // AESTHETIC STATE
+  const [onlineCount, setOnlineCount] = useState(120); // Static count for display
 
   const fwRef = useRef({ raf: null, burst: () => {}, cleanup: null });
   const socketRef = useRef(null);
@@ -39,7 +42,6 @@ export default function ConnectPage() {
   const searchTimerRef = useRef(null);
   const extendedTimerRef = useRef(null); // Ref for the 20s video message
   const searchTypeRef = useRef(null);
-  const [onlineCount, setOnlineCount] = useState(Math.floor(Math.random() * 50) + 100);
 
   const backendUrl = useMemo(
     () =>
@@ -80,6 +82,17 @@ export default function ConnectPage() {
     } catch (e) {
       console.error("Error loading profile:", e);
     }
+    
+    // Aesthetic: Initialize a dynamic looking count
+    const countInterval = setInterval(() => {
+        setOnlineCount(prev => {
+            const change = Math.floor(Math.random() * 5) - 2; // change between -2 and +2
+            const newCount = Math.min(Math.max(100, prev + change), 150);
+            return newCount;
+        });
+    }, 5000); // Update count every 5 seconds
+    
+    return () => clearInterval(countInterval);
   }, []);
 
   // 2. WELCOME POPUP
@@ -101,7 +114,7 @@ export default function ConnectPage() {
     setShowWelcome(false);
   };
 
-  // 3. HEARTS CANVAS ANIMATION (Adjusted for better aesthetic)
+  // 3. HEARTS CANVAS ANIMATION
   useEffect(() => {
     if (showWelcome || !isAuthenticated) return;
     
@@ -663,6 +676,7 @@ export default function ConnectPage() {
               role="navigation"
               aria-label="Choose a mode"
             >
+              {/* ROW 1 */}
               {/* PROFILE CARD - ENHANCED */}
               <article className="featureCard profile-card">
                 <div className="profile-icon-wrapper">
@@ -716,7 +730,8 @@ export default function ConnectPage() {
                   🎥 Start Video Chat
                 </button>
               </article>
-
+              
+              {/* ROW 2 */}
               {/* AI STUDIO CARD - ENHANCED */}
               <article className="featureCard studio">
                 <header>
@@ -746,7 +761,6 @@ export default function ConnectPage() {
                   💕 Patience, love! This magical feature is almost ready to bring hearts together... 💕
                 </div>
               </article>
-
             </section>
 
             {/* Search Loader Modal - ENHANCED */}
@@ -802,7 +816,7 @@ export default function ConnectPage() {
         </>
       )}
 
-      {/* COMPLETE CSS BLOCK - Modified for Attractive/Romantic theme */}
+      {/* COMPLETE CSS BLOCK (Enhanced Aesthetics) */}
       <style jsx>{`
         :root { --brandH: 140px; --bottomH: 60px; }
         *, *::before, *::after { box-sizing: border-box; min-width: 0; }
@@ -867,7 +881,7 @@ export default function ConnectPage() {
         /* Brand Styling */
         .brandBlock {
           position: relative; 
-          /* Top Padding Fixed for Milan logo visibility */
+          /* FIXED: Ensure Milan is not cut off */
           padding-top: 45px; 
           margin: 0px auto 10px auto; 
           text-align: center;
@@ -890,15 +904,8 @@ export default function ConnectPage() {
           text-shadow: 0 0 35px rgba(255, 110, 167, 0.4), 0 0 50px rgba(255, 110, 167, 0.2);
           white-space: nowrap;
         }
-        
-        .brandTagline {
-            color: #d1d5db;
-            font-weight: 300;
-            font-size: clamp(14px, 4vw, 20px);
-            margin-top: 2px;
-        }
-        
-        /* New Live Counter Strip Style */
+
+        /* NEW LIVE COUNTER STRIP */
         .live-counter-strip {
             display: inline-flex;
             align-items: center;
@@ -913,6 +920,12 @@ export default function ConnectPage() {
             font-weight: 600;
             color: #a7ffb2;
             box-shadow: 0 0 10px rgba(167, 255, 178, 0.3);
+            animation: gentlePulseGreen 2s infinite alternate;
+        }
+
+        @keyframes gentlePulseGreen {
+            from { box-shadow: 0 0 10px rgba(167, 255, 178, 0.3); }
+            to { box-shadow: 0 0 15px rgba(167, 255, 178, 0.5); }
         }
 
         .live-counter-strip .dot {
@@ -923,12 +936,15 @@ export default function ConnectPage() {
             box-shadow: 0 0 8px #00ff80;
             animation: liveBlink 1.5s infinite alternate;
         }
-
-        @keyframes liveBlink {
-            from { opacity: 1; }
-            to { opacity: 0.5; }
+        /* END NEW LIVE COUNTER STRIP */
+        
+        .brandTagline {
+            color: #d1d5db;
+            font-weight: 300;
+            font-size: clamp(14px, 4vw, 20px);
+            margin-top: 2px;
         }
-
+        
         .heroWrap {
             position: relative;
             z-index: 3;
@@ -1006,6 +1022,7 @@ export default function ConnectPage() {
           position: relative;
           min-height: 220px; /* Increased min height */
           text-align: center;
+          overflow: hidden; /* For inner animations */
         }
         
         .featureCard:hover {
@@ -1110,21 +1127,17 @@ export default function ConnectPage() {
         }
 
         /* Card Icons/Animations */
-        .featureCard.text::before,
-        .featureCard.video::before,
-        .featureCard.studio::before {
+        
+        /* Text Chat Animation: Subtle Pulsing Glow */
+        .featureCard.text::before {
             content: '';
             position: absolute;
             inset: 0;
             border-radius: inherit;
-            pointer-events: none;
-            z-index: -1;
-        }
-
-        /* Text Chat Animation: Subtle Pulsing Glow */
-        .featureCard.text::before {
             background: radial-gradient(circle at 10% 10%, rgba(255, 110, 167, 0.2), transparent 70%);
             animation: textPulseGlow 3s infinite alternate;
+            pointer-events: none;
+            z-index: -1;
         }
         @keyframes textPulseGlow {
             from { opacity: 0.5; transform: scale(1); }
@@ -1133,8 +1146,14 @@ export default function ConnectPage() {
         
         /* Video Chat Animation: Video Stream Flicker/Glow */
         .featureCard.video::before {
+            content: '';
+            position: absolute;
+            inset: 0;
+            border-radius: inherit;
             background: radial-gradient(circle at 90% 90%, rgba(79, 255, 142, 0.1), transparent 70%);
             animation: videoGlow 2s infinite alternate;
+            pointer-events: none;
+            z-index: -1;
         }
         @keyframes videoGlow {
             0% { opacity: 0.3; }
@@ -1143,8 +1162,14 @@ export default function ConnectPage() {
         
         /* AI Studio Animation: Slow Rotating Shimmer */
         .featureCard.studio::before {
+            content: '';
+            position: absolute;
+            inset: 0;
+            border-radius: inherit;
             background: conic-gradient(from 0deg, rgba(139, 92, 246, 0.05) 0deg, rgba(139, 92, 246, 0.2) 90deg, transparent 180deg);
             animation: studioShimmer 8s linear infinite;
+            pointer-events: none;
+            z-index: -1;
         }
         @keyframes studioShimmer {
             to { transform: rotate(360deg); }
@@ -1257,6 +1282,7 @@ export default function ConnectPage() {
 
         .search-modal {
           width: min(520px, calc(100% - 32px));
+          /* Stronger Pink Glow */
           background: linear-gradient(145deg, 
             rgba(255, 110, 167, 0.18) 0%, 
             rgba(255, 159, 176, 0.12) 50%,
@@ -1267,14 +1293,20 @@ export default function ConnectPage() {
           text-align: center;
           backdrop-filter: blur(12px);
           box-shadow: 
-            0 35px 90px rgba(255, 79, 160, 0.5), 
+            0 35px 90px rgba(255, 79, 160, 0.5), /* Stronger shadow */
             inset 0 1px 1px rgba(255, 255, 255, 0.2);
           position: relative;
           overflow: hidden;
           animation: modalSlideUp 0.4s cubic-bezier(0.34, 1.56, 0.64, 1);
         }
 
+        @keyframes modalSlideUp {
+            0% { transform: translateY(50px) scale(0.9); opacity: 0; }
+            100% { transform: translateY(0) scale(1); opacity: 1; }
+        }
+
         .modal-heading {
+          font-family: 'Poppins', sans-serif;
           font-size: 24px;
           font-weight: 700;
           color: #ffc0cb;
@@ -1481,7 +1513,9 @@ export default function ConnectPage() {
             }
 
             .brandBlock {
+                /* Adjusted for mobile - less top margin */
                 margin: 30px auto 10px auto;
+                padding-top: 25px; /* Less cutting risk */
             }
             
             .heroWrap {
