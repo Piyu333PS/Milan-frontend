@@ -310,21 +310,36 @@ export default function ConnectPage() {
         : "💬 Searching for a human partner..."
     );
 
+    // START: MODIFIED AI FALLBACK LOGIC
     searchTimerRef.current = setTimeout(() => {
-      console.log("12 seconds elapsed - connecting to AI");
-      setStatusMessage("💔 No human partner found. Connecting you with AI...");
+      console.log("12 seconds elapsed - search timeout");
       
       if (socketRef.current && socketRef.current.connected) {
         try {
-          socketRef.current.emit("disconnectByUser");
+          // Explicitly stop socket search on server side
+          socketRef.current.emit("stopLookingForPartner");
           socketRef.current.disconnect();
         } catch {}
       }
       
-      setTimeout(() => {
-        connectToAI(type);
-      }, 1000);
+      if (type === "video") {
+        // VIDEO CHAT: Only real human connection is allowed. Stop search.
+        setStatusMessage("💔 No human partner found. Please try again!");
+        setTimeout(() => {
+          stopSearch(false); // Stop search but keep loader up briefly
+          setStatusMessage("❤️ जहां दिल मिले, वहीं होती है शुरुआत Milan की…");
+          setIsSearching(false);
+          setShowLoader(false);
+        }, 1500);
+      } else {
+        // TEXT CHAT: Fallback to AI
+        setStatusMessage("💔 No human partner found. Connecting you with AI...");
+        setTimeout(() => {
+          connectToAI(type);
+        }, 1000);
+      }
     }, HUMAN_SEARCH_TIMEOUT);
+    // END: MODIFIED AI FALLBACK LOGIC
 
     try {
       if (!socketRef.current || !socketRef.current.connected) {
@@ -408,13 +423,13 @@ export default function ConnectPage() {
     }
   }
 
-  function stopSearch() {
+  function stopSearch(shouldDisconnect = true) {
     if (searchTimerRef.current) {
       clearTimeout(searchTimerRef.current);
       searchTimerRef.current = null;
     }
 
-    if (socketRef.current) {
+    if (shouldDisconnect && socketRef.current) {
       try {
         socketRef.current.emit("disconnectByUser");
         socketRef.current.disconnect();
