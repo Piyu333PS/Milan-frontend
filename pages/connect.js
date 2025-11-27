@@ -39,6 +39,7 @@ export default function ConnectPage() {
   const searchTimerRef = useRef(null);
   const extendedTimerRef = useRef(null); // Ref for the 20s video message
   const searchTypeRef = useRef(null);
+  const [onlineCount, setOnlineCount] = useState(Math.floor(Math.random() * 50) + 100);
 
   const backendUrl = useMemo(
     () =>
@@ -644,6 +645,11 @@ export default function ConnectPage() {
           />
 
           <div className="brandBlock">
+            {/* New Live Counter Strip */}
+            <div className="live-counter-strip">
+                <div className="dot"></div> {onlineCount}+ Hearts Online
+            </div>
+
             <div className="heroBrand">Milan</div>
             <div className="brandTagline">
               Where hearts connect <span aria-hidden>❤️</span>
@@ -711,22 +717,7 @@ export default function ConnectPage() {
                 </button>
               </article>
 
-              {/* LIVE COUNTER/PLACEHOLDER CARD - NEW ADDITION */}
-              <article className="featureCard placeholder">
-                <header>
-                  <h3>Online Now</h3>
-                  <p>See who is waiting for a story to begin...</p>
-                </header>
-                <div className="live-counter-display">
-                    <div className="dot"></div> 120+ Hearts Online
-                </div>
-                <button className="cta disabled" style={{ background: 'linear-gradient(135deg, #a7ff6e 0%, #8dff4d 100%)' }}>
-                  ⏳ Check Now
-                </button>
-              </article>
-
-
-              {/* AI STUDIO CARD */}
+              {/* AI STUDIO CARD - ENHANCED */}
               <article className="featureCard studio">
                 <header>
                   <h3>Milan AI Studio</h3>
@@ -738,7 +729,7 @@ export default function ConnectPage() {
               </article>
 
               {/* INVITE LINK CARD - AESTHETICALLY DEGRADED (Coming Soon) */}
-              <article className="featureCard invite coming-soon">
+              <article className="featureCard invite coming-soon" style={{ gridColumn: 'span 2' }}>
                 <div className="coming-soon-badge">
                   <span className="badge-sparkle">✨</span>
                   <span className="badge-text">Coming Soon</span>
@@ -755,6 +746,7 @@ export default function ConnectPage() {
                   💕 Patience, love! This magical feature is almost ready to bring hearts together... 💕
                 </div>
               </article>
+
             </section>
 
             {/* Search Loader Modal - ENHANCED */}
@@ -810,7 +802,7 @@ export default function ConnectPage() {
         </>
       )}
 
-      {/* COMPLETE CSS BLOCK - Modified for Attractive/Romantic theme (Starts on line 1056 in this structure) */}
+      {/* COMPLETE CSS BLOCK - Modified for Attractive/Romantic theme */}
       <style jsx>{`
         :root { --brandH: 140px; --bottomH: 60px; }
         *, *::before, *::after { box-sizing: border-box; min-width: 0; }
@@ -875,12 +867,15 @@ export default function ConnectPage() {
         /* Brand Styling */
         .brandBlock {
           position: relative; 
-          margin: 40px auto 20px auto; 
+          /* Top Padding Fixed for Milan logo visibility */
+          padding-top: 45px; 
+          margin: 0px auto 10px auto; 
           text-align: center;
           z-index: 3;
           pointer-events: none;
           width: 100%;
-          padding: 0 20px;
+          padding-left: 20px;
+          padding-right: 20px;
         }
 
         .heroBrand {
@@ -903,6 +898,37 @@ export default function ConnectPage() {
             margin-top: 2px;
         }
         
+        /* New Live Counter Strip Style */
+        .live-counter-strip {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            gap: 8px;
+            padding: 5px 12px;
+            margin-bottom: 5px;
+            border-radius: 15px;
+            background: rgba(255, 110, 167, 0.1);
+            border: 1px solid rgba(255, 110, 167, 0.3);
+            font-size: 14px;
+            font-weight: 600;
+            color: #a7ffb2;
+            box-shadow: 0 0 10px rgba(167, 255, 178, 0.3);
+        }
+
+        .live-counter-strip .dot {
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            background: #00ff80;
+            box-shadow: 0 0 8px #00ff80;
+            animation: liveBlink 1.5s infinite alternate;
+        }
+
+        @keyframes liveBlink {
+            from { opacity: 1; }
+            to { opacity: 0.5; }
+        }
+
         .heroWrap {
             position: relative;
             z-index: 3;
@@ -911,7 +937,7 @@ export default function ConnectPage() {
             flex-direction: column;
             align-items: center;
             justify-content: flex-start;
-            padding: 20px 40px var(--bottomH);
+            padding: 10px 40px var(--bottomH);
         }
         
         /* Logout Button (Kept same) */
@@ -1083,6 +1109,48 @@ export default function ConnectPage() {
             100% { transform: scale(1) rotate(0deg); opacity: 1; }
         }
 
+        /* Card Icons/Animations */
+        .featureCard.text::before,
+        .featureCard.video::before,
+        .featureCard.studio::before {
+            content: '';
+            position: absolute;
+            inset: 0;
+            border-radius: inherit;
+            pointer-events: none;
+            z-index: -1;
+        }
+
+        /* Text Chat Animation: Subtle Pulsing Glow */
+        .featureCard.text::before {
+            background: radial-gradient(circle at 10% 10%, rgba(255, 110, 167, 0.2), transparent 70%);
+            animation: textPulseGlow 3s infinite alternate;
+        }
+        @keyframes textPulseGlow {
+            from { opacity: 0.5; transform: scale(1); }
+            to { opacity: 0.8; transform: scale(1.02); }
+        }
+        
+        /* Video Chat Animation: Video Stream Flicker/Glow */
+        .featureCard.video::before {
+            background: radial-gradient(circle at 90% 90%, rgba(79, 255, 142, 0.1), transparent 70%);
+            animation: videoGlow 2s infinite alternate;
+        }
+        @keyframes videoGlow {
+            0% { opacity: 0.3; }
+            100% { opacity: 0.6; }
+        }
+        
+        /* AI Studio Animation: Slow Rotating Shimmer */
+        .featureCard.studio::before {
+            background: conic-gradient(from 0deg, rgba(139, 92, 246, 0.05) 0deg, rgba(139, 92, 246, 0.2) 90deg, transparent 180deg);
+            animation: studioShimmer 8s linear infinite;
+        }
+        @keyframes studioShimmer {
+            to { transform: rotate(360deg); }
+        }
+
+
         /* Call To Action (CTA) Buttons - Added Subtle Glow */
         .cta {
           width: 100%;
@@ -1175,192 +1243,7 @@ export default function ConnectPage() {
             opacity: 1;
         }
 
-        /* Placeholder Card for Live Counter - New Addition */
-        .featureCard.placeholder {
-            border-color: rgba(255, 255, 255, 0.2);
-            background: rgba(20, 30, 45, 0.5); /* Slightly different glassy background */
-        }
-        
-        .live-counter-display {
-            font-size: 16px;
-            font-weight: 700;
-            color: #ff6ea7;
-            display: flex;
-            align-items: center;
-            gap: 8px;
-            padding: 5px 10px;
-            background: rgba(255, 110, 167, 0.1);
-            border-radius: 8px;
-        }
-
-        .live-counter-display .dot {
-            width: 10px;
-            height: 10px;
-            border-radius: 50%;
-            background: #00ff80;
-            box-shadow: 0 0 10px #00ff80;
-            animation: liveBlink 1.5s infinite alternate;
-        }
-
-        @keyframes liveBlink {
-            from { opacity: 1; }
-            to { opacity: 0.5; }
-        }
-
-
-        /* --- WELCOME MODAL --- */
-        .welcome-fullscreen {
-          position: fixed;
-          inset: 0;
-          background: linear-gradient(135deg, #120317 0%, #251030 100%);
-          z-index: 10000;
-          display: flex;
-          align-items: center;
-          justify-content: center;
-        }
-
-        .welcome-content-wrapper {
-            position: relative;
-            z-index: 1;
-            padding: 20px;
-        }
-
-        .welcome-box {
-          background: rgba(40, 15, 55, 0.8);
-          border: 3px solid rgba(255, 110, 167, 0.5);
-          border-radius: 30px;
-          padding: 60px 40px;
-          max-width: 500px;
-          text-align: center;
-          backdrop-filter: blur(15px);
-          box-shadow: 0 0 80px rgba(255, 110, 167, 0.4), inset 0 2px 2px rgba(255, 255, 255, 0.2);
-          animation: modalAppear 0.5s cubic-bezier(0.175, 0.885, 0.32, 1.275) forwards;
-        }
-
-        @keyframes modalAppear {
-            0% { transform: scale(0.8); opacity: 0; }
-            100% { transform: scale(1); opacity: 1; }
-        }
-        
-        .sparkles-top {
-            margin-bottom: 20px;
-        }
-
-        .sparkle {
-            font-size: 1.5rem;
-            animation: twinkle 1s infinite alternate;
-        }
-        
-        .sparkle.big {
-            font-size: 2rem;
-            margin: 0 10px;
-            animation-delay: 0.3s;
-        }
-
-        @keyframes twinkle {
-            from { opacity: 0.8; }
-            to { opacity: 1; transform: scale(1.1); }
-        }
-
-        .welcome-heading {
-          font-family: 'Great Vibes', cursive;
-          font-size: clamp(30px, 6vw, 48px);
-          margin-bottom: 10px;
-          color: #ffd6ea;
-          text-shadow: 0 0 10px rgba(255, 110, 167, 0.8);
-        }
-
-        .user-name {
-            color: #ff6ea7;
-        }
-
-        .welcome-text {
-          font-size: 16px;
-          margin-bottom: 30px;
-          color: #e5e7eb;
-        }
-        
-        .sparkles-bottom {
-            margin-top: 15px;
-            margin-bottom: 30px;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            gap: 8px;
-        }
-        
-        .sparkle-line {
-            color: #ff6ea7;
-            opacity: 0.6;
-            font-size: 14px;
-        }
-        
-        .sparkle-heart {
-            font-size: 20px;
-            animation: heartBeat 1s infinite alternate;
-        }
-        
-        @keyframes heartBeat {
-            from { transform: scale(1); }
-            to { transform: scale(1.2); }
-        }
-
-        .start-journey-btn {
-          padding: 15px 30px;
-          border-radius: 12px;
-          font-weight: 700;
-          font-size: 18px;
-          text-transform: uppercase;
-          background: linear-gradient(45deg, #ff6ea7, #c084fc);
-          color: #fff;
-          border: none;
-          cursor: pointer;
-          box-shadow: 0 10px 30px rgba(255, 79, 160, 0.6);
-          transition: all 0.3s ease;
-          position: relative;
-          overflow: hidden;
-        }
-
-        .start-journey-btn:hover {
-          transform: translateY(-5px) scale(1.02);
-          box-shadow: 0 15px 40px rgba(255, 79, 160, 0.8);
-        }
-        
-        .btn-sparkle {
-            font-size: 1.2rem;
-            margin: 0 5px;
-            animation: sparkleFloat 1.5s infinite alternate;
-        }
-
-        .floating-hearts {
-            position: absolute;
-            inset: 0;
-            overflow: hidden;
-            pointer-events: none;
-        }
-
-        .float-heart {
-            position: absolute;
-            font-size: 2rem;
-            color: #ffc0cb;
-            animation: heartFloat 10s linear infinite;
-            opacity: 0.6;
-        }
-
-        .heart-1 { top: 10%; left: 5%; animation-delay: 0s; }
-        .heart-2 { top: 30%; right: 15%; animation-delay: 3s; }
-        .heart-3 { bottom: 20%; left: 30%; animation-delay: 6s; }
-        .heart-4 { top: 50%; left: 80%; animation-delay: 1s; }
-        .heart-5 { bottom: 5%; right: 5%; animation-delay: 4s; }
-        .heart-6 { top: 25%; left: 60%; animation-delay: 7s; }
-
-        @keyframes heartFloat {
-            0% { transform: translateY(0) rotate(0deg) scale(1); opacity: 0.6; }
-            50% { transform: translateY(-50px) rotate(10deg) scale(1.1); opacity: 1; }
-            100% { transform: translateY(0) rotate(0deg) scale(1); opacity: 0.6; }
-        }
-
-        /* --- SEARCH MODAL STYLES --- */
+        /* --- SEARCH MODAL STYLES (Fixed Stop Button) --- */
         .search-modal-overlay {
           position: fixed;
           inset: 0;
@@ -1372,14 +1255,8 @@ export default function ConnectPage() {
           animation: fadeIn 0.3s ease;
         }
 
-        @keyframes fadeIn {
-            from { opacity: 0; }
-            to { opacity: 1; }
-        }
-
         .search-modal {
           width: min(520px, calc(100% - 32px));
-          /* Stronger Pink Glow */
           background: linear-gradient(145deg, 
             rgba(255, 110, 167, 0.18) 0%, 
             rgba(255, 159, 176, 0.12) 50%,
@@ -1390,92 +1267,20 @@ export default function ConnectPage() {
           text-align: center;
           backdrop-filter: blur(12px);
           box-shadow: 
-            0 35px 90px rgba(255, 79, 160, 0.5), /* Stronger shadow */
+            0 35px 90px rgba(255, 79, 160, 0.5), 
             inset 0 1px 1px rgba(255, 255, 255, 0.2);
           position: relative;
           overflow: hidden;
           animation: modalSlideUp 0.4s cubic-bezier(0.34, 1.56, 0.64, 1);
         }
 
-        @keyframes modalSlideUp {
-            0% { transform: translateY(50px) scale(0.9); opacity: 0; }
-            100% { transform: translateY(0) scale(1); opacity: 1; }
-        }
-
         .modal-heading {
-          font-family: 'Poppins', sans-serif;
           font-size: 24px;
           font-weight: 700;
           color: #ffc0cb;
           margin-bottom: 20px;
         }
-
-        .heart-loader-container {
-            position: relative;
-            width: 100px;
-            height: 100px;
-            margin: 30px auto;
-        }
-
-        .center-heart {
-            width: 80px;
-            height: 80px;
-            position: absolute;
-            top: 50%;
-            left: 50%;
-            transform: translate(-50%, -50%);
-            z-index: 10;
-            filter: drop-shadow(0 10px 30px rgba(255, 110, 167, 0.8)); /* Stronger pulse glow */
-        }
-
-        .heart-pulse {
-            animation: heartPulse 1.2s infinite ease-in-out;
-        }
-
-        @keyframes heartPulse {
-            0% { transform: scale(0.9); }
-            50% { transform: scale(1); }
-            100% { transform: scale(0.9); }
-        }
-
-        .orbiting-hearts {
-            position: absolute;
-            inset: 0;
-            animation: spin 8s linear infinite;
-        }
-
-        @keyframes spin {
-            to { transform: rotate(360deg); }
-        }
-
-        .orbit-heart {
-            position: absolute;
-            font-size: 20px;
-            width: 10px;
-            height: 10px;
-        }
-
-        .orbit-heart.heart-1 { top: 0; left: 50%; transform: rotate(0deg) translateX(50px); animation: orbit1 8s linear infinite; }
-        .orbit-heart.heart-2 { top: 50%; right: 0; transform: rotate(60deg) translateX(50px); animation: orbit2 8s linear infinite; }
-        .orbit-heart.heart-3 { bottom: 0; left: 50%; transform: rotate(120deg) translateX(50px); animation: orbit3 8s linear infinite; }
-        .orbit-heart.heart-4 { top: 50%; left: 0; transform: rotate(180deg) translateX(50px); animation: orbit4 8s linear infinite; }
-        .orbit-heart.heart-5 { top: 0; right: 0; transform: rotate(240deg) translateX(50px); animation: orbit5 8s linear infinite; }
-        .orbit-heart.heart-6 { bottom: 0; right: 0; transform: rotate(300deg) translateX(50px); animation: orbit6 8s linear infinite; }
-
-        @keyframes orbit1 { 0% { transform: rotate(0deg) translateX(50px); } 100% { transform: rotate(360deg) translateX(50px); } }
-        @keyframes orbit2 { 0% { transform: rotate(60deg) translateX(50px); } 100% { transform: rotate(420deg) translateX(50px); } }
-        @keyframes orbit3 { 0% { transform: rotate(120deg) translateX(50px); } 100% { transform: rotate(480deg) translateX(50px); } }
-        @keyframes orbit4 { 0% { transform: rotate(180deg) translateX(50px); } 100% { transform: rotate(540deg) translateX(50px); } }
-        @keyframes orbit5 { 0% { transform: rotate(240deg) translateX(50px); } 100% { transform: rotate(600deg) translateX(50px); } }
-        @keyframes orbit6 { 0% { transform: rotate(300deg) translateX(50px); } 100% { transform: rotate(660deg) translateX(50px); } }
-
-
-        .modal-description {
-          font-size: 14px;
-          color: #bdbdbd;
-          margin-bottom: 25px;
-        }
-
+        
         .status-text {
           font-size: 16px;
           font-weight: 600;
@@ -1485,20 +1290,32 @@ export default function ConnectPage() {
         }
 
         .stop-search-btn {
-          background: none;
-          border: 2px solid #ff6ea7;
-          color: #ff6ea7;
-          padding: 10px 20px;
-          border-radius: 20px;
-          font-weight: 700;
-          cursor: pointer;
+          /* Fixed styling for better visibility and interactive look */
+          background: linear-gradient(135deg, #ff4d6d 0%, #ff6ea7 100%);
+          border: 2px solid #ff4d6d;
+          color: #fff;
+          padding: 12px 30px;
+          border-radius: 30px;
+          font-weight: 800;
+          letter-spacing: 0.5px;
+          box-shadow: 0 5px 20px rgba(255, 79, 160, 0.7);
           transition: all 0.3s ease;
+          width: 80%; /* Increased width for clickability */
+          max-width: 300px;
+          display: flex;
+          align-items: center;
+          justify-content: center;
         }
 
         .stop-search-btn:hover {
-          background: #ff6ea7;
-          color: #120317;
-          box-shadow: 0 0 15px rgba(255, 110, 167, 0.7);
+          transform: translateY(-2px);
+          background: linear-gradient(135deg, #ff6ea7 0%, #ff4d6d 100%);
+          box-shadow: 0 10px 30px rgba(255, 79, 160, 0.9);
+        }
+
+        .btn-icon {
+          font-size: 18px;
+          margin-right: 8px;
         }
 
         /* --- LOGOUT MODAL STYLES --- */
@@ -1713,6 +1530,10 @@ export default function ConnectPage() {
             
             .welcome-heading {
                 font-size: 30px;
+            }
+            
+            .stop-search-btn {
+                width: 90%;
             }
         }
         
