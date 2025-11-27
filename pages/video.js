@@ -1,11 +1,31 @@
 "use client";
 // Coming Soon global flag
 const COMING_SOON = true;
-import { useEffect } from "react";
+import { useEffect, useState } from "react"; // Added useState
 import io from "socket.io-client";
 
 export default function VideoPage() {
+  // START: AUTH GUARD STATE
+  const [isAuthenticated, setIsAuthenticated] = useState(false);
+  // END: AUTH GUARD STATE
+
   useEffect(() => {
+    // START: AUTH GUARD LOGIC
+    if (typeof window === "undefined") return;
+
+    const token = localStorage.getItem("token");
+    if (!token) {
+      // If no token, redirect to homepage (login/register page)
+      window.location.href = "/";
+      return;
+    }
+    
+    // If token exists, set auth status and proceed with setup
+    setIsAuthenticated(true);
+    // END: AUTH GUARD LOGIC
+    
+    // Original setup code starts here, only runs if isAuthenticated is set (implicitly by the useEffect flow)
+
     const BACKEND_URL = window.BACKEND_URL || process.env.NEXT_PUBLIC_BACKEND_URL || "https://milan-j9u9.onrender.com";
     const ICE_CONFIG = { iceServers: [{ urls: "stun:stun.l.google.com:19302" }] };
 
@@ -189,6 +209,10 @@ export default function VideoPage() {
 
     (async function start() {
       log("video page start");
+      
+      // We assume isAuthenticated is true here because of the initial check
+      if (!token) return; // Final guard after initial check
+
       try {
         localStream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
         var vtracks = (localStream && typeof localStream.getVideoTracks === "function") ? localStream.getVideoTracks() : [];
@@ -1328,9 +1352,39 @@ socket.on("danceDareEnd", (data) => {
     })();
 
     return function () { cleanup(); };
-  }, []);
+  }, [isAuthenticated]); // Added isAuthenticated as dependency
 
   function escapeHtml(s) { return String(s).replace(/[&<>\"']/g, (m) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[m]); }
+
+  // Check isAuthenticated and show a loading screen if not authenticated yet
+  if (!isAuthenticated) {
+    return (
+        <div style={{ 
+            background: '#08060c', 
+            minHeight: '100vh', 
+            display: 'flex', 
+            alignItems: 'center', 
+            justifyContent: 'center',
+            color: '#fff',
+            fontSize: '24px',
+            fontFamily: 'Poppins, sans-serif'
+        }}>
+            <div className="loading-spinner-heart" style={{marginRight: '10px'}}>💖</div>
+            <style jsx global>{`
+                .loading-spinner-heart {
+                    font-size: 3rem;
+                    animation: pulse 1.5s infinite;
+                }
+                @keyframes pulse {
+                    0%, 100% { transform: scale(1); }
+                    50% { transform: scale(1.2); }
+                }
+            `}</style>
+            Checking Authentication...
+        </div>
+    );
+  }
+
 
   return (
     <>
@@ -1627,6 +1681,8 @@ socket.on("danceDareEnd", (data) => {
         .hearts i.selected{ color:#ff1744 }
         .rating-buttons{ display:flex;gap:18px;margin-top:24px;justify-content:center;position:relative;z-index:2;flex-wrap:wrap }
         .rating-buttons button{ padding:14px 24px;font-size:18px;border-radius:14px;border:none;color:#fff;cursor:pointer;background:linear-gradient(135deg,#ff4d8d,#6a5acd);box-shadow:0 10px 28px rgba(0,0,0,.45);backdrop-filter: blur(14px);transition:transform .2s ease,opacity .2s ease }
+        .rating-buttons button:hover{ transform: translateY(-4px); box-shadow:0 10px 22px rgba(0,0,0,0.45)}
+        .rating-buttons button:active{ transform: translateY(-1px); box-shadow:0 6px 18px rgba(0,0,0,0.45)}
         #toast{position:fixed;left:50%;bottom:calc(110px + env(safe-area-inset-bottom));transform:translateX(-50%);background:#111;color:#fff;padding:10px 14px;border-radius:8px;display:none;z-index:5000;border:1px solid rgba(255,255,255,.08)}
 
         .watermark-badge{position:absolute;right:14px;bottom:14px;z-index:40;display:flex;align-items:center;gap:8px;padding:8px 12px;border-radius:26px;background: linear-gradient(135deg, rgba(255,255,255,0.06), rgba(255,255,255,0.02));color: rgba(255,255,255,0.94);font-weight:800;letter-spacing:1px;font-size:14px;transform: rotate(-12deg);box-shadow: 0 8px 30px rgba(0,0,0,0.6);backdrop-filter: blur(6px) saturate(1.1);-webkit-backdrop-filter: blur(6px) saturate(1.1);transition: transform .18s ease, opacity .18s ease;opacity: 0.95;pointer-events: none;}
