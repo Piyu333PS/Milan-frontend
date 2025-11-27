@@ -37,7 +37,7 @@ export default function Profile() {
   const [activeTab, setActiveTab] = useState('basic');
   const [profileData, setProfileData] = useState(initialProfileState);
 
-  // START: AUTH GUARD LOGIC & DATA LOADING FIX
+  // START: AUTH GUARD LOGIC & DATA LOADING FIX (FINAL ATTEMPT)
   useEffect(() => {
     if (typeof window === "undefined") return;
 
@@ -50,17 +50,24 @@ export default function Profile() {
     
     // Load saved profile data from local storage
     try {
-      const savedProfile = localStorage.getItem('milanProfile') || localStorage.getItem('milanUser');
+      // 🚨 FIX: Prioritize 'milanUser' (backend data) over 'milanProfile' (client fallback)
+      const savedProfile = localStorage.getItem('milanUser') || localStorage.getItem('milanProfile');
       if (savedProfile) {
         const parsed = JSON.parse(savedProfile);
-        // Merge loaded data with default state to ensure all keys are present and data is displayed
-        setProfileData(prev => ({
-            ...initialProfileState,
-            ...parsed
-        }));
+        
+        // Use Object.assign for a cleaner and more explicit merge of initial state and saved data
+        // This ensures any missing keys get the default value, and saved data overwrites the empty state.
+        const mergedProfile = Object.assign({}, initialProfileState, parsed);
+        
+        setProfileData(mergedProfile);
+      } else {
+        // If no saved profile found, ensure state is set to clean initial state
+        setProfileData(initialProfileState);
       }
     } catch (error) {
       console.error('Error loading profile:', error);
+       // Fallback to initial state on parsing error
+      setProfileData(initialProfileState);
     }
     
     // Set authenticated state LAST
@@ -200,13 +207,17 @@ export default function Profile() {
       if (json.user) {
         localStorage.setItem('milanUser', JSON.stringify(json.user));
         window.dispatchEvent(new CustomEvent('milan:user-updated', { detail: json.user }));
+        // 🚨 ADDED DEBUG LOG
+        console.log("✅ PROFILE SAVE SUCCESS: Data saved to milanUser in localStorage:", json.user);
       } else {
         // fallback: store profile preview
         localStorage.setItem('milanProfile', JSON.stringify(profileData));
         window.dispatchEvent(new CustomEvent('milan:user-updated', { detail: profileData }));
+        // 🚨 ADDED DEBUG LOG
+        console.log("⚠️ PROFILE SAVE SUCCESS (Fallback): Data saved to milanProfile in localStorage:", profileData);
       }
 
-      // 🚨 ORIGINAL CHANGE: Show custom success modal instead of alert
+      // Show custom success modal
       setShowSuccessModal(true); 
       
     } catch (error) {
