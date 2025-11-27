@@ -5,7 +5,8 @@ import Head from "next/head";
 import io from "socket.io-client";
 
 const ENABLE_DIWALI = false;
-const HUMAN_SEARCH_TIMEOUT = 12000; // 12 seconds
+const HUMAN_SEARCH_TIMEOUT = 12000; // 12 seconds (Original duration)
+const VIDEO_EXTENDED_TIMEOUT = 20000; // New timeout for showing extended message (20 seconds)
 
 export default function ConnectPage() {
   const [profile, setProfile] = useState({
@@ -37,6 +38,7 @@ export default function ConnectPage() {
   const partnerRef = useRef(null);
   const connectingRef = useRef(false);
   const searchTimerRef = useRef(null);
+  const extendedTimerRef = useRef(null); // New ref for extended timer
   const searchTypeRef = useRef(null);
 
   const backendUrl = useMemo(
@@ -262,15 +264,11 @@ export default function ConnectPage() {
     }
     tick();
 
-    fwRef.current.burst = burst;
-    fwRef.current.cleanup = () => {
-      cancelAnimationFrame(fwRef.current.raf);
+    return () => {
+      cancelAnimationFrame(rafId);
       window.removeEventListener("resize", resize);
     };
-  }
-  function stopFireworks() {
-    if (fwRef.current.cleanup) fwRef.current.cleanup();
-  }
+  }, [showWelcome, isAuthenticated]); // Added isAuthenticated dependency
 
   function connectToAI(type) {
     sessionStorage.setItem("connectingToAI", "true");
@@ -310,36 +308,55 @@ export default function ConnectPage() {
         : "💬 Searching for a human partner..."
     );
 
-    // START: MODIFIED AI FALLBACK LOGIC
+    // START: MODIFIED LOGIC FOR EXTENDED SEARCH
+    if (searchTimerRef.current) {
+        clearTimeout(searchTimerRef.current);
+        searchTimerRef.current = null;
+    }
+    if (extendedTimerRef.current) {
+        clearTimeout(extendedTimerRef.current);
+        extendedTimerRef.current = null;
+    }
+
+    if (type === "video") {
+        // Video Chat: Set a timeout to update the message, but DO NOT stop the search.
+        extendedTimerRef.current = setTimeout(() => {
+            console.log("20 seconds elapsed - showing extended video message");
+            setStatusMessage("Sit tight! Cupid is checking every corner of Milan for your perfect match! 🏹💖");
+            // The search continues indefinitely until a partner is found or the user stops it manually.
+        }, VIDEO_EXTENDED_TIMEOUT);
+
+        // We use the original search timeout (12s) to show an intermediate message, 
+        // and then the extended timer (20s) to show the final message. 
+        // The previous logic of ending search after HUMAN_SEARCH_TIMEOUT (12s) for video is removed.
+    }
+    
+    // Set a timer for TEXT chat AI fallback or the initial timeout message
     searchTimerRef.current = setTimeout(() => {
-      console.log("12 seconds elapsed - search timeout");
-      
-      if (socketRef.current && socketRef.current.connected) {
-        try {
-          // Explicitly stop socket search on server side
-          socketRef.current.emit("stopLookingForPartner");
-          socketRef.current.disconnect();
-        } catch {}
-      }
-      
-      if (type === "video") {
-        // VIDEO CHAT: Only real human connection is allowed. Stop search.
-        setStatusMessage("💔 No human partner found. Please try again!");
-        setTimeout(() => {
-          stopSearch(false); // Stop search but keep loader up briefly
-          setStatusMessage("❤️ जहां दिल मिले, वहीं होती है शुरुआत Milan की…");
-          setIsSearching(false);
-          setShowLoader(false);
-        }, 1500);
-      } else {
-        // TEXT CHAT: Fallback to AI
-        setStatusMessage("💔 No human partner found. Connecting you with AI...");
-        setTimeout(() => {
-          connectToAI(type);
-        }, 1000);
-      }
+        console.log(`${HUMAN_SEARCH_TIMEOUT / 1000} seconds elapsed - initial check`);
+        
+        if (type === "text") {
+            // TEXT CHAT: Fallback to AI
+            setStatusMessage("💔 No human partner found. Connecting you with AI...");
+            
+            if (socketRef.current && socketRef.current.connected) {
+                try {
+                    socketRef.current.emit("stopLookingForPartner");
+                    socketRef.current.disconnect();
+                } catch {}
+            }
+            
+            setTimeout(() => {
+                connectToAI(type);
+            }, 1000);
+        } else {
+            // VIDEO CHAT: Update status message after initial 12 seconds but keep searching.
+            // The extendedTimerRef will handle the second message update.
+            setStatusMessage("Hold on, real partners are taking a moment to connect. Searching continues... ⏳");
+        }
     }, HUMAN_SEARCH_TIMEOUT);
-    // END: MODIFIED AI FALLBACK LOGIC
+    // END: MODIFIED LOGIC FOR EXTENDED SEARCH
+
 
     try {
       if (!socketRef.current || !socketRef.current.connected) {
@@ -366,6 +383,10 @@ export default function ConnectPage() {
           if (searchTimerRef.current) {
             clearTimeout(searchTimerRef.current);
             searchTimerRef.current = null;
+          }
+          if (extendedTimerRef.current) {
+            clearTimeout(extendedTimerRef.current);
+            extendedTimerRef.current = null;
           }
 
           const roomCode = data && data.roomCode ? data.roomCode : "";
@@ -397,6 +418,10 @@ export default function ConnectPage() {
           clearTimeout(searchTimerRef.current);
           searchTimerRef.current = null;
         }
+        if (extendedTimerRef.current) {
+            clearTimeout(extendedTimerRef.current);
+            extendedTimerRef.current = null;
+        }
         alert("Partner disconnected.");
         stopSearch();
       });
@@ -406,6 +431,10 @@ export default function ConnectPage() {
           clearTimeout(searchTimerRef.current);
           searchTimerRef.current = null;
         }
+        if (extendedTimerRef.current) {
+            clearTimeout(extendedTimerRef.current);
+            extendedTimerRef.current = null;
+        }
         alert("Connection error. Please try again.");
         stopSearch();
       });
@@ -413,6 +442,10 @@ export default function ConnectPage() {
       if (searchTimerRef.current) {
         clearTimeout(searchTimerRef.current);
         searchTimerRef.current = null;
+      }
+      if (extendedTimerRef.current) {
+        clearTimeout(extendedTimerRef.current);
+        extendedTimerRef.current = null;
       }
       alert("Something went wrong starting the search.");
       stopSearch();
@@ -427,6 +460,10 @@ export default function ConnectPage() {
     if (searchTimerRef.current) {
       clearTimeout(searchTimerRef.current);
       searchTimerRef.current = null;
+    }
+    if (extendedTimerRef.current) {
+      clearTimeout(extendedTimerRef.current);
+      extendedTimerRef.current = null;
     }
 
     if (shouldDisconnect && socketRef.current) {
