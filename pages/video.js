@@ -223,7 +223,7 @@ export default function VideoPage() {
       log("video page start");
       
       // We assume isAuthenticated is true here because of the initial check
-      if (!token) return; // Final guard after initial check
+      if (!isAuthenticated) return; // Final guard after initial check
 
       try {
         localStream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
@@ -906,7 +906,262 @@ socket.on("danceDareEnd", (data) => {
     // UI WIRING (Not directly relevant to the current bug, kept for completeness)
     // ... (Your existing UI WIRING code)
   
+    return () => cleanup(); // Cleanup function for useEffect
+
+  }, [isAuthenticated]); // Dependency array for the main useEffect
+
+  // 5. AI CONNECTION FUNCTION (Same as before)
+  function connectToAI(type) {
+    sessionStorage.setItem("connectingToAI", "true");
+    sessionStorage.setItem("aiChatType", type);
+    
+    const userGender = localStorage.getItem("gender") || "male";
+    const userName = profile.name || localStorage.getItem("registered_name") || "Friend";
+    
+    const aiPartner = {
+      isAI: true,
+      name: userGender === "male" ? "Priya" : "Rahul",
+      gender: userGender === "male" ? "female" : "male",
+      age: "25",
+      city: "Virtual",
+      bio: "Hey! I'm your AI companion. Let's chat! 😊"
+    };
+    
+    sessionStorage.setItem("partnerData", JSON.stringify(aiPartner));
+    sessionStorage.setItem("roomCode", "AI_" + Date.now());
+    
+    setStatusMessage("💖 AI Partner Connected!");
+    
+    setTimeout(() => {
+      window.location.href = type === "video" ? "/video" : "/chat";
+    }, 500);
+  }
+
+  // 6. START SEARCH FUNCTION (Core Logic)
+  function startSearch(type) {
+    if (isSearching || connectingRef.current) return;
+    connectingRef.current = true;
+    searchTypeRef.current = type;
+    setIsSearching(true);
+    setShowLoader(true);
+    setStatusMessage(
+      type === "video"
+        ? "🎥 Finding your video chat soulmate..."
+        : "💬 Searching for a human partner..."
+    );
+
+    // Clear any existing timers
+    if (searchTimerRef.current) {
+        clearTimeout(searchTimerRef.current);
+        searchTimerRef.current = null;
+    }
+    if (extendedTimerRef.current) {
+        clearTimeout(extendedTimerRef.current);
+        extendedTimerRef.current = null;
+    }
+
+    if (type === "video") {
+        // Video Chat: Set a timeout to update the message after 20s (Extended Message)
+        extendedTimerRef.current = setTimeout(() => {
+            console.log("20 seconds elapsed - showing extended video message");
+            setStatusMessage("Sit tight! Cupid is checking every corner of Milan for your perfect match! 🏹💖");
+        }, VIDEO_EXTENDED_TIMEOUT);
+
+        // Set a timer for the initial video chat message update (12s)
+        searchTimerRef.current = setTimeout(() => {
+            console.log(`${HUMAN_SEARCH_TIMEOUT / 1000} seconds elapsed - initial video check`);
+            // VIDEO CHAT: Update status message after initial 12 seconds but keep searching.
+            setStatusMessage("Hold on, real partners are taking a moment to connect. Searching continues... ⏳");
+        }, HUMAN_SEARCH_TIMEOUT);
+
+    } else {
+        // TEXT CHAT: Set a single timer for AI fallback (12s)
+        searchTimerRef.current = setTimeout(() => {
+            console.log("12 seconds elapsed - text chat AI fallback");
+            // TEXT CHAT: Fallback to AI
+            setStatusMessage("💔 No human partner found. Connecting you with AI...");
+            
+            if (socketRef.current && socketRef.current.connected) {
+                try {
+                    // Explicitly disconnect search socket before connecting to AI
+                    socketRef.current.emit("stopLookingForPartner");
+                    socketRef.current.disconnect();
+                } catch {}
+            }
+            
+            setTimeout(() => {
+                connectToAI(type);
+            }, 1000);
+        }, HUMAN_SEARCH_TIMEOUT);
+    }
+
+    try {
+      if (!socketRef.current || !socketRef.current.connected) {
+        socketRef.current = io(backendUrl, {
+          transports: ["websocket", "polling"],
+          reconnection: true,
+          reconnectionAttempts: 10,
+          reconnectionDelay: 800,
+        });
+      }
+      const token =
+        (typeof window !== "undefined" && localStorage.getItem("token")) || "";
+
+      if (socketRef.current && socketRef.current.off) {
+        socketRef.current.off("partnerFound");
+        socketRef.current.off("partnerDisconnected");
+        socketRef.current.off("connect_error");
+      }
+
+      socketRef.current.emit("lookingForPartner", { type, token });
+
+      socketRef.current.on("partnerFound", (data) => {
+        try {
+          if (searchTimerRef.current) {
+            clearTimeout(searchTimerRef.current);
+            searchTimerRef.current = null;
+          }
+          if (extendedTimerRef.current) {
+            clearTimeout(extendedTimerRef.current);
+            extendedTimerRef.current = null;
+          }
+
+          const roomCode = data && data.roomCode ? data.roomCode : "";
+          partnerRef.current = data && data.partner ? data.partner : {};
+          if (!roomCode) {
+            setTimeout(() => stopSearch(), 800);
+            return;
+          }
+          
+          partnerRef.current.isAI = false;
+          
+          sessionStorage.setItem(
+            "partnerData",
+            JSON.stringify(partnerRef.current)
+          );
+          sessionStorage.setItem("roomCode", roomCode);
+          localStorage.setItem("lastRoomCode", roomCode);
+          setStatusMessage("💖 Human Partner Found!");
+          setTimeout(() => {
+            window.location.href = type === "video" ? "/video" : "/chat";
+          }, 120);
+        } catch {
+          setTimeout(() => stopSearch(), 500);
+        }
+      });
+
+      socketRef.current.on("partnerDisconnected", () => {
+        if (searchTimerRef.current) {
+          clearTimeout(searchTimerRef.current);
+          searchTimerRef.current = null;
+        }
+        if (extendedTimerRef.current) {
+            clearTimeout(extendedTimerRef.current);
+            extendedTimerRef.current = null;
+        }
+        alert("Partner disconnected.");
+        stopSearch();
+      });
+
+      socketRef.current.on("connect_error", () => {
+        if (searchTimerRef.current) {
+          clearTimeout(searchTimerRef.current);
+          searchTimerRef.current = null;
+        }
+        if (extendedTimerRef.current) {
+            clearTimeout(extendedTimerRef.current);
+            extendedTimerRef.current = null;
+        }
+        alert("Connection error. Please try again.");
+        stopSearch();
+      });
+    } catch {
+      if (searchTimerRef.current) {
+        clearTimeout(searchTimerRef.current);
+        searchTimerRef.current = null;
+      }
+      if (extendedTimerRef.current) {
+        clearTimeout(extendedTimerRef.current);
+        extendedTimerRef.current = null;
+      }
+      alert("Something went wrong starting the search.");
+      stopSearch();
+    } finally {
+      setTimeout(() => {
+        connectingRef.current = false;
+      }, 300);
+    }
+  }
+
+  function stopSearch(shouldDisconnect = true) {
+    if (searchTimerRef.current) {
+      clearTimeout(searchTimerRef.current);
+      searchTimerRef.current = null;
+    }
+    if (extendedTimerRef.current) {
+      clearTimeout(extendedTimerRef.current);
+      extendedTimerRef.current = null;
+    }
+
+    if (shouldDisconnect && socketRef.current) {
+      try {
+        socketRef.current.emit("disconnectByUser");
+        socketRef.current.disconnect();
+      } catch {}
+      try {
+        if (socketRef.current.removeAllListeners) {
+          socketRef.current.removeAllListeners();
+        }
+      } catch {}
+      socketRef.current = null;
+    }
+    setIsSearching(false);
+    setShowLoader(false);
+    setStatusMessage("❤️ जहां दिल मिले, वहीं होती है शुरुआत Milan की…");
+  }
+
+  // 7. LOGOUT FUNCTIONS
+  const handleLogout = () => {
+    setShowLogoutModal(true);
+  };
+
+  const confirmLogout = () => {
+    setShowLogoutModal(false);
+    try {
+      localStorage.clear();
+      sessionStorage.clear();
+    } catch {}
+
+    window.location.href = "/";
+  };
+
+  const handleStayLoggedIn = () => {
+    setShowLogoutModal(false);
+  };
+
+
+  const handleProfileClick = () => {
+    window.location.href = "/profile";
+  };
+
+  // If user is not authenticated yet, return null or a simple loader to prevent UI flicker
+  if (!isAuthenticated) {
     return (
+        <div style={{ 
+            background: '#08060c', 
+            minHeight: '100vh', 
+            display: 'flex', 
+            alignItems: 'center', 
+            justifyContent: 'center',
+            color: '#fff',
+            fontSize: '24px'
+        }}>
+            Loading Milan... ❤️
+        </div>
+    );
+  }
+
+  return (
     <>
       <Head>
         <title>Milan – Connect</title>
