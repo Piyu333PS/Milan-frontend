@@ -15,8 +15,8 @@ export default function Profile() {
   const [showSuccessModal, setShowSuccessModal] = useState(false);
   // END: ADDED STATE FOR SUCCESS MODAL
 
-  const [activeTab, setActiveTab] = useState('basic');
-  const [profileData, setProfileData] = useState({
+  // Default state structure
+  const initialProfileState = {
     name: '',
     age: '',
     city: '',
@@ -32,9 +32,12 @@ export default function Profile() {
     greenFlags: [],
     foodieLevel: 50,
     travelStyle: 'explorer'
-  });
+  };
 
-  // START: AUTH GUARD LOGIC
+  const [activeTab, setActiveTab] = useState('basic');
+  const [profileData, setProfileData] = useState(initialProfileState);
+
+  // START: AUTH GUARD LOGIC & DATA LOADING FIX
   useEffect(() => {
     if (typeof window === "undefined") return;
 
@@ -45,19 +48,24 @@ export default function Profile() {
       return;
     }
     
-    // If token exists, set auth status and proceed with loading profile
-    setIsAuthenticated(true);
-
-    // Load saved profile data only if authenticated
+    // Load saved profile data from local storage
     try {
       const savedProfile = localStorage.getItem('milanProfile') || localStorage.getItem('milanUser');
       if (savedProfile) {
         const parsed = JSON.parse(savedProfile);
-        setProfileData(parsed);
+        // Merge loaded data with default state to ensure all keys are present and data is displayed
+        setProfileData(prev => ({
+            ...initialProfileState,
+            ...parsed
+        }));
       }
     } catch (error) {
       console.error('Error loading profile:', error);
     }
+    
+    // Set authenticated state LAST
+    setIsAuthenticated(true);
+
   }, [router]);
   // END: AUTH GUARD LOGIC
 
