@@ -271,8 +271,47 @@ export default function VideoPage() {
         pc = new RTCPeerConnection(ICE_CONFIG);
 
         // Add local tracks to senders using addTransceiver (for proper enable/disable via senders)
-        try { pc.addTransceiver(localStream.getAudioTracks()[0], { direction: "sendrecv" }); } catch (e) { log("addTransceiver audio failed", e); }
-        try { pc.addTransceiver(localStream.getVideoTracks()[0], { direction: "sendrecv" }); } catch (e) { log("addTransceiver video failed", e); }
+        const createPC = () => {
+  if (pc) return;
+  log("creating RTCPeerConnection");
+  pc = new RTCPeerConnection(ICE_CONFIG);
+
+  // 👉 SIMPLE: dono tracks (audio + video) direct addTrack se bhejo
+  if (localStream) {
+    localStream.getTracks().forEach(track => {
+      try {
+        pc.addTrack(track, localStream);
+      } catch (e) {
+        log("addTrack failed", e);
+      }
+    });
+  }
+
+  pc.ontrack = (e) => {
+    try {
+      log("pc.ontrack", e);
+      const rv = get("remoteVideo");
+      const stream = (e && e.streams && e.streams[0]) ? e.streams[0] : new MediaStream([e.track]);
+      if (rv) {
+        rv.playsInline = true;
+        rv.autoplay = true;
+        const prevMuted = rv.muted;
+        rv.muted = true;
+        if (rv.srcObject !== stream) {
+          rv.srcObject = stream;
+          rv.play && rv.play().then(() => {
+            setTimeout(() => { try { rv.muted = prevMuted; } catch (e) {} }, 250);
+          }).catch((err) => { log("remote play rejected", err); try { rv.muted = prevMuted; } catch (e) {} });
+        } else {
+          try { rv.muted = prevMuted; } catch (e) {}
+        }
+      }
+    } catch (err) { console.error("ontrack error", err); }
+  };
+
+  // ...baaki pc.onicecandidate, onconnectionstatechange, etc same rehne do
+};
+
 
         pc.ontrack = (e) => {
           try {
