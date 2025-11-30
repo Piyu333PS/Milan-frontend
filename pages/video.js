@@ -144,8 +144,9 @@ export default function VideoPage() {
       try { var rv = get("remoteVideo"); if (rv) rv.srcObject = null; } catch (e) {}
       pendingCandidates.length = 0;
       stopTimer(true);
-      // Ensure rating is shown after cleanup
-      showRating(); 
+      // Removed showRating() from here. It will now only be called explicitly 
+      // when a disconnection is confirmed (partnerDisconnected, failed/disconnected state change).
+      // This is the FIX for showing rating overlay too early.
     }
 
     var cleanup = function (opts) {
@@ -160,7 +161,7 @@ export default function VideoPage() {
         }
       } catch (e) { log("socket cleanup err", e); }
 
-      cleanupPeerConnection(); // This now calls showRating
+      cleanupPeerConnection(); // This no longer calls showRating directly
 
       try {
         if (localStream) {
@@ -303,9 +304,11 @@ export default function VideoPage() {
 
         pc.onconnectionstatechange = () => {
           log("pc.connectionState:", pc.connectionState);
+          // FIX: Only show rating if disconnected/failed
           if (pc.connectionState === "disconnected" || pc.connectionState === "failed") {
             showToast("Partner disconnected");
-            cleanupPeerConnection(); // Triggers showRating inside
+            cleanupPeerConnection(); 
+            showRating(); // <-- FIX: Call showRating explicitly on confirmed disconnection
           }
         };
 
@@ -462,8 +465,18 @@ export default function VideoPage() {
       });
 
       socket.on("waitingForPeer", (d) => { log("waitingForPeer", d); showToast("Waiting for partner..."); });
-      socket.on("partnerDisconnected", () => { log("partnerDisconnected"); showToast("Partner disconnected"); cleanupPeerConnection(); }); // showRating moved inside cleanupPC
-      socket.on("partnerLeft", () => { log("partnerLeft"); showToast("Partner left"); cleanupPeerConnection(); }); // showRating moved inside cleanupPC
+      socket.on("partnerDisconnected", () => { 
+        log("partnerDisconnected"); 
+        showToast("Partner disconnected"); 
+        cleanupPeerConnection(); 
+        showRating(); // <-- FIX: Explicitly call showRating here
+      }); 
+      socket.on("partnerLeft", () => { 
+        log("partnerLeft"); 
+        showToast("Partner left"); 
+        cleanupPeerConnection(); 
+        showRating(); // <-- FIX: Explicitly call showRating here
+      }); 
       socket.on("errorMessage", (e) => { console.warn("server errorMessage:", e); showToast(e && e.message ? e.message : "Server error"); });
 
       // ========== ACTIVITIES SIGNALS (Omitted for brevity, kept consistent with previous versions) ==========
@@ -1072,14 +1085,21 @@ socket.on("danceDareEnd", (data) => {
     // 2. Signal disconnection to partner
     try { safeEmit("partnerLeft"); } catch (e) { log("emit partnerLeft err", e); }
     
-    // 3. Clean up PC resources and show rating modal (showRating is now inside cleanupPeerConnection)
+    // 3. Clean up PC resources and show rating modal (showRating is now called explicitly after partnerLeft/partnerDisconnected)
     cleanupPeerConnection(); 
+    showRating(); // <-- Call showRating explicitly here after user confirms disconnection
     
     // Note: Redirection happens via the 'Search New Partner' button on the Rating Overlay.
   };
   
   const handleKeepChatting = () => {
+    // FIX: This function just closes the confirmation modal, letting the chat continue.
     setShowDisconnectConfirm(false);
+  };
+  
+  const handleRatingOverlayClose = () => {
+    // FIX: This closes the rating overlay and lets the user continue the call.
+    get("ratingOverlay").style.display = "none";
   };
 
   // Check isAuthenticated and show a loading screen if not authenticated yet
@@ -1403,7 +1423,16 @@ socket.on("danceDareEnd", (data) => {
             <i className="far fa-heart" data-value="5" aria-label="5 stars"></i>
           </div>
           <div className="rating-buttons">
-            {/* Quit button removed, New Partner is the new target */}
+            {/* FIX: Continue Call button added here */}
+            <button 
+                id="continueCallBtn" 
+                onClick={handleRatingOverlayClose} 
+                style={{background:'linear-gradient(135deg,#4cd964,#34c759)'}}
+            >
+                Continue Call
+            </button>
+            {/* End FIX */}
+            
             <button id="newPartnerBtn" onClick={() => window.location.href = "/connect"}>Search New Partner</button>
           </div>
           <div className="emoji-container" aria-hidden="true"></div>
