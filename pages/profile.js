@@ -315,9 +315,16 @@ export default function Profile() {
       const data = await res.json().catch(() => ({}));
 
       if (!res.ok || !data.ok) {
-        const msg =
+        let msg =
           (data && (data.error || data.message)) ||
           'Failed to update Milan ID.';
+
+        // Hindi error ko override karke cute English line dikhayenge
+        if (msg && msg.toLowerCase().includes('3 mahine')) {
+          msg =
+            'You recently changed your Milan ID. Your next change will be available only after 3 months.';
+        }
+
         setMilanIdStatus({ text: msg, color: 'text-red-500' });
         setShowMilanIdConfirm(false);
         return;
@@ -554,7 +561,7 @@ export default function Profile() {
                     className="w-full px-4 py-2 border-2 border-pink-200 rounded-full focus:border-pink-500 focus:outline-none text-gray-900 bg-white placeholder-gray-400 text-sm"
                   />
 
-                  {/* Buttons */}
+                  {/* Buttons - equal width */}
                   <div className="flex gap-2 items-center">
                     <button
                       type="button"
@@ -567,7 +574,7 @@ export default function Profile() {
                     <button
                       type="button"
                       onClick={handleCancelMilanIdEdit}
-                      className="px-3 py-2 rounded-full text-xs font-medium bg-gray-100 text-gray-700 hover:bg-gray-200 whitespace-nowrap"
+                      className="flex-1 px-4 py-2 rounded-full text-sm font-medium bg-gray-100 text-gray-700 hover:bg-gray-200 text-center"
                     >
                       Cancel
                     </button>
@@ -576,7 +583,7 @@ export default function Profile() {
               )}
 
               {milanIdStatus.text && (
-                <p className={`mt-2 text-xs ${milanIdStatus.color}`}>
+                <p className={`mt-2 text-xs font-semibold ${milanIdStatus.color}`}>
                   {milanIdStatus.text}
                 </p>
               )}
