@@ -4,93 +4,77 @@ const COMING_SOON = true;
 import { useEffect, useState } from "react"; 
 import io from "socket.io-client";
 
-// FIX 1: get() function moved to global scope of the component for use in JSX
-const get = (id) => typeof document !== 'undefined' ? document.getElementById(id) : null; 
-
-// FIX 2: Core utility functions moved to global scope for use in JSX handlers
-const log = (...args) => { try { console.log("[video]", ...args); } catch (e) {} };
-const showRating = () => { var r = get("ratingOverlay"); if (r) r.style.display = "flex"; };
-const showToast = (msg, ms) => {
-    var t = get("toast");
-    if (!t) return;
-    t.textContent = msg;
-    t.style.display = "block";
-    setTimeout(() => { t.style.display = "none"; }, ms || 2000);
-};
-
 export default function VideoPage() {
-  // START: AUTH GUARD STATE (Only essential state maintained here)
+  // START: AUTH GUARD STATE
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   // END: AUTH GUARD STATE
   
   // NEW STATE: Custom modal for disconnect confirmation
   const [showDisconnectConfirm, setShowDisconnectConfirm] = useState(false);
-  
-  // FIX 3: Centralized handler for closing Rating Overlay
-  const handleRatingOverlayClose = () => {
-    const ratingOverlay = get("ratingOverlay");
-    if (ratingOverlay) {
-        ratingOverlay.style.display = "none";
-    }
-  };
-  
-  // ------------------------------------------
-  // NEW FUNCTIONS FOR DISCONNECT MODAL (Uses global utility functions)
-  // ------------------------------------------
-  const handleConfirmDisconnect = () => {
-    // We rely on the instance variables inside the cleanup logic triggered by safeEmit("partnerLeft")
-    setShowDisconnectConfirm(false);
-    
-    // safeEmit logic will run the rest of the cleanup in useEffect context
-    safeEmit("partnerLeft"); 
-    
-    // Immediate cleanup logic moved to useEffect cleanup functions
-    // Note: We don't call showRating/cleanupPeerConnection here directly, 
-    // we let the socket event ("partnerLeft" or disconnect cleanup) handle it 
-    // to avoid race conditions with the socket.
-  };
-  
-  const handleKeepChatting = () => {
-    setShowDisconnectConfirm(false);
-  };
-  
-  // Define safeEmit outside of useEffect so it can be used in handleConfirmDisconnect
-  // but let it access the live socket and roomCode context defined in useEffect closure.
-  let safeEmit;
 
   useEffect(() => {
-    // Start fresh instances for each effect run
+    // START: AUTH GUARD LOGIC
     if (typeof window === "undefined") return;
 
-    // --- Variables now defined locally to useEffect closure ---
+    const token = localStorage.getItem("token");
+    if (!token) {
+      // If no token, redirect to homepage (login/register page)
+      window.location.href = "/";
+      return;
+    }
+    
+    // If token exists, set auth status and proceed with setup
+    setIsAuthenticated(true);
+    // END: AUTH GUARD LOGIC
+    
+    // Original setup code starts here, only runs if isAuthenticated is set (implicitly by the useEffect flow)
+
+    const BACKEND_URL = window.BACKEND_URL || process.env.NEXT_PUBLIC_BACKEND_URL || "https://milan-j9u9.onrender.com";
+    const ICE_CONFIG = { iceServers: [{ urls: "stun:stun.l.google.com:19302" }] };
+
     let socket = null;
+    let socketConnected = false;
     let pc = null;
     let localStream = null;
+    let hasOffered = false;
     let cameraTrackSaved = null;
     let isCleaning = false;
-    let socketConnected = false;
-    let hasOffered = false;
-    let makingOffer = false;
-    let ignoreOffer = false;
-    let polite = false;
 
     // timer vars
     let timerInterval = null;
     let timerStartTS = null;
     let elapsedBeforePause = 0;
-    
-    // Candidate draining vars
+
+    // Two-Option / Spin state helpers
+    let currentQuestion = null;
+    let pendingAnswers = {};
+    let twoOptionScore = { total: 0, matched: 0, asked: 0 };
+
+    // NEW: Activity state helpers
+    let rapidFireInterval = null;
+    let rapidFireCount = 0;
+    let mirrorTimer = null;
+    let staringTimer = null;
+    let lyricsCurrentSong = null;
+
+    // negotiation flags
+    let makingOffer = false;
+    let ignoreOffer = false;
+    let polite = false;
+
     const pendingCandidates = [];
     let draining = false;
 
-    // --- AUTH GUARD LOGIC ---
-    const token = localStorage.getItem("token");
-    if (!token) {
-      window.location.href = "/";
-      return;
-    }
-    setIsAuthenticated(true);
-    // -------------------------
+    const get = (id) => document.getElementById(id);
+    const showToast = (msg, ms) => {
+      var t = get("toast");
+      if (!t) return;
+      t.textContent = msg;
+      t.style.display = "block";
+      setTimeout(() => { t.style.display = "none"; }, ms || 2000);
+    };
+    const showRating = () => { var r = get("ratingOverlay"); if (r) r.style.display = "flex"; };
+    const log = (...args) => { try { console.log("[video]", ...args); } catch (e) {} };
 
     const getRoomCode = () => {
       try {
@@ -100,56 +84,16 @@ export default function VideoPage() {
         return sessionStorage.getItem("roomCode") || localStorage.getItem("lastRoomCode");
       }
     };
-    
-    // FIX: Redefine safeEmit locally so it accesses the correct local 'socket' instance
-    safeEmit = (event, data = {}) => {
-        try {
-            if (!socket || !socketConnected) return log("safeEmit: socket not connected, skip", event);
-            const roomCode = getRoomCode();
-            const payload = (data && typeof data === "object") ? { ...data } : { data };
-            if (roomCode && !payload.roomCode) payload.roomCode = roomCode;
-            socket.emit(event, payload);
-        } catch (e) { log("safeEmit err", e); }
+
+    const safeEmit = (event, data = {}) => {
+      try {
+        if (!socket || !socket.connected) return log("safeEmit: socket not connected, skip", event);
+        const roomCode = getRoomCode();
+        const payload = (data && typeof data === "object") ? { ...data } : { data };
+        if (roomCode && !payload.roomCode) payload.roomCode = roomCode;
+        socket.emit(event, payload);
+      } catch (e) { log("safeEmit err", e); }
     };
-    
-    // --- Timer Helpers ---
-    function formatTime(ms) {
-      const total = Math.floor(ms / 1000);
-      const mm = String(Math.floor(total / 60)).padStart(2, '0');
-      const ss = String(total % 60).padStart(2, '0');
-      return `${mm}:${ss}`;
-    }
-    function updateTimerDisplay() {
-      const el = get('callTimer');
-      if (!el) return;
-      const now = Date.now();
-      const elapsed = (timerStartTS ? (elapsedBeforePause + (now - timerStartTS)) : elapsedBeforePause) || 0;
-      el.textContent = formatTime(elapsed);
-    }
-    function startTimer() {
-        try {
-            if (timerInterval) return;
-            timerStartTS = Date.now();
-            updateTimerDisplay();
-            timerInterval = setInterval(updateTimerDisplay, 1000);
-            log('call timer started');
-        } catch (e) { console.warn('startTimer err', e); }
-    }
-    function stopTimer(preserve = false) {
-        try {
-            if (timerInterval) { clearInterval(timerInterval); timerInterval = null; }
-            if (timerStartTS) {
-                elapsedBeforePause = elapsedBeforePause + (Date.now() - timerStartTS);
-            }
-            timerStartTS = null;
-            if (!preserve) {
-                elapsedBeforePause = 0;
-                const el = get('callTimer'); if (el) el.textContent = '00:00';
-            }
-            log('call timer stopped', { preserve });
-        } catch (e) { console.warn('stopTimer err', e); }
-    }
-    // ---------------------
 
     const drainPendingCandidates = async () => {
       if (draining) return;
@@ -200,9 +144,11 @@ export default function VideoPage() {
       try { var rv = get("remoteVideo"); if (rv) rv.srcObject = null; } catch (e) {}
       pendingCandidates.length = 0;
       stopTimer(true);
+      // Ensure rating is shown after cleanup
+      showRating(); 
     }
 
-    const cleanup = function (opts) {
+    var cleanup = function (opts) {
       opts = opts || {};
       if (isCleaning) return;
       isCleaning = true;
@@ -214,7 +160,7 @@ export default function VideoPage() {
         }
       } catch (e) { log("socket cleanup err", e); }
 
-      cleanupPeerConnection();
+      cleanupPeerConnection(); // This now calls showRating
 
       try {
         if (localStream) {
@@ -225,22 +171,59 @@ export default function VideoPage() {
       localStream = null;
       cameraTrackSaved = null;
       setTimeout(() => { isCleaning = false; }, 300);
+      // Removed direct redirection logic from general cleanup, except if room not found
       if (opts.goToConnect) window.location.href = "/connect"; 
     };
 
-    const BACKEND_URL = window.BACKEND_URL || process.env.NEXT_PUBLIC_BACKEND_URL || "https://milan-j9u9.onrender.com";
-    const ICE_CONFIG = { iceServers: [{ urls: "stun:stun.l.google.com:19302" }] };
-    
+    // Timer helpers
+    function formatTime(ms) {
+      const total = Math.floor(ms / 1000);
+      const mm = String(Math.floor(total / 60)).padStart(2, '0');
+      const ss = String(total % 60).padStart(2, '0');
+      return `${mm}:${ss}`;
+    }
+    function updateTimerDisplay() {
+      const el = get('callTimer');
+      if (!el) return;
+      const now = Date.now();
+      const elapsed = (timerStartTS ? (elapsedBeforePause + (now - timerStartTS)) : elapsedBeforePause) || 0;
+      el.textContent = formatTime(elapsed);
+    }
+    function startTimer() {
+      try {
+        if (timerInterval) return;
+        timerStartTS = Date.now();
+        updateTimerDisplay();
+        timerInterval = setInterval(updateTimerDisplay, 1000);
+        log('call timer started');
+      } catch (e) { console.warn('startTimer err', e); }
+    }
+    function stopTimer(preserve = false) {
+      try {
+        if (timerInterval) { clearInterval(timerInterval); timerInterval = null; }
+        if (timerStartTS) {
+          elapsedBeforePause = elapsedBeforePause + (Date.now() - timerStartTS);
+        }
+        timerStartTS = null;
+        if (!preserve) {
+          elapsedBeforePause = 0;
+          const el = get('callTimer'); if (el) el.textContent = '00:00';
+        }
+        log('call timer stopped', { preserve });
+      } catch (e) { console.warn('stopTimer err', e); }
+    }
+
     (async function start() {
       log("video page start");
       
-      if (!isAuthenticated) return;
+      // We assume isAuthenticated is true here because of the initial check
+      if (!isAuthenticated) return; // Final guard after initial check
 
       try {
         localStream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
         var vtracks = (localStream && typeof localStream.getVideoTracks === "function") ? localStream.getVideoTracks() : [];
         cameraTrackSaved = (vtracks && vtracks.length) ? vtracks[0] : null;
-        
+
         var lv = get("localVideo");
         if (lv) {
           lv.muted = true;
@@ -274,7 +257,7 @@ export default function VideoPage() {
           return;
         }
         var token = localStorage.getItem("token") || null;
-        safeEmit("joinVideo", { token }); // This safeEmit now uses the locally defined `socket` instance.
+        safeEmit("joinVideo", { token });
       });
 
       socket.on("disconnect", (reason) => { log("socket disconnected:", reason); socketConnected = false; });
@@ -294,13 +277,12 @@ export default function VideoPage() {
             log("pc.ontrack", e);
             const rv = get("remoteVideo");
             const stream = (e && e.streams && e.streams[0]) ? e.streams[0] : new MediaStream([e.track]);
-            
             if (rv) {
               rv.playsInline = true;
               rv.autoplay = true;
               const prevMuted = rv.muted;
               rv.muted = true;
-              if (rv.srcObject !== stream) { 
+              if (rv.srcObject !== stream) {
                 rv.srcObject = stream;
                 rv.play && rv.play().then(() => {
                   setTimeout(() => { try { rv.muted = prevMuted; } catch (e) {} }, 250);
@@ -323,8 +305,7 @@ export default function VideoPage() {
           log("pc.connectionState:", pc.connectionState);
           if (pc.connectionState === "disconnected" || pc.connectionState === "failed") {
             showToast("Partner disconnected");
-            cleanupPeerConnection(); 
-            showRating(); 
+            cleanupPeerConnection(); // Triggers showRating inside
           }
         };
 
@@ -341,8 +322,8 @@ export default function VideoPage() {
         pc.onnegotiationneeded = async () => {
           if (!socketConnected) { log("negotiation: socket not connected"); return; }
           if (makingOffer) { log("negotiationneeded: already makingOffer"); return; }
-          makingOffer = true;
           try {
+            makingOffer = true;
             const offer = await pc.createOffer();
             await pc.setLocalDescription(offer);
             safeEmit("offer", { type: pc.localDescription && pc.localDescription.type, sdp: pc.localDescription && pc.localDescription.sdp });
@@ -353,7 +334,7 @@ export default function VideoPage() {
         };
       };
 
-      // SIGNALING HANDLERS
+      // SIGNALING HANDLERS (Omitted for brevity, kept consistent with previous versions)
       socket.on("ready", (data) => {
         log("socket ready", data);
         try { if (data && typeof data.polite !== "undefined") polite = !!data.polite; } catch (e) {}
@@ -423,23 +404,35 @@ export default function VideoPage() {
       socket.on("candidate", async (payload) => {
         try {
           log("socket candidate payload:", payload);
-          const wrapper = payload && payload.candidate !== undefined ? payload : (payload && payload.payload ? payload.payload : payload);
+          const wrapper = (payload && (payload.candidate !== undefined || payload.sdpMid !== undefined || payload.sdpMLineIndex !== undefined))
+                          ? payload
+                          : (payload && payload.payload ? payload.payload : payload);
 
           if (!wrapper) {
             console.warn("[video] candidate: empty payload");
             return;
           }
 
-          let cand = wrapper.candidate;
+          let cand = null;
 
-          if (!cand && cand !== null) {
+          if (typeof wrapper.candidate === "object" && wrapper.candidate !== null) {
+            cand = wrapper.candidate;
+          } else if (typeof wrapper.candidate === "string") {
+            cand = { candidate: wrapper.candidate };
+            if (wrapper.sdpMid) cand.sdpMid = wrapper.sdpMid;
+            if (wrapper.sdpMLineIndex !== undefined) cand.sdpMLineIndex = wrapper.sdpMLineIndex;
+          } else if (wrapper.candidate === null) {
+            console.log("[video] candidate: null (ignored)");
+            return;
+          } else if (typeof wrapper === "string") {
+            cand = { candidate: wrapper };
+          } else {
+            cand = wrapper;
+          }
+
+          if (!cand) {
             console.warn("[video] could not parse candidate payload – skipping", payload);
             return;
-          }
-          
-          if (cand === null) {
-             console.log("[video] candidate: null (ignored)");
-             return;
           }
 
           if (!pc) {
@@ -450,17 +443,17 @@ export default function VideoPage() {
 
           if (!pc || !pc.remoteDescription || !pc.remoteDescription.type) {
             log("[video] remoteDescription not set yet – queueing candidate");
-            pendingCandidates.push(wrapper);
+            pendingCandidates.push(cand);
             setTimeout(() => drainPendingCandidates(), 200);
             return;
           }
 
           try {
-            await pc.addIceCandidate(new RTCIceCandidate(wrapper));
+            await pc.addIceCandidate(new RTCIceCandidate(cand));
             log("[video] addIceCandidate success");
           } catch (err) {
-            console.warn("[video] addIceCandidate failed", err, wrapper);
-            pendingCandidates.push(wrapper);
+            console.warn("[video] addIceCandidate failed", err, cand);
+            pendingCandidates.push(cand);
             setTimeout(() => drainPendingCandidates(), 250);
           }
         } catch (err) {
@@ -469,66 +462,627 @@ export default function VideoPage() {
       });
 
       socket.on("waitingForPeer", (d) => { log("waitingForPeer", d); showToast("Waiting for partner..."); });
-      socket.on("partnerDisconnected", () => { 
-        log("partnerDisconnected"); 
-        showToast("Partner disconnected"); 
-        cleanupPeerConnection(); 
-        showRating(); 
-      }); 
-      socket.on("partnerLeft", () => { 
-        log("partnerLeft"); 
-        showToast("Partner left"); 
-        cleanupPeerConnection(); 
-        showRating(); 
-      }); 
+      socket.on("partnerDisconnected", () => { log("partnerDisconnected"); showToast("Partner disconnected"); cleanupPeerConnection(); }); // showRating moved inside cleanupPC
+      socket.on("partnerLeft", () => { log("partnerLeft"); showToast("Partner left"); cleanupPeerConnection(); }); // showRating moved inside cleanupPC
       socket.on("errorMessage", (e) => { console.warn("server errorMessage:", e); showToast(e && e.message ? e.message : "Server error"); });
-      
-      // Omitted Activity Handlers for brevity...
 
-      // UI WIRING for MIC/CAM/SCREEN (Using local scope variables)
+      // ========== ACTIVITIES SIGNALS (Omitted for brevity, kept consistent with previous versions) ==========
+      socket.on("twoOptionQuestion", (q) => {
+        try {
+          log("twoOptionQuestion", q);
+          currentQuestion = q;
+          pendingAnswers[q.questionId] = { self: null, revealed: false };
+          const modal = get("twoOptionModal");
+          if (!modal) { log("twoOptionModal missing"); return; }
+          modal.querySelector(".q-text").textContent = q.text || "";
+          modal.querySelector("#optA").textContent = q.optionA || "A";
+          modal.querySelector("#optB").textContent = q.optionB || "B";
+          modal.querySelector(".q-counter").textContent = `${q.currentIndex || 1}/${q.totalQuestions || 1}`;
+          modal.style.display = "flex";
+          var reveal = get("twoOptionReveal");
+          if (reveal) reveal.style.display = "none";
+        } catch (e) { console.error("twoOptionQuestion handler", e); }
+      });
+
+      socket.on("twoOptionReveal", (payload) => {
+        try {
+          log("twoOptionReveal", payload);
+          if (!payload || !payload.questionId) return;
+          var modal = get("twoOptionModal");
+          if (!modal) return;
+          var reveal = get("twoOptionReveal");
+          if (reveal) {
+            reveal.style.display = "block";
+            reveal.querySelector(".you-choice").textContent = payload.answers.you === "A" ? modal.querySelector("#optA").textContent : modal.querySelector("#optB").textContent;
+            reveal.querySelector(".other-choice").textContent = payload.answers.partner === "A" ? modal.querySelector("#optA").textContent : modal.querySelector("#optB").textContent;
+            var match = payload.answers.you === payload.answers.partner;
+            reveal.querySelector(".match-text").textContent = match ? "Match! 💖 +1" : "Different – Opposites attract! ✨";
+            if (typeof payload.matched !== "undefined") {
+              twoOptionScore.asked = payload.totalAsked || twoOptionScore.asked;
+              twoOptionScore.matched = payload.matched;
+              twoOptionScore.total = payload.totalAsked || twoOptionScore.asked;
+            }
+          }
+          setTimeout(() => {
+            try {
+              if (modal) modal.style.display = "none";
+            } catch (e) {}
+          }, 2200);
+        } catch (e) { console.error("twoOptionReveal err", e); }
+      });
+
+      socket.on("twoOptionResult", (res) => {
+        try {
+          log("twoOptionResult", res);
+          var rmodal = get("twoOptionResultModal");
+          if (!rmodal) return;
+          rmodal.querySelector(".final-percent").textContent = `${res.percent || 0}%`;
+          rmodal.querySelector(".final-text").textContent = res.text || "Here's your love score!";
+          rmodal.style.display = "flex";
+          var hearts = rmodal.querySelectorAll(".result-hearts i");
+          var fillCount = Math.round(((res.percent || 0) / 100) * hearts.length);
+          for (var i = 0; i < hearts.length; i++) hearts[i].classList.toggle("selected", i < fillCount);
+        } catch (e) { console.error("twoOptionResult", e); }
+      });
+
+      socket.on("spinStarted", ({ spinId, startAt, duration } = {}) => {
+        try {
+          log("spinStarted", spinId, startAt, duration);
+          const overlay = get("spinOverlay");
+          const bottle = get("spinBottleImg");
+          if (!overlay || !bottle) return;
+          const now = Date.now();
+          const delay = Math.max(0, (startAt || now) - now);
+          overlay.style.display = "flex";
+          bottle.style.transition = `transform ${duration}ms cubic-bezier(.17,.67,.83,.67)`;
+          bottle.style.transform = `rotate(0deg)`;
+          setTimeout(() => {
+            const revolutions = 4 + Math.floor(Math.random() * 3);
+            const randomOffset = Math.floor(Math.random() * 360);
+            const finalDeg = revolutions * 360 + randomOffset;
+            setTimeout(() => {
+              bottle.style.transform = `rotate(${finalDeg}deg)`;
+            }, delay);
+          }, 40);
+          setTimeout(() => {
+            try { overlay.style.display = "none"; } catch (e) {}
+          }, delay + (duration || 6000) + 6000);
+        } catch (e) { console.error("spinStarted handler", e); }
+      });
+
+      socket.on("spinBottleResult", (payload) => {
+        try {
+          log("spinBottleResult", payload);
+          var modal = get("spinModal");
+          if (!modal) return;
+          modal.querySelector(".spin-status").textContent = payload.prompt || (payload.questionType === "truth" ? "Truth..." : "Dare...");
+          var who = payload.isYou ? "You" : (payload.partnerName || "Partner");
+          modal.querySelector(".spin-who").textContent = `Bottle pointed to: ${who}`;
+          modal.style.display = "flex";
+          try { var overlay = get("spinOverlay"); if (overlay) overlay.style.display = "none"; } catch (e) {}
+        } catch (e) { console.error("spinBottleResult err", e); }
+      });
+
+      socket.on("twoOptionPartnerAnswered", (d) => {
+        try {
+          var modal = get("twoOptionModal");
+          if (!modal) return;
+          var waiting = modal.querySelector(".waiting-text");
+          if (waiting) waiting.textContent = d.partnerName ? `${d.partnerName} answered` : "Partner answered";
+        } catch (e) {}
+      });
+
+      socket.on("twoOptionCancel", () => { try { var m = get("twoOptionModal"); if (m) m.style.display = "none"; } catch (e) {} });
+      socket.on("spinCancel", () => { try { var sm = get("spinModal"); if (sm) sm.style.display = "none"; } catch (e) {} });
+
+      // 3. RAPID FIRE QUESTIONS
+      socket.on("newQuestion", (data) => {
+        try {
+          log("newQuestion (rapid fire)", data);
+          const modal = get("rapidFireModal");
+          if (!modal) return;
+          rapidFireCount++;
+          modal.querySelector(".rf-question").textContent = data.question || "Question...";
+          modal.querySelector(".rf-counter").textContent = `${rapidFireCount}/10`;
+          if (!modal.style.display || modal.style.display === 'none') {
+            modal.querySelector(".rf-timer").textContent = data.timeout || "30";
+            modal.style.display = "flex";
+            showToast("Rapid Fire Started!");
+          }
+        } catch (e) { console.error("newQuestion", e); }
+      });
+
+      socket.on("questionResult", (data) => {
+        try {
+          log("questionResult", data);
+          const modal = get("rapidFireModal");
+          if (modal) modal.style.display = "none";
+          rapidFireCount = 0;
+          showToast("Rapid Fire completed!");
+        } catch (e) { console.error("questionResult", e); }
+      });
+
+      // 4. MIRROR CHALLENGE
+      socket.on("mirrorChallengeStarted", (data) => {
+        try {
+          log("mirrorChallengeStarted", data);
+          const modal = get("mirrorModal");
+          if (!modal) return;
+          modal.querySelector(".mirror-role").textContent = "🪞 MIRROR CHALLENGE";
+          modal.querySelector(".mirror-instructions").textContent = data.instruction || "Copy each other's moves!";
+          modal.querySelector(".mirror-timer").textContent = Math.floor((data.duration || 30000) / 1000);
+          modal.style.display = "flex";
+          showToast("Mirror Challenge Started!");
+          
+          if (mirrorTimer) clearInterval(mirrorTimer);
+          let remaining = Math.floor((data.duration || 30000) / 1000);
+          mirrorTimer = setInterval(() => {
+            remaining--;
+            const timerEl = modal.querySelector(".mirror-timer");
+            if (timerEl) timerEl.textContent = remaining;
+            if (remaining <= 0) clearInterval(mirrorTimer);
+          }, 1000);
+        } catch (e) { console.error("mirrorChallengeStarted", e); }
+      });
+
+      socket.on("mirrorPartnerMove", (data) => {
+        try {
+          log("mirrorPartnerMove", data);
+          showToast(`Partner: ${data.move || "moved!"}`);
+        } catch (e) { console.error("mirrorPartnerMove", e); }
+      });
+
+      socket.on("mirrorChallengeEnd", (data) => {
+        try {
+          log("mirrorChallengeEnd", data);
+          if (mirrorTimer) clearInterval(mirrorTimer);
+          const modal = get("mirrorModal");
+          if (modal) modal.style.display = "none";
+          showToast(data.message || "Mirror Challenge Complete! 🎉");
+        } catch (e) { console.error("mirrorChallengeEnd", e); }
+      });
+
+      socket.on("mirrorChallengeResult", (data) => {
+        try {
+          log("mirrorChallengeResult", data);
+          if (data.scores && data.scores.length > 0) {
+            showToast(`Scores: ${data.scores.map(s => s.score).join(" vs ")}`);
+          }
+        } catch (e) { console.error("mirrorChallengeResult", e); }
+      });
+
+      // 5. STARING CONTEST
+      socket.on("staringContestStarted", (data) => {
+        try {
+          log("staringContestStarted", data);
+          const modal = get("staringModal");
+          if (!modal) return;
+          modal.querySelector(".staring-timer").textContent = "0";
+          modal.querySelector(".staring-status").textContent = data.instruction || "Stare into each other's eyes!";
+          modal.style.display = "flex";
+          showToast("Staring Contest Started! 👀");
+          
+          if (staringTimer) clearInterval(staringTimer);
+          let elapsed = 0;
+          staringTimer = setInterval(() => {
+            elapsed++;
+            const timerEl = modal.querySelector(".staring-timer");
+            if (timerEl) timerEl.textContent = elapsed;
+          }, 1000);
+        } catch (e) { console.error("staringContestStarted", e); }
+      });
+
+      socket.on("staringPartnerLaughed", (data) => {
+        try {
+          log("staringPartnerLaughed", data);
+          showToast("Partner laughed! 😂");
+        } catch (e) {}
+      });
+
+      socket.on("staringContestEnd", (data) => {
+        try {
+          log("staringContestEnd", data);
+          if (staringTimer) clearInterval(staringTimer);
+          const modal = get("staringModal");
+          if (!modal) return;
+          
+          let message = "Contest Over!";
+          if (data.isWinner) {
+            message = data.message || "You won! 🏆";
+          } else if (data.winnerId) {
+            message = data.message || "Partner won! 😅";
+          } else {
+            message = data.message || "It's a tie!";
+          }
+          
+          modal.querySelector(".staring-status").textContent = message;
+          setTimeout(() => {
+            if (modal) modal.style.display = "none";
+          }, 3000);
+        } catch (e) { console.error("staringContestEnd", e); }
+      });
+
+      // 6. FINISH THE LYRICS
+      socket.on("lyricsGameStarted", (data) => {
+        try {
+          log("lyricsGameStarted", data);
+          const modal = get("lyricsModal");
+          if (!modal) return;
+          modal.querySelector(".lyrics-song-hint").textContent = data.instruction || "Complete the Bollywood lyrics!";
+          modal.querySelector(".lyrics-line").textContent = "Get ready...";
+          modal.querySelector(".lyrics-answer").style.display = "none";
+          modal.style.display = "flex";
+          showToast("Lyrics Game Started! 🎤");
+        } catch (e) { console.error("lyricsGameStarted", e); }
+      });
+
+      socket.on("lyricsRound", (data) => {
+        try {
+          log("lyricsRound", data);
+          const modal = get("lyricsModal");
+          if (!modal) return;
+          lyricsCurrentSong = data;
+          modal.querySelector(".lyrics-line").textContent = data.lyric || "Starting line...";
+          modal.querySelector(".lyrics-song-hint").textContent = `Song: ${data.song || "Guess it!"} (${data.movie || ""}) - ${data.roundNumber || 1}/${data.totalRounds || 5}`;
+          modal.querySelector(".lyrics-answer").style.display = "none";
+          if (!modal.style.display || modal.style.display === 'none') {
+            modal.style.display = "flex";
+          }
+        } catch (e) { console.error("lyricsRound", e); }
+      });
+
+      socket.on("lyricsRoundResult", (data) => {
+        try {
+          log("lyricsRoundResult", data);
+          const modal = get("lyricsModal");
+          if (!modal) return;
+          const answerDiv = modal.querySelector(".lyrics-answer");
+          answerDiv.textContent = `Answer: "${data.correctAnswer || ""}"`;
+          answerDiv.style.display = "block";
+          
+          if (data.results) {
+            setTimeout(() => {
+              const scores = data.results.map(r => `${r.isCorrect ? '✅' : '❌'} ${r.score}pts`).join(' | ');
+              showToast(scores);
+            }, 500);
+          }
+        } catch (e) { console.error("lyricsRoundResult", e); }
+      });
+
+      socket.on("lyricsGameEnd", (data) => {
+        try {
+          log("lyricsGameEnd", data);
+          const modal = get("lyricsModal");
+          if (modal) modal.style.display = "none";
+          
+          let message = data.message || "Lyrics Game Complete!";
+          if (data.winner && data.scores) {
+            const winnerScore = data.scores.find(s => s.socketId === data.winner);
+            if (winnerScore) {
+              message += ` 🏆 Winner: ${winnerScore.score}pts`;
+            }
+          }
+          showToast(message);
+        } catch (e) { console.error("lyricsGameEnd", e); }
+      });
+
+      // 7. DANCE DARE - FIXED
+      socket.on("danceDareStarted", (data) => {
+        try {
+          log("danceDareStarted", data);
+          const modal = get("danceModal");
+          if (!modal) return;
+          modal.querySelector(".dance-song").textContent = data.move || "Random Move";
+          modal.querySelector(".dance-genre").textContent = data.instruction || "Show your moves!";
+          modal.querySelector(".dance-timer").textContent = Math.floor((data.duration || 15000) / 1000);
+          modal.style.display = "flex";
+          showToast("Dance Time! 💃");
+          
+          if (danceInterval) clearInterval(danceInterval);
+          let remaining = Math.floor((data.duration || 15000) / 1000);
+          const danceInterval = setInterval(() => {
+            remaining--;
+            const timerEl = modal.querySelector(".dance-timer");
+            if (timerEl) timerEl.textContent = remaining;
+            if (remaining <= 0) clearInterval(danceInterval);
+          }, 1000);
+        } catch (e) { console.error("danceDareStarted", e); }
+      });
+
+      socket.on("danceDareEnd", (data) => {
+        try {
+          log("danceDareEnd", data);
+          const modal = get("danceModal");
+          if (!modal) return;
+          modal.querySelector(".dance-genre").textContent = data.message || "Time to rate!";
+          showToast("Rate your partner's dance!");
+        } catch (e) { console.error("danceDareEnd", e); }
+      });
+
+      socket.on("danceDareResult", (data) => {
+        try {
+          log("danceDareResult", data);
+          const modal = get("danceModal");
+          if (modal) modal.style.display = "none";
+          showToast(`Your Rating: ${data.yourRating || 0}/10 | Partner: ${data.partnerRating || 0}/10 ${data.message || ""}`);
+        } catch (e) { console.error("danceDareResult", e); }
+      });
+
+// ======== AUTO SYNC FIX FOR FUN ACTIVITIES ========
+// When connected, ask server to re-sync any missed start events
+socket.on("connect", () => {
+  console.log("[FunSync] Socket connected:", socket.id);
+  safeEmit("syncActivities", { roomCode: getRoomCode && getRoomCode() });
+});
+
+// Confirm receipt of any fun activity start events
+socket.on("mirrorChallengeStarted", (data) => {
+  showToast("🪞 Mirror Challenge Started: " + (data.instruction || ""));
+  console.log("[FunSync] Mirror Challenge Started", data);
+});
+
+socket.on("mirrorChallengeEnd", (data) => {
+  showToast("✅ Mirror Challenge Ended: " + data.message);
+  console.log("[FunSync] Mirror Challenge Ended", data);
+});
+
+socket.on("staringContestStarted", (data) => {
+  showToast("👁️ Staring Contest Started!");
+  console.log("[FunSync] Staring Contest Started", data);
+});
+
+socket.on("staringContestEnd", (data) => {
+  showToast("👁️‍🗨️ Staring Contest Ended!");
+  console.log("[FunSync] Staring Contest Ended", data);
+});
+
+socket.on("lyricsGameStarted", (data) => {
+  showToast("🎤 Lyrics Game Started!");
+  console.log("[FunSync] Lyrics Game Started", data);
+});
+
+socket.on("lyricsRound", (data) => {
+  showToast("🎶 " + data.lyric);
+  console.log("[FunSync] Lyrics Round", data);
+});
+
+socket.on("lyricsGameEnd", (data) => {
+  showToast("🎵 Lyrics Game Ended!");
+  console.log("[FunSync] Lyrics Game Ended", data);
+});
+
+socket.on("danceDareStarted", (data) => {
+  showToast("💃 Dance Dare Started: " + (data.instruction || ""));
+  console.log("[FunSync] Dance Dare Started", data);
+});
+
+socket.on("danceDareEnd", (data) => {
+  showToast("🕺 Dance Dare Ended!");
+  console.log("[FunSync] Dance Dare Ended", data);
+});
+// ======== END AUTO SYNC FIX ========
+
+
+
+      // UI WIRING
       setTimeout(() => {
+        // --- MIC BUTTON FIX ---
         var micBtn = get("micBtn");
         if (micBtn) {
           micBtn.onclick = function () {
+            // Find the audio sender and track
             const audioSender = pc ? pc.getSenders().find(s => s.track && s.track.kind === "audio") : null;
             const t = audioSender && audioSender.track;
+
             if (!t) return showToast("Mic track not found in connection.");
             
-            t.enabled = !t.enabled; 
+            t.enabled = !t.enabled; // Toggle the track's enabled state
             micBtn.classList.toggle("inactive", !t.enabled);
+            
             var i = micBtn.querySelector("i");
             if (i) i.className = t.enabled ? "fas fa-microphone" : "fas fa-microphone-slash";
             showToast(t.enabled ? "Mic On" : "Mic Off");
           };
         }
 
+        // --- CAMERA BUTTON FIX ---
         var camBtn = get("camBtn");
         if (camBtn) {
           camBtn.onclick = function () {
+            // Find the video sender and track
             const videoSender = pc ? pc.getSenders().find(s => s.track && s.track.kind === "video") : null;
             const t = videoSender && videoSender.track;
+
             if (!t) return showToast("Camera track not found in connection.");
             
-            t.enabled = !t.enabled; 
+            t.enabled = !t.enabled; // Toggle the track's enabled state
             camBtn.classList.toggle("inactive", !t.enabled);
+            
             var ii = camBtn.querySelector("i");
             if (ii) ii.className = t.enabled ? "fas fa-video" : "fas fa-video-slash";
             showToast(t.enabled ? "Camera On" : "Camera Off");
           };
         }
+
+        // --- SCREEN SHARE BUTTON (Uses updated sender logic) ---
+        var screenBtn = get("screenShareBtn");
+        if (screenBtn) {
+          screenBtn.onclick = async function () {
+            if (!pc) return showToast("No connection");
+
+            const supports = !!(navigator.mediaDevices && (typeof navigator.mediaDevices.getDisplayMedia === 'function' || typeof navigator.getDisplayMedia === 'function'));
+            const secure = !!window.isSecureContext;
+            const ua = navigator.userAgent || '';
+            const inAppBrowser = !!(/(FBAN|FBAV|Instagram|Line|WhatsApp|wv\)|; wv;|WebView)/i.test(ua));
+            console.log("[DEBUG] screenShare - supports:", supports, "secureContext:", secure, "inAppBrowser:", inAppBrowser, "UA:", ua);
+
+            if (!supports) {
+              showToast("Screen share not implemented in this browser. Open the page in Chrome (not inside WhatsApp/Telegram).");
+              return;
+            }
+            if (!secure) {
+              showToast("Screen sharing requires secure connection (HTTPS). Please use secure link.");
+              return;
+            }
+            // Removed inAppBrowser check restriction for testing, but alerted if detected.
+
+            const sender = pc.getSenders ? pc.getSenders().find(s => s && s.track && s.track.kind === "video") : null;
+            if (!sender) {
+              return showToast("No video sender found to replace.");
+            }
+            
+            if (screenBtn.dataset.sharing === "true") {
+              // --- STOP SHARING ---
+              try {
+                // Stop the current screen track
+                sender.track && sender.track.stop && sender.track.stop();
+                
+                // Replace with original camera track
+                var cam = cameraTrackSaved;
+                if (!cam || cam.readyState === "ended") {
+                  // Reacquire camera if needed
+                  const freshStream = await navigator.mediaDevices.getUserMedia({ video: true });
+                  cam = freshStream.getVideoTracks()[0];
+                  cameraTrackSaved = cam;
+                  // Update localStream reference too
+                  localStream.getVideoTracks().forEach(t => t.stop());
+                  localStream.removeTrack(localStream.getVideoTracks()[0]);
+                  localStream.addTrack(cam);
+                }
+                
+                await sender.replaceTrack(cam);
+                
+                var lv = get("localVideo");
+                if (lv) lv.srcObject = localStream; // Show camera on local video
+                
+                screenBtn.dataset.sharing = 'false';
+                screenBtn.classList.remove("active");
+                showToast("Screen sharing stopped, camera restored");
+              } catch (err) {
+                console.warn("Error stopping screen share/restoring camera", err);
+                showToast("Could not stop screen share cleanly");
+                screenBtn.dataset.sharing = 'false';
+                screenBtn.classList.remove("active");
+              }
+              return;
+            }
+
+            // --- START SHARING ---
+            try {
+              const tryGetDisplayMedia = async () => {
+                if (navigator.mediaDevices && typeof navigator.mediaDevices.getDisplayMedia === "function") {
+                  return await navigator.mediaDevices.getDisplayMedia({ video: true });
+                }
+                if (typeof navigator.getDisplayMedia === "function") {
+                  return await navigator.getDisplayMedia({ video: true });
+                }
+                throw new Error("getDisplayMedia not supported");
+              };
+              
+              const displayStream = await tryGetDisplayMedia();
+              const screenTrack = displayStream.getVideoTracks()[0];
+              
+              // Save original camera track if not already saved
+              if (!cameraTrackSaved) {
+                  cameraTrackSaved = localStream.getVideoTracks()[0];
+              }
+
+              // Replace track on the sender
+              await sender.replaceTrack(screenTrack);
+              
+              // Update local display to show shared screen
+              var lv = get("localVideo");
+              if (lv) lv.srcObject = displayStream;
+
+              screenBtn.dataset.sharing = 'true';
+              screenBtn.classList.add("active");
+              showToast("Screen sharing active");
+
+              screenTrack.onended = function () {
+                  // Auto-restore camera when user stops sharing via browser UI
+                  screenBtn.onclick(); 
+              };
+
+            } catch (err) {
+              log("DisplayMedia error or not supported", err);
+              showToast("Screen sharing failed or cancelled.");
+            }
+          };
+        }
         
-        // Disconnect button logic remains the same (uses state hook)
+        // --- END BUTTON LOGIC ---
+        var disconnectBtn = get("disconnectBtn");
+        if (disconnectBtn) {
+          // Show custom confirmation modal instead of disconnecting immediately
+          disconnectBtn.onclick = function () {
+            setShowDisconnectConfirm(true);
+          };
+        }
+        
+        // Removed quitBtn handler, using handleConfirmDisconnect instead
+        // Removed newPartnerBtn handler from here, it's used in rating overlay
 
       }, 800);
 
+      function submitTwoOptionAnswer(choice) {
+        try {
+          if (!currentQuestion || !currentQuestion.questionId) {
+            showToast("No active question");
+            return;
+          }
+          pendingAnswers[currentQuestion.questionId] = pendingAnswers[currentQuestion.questionId] || {};
+          pendingAnswers[currentQuestion.questionId].self = choice;
+          var modal = get("twoOptionModal");
+          if (modal) {
+            modal.querySelector(".waiting-text").textContent = "Waiting for partner...";
+            modal.querySelector("#optA").classList.add("disabled");
+            modal.querySelector("#optB").classList.add("disabled");
+          }
+          safeEmit("twoOptionAnswer", { questionId: currentQuestion.questionId, choice: choice });
+        } catch (e) { console.error("submitTwoOptionAnswer err", e); }
+      }
+
+      function adjustBadge() {
+        try {
+          const wbs = document.querySelectorAll('.watermark-badge');
+          if (!wbs || !wbs.length) return;
+          const small = window.innerWidth < 420;
+          wbs.forEach(w => {
+            w.classList.toggle('small', !!small);
+          });
+        } catch (e) { console.warn("adjustBadge", e); }
+      }
+      window.addEventListener('resize', adjustBadge);
+      setTimeout(adjustBadge, 600);
 
     })();
 
     return function () { cleanup(); };
-  }, []); // FIX: Empty dependency array ensures useEffect runs only once on mount, preventing the re-render loop.
+  }, [isAuthenticated]); // Added isAuthenticated as dependency
 
   function escapeHtml(s) { return String(s).replace(/[&<>\"']/g, (m) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[m]); }
+
+  // ------------------------------------------
+  // NEW FUNCTIONS FOR DISCONNECT MODAL
+  // ------------------------------------------
+  const handleConfirmDisconnect = () => {
+    // 1. Close confirmation modal
+    setShowDisconnectConfirm(false);
+    
+    // 2. Signal disconnection to partner
+    try { safeEmit("partnerLeft"); } catch (e) { log("emit partnerLeft err", e); }
+    
+    // 3. Clean up PC resources and show rating modal (showRating is now inside cleanupPeerConnection)
+    cleanupPeerConnection(); 
+    
+    // Note: Redirection happens via the 'Search New Partner' button on the Rating Overlay.
+  };
   
+  const handleKeepChatting = () => {
+    setShowDisconnectConfirm(false);
+  };
+
+  // Check isAuthenticated and show a loading screen if not authenticated yet
   if (!isAuthenticated) {
     return (
         <div style={{ 
@@ -557,7 +1111,7 @@ export default function VideoPage() {
     );
   }
 
-  // --- JSX Rendering (Rest of the file is mainly unchanged JSX and CSS) ---
+
   return (
     <>
       <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css" referrerPolicy="no-referrer" />
@@ -578,7 +1132,6 @@ export default function VideoPage() {
       </div>
 
       <div className="control-bar" role="toolbar" aria-label="Call controls">
-        {/* Buttons logic relies on external functions which must be defined in useEffect */}
         <button id="micBtn" className="control-btn" aria-label="Toggle Mic">
           <i className="fas fa-microphone"></i><span>Mic</span>
         </button>
@@ -596,7 +1149,7 @@ export default function VideoPage() {
         </button>
       </div>
 
-      {/* Disconnect Confirmation Modal */}
+      {/* Disconnect Confirmation Modal - ADDED */}
       {showDisconnectConfirm && (
         <div className="modal-overlay">
           <div className="disconnect-confirm-modal">
@@ -624,8 +1177,87 @@ export default function VideoPage() {
           </div>
         </div>
       )}
+      {/* End Disconnect Confirmation Modal */}
 
-      {/* Other Modals (Omitted for brevity) */}
+      {/* Activities Modal - BOTTOM SHEET STYLE (Mobile Friendly) */}
+      <div id="activitiesModal" className="activities-overlay" style={{display:'none'}}>
+        <div className="activities-backdrop"></div>
+        <div className="activities-sheet">
+          <div className="sheet-handle"></div>
+          <div className="sheet-header">
+            <h3>🎮 Fun Activities</h3>
+            <button id="activitiesClose" className="sheet-close">×</button>
+          </div>
+          <div className="sheet-content">
+            
+            <div className="act-item" id="startTwoOption">
+              <div className="act-item-icon">❓</div>
+              <div className="act-item-content">
+                <h4>Two-Option Quiz</h4>
+                <p>Quick questions, reveal together!</p>
+              </div>
+              <i className="fas fa-chevron-right act-item-arrow"></i>
+            </div>
+
+            <div className="act-item" id="startSpin">
+              <div className="act-item-icon">🎯</div>
+              <div className="act-item-content">
+                <h4>Truth & Dare</h4>
+                <p>Spin bottle, do challenge!</p>
+              </div>
+              <i className="fas fa-chevron-right act-item-arrow"></i>
+            </div>
+
+            <div className="act-item" id="startRapidFire">
+              <div className="act-item-icon">⚡</div>
+              <div className="act-item-content">
+                <h4>Rapid Fire Questions</h4>
+                <p>60 seconds of fast questions!</p>
+              </div>
+              <i className="fas fa-chevron-right act-item-arrow"></i>
+            </div>
+
+            <div className="act-item" id="startMirror">
+              <div className="act-item-icon">🪞</div>
+              <div className="act-item-content">
+                <h4>Mirror Challenge</h4>
+                <p>Copy each other's moves!</p>
+              </div>
+              <i className="fas fa-chevron-right act-item-arrow"></i>
+            </div>
+
+            <div className="act-item" id="startStaring">
+              <div className="act-item-icon">👀</div>
+              <div className="act-item-content">
+                <h4>Staring Contest</h4>
+                <p>Don't blink, don't laugh!</p>
+              </div>
+              <i className="fas fa-chevron-right act-item-arrow"></i>
+            </div>
+
+            <div className="act-item" id="startLyrics">
+              <div className="act-item-icon">🎤</div>
+              <div className="act-item-content">
+                <h4>Finish the Lyrics</h4>
+                <p>Complete Bollywood songs!</p>
+              </div>
+              <i className="fas fa-chevron-right act-item-arrow"></i>
+            </div>
+
+            <div className="act-item" id="startDance">
+              <div className="act-item-icon">💃</div>
+              <div className="act-item-content">
+                <h4>Dance Dare</h4>
+                <p>15 seconds of dance moves!</p>
+              </div>
+              <i className="fas fa-chevron-right act-item-arrow"></i>
+            </div>
+
+          </div>
+        </div>
+      </div>
+
+      {/* EXISTING MODALS (Omitted for brevity, kept consistent with previous versions) */}
       <div id="twoOptionModal" className="overlay-modal" style={{display:'none'}}>
         <div className="modal-card small">
           <div className="q-counter" style={{textAlign:'right',opacity:.8}}>1/10</div>
@@ -678,6 +1310,86 @@ export default function VideoPage() {
         </div>
       </div>
 
+      {/* NEW ACTIVITY MODALS */}
+      
+      {/* Rapid Fire Modal */}
+      <div id="rapidFireModal" className="overlay-modal" style={{display:'none'}}>
+        <div className="modal-card">
+          <div className="activity-header">
+            <h3>⚡ Rapid Fire</h3>
+            <div className="rf-timer big-timer">60</div>
+          </div>
+          <div className="rf-question big-text">Get ready...</div>
+          <div className="rf-counter" style={{marginTop:12,opacity:.8}}>0/12</div>
+          <div style={{marginTop:16}}>
+            <button id="endRapidFire" className="act-btn danger-btn">End Game</button>
+          </div>
+        </div>
+      </div>
+
+      {/* Mirror Challenge Modal */}
+      <div id="mirrorModal" className="overlay-modal" style={{display:'none'}}>
+        <div className="modal-card">
+          <div className="activity-header">
+            <h3>🪞 Mirror Challenge</h3>
+            <div className="mirror-timer big-timer">60</div>
+          </div>
+          <div className="mirror-role big-text">🪞 LEADER</div>
+          <p className="mirror-instructions">Do funny actions! Your partner will copy you.</p>
+          <div style={{marginTop:16}}>
+            <button id="endMirror" className="act-btn danger-btn">End Challenge</button>
+          </div>
+        </div>
+      </div>
+
+      {/* Staring Contest Modal */}
+      <div id="staringModal" className="overlay-modal" style={{display:'none'}}>
+        <div className="modal-card">
+          <div className="activity-header">
+            <h3>👀 Staring Contest</h3>
+            <div className="staring-timer big-timer">0</div>
+          </div>
+          <div className="staring-status big-text">Stare into each other's eyes!</div>
+          <div style={{marginTop:16,display:'flex',gap:12,justifyContent:'center'}}>
+            <button id="iBlinked" className="act-btn danger-btn">I Blinked 😭</button>
+            <button id="endStaring" className="act-btn">End Contest</button>
+          </div>
+        </div>
+      </div>
+
+      {/* Finish the Lyrics Modal */}
+      <div id="lyricsModal" className="overlay-modal" style={{display:'none'}}>
+        <div className="modal-card">
+          <div className="activity-header">
+            <h3>🎤 Finish the Lyrics</h3>
+          </div>
+          <div className="lyrics-song-hint" style={{opacity:.8,marginBottom:12}}>Song: Guess it!</div>
+          <div className="lyrics-line big-text">"Starting line..."</div>
+          <div className="lyrics-answer" style={{display:'none',marginTop:12,padding:12,background:'rgba(255,255,255,0.05)',borderRadius:8}}>
+            Answer: "..."
+          </div>
+          <div style={{marginTop:16,display:'flex',gap:10,justifyContent:'center',flexWrap:'wrap'}}>
+            <button id="showLyricsAnswer" className="act-btn">Show Answer</button>
+            <button id="nextLyrics" className="act-btn">Next Song</button>
+            <button id="endLyrics" className="act-btn danger-btn">End Game</button>
+          </div>
+        </div>
+      </div>
+
+      {/* Dance Dare Modal */}
+      <div id="danceModal" className="overlay-modal" style={{display:'none'}}>
+        <div className="modal-card">
+          <div className="activity-header">
+            <h3>💃 Dance Dare</h3>
+            <div className="dance-timer big-timer">15</div>
+          </div>
+          <div className="dance-song big-text">Random Song</div>
+          <div className="dance-genre" style={{opacity:.8}}>Party</div>
+          <div style={{marginTop:16}}>
+            <button id="skipDance" className="act-btn">Skip This Dance</button>
+          </div>
+        </div>
+      </div>
 
       {/* Rating Overlay */}
       <div id="ratingOverlay">
@@ -691,13 +1403,7 @@ export default function VideoPage() {
             <i className="far fa-heart" data-value="5" aria-label="5 stars"></i>
           </div>
           <div className="rating-buttons">
-            <button 
-                id="continueCallBtn" 
-                onClick={handleRatingOverlayClose} 
-                style={{background:'linear-gradient(135deg,#4cd964,#34c759)'}}
-            >
-                Continue Call
-            </button>
+            {/* Quit button removed, New Partner is the new target */}
             <button id="newPartnerBtn" onClick={() => window.location.href = "/connect"}>Search New Partner</button>
           </div>
           <div className="emoji-container" aria-hidden="true"></div>
