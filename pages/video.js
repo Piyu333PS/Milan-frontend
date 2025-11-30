@@ -188,27 +188,58 @@ export default function VideoPage() {
     }
 
     (async function start() {
-      log("video page start");
+  log("video page start");
+
+  try {
+    // Try to get camera + mic
+    localStream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
+
+    const vtracks =
+      localStream && typeof localStream.getVideoTracks === "function"
+        ? localStream.getVideoTracks()
+        : [];
+    cameraTrackSaved = vtracks && vtracks.length ? vtracks[0] : null;
+
+    const lv = get("localVideo");
+    if (lv) {
+      lv.muted = true;
+      lv.playsInline = true;
+      lv.autoplay = true;
+      lv.srcObject = localStream;
       try {
-        localStream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
-        var vtracks = (localStream && typeof localStream.getVideoTracks === "function") ? localStream.getVideoTracks() : [];
-        cameraTrackSaved = (vtracks && vtracks.length) ? vtracks[0] : null;
-
-        var lv = get("localVideo");
-        if (lv) {
-          lv.muted = true;
-          lv.playsInline = true;
-          lv.autoplay = true;
-          lv.srcObject = localStream;
-          try { await (lv.play && lv.play()); } catch (e) { log("local video play warning", e); }
-        } else { log("localVideo element not found"); }
-      } catch (err) {
-        console.error("Camera/Mic error:", err);
-        showToast("Camera/Mic access needed");
-        return;
+        await (lv.play && lv.play());
+      } catch (e) {
+        log("local video play warning", e);
       }
+    } else {
+      log("localVideo element not found");
+    }
+  } catch (err) {
+    console.error("Camera/Mic error:", err);
 
-      socket = io(BACKEND_URL, {
+    // Error-wise clear message
+    if (err.name === "NotFoundError" || err.name === "NotReadableError") {
+      showToast("No camera/mic device found. Please connect or enable it in settings.");
+    } else if (err.name === "NotAllowedError" || err.name === "SecurityError") {
+      showToast("Please allow camera & mic permission in your browser.");
+    } else {
+      showToast("Unable to access camera/mic: " + err.name);
+    }
+
+    // IMPORTANT: don't return – allow socket to connect so at least remote video can work
+    localStream = null;
+  }
+
+  // yahan se niche ka code same rehne do
+  socket = io(BACKEND_URL, {
+    transports: ["polling"],
+    timeout: 20000,
+    reconnection: true,
+    reconnectionAttempts: Infinity,
+    reconnectionDelay: 1000,
+    path: "/socket.io",
+  });
+
         transports: ['polling'],
         timeout: 20000,
         reconnection: true,
