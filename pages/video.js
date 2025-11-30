@@ -1,34 +1,11 @@
 "use client";
 // Coming Soon global flag
 const COMING_SOON = true;
-import { useEffect, useState } from "react"; 
+import { useEffect } from "react";
 import io from "socket.io-client";
 
 export default function VideoPage() {
-  // START: AUTH GUARD STATE
-  const [isAuthenticated, setIsAuthenticated] = useState(false);
-  // END: AUTH GUARD STATE
-  
-  // NEW STATE: Custom modal for disconnect confirmation
-  const [showDisconnectConfirm, setShowDisconnectConfirm] = useState(false);
-
   useEffect(() => {
-    // START: AUTH GUARD LOGIC
-    if (typeof window === "undefined") return;
-
-    const token = localStorage.getItem("token");
-    if (!token) {
-      // If no token, redirect to homepage (login/register page)
-      window.location.href = "/";
-      return;
-    }
-    
-    // If token exists, set auth status and proceed with setup
-    setIsAuthenticated(true);
-    // END: AUTH GUARD LOGIC
-    
-    // Original setup code starts here, only runs if isAuthenticated is set (implicitly by the useEffect flow)
-
     const BACKEND_URL = window.BACKEND_URL || process.env.NEXT_PUBLIC_BACKEND_URL || "https://milan-j9u9.onrender.com";
     const ICE_CONFIG = { iceServers: [{ urls: "stun:stun.l.google.com:19302" }] };
 
@@ -73,6 +50,7 @@ export default function VideoPage() {
       t.style.display = "block";
       setTimeout(() => { t.style.display = "none"; }, ms || 2000);
     };
+    const showRating = () => { var r = get("ratingOverlay"); if (r) r.style.display = "flex"; };
     const log = (...args) => { try { console.log("[video]", ...args); } catch (e) {} };
 
     const getRoomCode = () => {
@@ -168,7 +146,7 @@ export default function VideoPage() {
       localStream = null;
       cameraTrackSaved = null;
       setTimeout(() => { isCleaning = false; }, 300);
-      if (opts.goToConnect) window.location.href = "/connect"; 
+      if (opts.goToConnect) window.location.href = "/connect";
     };
 
     // Timer helpers
@@ -211,11 +189,7 @@ export default function VideoPage() {
 
     (async function start() {
       log("video page start");
-      
-      if (!isAuthenticated) return;
-
       try {
-        // Request media devices
         localStream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
         var vtracks = (localStream && typeof localStream.getVideoTracks === "function") ? localStream.getVideoTracks() : [];
         cameraTrackSaved = (vtracks && vtracks.length) ? vtracks[0] : null;
@@ -225,23 +199,9 @@ export default function VideoPage() {
           lv.muted = true;
           lv.playsInline = true;
           lv.autoplay = true;
-          // **FIX:** Assign srcObject as soon as possible to ensure MediaElement is ready
           lv.srcObject = localStream;
-          try { 
-            // Attempt playing local video, ignoring play warnings/errors
-            await (lv.play && lv.play()); 
-          } catch (e) { log("local video play warning", e); }
+          try { await (lv.play && lv.play()); } catch (e) { log("local video play warning", e); }
         } else { log("localVideo element not found"); }
-        
-        // **POTENTIAL FIX FOR AudioContext ERROR:** // Force preload/load metadata if it helps audio context initialization (though usually not needed)
-        try {
-            if (lv) {
-                lv.load();
-                lv.muted = true; // Ensure it remains muted
-            }
-        } catch(e) { log("local video load setup failed", e); }
-
-
       } catch (err) {
         console.error("Camera/Mic error:", err);
         showToast("Camera/Mic access needed");
@@ -278,39 +238,49 @@ export default function VideoPage() {
         log("creating RTCPeerConnection");
         pc = new RTCPeerConnection(ICE_CONFIG);
 
-        // Add local tracks to senders using addTransceiver (for proper enable/disable via senders)
-        try { pc.addTransceiver(localStream.getAudioTracks()[0], { direction: "sendrecv" }); } catch (e) { log("addTransceiver audio failed", e); }
-        try { pc.addTransceiver(localStream.getVideoTracks()[0], { direction: "sendrecv" }); } catch (e) { log("addTransceiver video failed", e); }
+        try { if (typeof pc.addTransceiver === "function") { pc.addTransceiver("audio", { direction: "sendrecv" }); pc.addTransceiver("video", { direction: "sendrecv" }); } } catch (e) { log("addTransceiver failed", e); }
+
+        try {
+          const localVideoTrack = localStream && localStream.getVideoTracks ? localStream.getVideoTracks()[0] : null;
+          const localAudioTrack = localStream && localStream.getAudioTracks ? localStream.getAudioTracks()[0] : null;
+
+          const videoSender = pc.getSenders ? pc.getSenders().find(s => s.track && s.track.kind === "video") : null;
+          const audioSender = pc.getSenders ? pc.getSenders().find(s => s.track && s.track.kind === "audio") : null;
+
+          if (localVideoTrack) {
+            if (videoSender && typeof videoSender.replaceTrack === "function") {
+              try { videoSender.replaceTrack(localVideoTrack); } catch (e) { log("replace video failed", e); }
+            } else {
+              try { pc.addTrack(localVideoTrack, localStream); } catch (e) { log("addTrack video failed", e); }
+            }
+          }
+          if (localAudioTrack) {
+            if (audioSender && typeof audioSender.replaceTrack === "function") {
+              try { audioSender.replaceTrack(localAudioTrack); } catch (e) { log("replace audio failed", e); }
+            } else {
+              try { pc.addTrack(localAudioTrack, localStream); } catch (e) { log("addTrack audio failed", e); }
+            }
+          }
+        } catch (e) { log("attach local tracks error", e); }
 
         pc.ontrack = (e) => {
           try {
             log("pc.ontrack", e);
             const rv = get("remoteVideo");
             const stream = (e && e.streams && e.streams[0]) ? e.streams[0] : new MediaStream([e.track]);
-            
             if (rv) {
               rv.playsInline = true;
               rv.autoplay = true;
-              
+              const prevMuted = rv.muted;
+              rv.muted = true;
               if (rv.srcObject !== stream) {
                 rv.srcObject = stream;
+                rv.play && rv.play().then(() => {
+                  setTimeout(() => { try { rv.muted = prevMuted; } catch (e) {} }, 250);
+                }).catch((err) => { log("remote play rejected", err); try { rv.muted = prevMuted; } catch (e) {} });
+              } else {
+                try { rv.muted = prevMuted; } catch (e) {}
               }
-
-              // FIXED: Ensure remote playback starts and audio is not muted.
-              const playRemoteStream = () => {
-                  if (rv.srcObject) {
-                      rv.muted = false; // MUST be unmuted for remote audio
-                      rv.play && rv.play().then(() => {
-                          log("Remote video/audio play SUCCESS");
-                      }).catch((err) => { 
-                          log("Remote play rejected. Retrying unmute and play in 500ms.", err); 
-                          // If auto-play is rejected (AbortError), re-attempt unmute and play after a short delay
-                          setTimeout(() => playRemoteStream(), 500);
-                      });
-                  }
-              };
-              playRemoteStream();
-
             }
           } catch (err) { console.error("ontrack error", err); }
         };
@@ -325,9 +295,9 @@ export default function VideoPage() {
         pc.onconnectionstatechange = () => {
           log("pc.connectionState:", pc.connectionState);
           if (pc.connectionState === "disconnected" || pc.connectionState === "failed") {
-            showToast("🥺 Connection failed. Starting a new search.");
-            setTimeout(() => { window.location.href = "/connect"; }, 3000);
-            cleanupPeerConnection(); 
+            showToast("Partner disconnected");
+            showRating();
+            cleanupPeerConnection();
           }
         };
 
@@ -484,26 +454,11 @@ export default function VideoPage() {
       });
 
       socket.on("waitingForPeer", (d) => { log("waitingForPeer", d); showToast("Waiting for partner..."); });
-      
-      // UPDATED: Partner Disconnect message and redirect
-      socket.on("partnerDisconnected", () => { 
-        log("partnerDisconnected"); 
-        showToast("🥺 Partner suddenly went away. Starting a new search."); 
-        cleanupPeerConnection();
-        setTimeout(() => { window.location.href = "/connect"; }, 3000); 
-      }); 
-      
-      // UPDATED: Partner Left message and redirect
-      socket.on("partnerLeft", () => { 
-        log("partnerLeft"); 
-        showToast("👋 Partner ended the chat. Starting a new search."); 
-        cleanupPeerConnection(); 
-        setTimeout(() => { window.location.href = "/connect"; }, 3000); 
-      }); 
-
+      socket.on("partnerDisconnected", () => { log("partnerDisconnected"); showToast("Partner disconnected"); showRating(); cleanupPeerConnection(); });
+      socket.on("partnerLeft", () => { log("partnerLeft"); showToast("Partner left"); showRating(); cleanupPeerConnection(); });
       socket.on("errorMessage", (e) => { console.warn("server errorMessage:", e); showToast(e && e.message ? e.message : "Server error"); });
 
-      // ========== ACTIVITIES SIGNALS (Same as before) ==========
+      // ========== EXISTING ACTIVITIES SIGNALS ==========
       socket.on("twoOptionQuestion", (q) => {
         try {
           log("twoOptionQuestion", q);
@@ -612,7 +567,9 @@ export default function VideoPage() {
       socket.on("twoOptionCancel", () => { try { var m = get("twoOptionModal"); if (m) m.style.display = "none"; } catch (e) {} });
       socket.on("spinCancel", () => { try { var sm = get("spinModal"); if (sm) sm.style.display = "none"; } catch (e) {} });
 
-      // 3. RAPID FIRE QUESTIONS
+      // ========== NEW ACTIVITIES SIGNALS - FIXED ==========
+
+      // 3. RAPID FIRE QUESTIONS (Uses existing startQuestionGame backend)
       socket.on("newQuestion", (data) => {
         try {
           log("newQuestion (rapid fire)", data);
@@ -639,7 +596,7 @@ export default function VideoPage() {
         } catch (e) { console.error("questionResult", e); }
       });
 
-      // 4. MIRROR CHALLENGE
+      // 4. MIRROR CHALLENGE - FIXED
       socket.on("mirrorChallengeStarted", (data) => {
         try {
           log("mirrorChallengeStarted", data);
@@ -651,6 +608,7 @@ export default function VideoPage() {
           modal.style.display = "flex";
           showToast("Mirror Challenge Started!");
           
+          // Start countdown
           if (mirrorTimer) clearInterval(mirrorTimer);
           let remaining = Math.floor((data.duration || 30000) / 1000);
           mirrorTimer = setInterval(() => {
@@ -688,7 +646,7 @@ export default function VideoPage() {
         } catch (e) { console.error("mirrorChallengeResult", e); }
       });
 
-      // 5. STARING CONTEST
+      // 5. STARING CONTEST - FIXED
       socket.on("staringContestStarted", (data) => {
         try {
           log("staringContestStarted", data);
@@ -699,6 +657,7 @@ export default function VideoPage() {
           modal.style.display = "flex";
           showToast("Staring Contest Started! 👀");
           
+          // Start timer
           if (staringTimer) clearInterval(staringTimer);
           let elapsed = 0;
           staringTimer = setInterval(() => {
@@ -739,7 +698,7 @@ export default function VideoPage() {
         } catch (e) { console.error("staringContestEnd", e); }
       });
 
-      // 6. FINISH THE LYRICS
+      // 6. FINISH THE LYRICS - FIXED
       socket.on("lyricsGameStarted", (data) => {
         try {
           log("lyricsGameStarted", data);
@@ -766,6 +725,13 @@ export default function VideoPage() {
             modal.style.display = "flex";
           }
         } catch (e) { console.error("lyricsRound", e); }
+      });
+
+      socket.on("lyricsPartnerAnswered", (data) => {
+        try {
+          log("lyricsPartnerAnswered", data);
+          showToast("Partner answered!");
+        } catch (e) {}
       });
 
       socket.on("lyricsRoundResult", (data) => {
@@ -815,7 +781,7 @@ export default function VideoPage() {
           modal.style.display = "flex";
           showToast("Dance Time! 💃");
           
-          if (danceInterval) clearInterval(danceInterval);
+          // Start countdown
           let remaining = Math.floor((data.duration || 15000) / 1000);
           const danceInterval = setInterval(() => {
             remaining--;
@@ -846,11 +812,13 @@ export default function VideoPage() {
       });
 
 // ======== AUTO SYNC FIX FOR FUN ACTIVITIES ========
+// When connected, ask server to re-sync any missed start events
 socket.on("connect", () => {
   console.log("[FunSync] Socket connected:", socket.id);
   safeEmit("syncActivities", { roomCode: getRoomCode && getRoomCode() });
 });
 
+// Confirm receipt of any fun activity start events
 socket.on("mirrorChallengeStarted", (data) => {
   showToast("🪞 Mirror Challenge Started: " + (data.instruction || ""));
   console.log("[FunSync] Mirror Challenge Started", data);
@@ -899,47 +867,36 @@ socket.on("danceDareEnd", (data) => {
 
 
 
+      // ========== END NEW ACTIVITIES SIGNALS ==========
+
       // UI WIRING
       setTimeout(() => {
-        // --- MIC BUTTON FIX ---
         var micBtn = get("micBtn");
         if (micBtn) {
           micBtn.onclick = function () {
-            // Find the audio sender and track
-            const audioSender = pc ? pc.getSenders().find(s => s.track && s.track.kind === "audio") : null;
-            const t = audioSender && audioSender.track;
-
-            if (!t) return showToast("Mic track not found in connection.");
-            
-            t.enabled = !t.enabled; // Toggle the track's enabled state
+            var t = localStream && localStream.getAudioTracks ? localStream.getAudioTracks()[0] : null;
+            if (!t) return;
+            t.enabled = !t.enabled;
             micBtn.classList.toggle("inactive", !t.enabled);
-            
             var i = micBtn.querySelector("i");
             if (i) i.className = t.enabled ? "fas fa-microphone" : "fas fa-microphone-slash";
             showToast(t.enabled ? "Mic On" : "Mic Off");
           };
         }
 
-        // --- CAMERA BUTTON FIX ---
         var camBtn = get("camBtn");
         if (camBtn) {
           camBtn.onclick = function () {
-            // Find the video sender and track
-            const videoSender = pc ? pc.getSenders().find(s => s.track && s.track.kind === "video") : null;
-            const t = videoSender && videoSender.track;
-
-            if (!t) return showToast("Camera track not found in connection.");
-            
-            t.enabled = !t.enabled; // Toggle the track's enabled state
+            var t = localStream && localStream.getVideoTracks ? localStream.getVideoTracks()[0] : null;
+            if (!t) return;
+            t.enabled = !t.enabled;
             camBtn.classList.toggle("inactive", !t.enabled);
-            
             var ii = camBtn.querySelector("i");
             if (ii) ii.className = t.enabled ? "fas fa-video" : "fas fa-video-slash";
             showToast(t.enabled ? "Camera On" : "Camera Off");
           };
         }
 
-        // --- SCREEN SHARE BUTTON (Uses updated sender logic) ---
         var screenBtn = get("screenShareBtn");
         if (screenBtn) {
           screenBtn.onclick = async function () {
@@ -959,42 +916,37 @@ socket.on("danceDareEnd", (data) => {
               showToast("Screen sharing requires secure connection (HTTPS). Please use secure link.");
               return;
             }
-            // Removed inAppBrowser check restriction for testing, but alerted if detected.
-
-            const sender = pc.getSenders ? pc.getSenders().find(s => s && s.track && s.track.kind === "video") : null;
-            if (!sender) {
-              return showToast("No video sender found to replace.");
+            if (inAppBrowser) {
+              showToast("We detected an in-app browser. Open the link in Chrome app for screen sharing.");
+              return;
             }
-            
+
             if (screenBtn.dataset.sharing === "true") {
-              // --- STOP SHARING ---
               try {
-                // Stop the current screen track
-                sender.track && sender.track.stop && sender.track.stop();
-                
-                // Replace with original camera track
+                var sender = pc.getSenders ? pc.getSenders().find(s => s && s.track && s.track.kind === "video") : null;
                 var cam = cameraTrackSaved;
                 if (!cam || cam.readyState === "ended") {
-                  // Reacquire camera if needed
-                  const freshStream = await navigator.mediaDevices.getUserMedia({ video: true });
-                  cam = freshStream.getVideoTracks()[0];
-                  cameraTrackSaved = cam;
-                  // Update localStream reference too
-                  localStream.getVideoTracks().forEach(t => t.stop());
-                  localStream.removeTrack(localStream.getVideoTracks()[0]);
-                  localStream.addTrack(cam);
+                  try {
+                    const freshStream = await navigator.mediaDevices.getUserMedia({ video: true });
+                    cam = freshStream.getVideoTracks()[0];
+                    cameraTrackSaved = cam;
+                    if (localStream && typeof localStream.addTrack === "function") {
+                      try { localStream.addTrack(cam); } catch (e) { }
+                    }
+                    var lv = get("localVideo");
+                    if (lv) lv.srcObject = localStream;
+                  } catch (err) {
+                    log("Couldn't reacquire camera after screen share ended", err);
+                  }
                 }
-                
-                await sender.replaceTrack(cam);
-                
-                var lv = get("localVideo");
-                if (lv) lv.srcObject = localStream; // Show camera on local video
-                
+                if (sender && cam) {
+                  try { await sender.replaceTrack(cam); } catch (err) { log("restore camera failed", err); }
+                }
                 screenBtn.dataset.sharing = 'false';
                 screenBtn.classList.remove("active");
-                showToast("Screen sharing stopped, camera restored");
+                showToast("Screen sharing stopped");
               } catch (err) {
-                console.warn("Error stopping screen share/restoring camera", err);
+                console.warn("Error stopping screen share", err);
                 showToast("Could not stop screen share cleanly");
                 screenBtn.dataset.sharing = 'false';
                 screenBtn.classList.remove("active");
@@ -1002,30 +954,40 @@ socket.on("danceDareEnd", (data) => {
               return;
             }
 
-            // --- START SHARING ---
+            const tryGetDisplayMedia = async () => {
+              if (navigator.mediaDevices && typeof navigator.mediaDevices.getDisplayMedia === "function") {
+                return await navigator.mediaDevices.getDisplayMedia({ video: true });
+              }
+              if (typeof navigator.getDisplayMedia === "function") {
+                return await navigator.getDisplayMedia({ video: true });
+              }
+              throw new Error("getDisplayMedia not supported");
+            };
+
             try {
-              const tryGetDisplayMedia = async () => {
-                if (navigator.mediaDevices && typeof navigator.mediaDevices.getDisplayMedia === "function") {
-                  return await navigator.mediaDevices.getDisplayMedia({ video: true });
-                }
-                if (typeof navigator.getDisplayMedia === "function") {
-                  return await navigator.getDisplayMedia({ video: true });
-                }
-                throw new Error("getDisplayMedia not supported");
-              };
-              
               const displayStream = await tryGetDisplayMedia();
+              if (!displayStream) throw new Error("No display stream returned");
               const screenTrack = displayStream.getVideoTracks()[0];
-              
-              // Save original camera track if not already saved
-              if (!cameraTrackSaved) {
-                  cameraTrackSaved = localStream.getVideoTracks()[0];
+              const sender = pc.getSenders ? pc.getSenders().find(s => s && s.track && s.track.kind === "video") : null;
+              if (!sender) {
+                showToast("No video sender found");
+                screenTrack && screenTrack.stop && screenTrack.stop();
+                return;
               }
 
-              // Replace track on the sender
-              await sender.replaceTrack(screenTrack);
-              
-              // Update local display to show shared screen
+              const savedCam = localStream && localStream.getVideoTracks ? localStream.getVideoTracks()[0] : cameraTrackSaved;
+              cameraTrackSaved = savedCam || cameraTrackSaved;
+
+              try {
+                if (typeof sender.replaceTrack === "function") {
+                  await sender.replaceTrack(screenTrack);
+                } else {
+                  try { pc.addTrack(screenTrack, displayStream); } catch (e) { log("addTrack screen failed", e); }
+                }
+              } catch (e) {
+                log("replaceTrack/addTrack failed for screen", e);
+              }
+
               var lv = get("localVideo");
               if (lv) lv.srcObject = displayStream;
 
@@ -1033,27 +995,303 @@ socket.on("danceDareEnd", (data) => {
               screenBtn.classList.add("active");
               showToast("Screen sharing active");
 
-              screenTrack.onended = function () {
-                  // Auto-restore camera when user stops sharing via browser UI
-                  screenBtn.onclick(); 
+              screenTrack.onended = async function () {
+                try {
+                  var sender2 = pc.getSenders ? pc.getSenders().find(s => s && s.track && s.track.kind === "video") : null;
+                  var cam = cameraTrackSaved;
+                  if (!cam || cam.readyState === "ended") {
+                    try {
+                      const fresh = await navigator.mediaDevices.getUserMedia({ video: true });
+                      cam = fresh.getVideoTracks()[0];
+                      cameraTrackSaved = cam;
+                      try {
+                        var prev = localStream && localStream.getVideoTracks && localStream.getVideoTracks()[0];
+                        if (prev && prev.stop) prev.stop();
+                        if (localStream && typeof localStream.removeTrack === "function" && prev) { try { localStream.removeTrack(prev); } catch (e) {} }
+                        if (localStream && typeof localStream.addTrack === "function" && cam) { try { localStream.addTrack(cam); } catch (e) {} }
+                      } catch (e) { }
+                    } catch (err) {
+                      log("Couldn't reacquire camera after screen share ended", err);
+                    }
+                  }
+                  if (sender2 && cam) {
+                    try { await sender2.replaceTrack(cam); } catch (err) { log("restore camera via replaceTrack failed", err); }
+                    showToast("Screen sharing stopped – camera restored");
+                  } else {
+                    showToast("Screen sharing stopped");
+                  }
+                } catch (err) {
+                  console.error("Error restoring camera after screen end", err);
+                  showToast("Stopped screen sharing");
+                } finally {
+                  screenBtn.dataset.sharing = 'false';
+                  screenBtn.classList.remove("active");
+                  try { var lv2 = get("localVideo"); if (lv2 && localStream) lv2.srcObject = localStream; } catch (e) {}
+                }
               };
-
             } catch (err) {
               log("DisplayMedia error or not supported", err);
-              showToast("Screen sharing failed or cancelled.");
+              const ua2 = navigator.userAgent || "";
+              if (/android/i.test(ua2)) {
+                showToast("Screen share not supported in this browser. Use Chrome on Android (latest) for screen sharing.");
+              } else if (/iphone|ipad|ipod/i.test(ua2)) {
+                showToast("iOS Safari doesn't support screen sharing for web apps. Use Android or desktop.");
+              } else {
+                showToast("Screen sharing not available. Try updating your browser (Chrome/Firefox).");
+              }
             }
           };
         }
-        
-        // --- END BUTTON LOGIC ---
+
         var disconnectBtn = get("disconnectBtn");
         if (disconnectBtn) {
-          // Show custom confirmation modal instead of disconnecting immediately
           disconnectBtn.onclick = function () {
-            setShowDisconnectConfirm(true);
+            try { safeEmit("partnerLeft"); } catch (e) { log("emit partnerLeft err", e); }
+            cleanupPeerConnection();
+            showRating();
           };
         }
-        
+
+        var quitBtn = get("quitBtn");
+        if (quitBtn) quitBtn.onclick = function () { cleanup(); window.location.href = "/"; };
+
+        var newPartnerBtn = get("newPartnerBtn");
+        if (newPartnerBtn) newPartnerBtn.onclick = function () { cleanupPeerConnection(); window.location.href = "/connect"; };
+
+        var hearts = document.querySelectorAll("#ratingOverlay .hearts i");
+        for (var hi = 0; hi < hearts.length; hi++) {
+          (function (h) {
+            h.addEventListener("click", function () {
+              var val = parseInt(h.getAttribute("data-value"));
+              for (var q = 0; q < hearts.length; q++) hearts[q].classList.remove("selected");
+              for (var r = 0; r < val; r++) hearts[r].classList.add("selected");
+              var container = document.querySelector("#ratingOverlay .emoji-container");
+              if (container) {
+                var e = document.createElement("div");
+                e.className = "floating-emoji";
+                e.textContent = val >= 4 ? "❤️" : "🙂";
+                e.style.left = "50%";
+                e.style.top = "50%";
+                container.appendChild(e);
+                setTimeout(() => { try { e.remove(); } catch (e) {} }, 1400);
+              }
+            });
+          })(hearts[hi]);
+        }
+
+        // Activities button
+        var activitiesBtn = get("activitiesBtn");
+        if (activitiesBtn) {
+          activitiesBtn.onclick = function (e) {
+            e.preventDefault();
+            e.stopPropagation();
+            log("Activities button clicked");
+            var overlay = get("activitiesModal");
+            if (overlay) {
+              overlay.style.display = "block";
+              setTimeout(() => {
+                var sheet = overlay.querySelector(".activities-sheet");
+                if (sheet) {
+                  sheet.classList.add("show");
+                  log("Sheet shown");
+                }
+              }, 10);
+            }
+          };
+        }
+
+        // Activities modal close
+        var actClose = get("activitiesClose");
+        if (actClose) {
+          actClose.onclick = function (e) {
+            e.preventDefault();
+            e.stopPropagation();
+            var overlay = get("activitiesModal");
+            if (overlay) {
+              var sheet = overlay.querySelector(".activities-sheet");
+              if (sheet) sheet.classList.remove("show");
+              setTimeout(() => { overlay.style.display = "none"; }, 300);
+            }
+          };
+        }
+
+        // Close on backdrop click
+        setTimeout(() => {
+          var actBackdrop = document.querySelector(".activities-backdrop");
+          if (actBackdrop) {
+            actBackdrop.onclick = function(e) {
+              if (e.target === actBackdrop) {
+                var overlay = get("activitiesModal");
+                if (overlay) {
+                  var sheet = overlay.querySelector(".activities-sheet");
+                  if (sheet) sheet.classList.remove("show");
+                  setTimeout(() => { overlay.style.display = "none"; }, 300);
+                }
+              }
+            };
+          }
+        }, 1000);
+
+        // Helper to close activities modal
+        function closeActivitiesModal() {
+          var overlay = get("activitiesModal");
+          if (overlay) {
+            var sheet = overlay.querySelector(".activities-sheet");
+            if (sheet) sheet.classList.remove("show");
+            setTimeout(() => { overlay.style.display = "none"; }, 300);
+          }
+        }
+
+        // ========== EXISTING ACTIVITIES HANDLERS ==========
+        var startTwo = get("startTwoOption");
+        if (startTwo) {
+          startTwo.onclick = function (e) {
+            e.preventDefault();
+            e.stopPropagation();
+            safeEmit("twoOptionStart", { questionsPack: "default", count: 10 });
+            closeActivitiesModal();
+            showToast("Starting Two-Option Quiz...");
+          };
+        }
+
+        var startSpin = get("startSpin");
+        if (startSpin) {
+          startSpin.onclick = function (e) {
+            e.preventDefault();
+            e.stopPropagation();
+            safeEmit("spinBottleStart", {});
+            closeActivitiesModal();
+            showToast("Spinning the bottle...");
+          };
+        }
+
+        var optA = get("optA");
+        var optB = get("optB");
+        if (optA) optA.onclick = function () { submitTwoOptionAnswer("A"); };
+        if (optB) optB.onclick = function () { submitTwoOptionAnswer("B"); };
+
+        var closeTwoRes = get("closeTwoRes");
+        if (closeTwoRes) closeTwoRes.onclick = function () { var r = get("twoOptionResultModal"); if (r) r.style.display = "none"; };
+
+        var spinDone = get("spinDone");
+        var spinSkip = get("spinSkip");
+        if (spinDone) spinDone.onclick = function () { var sm = get("spinModal"); if (sm) sm.style.display = "none"; safeEmit("spinBottleDone", {}); };
+        if (spinSkip) spinSkip.onclick = function () { var sm = get("spinModal"); if (sm) sm.style.display = "none"; safeEmit("spinBottleSkip", {}); };
+
+        // ========== NEW ACTIVITIES HANDLERS - FIXED ==========
+
+        // 3. RAPID FIRE
+        var startRapid = get("startRapidFire");
+        if (startRapid) {
+          startRapid.onclick = function (e) {
+            e.preventDefault();
+            e.stopPropagation();
+            rapidFireCount = 0;
+            safeEmit("startQuestionGame", { timeout: 30 });
+            closeActivitiesModal();
+            showToast("Starting Rapid Fire...");
+          };
+        }
+
+        var endRapid = get("endRapidFire");
+        if (endRapid) endRapid.onclick = function () {
+          var m = get("rapidFireModal"); 
+          if (m) m.style.display = "none";
+          rapidFireCount = 0;
+        };
+
+        // 4. MIRROR CHALLENGE
+        var startMirror = get("startMirror");
+        if (startMirror) {
+          startMirror.onclick = function (e) {
+            e.preventDefault();
+            e.stopPropagation();
+            safeEmit("mirrorChallengeStart", { duration: 30 });
+            closeActivitiesModal();
+            showToast("Starting Mirror Challenge...");
+          };
+        }
+
+        var endMirror = get("endMirror");
+        if (endMirror) endMirror.onclick = function () {
+          var m = get("mirrorModal"); 
+          if (m) m.style.display = "none";
+          if (mirrorTimer) clearInterval(mirrorTimer);
+        };
+
+        // 5. STARING CONTEST
+        var startStaring = get("startStaring");
+        if (startStaring) {
+          startStaring.onclick = function (e) {
+            e.preventDefault();
+            e.stopPropagation();
+            safeEmit("staringContestStart", { duration: 30 });
+            closeActivitiesModal();
+            showToast("Starting Staring Contest...");
+          };
+        }
+
+        var iBlinked = get("iBlinked");
+        if (iBlinked) iBlinked.onclick = function () {
+          const roomCode = getRoomCode();
+          safeEmit("staringContestBlink", { roomCode, contestId: "current" });
+          showToast("You blinked! 😅");
+        };
+
+        var endStaring = get("endStaring");
+        if (endStaring) endStaring.onclick = function () {
+          var m = get("staringModal"); 
+          if (m) m.style.display = "none";
+          if (staringTimer) clearInterval(staringTimer);
+        };
+
+        // 6. FINISH THE LYRICS
+        var startLyrics = get("startLyrics");
+        if (startLyrics) {
+          startLyrics.onclick = function (e) {
+            e.preventDefault();
+            e.stopPropagation();
+            safeEmit("lyricsGameStart", { rounds: 5 });
+            closeActivitiesModal();
+            showToast("Starting Lyrics Game...");
+          };
+        }
+
+        var showLyricsAnswer = get("showLyricsAnswer");
+        if (showLyricsAnswer) showLyricsAnswer.onclick = function () {
+          showToast("Answer revealed!");
+        };
+
+        var nextLyrics = get("nextLyrics");
+        if (nextLyrics) nextLyrics.onclick = function () {
+          showToast("Next round coming...");
+        };
+
+        var endLyrics = get("endLyrics");
+        if (endLyrics) endLyrics.onclick = function () {
+          var m = get("lyricsModal"); 
+          if (m) m.style.display = "none";
+        };
+
+        // 7. DANCE DARE
+        var startDance = get("startDance");
+        if (startDance) {
+          startDance.onclick = function (e) {
+            e.preventDefault();
+            e.stopPropagation();
+            safeEmit("danceDareStart", { duration: 15 });
+            closeActivitiesModal();
+            showToast("Starting Dance Dare...");
+          };
+        }
+
+        var skipDance = get("skipDance");
+        if (skipDance) skipDance.onclick = function () {
+          var m = get("danceModal"); 
+          if (m) m.style.display = "none";
+          showToast("Dance skipped!");
+        };
+
       }, 800);
 
       function submitTwoOptionAnswer(choice) {
@@ -1090,60 +1328,9 @@ socket.on("danceDareEnd", (data) => {
     })();
 
     return function () { cleanup(); };
-  }, [isAuthenticated]);
+  }, []);
 
   function escapeHtml(s) { return String(s).replace(/[&<>\"']/g, (m) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[m]); }
-
-  // ------------------------------------------
-  // NEW FUNCTIONS FOR DISCONNECT MODAL
-  // ------------------------------------------
-  const handleConfirmDisconnect = () => {
-    // 1. Close confirmation modal
-    setShowDisconnectConfirm(false);
-    
-    // 2. Signal disconnection to partner
-    try { safeEmit("partnerLeft"); } catch (e) { log("emit partnerLeft err", e); }
-    
-    // 3. Clean up PC resources
-    cleanupPeerConnection(); 
-    
-    // 4. Redirect immediately after cleanup
-    window.location.href = "/connect";
-  };
-  
-  const handleKeepChatting = () => {
-    setShowDisconnectConfirm(false);
-  };
-
-  // Check isAuthenticated and show a loading screen if not authenticated yet
-  if (!isAuthenticated) {
-    return (
-        <div style={{ 
-            background: '#08060c', 
-            minHeight: '100vh', 
-            display: 'flex', 
-            alignItems: 'center', 
-            justifyContent: 'center',
-            color: '#fff',
-            fontSize: '24px',
-            fontFamily: 'Poppins, sans-serif'
-        }}>
-            <div className="loading-spinner-heart" style={{marginRight: '10px'}}>💖</div>
-            <style jsx global>{`
-                .loading-spinner-heart {
-                    font-size: 3rem;
-                    animation: pulse 1.5s infinite;
-                }
-                @keyframes pulse {
-                    0%, 100% { transform: scale(1); }
-                    50% { transform: scale(1.2); }
-                }
-            `}</style>
-            Checking Authentication...
-        </div>
-    );
-  }
-
 
   return (
     <>
@@ -1181,36 +1368,6 @@ socket.on("danceDareEnd", (data) => {
           <i className="fas fa-phone-slash"></i><span>End</span>
         </button>
       </div>
-
-      {/* Disconnect Confirmation Modal */}
-      {showDisconnectConfirm && (
-        <div className="modal-overlay">
-          <div className="disconnect-confirm-modal">
-            <div className="modal-content">
-              <div className="modal-icon">💔</div>
-              <h3 className="modal-title">Wait, is this goodbye? 🥺</h3>
-              <p className="modal-message">
-                Are you sure you want to end this connection? You might miss a spark! 🔥
-              </p>
-              <div className="modal-actions">
-                <button 
-                  onClick={handleKeepChatting} 
-                  className="btn-keep"
-                >
-                  Keep Chatting
-                </button>
-                <button 
-                  onClick={handleConfirmDisconnect} 
-                  className="btn-end"
-                >
-                  End Connection
-                </button>
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
-      {/* End Disconnect Confirmation Modal */}
 
       {/* Activities Modal - BOTTOM SHEET STYLE (Mobile Friendly) */}
       <div id="activitiesModal" className="activities-overlay" style={{display:'none'}}>
@@ -1423,100 +1580,29 @@ socket.on("danceDareEnd", (data) => {
           </div>
         </div>
       </div>
-      
+
+      {/* Rating Overlay */}
+      <div id="ratingOverlay">
+        <div className="rating-content">
+          <h2>Rate your partner ❤️</h2>
+          <div className="hearts">
+            <i className="far fa-heart" data-value="1" aria-label="1 star"></i>
+            <i className="far fa-heart" data-value="2" aria-label="2 stars"></i>
+            <i className="far fa-heart" data-value="3" aria-label="3 stars"></i>
+            <i className="far fa-heart" data-value="4" aria-label="4 stars"></i>
+            <i className="far fa-heart" data-value="5" aria-label="5 stars"></i>
+          </div>
+          <div className="rating-buttons">
+            <button id="quitBtn">Quit</button>
+            <button id="newPartnerBtn">Search New Partner</button>
+          </div>
+          <div className="emoji-container" aria-hidden="true"></div>
+        </div>
+      </div>
+
       <div id="toast"></div>
 
       <style jsx global>{`
-        /* Custom Disconnect Confirmation Modal Styles */
-        .modal-overlay {
-            position: fixed;
-            inset: 0;
-            background: rgba(0, 0, 0, 0.85);
-            backdrop-filter: blur(12px);
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            z-index: 100000;
-            animation: fadeIn 0.3s ease;
-            padding: 20px;
-        }
-
-        .disconnect-confirm-modal {
-            background: linear-gradient(145deg, rgba(255, 110, 167, 0.25), rgba(139, 92, 246, 0.2));
-            border: 2px solid rgba(255, 110, 167, 0.5);
-            border-radius: 28px;
-            padding: 2.5rem 2rem;
-            max-width: 420px;
-            width: 100%;
-            text-align: center;
-            box-shadow: 0 25px 70px rgba(255, 79, 160, 0.4), 0 0 120px rgba(255, 20, 147, 0.25);
-            animation: slideUp 0.5s cubic-bezier(0.34, 1.56, 0.64, 1);
-            position: relative;
-            overflow: hidden;
-            color: #ffffff;
-        }
-        
-        .modal-icon {
-            font-size: 3.5rem;
-            margin-bottom: 1rem;
-            animation: heartBounce 1.2s ease-in-out infinite;
-        }
-        
-        .modal-title {
-            font-size: 1.6rem;
-            font-weight: 700;
-            margin-bottom: 0.5rem;
-            color: #ffd7e0;
-        }
-
-        .modal-message {
-            font-size: 1rem;
-            opacity: 0.9;
-            margin-bottom: 1.5rem;
-        }
-
-        .modal-actions {
-            display: flex;
-            gap: 1rem;
-            justify-content: center;
-        }
-
-        .btn-keep, .btn-end {
-            flex: 1;
-            padding: 1rem 1.2rem;
-            border-radius: 50px;
-            border: none;
-            font-size: 1rem;
-            font-weight: 700;
-            cursor: pointer;
-            transition: all 0.3s ease;
-        }
-
-        .btn-keep {
-            background: linear-gradient(135deg, #4cd964, #34c759);
-            color: white;
-            box-shadow: 0 5px 20px rgba(76, 217, 100, 0.5);
-        }
-        .btn-end {
-            background: linear-gradient(135deg, #ff4fa0, #ff1493);
-            color: white;
-            box-shadow: 0 5px 20px rgba(255, 79, 160, 0.5);
-        }
-        .btn-keep:hover, .btn-end:hover {
-            transform: translateY(-2px);
-        }
-
-        @keyframes heartBounce {
-          0%, 100% { transform: scale(1); }
-          50% { transform: scale(1.15); }
-        }
-        @keyframes slideUp {
-          from { transform: translateY(50px) scale(0.95); opacity: 0; }
-          to { transform: translateY(0) scale(1); opacity: 1; }
-        }
-        /* End Custom Disconnect Confirmation Modal Styles */
-
-
         *{margin:0;padding:0;box-sizing:border-box}
         html,body{height:100%;background:#000;font-family:'Segoe UI',sans-serif;overflow:hidden}
         .video-stage{position:relative;width:100%;height:100vh;padding-bottom:calc(110px + env(safe-area-inset-bottom));background:linear-gradient(180deg,#0b0b0f 0%, #0f0610 100%);}
@@ -1527,31 +1613,20 @@ socket.on("danceDareEnd", (data) => {
         .video-box::after{content:"";position:absolute; inset:0;pointer-events:none;box-shadow: inset 0 80px 120px rgba(0,0,0,0.25);border-radius: inherit;z-index:16;}
         #localVideo{ transform: scaleX(-1); }
         .label{position:absolute;left:10px;bottom:10px;padding:6px 10px;font-size:12px;color:#fff;background:rgba(0,0,0,.5);border:1px solid rgba(255,255,255,.05);border-radius:10px;pointer-events:none}
-        
-        /* FIX: Control Bar position for visibility */
-        .control-bar{
-          position: fixed;
-          bottom: 18px; /* Fixed height from bottom */
-          left: 50%;
-          transform: translateX(-50%);
-          display: flex;
-          gap: 12px;
-          padding: 8px 10px;
-          background: linear-gradient(90deg, rgba(255,255,255,0.04), rgba(255,255,255,0.02));
-          border-radius: 16px;
-          z-index: 3000;
-          backdrop-filter: blur(8px);
-          max-width: calc(100% - 24px);
-          overflow-x: auto;
-          align-items: center;
-          box-shadow: 0 12px 30px rgba(0,0,0,.6);
-        }
-
+        .control-bar{position:fixed;bottom:calc(18px + env(safe-area-inset-bottom));left:50%;transform:translateX(-50%);display:flex;gap:12px;padding:8px 10px;background:linear-gradient(90deg, rgba(255,255,255,0.04), rgba(255,255,255,0.02));border-radius:16px;z-index:3000;backdrop-filter: blur(8px);max-width:calc(100% - 24px);overflow-x:auto;align-items:center;box-shadow:0 12px 30px rgba(0,0,0,.6)}
         .control-btn{display:flex;flex-direction:column;align-items:center;justify-content:center;background:rgba(255,255,255,0.03);color:#fff;border-radius:14px;width:64px;height:64px;cursor:pointer;flex:0 0 auto;border:1px solid rgba(255,255,255,0.03);transition:transform .12s ease, box-shadow .12s ease}
         .control-btn:hover{ transform: translateY(-4px); box-shadow:0 10px 22px rgba(0,0,0,0.45)}
         .control-btn span{font-size:12px;margin-top:6px}
         .control-btn.inactive{opacity:0.5}.control-btn.active{box-shadow:0 6px 18px rgba(255,77,141,0.18);transform:translateY(-2px)}.control-btn.danger{background:linear-gradient(135deg,#ff4d8d,#b51751);border:none}
-        
+        #ratingOverlay{position:fixed;inset:0;display:none;align-items:center;justify-content:center;background:rgba(0,0,0,.9);color:#fff;z-index:4000;padding:20px}
+        .rating-content{position:relative;min-width: min(720px, 92vw);max-width:920px;max-height:80vh;padding:28px 36px;border-radius:20px;text-align:center;background:linear-gradient(180deg, rgba(255,255,255,0.02), rgba(255,255,255,0.01));border:1px solid rgba(255,255,255,.03);box-shadow:0 20px 60px rgba(0,0,0,.6);z-index:1;overflow:auto}
+        .rating-content h2{ font-size:28px;margin-bottom:14px;letter-spacing:.3px }
+        .hearts{ display:flex;gap:18px;font-size:56px;margin:22px 0 8px 0;justify-content:center;z-index:2;position:relative }
+        .hearts i{ color:#777;cursor:pointer;transition:transform .18s,color .18s }
+        .hearts i:hover{ transform:scale(1.12);color:#ff6fa3 }
+        .hearts i.selected{ color:#ff1744 }
+        .rating-buttons{ display:flex;gap:18px;margin-top:24px;justify-content:center;position:relative;z-index:2;flex-wrap:wrap }
+        .rating-buttons button{ padding:14px 24px;font-size:18px;border-radius:14px;border:none;color:#fff;cursor:pointer;background:linear-gradient(135deg,#ff4d8d,#6a5acd);box-shadow:0 10px 28px rgba(0,0,0,.45);backdrop-filter: blur(14px);transition:transform .2s ease,opacity .2s ease }
         #toast{position:fixed;left:50%;bottom:calc(110px + env(safe-area-inset-bottom));transform:translateX(-50%);background:#111;color:#fff;padding:10px 14px;border-radius:8px;display:none;z-index:5000;border:1px solid rgba(255,255,255,.08)}
 
         .watermark-badge{position:absolute;right:14px;bottom:14px;z-index:40;display:flex;align-items:center;gap:8px;padding:8px 12px;border-radius:26px;background: linear-gradient(135deg, rgba(255,255,255,0.06), rgba(255,255,255,0.02));color: rgba(255,255,255,0.94);font-weight:800;letter-spacing:1px;font-size:14px;transform: rotate(-12deg);box-shadow: 0 8px 30px rgba(0,0,0,0.6);backdrop-filter: blur(6px) saturate(1.1);-webkit-backdrop-filter: blur(6px) saturate(1.1);transition: transform .18s ease, opacity .18s ease;opacity: 0.95;pointer-events: none;}
@@ -1610,6 +1685,9 @@ socket.on("danceDareEnd", (data) => {
         @media(max-width: 900px){
           .video-panes{ flex-direction:column; }
           .video-box{ flex:1 1 50%; min-height: 180px; }
+          .rating-content{ padding:20px; min-width: 88vw }
+          .hearts{ font-size:44px; gap:14px }
+          .rating-buttons button{ font-size:16px; padding:12px 18px }
           .call-timer{ top:8px; font-size:13px; padding:6px 12px }
           .control-btn{ width:64px; height:64px }
           .control-bar{ gap:10px; padding:8px }
@@ -1629,19 +1707,18 @@ socket.on("danceDareEnd", (data) => {
         @media(max-width: 480px){
           .video-box{ border-radius:10px }
           .video-panes{ padding:8px }
-          /* FIX: Mobile control bar position */
-          .control-bar{ bottom: calc(10px + env(safe-area-inset-bottom)); left: 8px; right: 8px; transform: none; margin: 0 auto; justify-content: center; }
+          .control-bar{ left:8px; right:8px; transform:none; margin:0 auto; justify-content:center }
+          .control-bar{ bottom:calc(10px + env(safe-area-inset-bottom)); }
           .control-btn span{ display:none }
           .control-btn{ width:56px; height:56px }
+          .rating-content{ padding:18px; min-width:86vw }
+          .hearts{ font-size:36px }
           .call-timer{ font-size:12px; padding:6px 10px }
           .modal-card{padding:18px;min-width:90vw}
           .act-item{padding:12px 14px}
           .act-item-icon{font-size:26px;width:44px;height:44px}
           .sheet-header{padding:14px 16px}
           .sheet-header h3{font-size:18px}
-          .disconnect-confirm-modal { padding: 2rem 1.5rem; max-width: 340px; }
-          .modal-actions { flex-direction: column; }
-          .btn-keep, .btn-end { padding: 0.8rem; }
         }
 
         .floating-emoji{position:absolute;font-size:32px;animation:float-up 1.4s ease-out forwards;pointer-events:none}
