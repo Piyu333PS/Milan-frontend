@@ -224,7 +224,7 @@ export default function Profile() {
     setIsEditingMilanId(true);
     setNewMilanId(milanId || '');
     setMilanIdStatus({
-      text: 'Use 3–20 characters: a-z, 0-9, underscore (_)',
+      text: 'Use 3–20 characters: a-z, 0-9, underscore (_). Ek baar Milan ID change karne ke baad next change sirf 3 months baad possible hoga.',
       color: 'text-gray-500'
     });
   };
@@ -262,6 +262,22 @@ export default function Profile() {
       return;
     }
 
+    // 🔐 Confirmation before final change (3 months rule info)
+    if (typeof window !== 'undefined') {
+      const ok = window.confirm(
+        "Kya aap sach mein apni Milan ID change karna chahte hain?\n\n" +
+        "• Ek baar Milan ID change karne ke baad next change sirf 3 months baad possible hoga.\n\n" +
+        "Agar aap sure ho to OK dabaye."
+      );
+      if (!ok) {
+        setMilanIdStatus({
+          text: 'Milan ID change cancel kar diya gaya.',
+          color: 'text-gray-500'
+        });
+        return;
+      }
+    }
+
     try {
       setMilanIdUpdating(true);
       setMilanIdStatus({
@@ -293,7 +309,7 @@ export default function Profile() {
 
       setMilanId(data.milanId);
       setMilanIdStatus({
-        text: 'Milan ID updated successfully 💖',
+        text: 'Milan ID updated successfully 💖 Agla change ab 3 months baad hi possible hoga.',
         color: 'text-green-600'
       });
       setIsEditingMilanId(false);
@@ -492,6 +508,9 @@ export default function Profile() {
                   </p>
                   <p className="text-xs text-gray-500">
                     Ye ID future me Add Friend / search ke liye use hogi.
+                  </p>
+                  <p className="text-xs text-purple-600 mt-1">
+                    Note: Aap ek baar Milan ID change karne ke baad agla change sirf 3 months baad hi kar sakte hain.
                   </p>
                 </div>
 
