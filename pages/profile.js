@@ -228,7 +228,7 @@ export default function Profile() {
     setIsEditingMilanId(true);
     setNewMilanId(milanId || '');
     setMilanIdStatus({
-      text: '3–20 chars • a-z, 0-9, _ • Next change 3 months baad.',
+      text: '3–20 chars • a-z, 0-9, _ • Next change after 3 months.',
       color: 'text-gray-500'
     });
   };
@@ -239,7 +239,7 @@ export default function Profile() {
     setMilanIdStatus({ text: '', color: '' });
   };
 
-  // Pehle yaha sirf validation + confirm-modal open hoga
+  // First step: validate + open confirm modal
   const handleSaveMilanId = async () => {
     const trimmed = (newMilanId || '').trim();
 
@@ -267,16 +267,15 @@ export default function Profile() {
       return;
     }
 
-    // Ab actual API call nahi, pehle cute confirm modal
     setPendingMilanId(trimmed);
     setShowMilanIdConfirm(true);
     setMilanIdStatus({
-      text: 'Almost done! Pehle ek chhota sa confirmation ❤️',
+      text: 'Almost done! Just confirm once more 💕',
       color: 'text-purple-600'
     });
   };
 
-  // Ye function confirm-modal se final API call karega
+  // Confirm modal → final API call
   const performMilanIdChange = async () => {
     if (!pendingMilanId) {
       setShowMilanIdConfirm(false);
@@ -326,7 +325,7 @@ export default function Profile() {
 
       setMilanId(data.milanId);
       setMilanIdStatus({
-        text: 'Milan ID updated successfully 💖 Agla change ab 3 months baad hi possible hoga.',
+        text: 'Milan ID updated successfully 💖 Next change will be available after 3 months.',
         color: 'text-green-600'
       });
       setIsEditingMilanId(false);
@@ -526,10 +525,10 @@ export default function Profile() {
                     @{milanId || 'not-set-yet'}
                   </p>
                   <p className="text-xs text-gray-500">
-                    Ye ID future me Add Friend / search ke liye use hogi.
+                    This is your love ID on Milan. Friends will find you with this.
                   </p>
                   <p className="text-xs text-purple-600 mt-1">
-                    Note: ID change ke baad agla change sirf 3 months baad hi possible hoga.
+                    Note: After you change it, next change will be available only after <b>3 months</b>.
                   </p>
                 </div>
 
@@ -896,12 +895,13 @@ export default function Profile() {
         <div className="confirm-modal-overlay">
           <div className="confirm-modal">
             <div className="confirm-heart">💝</div>
-            <h2 className="confirm-title">Milan ID change karein?</h2>
+            <h2 className="confirm-title">Change your Milan ID?</h2>
             <p className="confirm-text">
-              Ye aapki pehchaan hai Milan par. Is ID ko change karne ke baad
-              agla change sirf <b>3 months</b> baad possible hoga.
+              This is your identity on Milan – your love ID here.
+              After you change it now, the next change will be available only
+              after <b>3 months</b>.
               <br />
-              Pakka isi ID par rehna hai?
+              Are you sure you want to keep this new ID?
             </p>
             <div className="confirm-actions">
               <button
@@ -910,19 +910,19 @@ export default function Profile() {
                   setShowMilanIdConfirm(false);
                   setPendingMilanId('');
                   setMilanIdStatus({
-                    text: 'Milan ID change cancel kar diya gaya.',
+                    text: 'Milan ID change cancelled. Keeping your current ID.',
                     color: 'text-gray-500'
                   });
                 }}
               >
-                Nahi, purani hi theek hai
+                No, keep old ID
               </button>
               <button
                 className="confirm-btn-primary"
                 onClick={performMilanIdChange}
                 disabled={milanIdUpdating}
               >
-                {milanIdUpdating ? 'Updating...' : 'Haan, change karo'}
+                {milanIdUpdating ? 'Updating...' : 'Yes, lock this ID 💖'}
               </button>
             </div>
           </div>
