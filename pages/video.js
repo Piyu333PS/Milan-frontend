@@ -73,8 +73,6 @@ export default function VideoPage() {
       t.style.display = "block";
       setTimeout(() => { t.style.display = "none"; }, ms || 2000);
     };
-    // REMOVED showRating() function as the overlay is removed.
-    // const showRating = () => { var r = get("ratingOverlay"); if (r) r.style.display = "flex"; };
     const log = (...args) => { try { console.log("[video]", ...args); } catch (e) {} };
 
     const getRoomCode = () => {
@@ -145,7 +143,6 @@ export default function VideoPage() {
       try { var rv = get("remoteVideo"); if (rv) rv.srcObject = null; } catch (e) {}
       pendingCandidates.length = 0;
       stopTimer(true);
-      // Removed showRating(); here as per request.
     }
 
     var cleanup = function (opts) {
@@ -160,7 +157,7 @@ export default function VideoPage() {
         }
       } catch (e) { log("socket cleanup err", e); }
 
-      cleanupPeerConnection(); // No longer calls showRating
+      cleanupPeerConnection();
 
       try {
         if (localStream) {
@@ -171,7 +168,6 @@ export default function VideoPage() {
       localStream = null;
       cameraTrackSaved = null;
       setTimeout(() => { isCleaning = false; }, 300);
-      // Removed direct redirection logic from general cleanup, except if room not found
       if (opts.goToConnect) window.location.href = "/connect"; 
     };
 
@@ -216,10 +212,10 @@ export default function VideoPage() {
     (async function start() {
       log("video page start");
       
-      // We assume isAuthenticated is true here because of the initial check
-      if (!isAuthenticated) return; // Final guard after initial check
+      if (!isAuthenticated) return;
 
       try {
+        // Request media devices
         localStream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
         var vtracks = (localStream && typeof localStream.getVideoTracks === "function") ? localStream.getVideoTracks() : [];
         cameraTrackSaved = (vtracks && vtracks.length) ? vtracks[0] : null;
@@ -230,7 +226,10 @@ export default function VideoPage() {
           lv.playsInline = true;
           lv.autoplay = true;
           lv.srcObject = localStream;
-          try { await (lv.play && lv.play()); } catch (e) { log("local video play warning", e); }
+          try { 
+            // Attempt playing local video, ignoring play warnings/errors
+            await (lv.play && lv.play()); 
+          } catch (e) { log("local video play warning", e); }
         } else { log("localVideo element not found"); }
       } catch (err) {
         console.error("Camera/Mic error:", err);
@@ -277,19 +276,31 @@ export default function VideoPage() {
             log("pc.ontrack", e);
             const rv = get("remoteVideo");
             const stream = (e && e.streams && e.streams[0]) ? e.streams[0] : new MediaStream([e.track]);
+            
             if (rv) {
               rv.playsInline = true;
               rv.autoplay = true;
-              // FIX: Removed rv.muted = true; to ensure remote audio plays (line 372 in original file)
-              // The logic below ensures rv.muted is false for the remote stream to allow audio playback.
+              
               if (rv.srcObject !== stream) {
                 rv.srcObject = stream;
-                rv.play && rv.play().then(() => {
-                  setTimeout(() => { try { rv.muted = false; } catch (e) {} }, 250); // Ensure unmute after play
-                }).catch((err) => { log("remote play rejected", err); try { rv.muted = false; } catch (e) {} });
-              } else {
-                try { rv.muted = false; } catch (e) {} // Ensure unmute
               }
+
+              // **FIXED: Ensure remote playback starts and audio is not muted.**
+              // We try to play the remote video/audio, and ensure it's unmuted.
+              const playRemoteStream = () => {
+                  if (rv.srcObject) {
+                      rv.muted = false; // MUST be unmuted for audio
+                      rv.play && rv.play().then(() => {
+                          log("Remote video/audio play SUCCESS");
+                      }).catch((err) => { 
+                          log("Remote play rejected. Retrying unmute and play in 500ms.", err); 
+                          // If auto-play is rejected, re-attempt unmute and play after a short delay
+                          setTimeout(() => playRemoteStream(), 500);
+                      });
+                  }
+              };
+              playRemoteStream();
+
             }
           } catch (err) { console.error("ontrack error", err); }
         };
@@ -304,7 +315,6 @@ export default function VideoPage() {
         pc.onconnectionstatechange = () => {
           log("pc.connectionState:", pc.connectionState);
           if (pc.connectionState === "disconnected" || pc.connectionState === "failed") {
-            // Updated disconnect message and redirect on connection failure (line 405)
             showToast("🥺 Connection failed. Starting a new search.");
             setTimeout(() => { window.location.href = "/connect"; }, 3000);
             cleanupPeerConnection(); 
@@ -336,7 +346,7 @@ export default function VideoPage() {
         };
       };
 
-      // SIGNALING HANDLERS (Omitted for brevity, kept consistent with previous versions)
+      // SIGNALING HANDLERS
       socket.on("ready", (data) => {
         log("socket ready", data);
         try { if (data && typeof data.polite !== "undefined") polite = !!data.polite; } catch (e) {}
@@ -465,25 +475,25 @@ export default function VideoPage() {
 
       socket.on("waitingForPeer", (d) => { log("waitingForPeer", d); showToast("Waiting for partner..."); });
       
-      // UPDATED: Partner Disconnect message and redirect (line 607)
+      // UPDATED: Partner Disconnect message and redirect
       socket.on("partnerDisconnected", () => { 
         log("partnerDisconnected"); 
         showToast("🥺 Partner suddenly went away. Starting a new search."); 
         cleanupPeerConnection();
-        setTimeout(() => { window.location.href = "/connect"; }, 3000); // Redirect after 3s to search
+        setTimeout(() => { window.location.href = "/connect"; }, 3000); 
       }); 
       
-      // UPDATED: Partner Left message and redirect (line 608)
+      // UPDATED: Partner Left message and redirect
       socket.on("partnerLeft", () => { 
         log("partnerLeft"); 
         showToast("👋 Partner ended the chat. Starting a new search."); 
         cleanupPeerConnection(); 
-        setTimeout(() => { window.location.href = "/connect"; }, 3000); // Redirect after 3s to search
+        setTimeout(() => { window.location.href = "/connect"; }, 3000); 
       }); 
 
       socket.on("errorMessage", (e) => { console.warn("server errorMessage:", e); showToast(e && e.message ? e.message : "Server error"); });
 
-      // ========== ACTIVITIES SIGNALS (Omitted for brevity, kept consistent with previous versions) ==========
+      // ========== ACTIVITIES SIGNALS (Same as before) ==========
       socket.on("twoOptionQuestion", (q) => {
         try {
           log("twoOptionQuestion", q);
@@ -826,13 +836,11 @@ export default function VideoPage() {
       });
 
 // ======== AUTO SYNC FIX FOR FUN ACTIVITIES ========
-// When connected, ask server to re-sync any missed start events
 socket.on("connect", () => {
   console.log("[FunSync] Socket connected:", socket.id);
   safeEmit("syncActivities", { roomCode: getRoomCode && getRoomCode() });
 });
 
-// Confirm receipt of any fun activity start events
 socket.on("mirrorChallengeStarted", (data) => {
   showToast("🪞 Mirror Challenge Started: " + (data.instruction || ""));
   console.log("[FunSync] Mirror Challenge Started", data);
@@ -1036,9 +1044,6 @@ socket.on("danceDareEnd", (data) => {
           };
         }
         
-        // Removed quitBtn handler, using handleConfirmDisconnect instead
-        // Removed newPartnerBtn handler from here, it's used in rating overlay
-
       }, 800);
 
       function submitTwoOptionAnswer(choice) {
@@ -1075,7 +1080,7 @@ socket.on("danceDareEnd", (data) => {
     })();
 
     return function () { cleanup(); };
-  }, [isAuthenticated]); // Added isAuthenticated as dependency
+  }, [isAuthenticated]);
 
   function escapeHtml(s) { return String(s).replace(/[&<>\"']/g, (m) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[m]); }
 
@@ -1092,7 +1097,7 @@ socket.on("danceDareEnd", (data) => {
     // 3. Clean up PC resources
     cleanupPeerConnection(); 
     
-    // 4. Redirect immediately after cleanup as Rating Overlay is removed
+    // 4. Redirect immediately after cleanup
     window.location.href = "/connect";
   };
   
@@ -1167,7 +1172,7 @@ socket.on("danceDareEnd", (data) => {
         </button>
       </div>
 
-      {/* Disconnect Confirmation Modal - ADDED */}
+      {/* Disconnect Confirmation Modal */}
       {showDisconnectConfirm && (
         <div className="modal-overlay">
           <div className="disconnect-confirm-modal">
@@ -1275,7 +1280,7 @@ socket.on("danceDareEnd", (data) => {
         </div>
       </div>
 
-      {/* EXISTING MODALS (Omitted for brevity, kept consistent with previous versions) */}
+      {/* EXISTING MODALS */}
       <div id="twoOptionModal" className="overlay-modal" style={{display:'none'}}>
         <div className="modal-card small">
           <div className="q-counter" style={{textAlign:'right',opacity:.8}}>1/10</div>
@@ -1408,8 +1413,6 @@ socket.on("danceDareEnd", (data) => {
           </div>
         </div>
       </div>
-
-      {/* Rating Overlay is REMOVED as per user request */}
       
       <div id="toast"></div>
 
@@ -1514,21 +1517,31 @@ socket.on("danceDareEnd", (data) => {
         .video-box::after{content:"";position:absolute; inset:0;pointer-events:none;box-shadow: inset 0 80px 120px rgba(0,0,0,0.25);border-radius: inherit;z-index:16;}
         #localVideo{ transform: scaleX(-1); }
         .label{position:absolute;left:10px;bottom:10px;padding:6px 10px;font-size:12px;color:#fff;background:rgba(0,0,0,.5);border:1px solid rgba(255,255,255,.05);border-radius:10px;pointer-events:none}
-        .control-bar{position:fixed;bottom:calc(18px + env(safe-area-area-inset-bottom));left:50%;transform:translateX(-50%);display:flex;gap:12px;padding:8px 10px;background:linear-gradient(90deg, rgba(255,255,255,0.04), rgba(255,255,255,0.02));border-radius:16px;z-index:3000;backdrop-filter: blur(8px);max-width:calc(100% - 24px);overflow-x:auto;align-items:center;box-shadow:0 12px 30px rgba(0,0,0,.6)}
+        
+        /* FIX: Control Bar position for visibility */
+        .control-bar{
+          position: fixed;
+          bottom: 18px; /* Fixed height from bottom */
+          left: 50%;
+          transform: translateX(-50%);
+          display: flex;
+          gap: 12px;
+          padding: 8px 10px;
+          background: linear-gradient(90deg, rgba(255,255,255,0.04), rgba(255,255,255,0.02));
+          border-radius: 16px;
+          z-index: 3000;
+          backdrop-filter: blur(8px);
+          max-width: calc(100% - 24px);
+          overflow-x: auto;
+          align-items: center;
+          box-shadow: 0 12px 30px rgba(0,0,0,.6);
+        }
+
         .control-btn{display:flex;flex-direction:column;align-items:center;justify-content:center;background:rgba(255,255,255,0.03);color:#fff;border-radius:14px;width:64px;height:64px;cursor:pointer;flex:0 0 auto;border:1px solid rgba(255,255,255,0.03);transition:transform .12s ease, box-shadow .12s ease}
         .control-btn:hover{ transform: translateY(-4px); box-shadow:0 10px 22px rgba(0,0,0,0.45)}
+        .control-btn span{font-size:12px;margin-top:6px}
         .control-btn.inactive{opacity:0.5}.control-btn.active{box-shadow:0 6px 18px rgba(255,77,141,0.18);transform:translateY(-2px)}.control-btn.danger{background:linear-gradient(135deg,#ff4d8d,#b51751);border:none}
-        #ratingOverlay{position:fixed;inset:0;display:none;align-items:center;justify-content:center;background:rgba(0,0,0,.9);color:#fff;z-index:4000;padding:20px}
-        .rating-content{position:relative;min-width: min(720px, 92vw);max-width:920px;max-height:80vh;padding:28px 36px;border-radius:20px;text-align:center;background:linear-gradient(180deg, rgba(255,255,255,0.02), rgba(255,255,255,0.01));border:1px solid rgba(255,255,255,.03);box-shadow:0 20px 60px rgba(0,0,0,.6);z-index:1;overflow:auto}
-        .rating-content h2{ font-size:28px;margin-bottom:14px;letter-spacing:.3px }
-        .hearts{ display:flex;gap:18px;font-size:56px;margin:22px 0 8px 0;justify-content:center;z-index:2;position:relative }
-        .hearts i{ color:#777;cursor:pointer;transition:transform .18s,color .18s }
-        .hearts i:hover{ transform:scale(1.12);color:#ff6fa3 }
-        .hearts i.selected{ color:#ff1744 }
-        .rating-buttons{ display:flex;gap:18px;margin-top:24px;justify-content:center;position:relative;z-index:2;flex-wrap:wrap }
-        .rating-buttons button{ padding:14px 24px;font-size:18px;border-radius:14px;border:none;color:#fff;cursor:pointer;background:linear-gradient(135deg,#ff4d8d,#6a5acd);box-shadow:0 10px 28px rgba(0,0,0,.45);backdrop-filter: blur(14px);transition:transform .2s ease,opacity .2s ease }
-        .rating-buttons button:hover{ transform: translateY(-4px); box-shadow:0 10px 22px rgba(0,0,0,0.45)}
-        .rating-buttons button:active{ transform: translateY(-1px); box-shadow:0 6px 18px rgba(0,0,0,0.45)}
+        
         #toast{position:fixed;left:50%;bottom:calc(110px + env(safe-area-inset-bottom));transform:translateX(-50%);background:#111;color:#fff;padding:10px 14px;border-radius:8px;display:none;z-index:5000;border:1px solid rgba(255,255,255,.08)}
 
         .watermark-badge{position:absolute;right:14px;bottom:14px;z-index:40;display:flex;align-items:center;gap:8px;padding:8px 12px;border-radius:26px;background: linear-gradient(135deg, rgba(255,255,255,0.06), rgba(255,255,255,0.02));color: rgba(255,255,255,0.94);font-weight:800;letter-spacing:1px;font-size:14px;transform: rotate(-12deg);box-shadow: 0 8px 30px rgba(0,0,0,0.6);backdrop-filter: blur(6px) saturate(1.1);-webkit-backdrop-filter: blur(6px) saturate(1.1);transition: transform .18s ease, opacity .18s ease;opacity: 0.95;pointer-events: none;}
@@ -1587,9 +1600,6 @@ socket.on("danceDareEnd", (data) => {
         @media(max-width: 900px){
           .video-panes{ flex-direction:column; }
           .video-box{ flex:1 1 50%; min-height: 180px; }
-          .rating-content{ padding:20px; min-width: 88vw }
-          .hearts{ font-size:44px; gap:14px }
-          .rating-buttons button{ font-size:16px; padding:12px 18px }
           .call-timer{ top:8px; font-size:13px; padding:6px 12px }
           .control-btn{ width:64px; height:64px }
           .control-bar{ gap:10px; padding:8px }
@@ -1609,12 +1619,10 @@ socket.on("danceDareEnd", (data) => {
         @media(max-width: 480px){
           .video-box{ border-radius:10px }
           .video-panes{ padding:8px }
-          .control-bar{ left:8px; right:8px; transform:none; margin:0 auto; justify-content:center }
-          .control-bar{ bottom:calc(10px + env(safe-area-inset-bottom)); }
+          /* FIX: Mobile control bar position */
+          .control-bar{ bottom: calc(10px + env(safe-area-inset-bottom)); left: 8px; right: 8px; transform: none; margin: 0 auto; justify-content: center; }
           .control-btn span{ display:none }
           .control-btn{ width:56px; height:56px }
-          .rating-content{ padding:18px; min-width:86vw }
-          .hearts{ font-size:36px }
           .call-timer{ font-size:12px; padding:6px 10px }
           .modal-card{padding:18px;min-width:90vw}
           .act-item{padding:12px 14px}
