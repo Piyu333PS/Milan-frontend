@@ -216,7 +216,13 @@ export default function VideoPage() {
       log("video page start");
       
       try {
-        localStream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
+        try {
+  localStream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
+} catch (err) {
+  console.error("Camera/Mic error:", err);
+  showToast("Camera / Mic nahi mila. Please device connect karke page refresh karo.");
+  return;
+}
         var vtracks = (localStream && typeof localStream.getVideoTracks === "function") ? localStream.getVideoTracks() : [];
         cameraTrackSaved = (vtracks && vtracks.length) ? vtracks[0] : null;
 
