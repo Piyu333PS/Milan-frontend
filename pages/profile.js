@@ -6,14 +6,12 @@ export default function Profile() {
   const router = useRouter();
   const fileInputRef = useRef(null);
   const [uploading, setUploading] = useState(false);
-  
-  // START: AUTH GUARD STATE
+
+  // AUTH GUARD
   const [isAuthenticated, setIsAuthenticated] = useState(false);
-  // END: AUTH GUARD STATE
-  
-  // START: ADDED STATE FOR SUCCESS MODAL
+
+  // Success modal
   const [showSuccessModal, setShowSuccessModal] = useState(false);
-  // END: ADDED STATE FOR SUCCESS MODAL
 
   // ⭐ MILAN ID STATE
   const [milanId, setMilanId] = useState('');
@@ -22,7 +20,6 @@ export default function Profile() {
   const [milanIdStatus, setMilanIdStatus] = useState({ text: '', color: '' });
   const [milanIdUpdating, setMilanIdUpdating] = useState(false);
 
-  // Default state structure
   const initialProfileState = {
     name: '',
     age: '',
@@ -44,42 +41,38 @@ export default function Profile() {
   const [activeTab, setActiveTab] = useState('basic');
   const [profileData, setProfileData] = useState(initialProfileState);
 
-  // START: AUTH GUARD LOGIC & DATA LOADING FIX
+  // AUTH + local profile load
   useEffect(() => {
-    if (typeof window === "undefined") return;
+    if (typeof window === 'undefined') return;
 
-    const token = localStorage.getItem("token");
+    const token = localStorage.getItem('token');
     if (!token) {
-      // If no token, redirect to homepage (login/register page)
-      router.push("/");
+      router.push('/');
       return;
     }
-    
-    // Load saved profile/user data from local storage
+
     try {
-      // Prioritize 'milanUser' (backend data) over 'milanProfile' (client fallback)
-      const savedProfile = localStorage.getItem('milanUser') || localStorage.getItem('milanProfile');
+      const savedProfile =
+        localStorage.getItem('milanUser') || localStorage.getItem('milanProfile');
+
       if (savedProfile) {
         const parsed = JSON.parse(savedProfile);
-
         const mergedProfile = Object.assign({}, initialProfileState, parsed);
         setProfileData(mergedProfile);
 
-        // ⭐ Load Milan ID from saved user if available
         if (parsed.milanId) {
           setMilanId(parsed.milanId);
         }
       } else {
         setProfileData(initialProfileState);
       }
-    } catch (error) {
-      console.error('Error loading profile:', error);
+    } catch (err) {
+      console.error('Error loading profile:', err);
       setProfileData(initialProfileState);
     }
-    
+
     setIsAuthenticated(true);
   }, [router]);
-  // END: AUTH GUARD LOGIC
 
   const vibes = [
     { emoji: '☕', label: 'Chai pe charcha', color: 'bg-amber-100 text-amber-700' },
@@ -96,12 +89,12 @@ export default function Profile() {
   const festivals = ['Diwali', 'Holi', 'Eid', 'Christmas', 'Navratri', 'Durga Puja', 'Onam', 'Pongal'];
 
   const hobbyOptions = [
-    'Travel', 'Photography', 'Cooking', 'Gaming', 'Dancing', 'Singing', 
+    'Travel', 'Photography', 'Cooking', 'Gaming', 'Dancing', 'Singing',
     'Reading', 'Gym', 'Yoga', 'Painting', 'Writing', 'Gardening'
   ];
 
   const commonDealBreakers = [
-    'Smoking', 'Party every weekend', 'No family time', 'Poor hygiene', 
+    'Smoking', 'Party every weekend', 'No family time', 'Poor hygiene',
     'Rude to waiters', 'Always on phone', 'No sense of humor'
   ];
 
@@ -114,7 +107,6 @@ export default function Profile() {
     fileInputRef.current?.click();
   };
 
-  // upload helper (calls your Render backend)
   async function uploadProfilePic(file) {
     const fd = new FormData();
     fd.append('image', file);
@@ -131,10 +123,9 @@ export default function Profile() {
       const text = await res.text();
       throw new Error('Upload failed: ' + text);
     }
-    return res.json(); // { url, public_id }
+    return res.json();
   }
 
-  // New handler: uploads to Cloudinary via backend and sets the returned URL
   const handlePhotoChange = async (e) => {
     const file = e.target.files?.[0];
     if (!file) return;
@@ -148,7 +139,9 @@ export default function Profile() {
 
         try {
           localStorage.setItem('milanProfile', JSON.stringify(newProfile));
-        } catch (err) { console.warn('localStorage set failed', err); }
+        } catch (err) {
+          console.warn('localStorage set failed', err);
+        }
 
         window.dispatchEvent(new CustomEvent('milan:user-updated', { detail: newProfile }));
       } else {
@@ -170,7 +163,7 @@ export default function Profile() {
   const toggleItem = (field, item) => {
     const current = profileData[field] || [];
     const updated = current.includes(item)
-      ? current.filter(i => i !== item)
+      ? current.filter((i) => i !== item)
       : [...current, item];
     setProfileData({ ...profileData, [field]: updated });
   };
@@ -182,7 +175,6 @@ export default function Profile() {
     });
   };
 
-  // SAVE PROFILE -> backend
   const handleSaveProfile = async () => {
     try {
       const token = localStorage.getItem('token') || '';
@@ -206,27 +198,22 @@ export default function Profile() {
       if (json.user) {
         localStorage.setItem('milanUser', JSON.stringify(json.user));
         window.dispatchEvent(new CustomEvent('milan:user-updated', { detail: json.user }));
-        console.log("✅ PROFILE SAVE SUCCESS: Data saved to milanUser in localStorage:", json.user);
 
-        // ensure Milan ID is updated if backend sent it
         if (json.user.milanId) {
           setMilanId(json.user.milanId);
         }
       } else {
         localStorage.setItem('milanProfile', JSON.stringify(profileData));
         window.dispatchEvent(new CustomEvent('milan:user-updated', { detail: profileData }));
-        console.log("⚠️ PROFILE SAVE SUCCESS (Fallback): Data saved to milanProfile in localStorage:", profileData);
       }
 
-      setShowSuccessModal(true); 
-      
+      setShowSuccessModal(true);
     } catch (error) {
       console.error('Error saving profile:', error);
       alert('Failed to save profile. Please try again.');
     }
   };
-  
-  // Success modal close handler
+
   const handleSuccessModalClose = () => {
     setShowSuccessModal(false);
     router.push('/connect');
@@ -238,7 +225,7 @@ export default function Profile() {
     setNewMilanId(milanId || '');
     setMilanIdStatus({
       text: 'Use 3–20 characters: a-z, 0-9, underscore (_)',
-      color: 'text-gray-500',
+      color: 'text-gray-500'
     });
   };
 
@@ -260,16 +247,17 @@ export default function Profile() {
     if (!regex.test(trimmed)) {
       setMilanIdStatus({
         text: 'Use 3–20 characters: a-z, 0-9, underscore (_).',
-        color: 'text-red-500',
+        color: 'text-red-500'
       });
       return;
     }
 
-    const token = (typeof window !== 'undefined' && localStorage.getItem('token')) || '';
+    const token =
+      (typeof window !== 'undefined' && localStorage.getItem('token')) || '';
     if (!token) {
       setMilanIdStatus({
         text: 'Session expired. Please login again.',
-        color: 'text-red-500',
+        color: 'text-red-500'
       });
       return;
     }
@@ -278,60 +266,66 @@ export default function Profile() {
       setMilanIdUpdating(true);
       setMilanIdStatus({
         text: 'Updating your Milan ID...',
-        color: 'text-gray-500',
+        color: 'text-gray-500'
       });
 
-      const res = await fetch('https://milan-j9u9.onrender.com/api/user/milan-id', {
-        method: 'PATCH',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: 'Bearer ' + token,
-        },
-        body: JSON.stringify({ milanId: trimmed }),
-      });
+      const res = await fetch(
+        'https://milan-j9u9.onrender.com/api/user/milan-id',
+        {
+          method: 'PATCH',
+          headers: {
+            'Content-Type': 'application/json',
+            Authorization: 'Bearer ' + token
+          },
+          body: JSON.stringify({ milanId: trimmed })
+        }
+      );
 
       const data = await res.json().catch(() => ({}));
 
       if (!res.ok || !data.ok) {
-        const msg = (data && (data.error || data.message)) || 'Failed to update Milan ID.';
+        const msg =
+          (data && (data.error || data.message)) ||
+          'Failed to update Milan ID.';
         setMilanIdStatus({ text: msg, color: 'text-red-500' });
         return;
       }
 
-      // ✅ Success
       setMilanId(data.milanId);
       setMilanIdStatus({
         text: 'Milan ID updated successfully 💖',
-        color: 'text-green-600',
+        color: 'text-green-600'
       });
       setIsEditingMilanId(false);
       setNewMilanId('');
 
-      // Update localStorage.milanUser as well
       try {
         const rawUser = localStorage.getItem('milanUser');
         if (rawUser) {
           const userObj = JSON.parse(rawUser);
           const updatedUser = { ...userObj, milanId: data.milanId };
           localStorage.setItem('milanUser', JSON.stringify(updatedUser));
-          window.dispatchEvent(new CustomEvent('milan:user-updated', { detail: updatedUser }));
+          window.dispatchEvent(
+            new CustomEvent('milan:user-updated', { detail: updatedUser })
+          );
         }
       } catch (err) {
-        console.warn('Failed to update milanUser in localStorage after Milan ID change:', err);
+        console.warn(
+          'Failed to update milanUser in localStorage after Milan ID change:',
+          err
+        );
       }
-
     } catch (err) {
       console.error('Error updating Milan ID:', err);
       setMilanIdStatus({
         text: 'Server error. Please try again.',
-        color: 'text-red-500',
+        color: 'text-red-500'
       });
     } finally {
       setMilanIdUpdating(false);
     }
   };
 
-  // If user is not authenticated yet, show a loading screen/spinner
   if (!isAuthenticated) {
     return (
       <div className="min-h-screen bg-gradient-to-br from-pink-50 via-white to-purple-50 flex items-center justify-center">
@@ -355,16 +349,22 @@ export default function Profile() {
       </div>
 
       <div className="max-w-4xl mx-auto p-4 md:p-6">
-        {/* Profile Photo Section */}
+        {/* Profile Photo */}
         <div className="bg-white rounded-2xl shadow-xl p-6 mb-6 border-2 border-pink-100">
           <div className="flex flex-col items-center">
             <div className="relative">
-              <div 
+              <div
                 onClick={handlePhotoClick}
-                className={`w-32 h-32 bg-gradient-to-br from-pink-200 to-purple-200 rounded-full flex items-center justify-center cursor-pointer hover:opacity-80 transition overflow-hidden ${uploading ? 'opacity-60' : ''}`}
+                className={`w-32 h-32 bg-gradient-to-br from-pink-200 to-purple-200 rounded-full flex items-center justify-center cursor-pointer hover:opacity-80 transition overflow-hidden ${
+                  uploading ? 'opacity-60' : ''
+                }`}
               >
                 {profileData.photo ? (
-                  <img src={profileData.photo} alt="Profile" className="w-full h-full object-cover" />
+                  <img
+                    src={profileData.photo}
+                    alt="Profile"
+                    className="w-full h-full object-cover"
+                  />
                 ) : (
                   <Camera size={40} className="text-pink-600" />
                 )}
@@ -374,17 +374,17 @@ export default function Profile() {
                   </div>
                 )}
               </div>
-              <button 
+              <button
                 onClick={handlePhotoClick}
                 className="absolute bottom-0 right-0 bg-pink-500 text-white p-2 rounded-full hover:bg-pink-600 transition"
                 disabled={uploading}
               >
                 <Camera size={16} />
               </button>
-              <input 
+              <input
                 ref={fileInputRef}
-                type="file" 
-                accept="image/*" 
+                type="file"
+                accept="image/*"
                 onChange={handlePhotoChange}
                 className="hidden"
               />
@@ -413,15 +413,23 @@ export default function Profile() {
           ))}
         </div>
 
+        {/* BASIC TAB */}
         {activeTab === 'basic' && (
           <div className="bg-white rounded-2xl shadow-xl p-6 space-y-4">
-            <h2 className="text-2xl font-bold text-gray-800 mb-4">Basic Information</h2>
+            <h2 className="text-2xl font-bold text-gray-800 mb-4">
+              Basic Information
+            </h2>
+
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">Name</label>
+              <label className="block text-sm font-medium text-gray-700 mb-2">
+                Name
+              </label>
               <input
                 type="text"
                 value={profileData.name}
-                onChange={(e) => setProfileData({...profileData, name: e.target.value})}
+                onChange={(e) =>
+                  setProfileData({ ...profileData, name: e.target.value })
+                }
                 className="w-full px-4 py-2 border-2 border-pink-200 rounded-lg focus:border-pink-500 focus:outline-none text-gray-900 bg-white placeholder-gray-400"
                 placeholder="Apna naam likho"
               />
@@ -429,21 +437,29 @@ export default function Profile() {
 
             <div className="grid grid-cols-2 gap-4">
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">Age</label>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Age
+                </label>
                 <input
                   type="number"
                   value={profileData.age}
-                  onChange={(e) => setProfileData({...profileData, age: e.target.value})}
+                  onChange={(e) =>
+                    setProfileData({ ...profileData, age: e.target.value })
+                  }
                   className="w-full px-4 py-2 border-2 border-pink-200 rounded-lg focus:border-pink-500 focus:outline-none text-gray-900 bg-white placeholder-gray-400"
                   placeholder="Umra"
                 />
               </div>
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">City</label>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  City
+                </label>
                 <input
                   type="text"
                   value={profileData.city}
-                  onChange={(e) => setProfileData({...profileData, city: e.target.value})}
+                  onChange={(e) =>
+                    setProfileData({ ...profileData, city: e.target.value })
+                  }
                   className="w-full px-4 py-2 border-2 border-pink-200 rounded-lg focus:border-pink-500 focus:outline-none text-gray-900 bg-white placeholder-gray-400"
                   placeholder="Sheher"
                 />
@@ -451,20 +467,26 @@ export default function Profile() {
             </div>
 
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">Bio</label>
+              <label className="block text-sm font-medium text-gray-700 mb-2">
+                Bio
+              </label>
               <textarea
                 value={profileData.bio}
-                onChange={(e) => setProfileData({...profileData, bio: e.target.value})}
+                onChange={(e) =>
+                  setProfileData({ ...profileData, bio: e.target.value })
+                }
                 className="w-full px-4 py-2 border-2 border-pink-200 rounded-lg focus:border-pink-500 focus:outline-none h-24 text-gray-900 bg-white placeholder-gray-400"
                 placeholder="Apne baare mein kuch batao..."
               />
             </div>
 
-            {/* ⭐ Milan ID block */}
+            {/* ⭐ MILAN ID BLOCK */}
             <div className="mt-6 p-4 rounded-xl border-2 border-purple-100 bg-purple-50/60">
               <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-3">
                 <div>
-                  <p className="text-sm font-semibold text-purple-700">Your Milan ID</p>
+                  <p className="text-sm font-semibold text-purple-700">
+                    Your Milan ID
+                  </p>
                   <p className="mt-1 text-lg font-bold text-gray-900">
                     @{milanId || 'not-set-yet'}
                   </p>
@@ -485,29 +507,34 @@ export default function Profile() {
               </div>
 
               {isEditingMilanId && (
-                <div className="mt-3 flex flex-col sm:flex-row gap-2 items-stretch sm:items-center">
+                <div className="mt-3 space-y-3">
+                  {/* Input full width */}
                   <input
                     type="text"
                     value={newMilanId}
                     onChange={(e) => setNewMilanId(e.target.value)}
                     placeholder="enter new Milan ID (a-z, 0-9, _)"
-                    className="flex-1 px-4 py-2 border-2 border-pink-200 rounded-full focus:border-pink-500 focus:outline-none text-gray-900 bg-white placeholder-gray-400 text-sm"
+                    className="w-full px-4 py-2 border-2 border-pink-200 rounded-full focus:border-pink-500 focus:outline-none text-gray-900 bg-white placeholder-gray-400 text-sm"
                   />
-                  <button
-                    type="button"
-                    onClick={handleSaveMilanId}
-                    disabled={milanIdUpdating}
-                    className="px-4 py-2 rounded-full text-sm font-semibold bg-pink-500 text-white shadow hover:bg-pink-600 disabled:opacity-60 disabled:cursor-not-allowed"
-                  >
-                    {milanIdUpdating ? 'Saving...' : 'Save'}
-                  </button>
-                  <button
-                    type="button"
-                    onClick={handleCancelMilanIdEdit}
-                    className="px-3 py-2 rounded-full text-xs font-medium bg-gray-100 text-gray-700 hover:bg-gray-200"
-                  >
-                    Cancel
-                  </button>
+
+                  {/* Buttons */}
+                  <div className="flex gap-2 items-center">
+                    <button
+                      type="button"
+                      onClick={handleSaveMilanId}
+                      disabled={milanIdUpdating}
+                      className="flex-1 px-4 py-2 rounded-full text-sm font-semibold bg-pink-500 text-white shadow hover:bg-pink-600 disabled:opacity-60 disabled:cursor-not-allowed text-center"
+                    >
+                      {milanIdUpdating ? 'Saving...' : 'Save'}
+                    </button>
+                    <button
+                      type="button"
+                      onClick={handleCancelMilanIdEdit}
+                      className="px-3 py-2 rounded-full text-xs font-medium bg-gray-100 text-gray-700 hover:bg-gray-200 whitespace-nowrap"
+                    >
+                      Cancel
+                    </button>
+                  </div>
                 </div>
               )}
 
@@ -520,10 +547,15 @@ export default function Profile() {
           </div>
         )}
 
+        {/* VIBE TAB */}
         {activeTab === 'vibe' && (
           <div className="bg-white rounded-2xl shadow-xl p-6">
-            <h2 className="text-2xl font-bold text-gray-800 mb-2">The Vibe Check 🌟</h2>
-            <p className="text-gray-600 mb-6">Aaj ka mood kaisa hai? Select karo!</p>
+            <h2 className="text-2xl font-bold text-gray-800 mb-2">
+              The Vibe Check 🌟
+            </h2>
+            <p className="text-gray-600 mb-6">
+              Aaj ka mood kaisa hai? Select karo!
+            </p>
             <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
               {vibes.map((vibe) => (
                 <button
@@ -536,7 +568,9 @@ export default function Profile() {
                   }`}
                 >
                   <div className="text-3xl mb-2">{vibe.emoji}</div>
-                  <div className="text-xs font-medium text-center">{vibe.label}</div>
+                  <div className="text-xs font-medium text-center">
+                    {vibe.label}
+                  </div>
                 </button>
               ))}
             </div>
@@ -544,8 +578,12 @@ export default function Profile() {
             {profileData.currentVibe && (
               <div className="mt-6 p-4 bg-gradient-to-r from-pink-100 to-purple-100 rounded-xl">
                 <p className="text-center text-gray-800">
-                  <span className="text-2xl mr-2">{profileData.currentVibe.emoji}</span>
-                  <span className="font-medium">Current Vibe: {profileData.currentVibe.label}</span>
+                  <span className="text-2xl mr-2">
+                    {profileData.currentVibe.emoji}
+                  </span>
+                  <span className="font-medium">
+                    Current Vibe: {profileData.currentVibe.label}
+                  </span>
                 </p>
               </div>
             )}
@@ -561,15 +599,21 @@ export default function Profile() {
               ].map((genre) => (
                 <div key={genre.key} className="mb-4">
                   <div className="flex justify-between mb-2">
-                    <span className="font-medium text-gray-800">{genre.label}</span>
-                    <span className="text-pink-500">{profileData.music[genre.key]}%</span>
+                    <span className="font-medium text-gray-800">
+                      {genre.label}
+                    </span>
+                    <span className="text-pink-500">
+                      {profileData.music[genre.key]}%
+                    </span>
                   </div>
                   <input
                     type="range"
                     min="0"
                     max="100"
                     value={profileData.music[genre.key]}
-                    onChange={(e) => handleSliderChange(genre.key, e.target.value)}
+                    onChange={(e) =>
+                      handleSliderChange(genre.key, e.target.value)
+                    }
                     className="w-full h-2 bg-pink-200 rounded-lg appearance-none cursor-pointer accent-pink-500"
                   />
                 </div>
@@ -584,7 +628,9 @@ export default function Profile() {
                 {['chai', 'coffee', 'both', 'neither'].map((option) => (
                   <button
                     key={option}
-                    onClick={() => setProfileData({...profileData, beverage: option})}
+                    onClick={() =>
+                      setProfileData({ ...profileData, beverage: option })
+                    }
                     className={`p-3 rounded-lg border-2 transition ${
                       profileData.beverage === option
                         ? 'bg-pink-500 text-white border-pink-500'
@@ -602,6 +648,7 @@ export default function Profile() {
           </div>
         )}
 
+        {/* PERSONALITY TAB */}
         {activeTab === 'personality' && (
           <div className="bg-white rounded-2xl shadow-xl p-6 space-y-6">
             <div>
@@ -668,31 +715,43 @@ export default function Profile() {
             </div>
 
             <div>
-              <h3 className="text-xl font-bold text-gray-800 mb-4">🍕 Foodie Level</h3>
+              <h3 className="text-xl font-bold text-gray-800 mb-4">
+                🍕 Foodie Level
+              </h3>
               <input
                 type="range"
                 min="0"
                 max="100"
                 value={profileData.foodieLevel}
-                onChange={(e) => setProfileData({...profileData, foodieLevel: e.target.value})}
+                onChange={(e) =>
+                  setProfileData({
+                    ...profileData,
+                    foodieLevel: e.target.value
+                  })
+                }
                 className="w-full h-2 bg-pink-200 rounded-lg appearance-none cursor-pointer accent-pink-500"
               />
               <div className="flex justify-between mt-2 text-sm text-gray-800">
                 <span>Khana = Fuel</span>
-                <span className="font-bold text-pink-500">{profileData.foodieLevel}%</span>
+                <span className="font-bold text-pink-500">
+                  {profileData.foodieLevel}%
+                </span>
                 <span>Food is Life! 🍕</span>
               </div>
             </div>
           </div>
         )}
 
+        {/* PREFERENCES TAB */}
         {activeTab === 'preferences' && (
           <div className="bg-white rounded-2xl shadow-xl p-6 space-y-6">
             <div>
               <h2 className="text-2xl font-bold text-gray-800 mb-2 flex items-center gap-2">
                 🚩 Deal Breakers
               </h2>
-              <p className="text-gray-600 mb-4">Ye cheezein bilkul nahi chalegi</p>
+              <p className="text-gray-600 mb-4">
+                Ye cheezein bilkul nahi chalegi
+              </p>
               <div className="grid grid-cols-2 md:grid-cols-3 gap-2">
                 {commonDealBreakers.map((item) => (
                   <button
@@ -737,26 +796,30 @@ export default function Profile() {
                 <MapPin className="text-pink-500" /> Travel Style
               </h3>
               <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-                {['explorer', 'planner', 'spontaneous', 'homebody'].map((style) => (
-                  <button
-                    key={style}
-                    onClick={() => setProfileData({...profileData, travelStyle: style})}
-                    className={`p-3 rounded-lg border-2 transition capitalize ${
-                      profileData.travelStyle === style
-                        ? 'bg-blue-500 text-white border-blue-500'
-                        : 'bg-white border-gray-200 hover:border-blue-300 text-gray-800'
-                    }`}
-                  >
-                    {style}
-                  </button>
-                ))}
+                {['explorer', 'planner', 'spontaneous', 'homebody'].map(
+                  (style) => (
+                    <button
+                      key={style}
+                      onClick={() =>
+                        setProfileData({ ...profileData, travelStyle: style })
+                      }
+                      className={`p-3 rounded-lg border-2 transition capitalize ${
+                        profileData.travelStyle === style
+                          ? 'bg-blue-500 text-white border-blue-500'
+                          : 'bg-white border-gray-200 hover:border-blue-300 text-gray-800'
+                      }`}
+                    >
+                      {style}
+                    </button>
+                  )
+                )}
               </div>
             </div>
           </div>
         )}
 
-        {/* Save Button */}
-        <button 
+        {/* Save Profile Button */}
+        <button
           onClick={handleSaveProfile}
           className="w-full mt-6 bg-gradient-to-r from-pink-500 to-purple-600 text-white py-4 rounded-xl font-bold text-lg shadow-lg hover:shadow-xl transition flex items-center justify-center gap-2"
         >
@@ -764,8 +827,8 @@ export default function Profile() {
           Save Profile
         </button>
       </div>
-      
-      {/* START: Custom Success Modal JSX */}
+
+      {/* Success Modal */}
       {showSuccessModal && (
         <div className="success-modal-overlay">
           <div className="success-modal">
@@ -773,13 +836,14 @@ export default function Profile() {
               <div className="sparkle-icon">✨</div>
               <div className="heart-icon-small">💖</div>
               <h2 className="modal-title-success">Profile Saved Successfully!</h2>
-              
+
               <p className="modal-message-success">
-                Your story is ready! You can now connect with beautiful hearts on Milan. ✨
+                Your story is ready! You can now connect with beautiful hearts
+                on Milan. ✨
               </p>
 
-              <button 
-                onClick={handleSuccessModalClose} 
+              <button
+                onClick={handleSuccessModalClose}
                 className="modal-btn-action"
               >
                 Go to Dashboard
@@ -788,10 +852,8 @@ export default function Profile() {
           </div>
         </div>
       )}
-      {/* END: Custom Success Modal JSX */}
 
       <style jsx global>{`
-        /* --- START OF CUSTOM SUCCESS MODAL STYLES --- */
         .success-modal-overlay {
           position: fixed;
           inset: 0;
@@ -807,65 +869,93 @@ export default function Profile() {
 
         .success-modal {
           width: min(480px, 100%);
-          background: linear-gradient(145deg, 
-            rgba(255, 110, 167, 0.2) 0%, 
-            rgba(139, 92, 246, 0.15) 100%);
+          background: linear-gradient(
+            145deg,
+            rgba(255, 110, 167, 0.2) 0%,
+            rgba(139, 92, 246, 0.15) 100%
+          );
           border: 3px solid rgba(255, 110, 167, 0.5);
           border-radius: 28px;
           padding: 40px 30px;
           text-align: center;
-          box-shadow: 
-            0 40px 100px rgba(255, 110, 167, 0.4),
+          box-shadow: 0 40px 100px rgba(255, 110, 167, 0.4),
             0 0 80px rgba(139, 92, 246, 0.25),
             inset 0 2px 2px rgba(255, 255, 255, 0.2);
           position: relative;
           overflow: hidden;
           animation: modalPop 0.4s cubic-bezier(0.34, 1.56, 0.64, 1);
         }
-        
+
         .success-modal::before {
-            content: '';
-            position: absolute;
-            inset: -5px;
-            border-radius: inherit;
-            background: radial-gradient(circle at top left, rgba(255, 110, 167, 0.2), transparent 70%);
-            animation: pulseGlow 4s ease-in-out infinite;
-            pointer-events: none;
+          content: '';
+          position: absolute;
+          inset: -5px;
+          border-radius: inherit;
+          background: radial-gradient(
+            circle at top left,
+            rgba(255, 110, 167, 0.2),
+            transparent 70%
+          );
+          animation: pulseGlow 4s ease-in-out infinite;
+          pointer-events: none;
         }
 
         @keyframes modalPop {
-          from { opacity: 0; transform: scale(0.8); }
-          to { opacity: 1; transform: scale(1); }
+          from {
+            opacity: 0;
+            transform: scale(0.8);
+          }
+          to {
+            opacity: 1;
+            transform: scale(1);
+          }
         }
-        
+
         @keyframes pulseGlow {
-            0%, 100% { opacity: 0.8; }
-            50% { opacity: 1; }
+          0%,
+          100% {
+            opacity: 0.8;
+          }
+          50% {
+            opacity: 1;
+          }
         }
 
         .sparkle-icon {
-            font-size: 4rem;
-            margin-bottom: 5px;
-            animation: sparklePulse 1.5s ease-in-out infinite;
-            filter: drop-shadow(0 4px 16px rgba(255, 255, 255, 0.5));
+          font-size: 4rem;
+          margin-bottom: 5px;
+          animation: sparklePulse 1.5s ease-in-out infinite;
+          filter: drop-shadow(0 4px 16px rgba(255, 255, 255, 0.5));
         }
 
         @keyframes sparklePulse {
-            0%, 100% { transform: scale(1); }
-            50% { transform: scale(1.1); }
+          0%,
+          100% {
+            transform: scale(1);
+          }
+          50% {
+            transform: scale(1.1);
+          }
         }
 
         .heart-icon-small {
-            font-size: 2.5rem;
-            margin-bottom: 15px;
-            color: #ff6ea7;
-            animation: heartBeatSuccess 1s ease-in-out infinite;
+          font-size: 2.5rem;
+          margin-bottom: 15px;
+          color: #ff6ea7;
+          animation: heartBeatSuccess 1s ease-in-out infinite;
         }
 
         @keyframes heartBeatSuccess {
-            0%, 100% { transform: scale(1); }
-            25% { transform: scale(1.2); }
-            50% { transform: scale(1.1); }
+          0%,
+          100% {
+            transform: scale(1);
+          }
+          25% {
+            transform: scale(1.2);
+          }
+          50% {
+            transform: scale(1.1);
+          }
         }
 
         .modal-title-success {
@@ -927,7 +1017,6 @@ export default function Profile() {
             font-size: 15px;
           }
         }
-        /* --- END OF CUSTOM SUCCESS MODAL STYLES --- */
       `}</style>
     </div>
   );
