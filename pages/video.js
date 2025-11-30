@@ -4,6 +4,9 @@ const COMING_SOON = true;
 import { useEffect, useState } from "react"; 
 import io from "socket.io-client";
 
+// FIX 1: get() function moved to global scope of the component for use in JSX
+const get = (id) => typeof document !== 'undefined' ? document.getElementById(id) : null; 
+
 export default function VideoPage() {
   // START: AUTH GUARD STATE
   const [isAuthenticated, setIsAuthenticated] = useState(false);
@@ -11,6 +14,15 @@ export default function VideoPage() {
   
   // NEW STATE: Custom modal for disconnect confirmation
   const [showDisconnectConfirm, setShowDisconnectConfirm] = useState(false);
+
+  // FIX 3: Centralized handler for closing Rating Overlay
+  const handleRatingOverlayClose = () => {
+    // FIX: This closes the rating overlay and lets the user continue the call.
+    const ratingOverlay = get("ratingOverlay");
+    if (ratingOverlay) {
+        ratingOverlay.style.display = "none";
+    }
+  };
 
   useEffect(() => {
     // START: AUTH GUARD LOGIC
@@ -65,7 +77,7 @@ export default function VideoPage() {
     const pendingCandidates = [];
     let draining = false;
 
-    const get = (id) => document.getElementById(id);
+    // const get = (id) => document.getElementById(id); // MOVED UP
     const showToast = (msg, ms) => {
       var t = get("toast");
       if (!t) return;
@@ -144,9 +156,7 @@ export default function VideoPage() {
       try { var rv = get("remoteVideo"); if (rv) rv.srcObject = null; } catch (e) {}
       pendingCandidates.length = 0;
       stopTimer(true);
-      // Removed showRating() from here. It will now only be called explicitly 
-      // when a disconnection is confirmed (partnerDisconnected, failed/disconnected state change).
-      // This is the FIX for showing rating overlay too early.
+      // FIX 2: Removed showRating() from here. It will now only be called explicitly on confirmed disconnection.
     }
 
     var cleanup = function (opts) {
@@ -270,6 +280,7 @@ export default function VideoPage() {
         pc = new RTCPeerConnection(ICE_CONFIG);
 
         // Add local tracks to senders using addTransceiver (for proper enable/disable via senders)
+        // FIX: Keep the order consistent: Audio then Video.
         try { pc.addTransceiver(localStream.getAudioTracks()[0], { direction: "sendrecv" }); } catch (e) { log("addTransceiver audio failed", e); }
         try { pc.addTransceiver(localStream.getVideoTracks()[0], { direction: "sendrecv" }); } catch (e) { log("addTransceiver video failed", e); }
 
@@ -304,10 +315,9 @@ export default function VideoPage() {
 
         pc.onconnectionstatechange = () => {
           log("pc.connectionState:", pc.connectionState);
-          // FIX: Only show rating if disconnected/failed
           if (pc.connectionState === "disconnected" || pc.connectionState === "failed") {
             showToast("Partner disconnected");
-            cleanupPeerConnection(); 
+            cleanupPeerConnection(); // Cleans PC resources
             showRating(); // <-- FIX: Call showRating explicitly on confirmed disconnection
           }
         };
@@ -424,18 +434,19 @@ export default function VideoPage() {
             cand = { candidate: wrapper.candidate };
             if (wrapper.sdpMid) cand.sdpMid = wrapper.sdpMid;
             if (wrapper.sdpMLineIndex !== undefined) cand.sdpMLineIndex = wrapper.sdpMLineIndex;
-          } else if (wrapper.candidate === null) {
-            console.log("[video] candidate: null (ignored)");
-            return;
-          } else if (typeof wrapper === "string") {
-            cand = { candidate: wrapper };
           } else {
+            // FIX: Simplified candidate parsing logic based on common WebRTC practices
             cand = wrapper;
           }
 
-          if (!cand) {
+          if (!cand || (!cand.candidate && cand.candidate !== null)) {
             console.warn("[video] could not parse candidate payload – skipping", payload);
             return;
+          }
+          
+          if (cand.candidate === null) {
+             console.log("[video] candidate: null (ignored)");
+             return;
           }
 
           if (!pc) {
@@ -1087,7 +1098,10 @@ socket.on("danceDareEnd", (data) => {
     
     // 3. Clean up PC resources and show rating modal (showRating is now called explicitly after partnerLeft/partnerDisconnected)
     cleanupPeerConnection(); 
-    showRating(); // <-- Call showRating explicitly here after user confirms disconnection
+    handleRatingOverlayClose(); // We call the close handler, but since the user confirmed disconnect, 
+                              // we let the explicit partnerLeft handler (which calls cleanupPC and showRating) take over.
+                              // For simplicity and to ensure rating is always shown after manual disconnect:
+    showRating(); 
     
     // Note: Redirection happens via the 'Search New Partner' button on the Rating Overlay.
   };
@@ -1097,10 +1111,7 @@ socket.on("danceDareEnd", (data) => {
     setShowDisconnectConfirm(false);
   };
   
-  const handleRatingOverlayClose = () => {
-    // FIX: This closes the rating overlay and lets the user continue the call.
-    get("ratingOverlay").style.display = "none";
-  };
+  // NOTE: handleRatingOverlayClose is defined above the useEffect now
 
   // Check isAuthenticated and show a loading screen if not authenticated yet
   if (!isAuthenticated) {
