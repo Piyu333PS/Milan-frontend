@@ -216,9 +216,6 @@ export default function VideoPage() {
     (async function start() {
       log("video page start");
       
-      // We assume isAuthenticated is true here because of the initial check
-      if (!isAuthenticated) return; // Final guard after initial check
-
       try {
         localStream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
         var vtracks = (localStream && typeof localStream.getVideoTracks === "function") ? localStream.getVideoTracks() : [];
