@@ -20,6 +20,10 @@ export default function Profile() {
   const [milanIdStatus, setMilanIdStatus] = useState({ text: '', color: '' });
   const [milanIdUpdating, setMilanIdUpdating] = useState(false);
 
+  // ⭐ CONFIRM MODAL STATE
+  const [showMilanIdConfirm, setShowMilanIdConfirm] = useState(false);
+  const [pendingMilanId, setPendingMilanId] = useState('');
+
   const initialProfileState = {
     name: '',
     age: '',
@@ -224,7 +228,7 @@ export default function Profile() {
     setIsEditingMilanId(true);
     setNewMilanId(milanId || '');
     setMilanIdStatus({
-      text: 'Use 3–20 characters: a-z, 0-9, underscore (_). Ek baar Milan ID change karne ke baad next change sirf 3 months baad possible hoga.',
+      text: '3–20 chars • a-z, 0-9, _ • Next change 3 months baad.',
       color: 'text-gray-500'
     });
   };
@@ -235,6 +239,7 @@ export default function Profile() {
     setMilanIdStatus({ text: '', color: '' });
   };
 
+  // Pehle yaha sirf validation + confirm-modal open hoga
   const handleSaveMilanId = async () => {
     const trimmed = (newMilanId || '').trim();
 
@@ -262,20 +267,31 @@ export default function Profile() {
       return;
     }
 
-    // 🔐 Confirmation before final change (3 months rule info)
-    if (typeof window !== 'undefined') {
-      const ok = window.confirm(
-        "Kya aap sach mein apni Milan ID change karna chahte hain?\n\n" +
-        "• Ek baar Milan ID change karne ke baad next change sirf 3 months baad possible hoga.\n\n" +
-        "Agar aap sure ho to OK dabaye."
-      );
-      if (!ok) {
-        setMilanIdStatus({
-          text: 'Milan ID change cancel kar diya gaya.',
-          color: 'text-gray-500'
-        });
-        return;
-      }
+    // Ab actual API call nahi, pehle cute confirm modal
+    setPendingMilanId(trimmed);
+    setShowMilanIdConfirm(true);
+    setMilanIdStatus({
+      text: 'Almost done! Pehle ek chhota sa confirmation ❤️',
+      color: 'text-purple-600'
+    });
+  };
+
+  // Ye function confirm-modal se final API call karega
+  const performMilanIdChange = async () => {
+    if (!pendingMilanId) {
+      setShowMilanIdConfirm(false);
+      return;
+    }
+
+    const token =
+      (typeof window !== 'undefined' && localStorage.getItem('token')) || '';
+    if (!token) {
+      setMilanIdStatus({
+        text: 'Session expired. Please login again.',
+        color: 'text-red-500'
+      });
+      setShowMilanIdConfirm(false);
+      return;
     }
 
     try {
@@ -293,7 +309,7 @@ export default function Profile() {
             'Content-Type': 'application/json',
             Authorization: 'Bearer ' + token
           },
-          body: JSON.stringify({ milanId: trimmed })
+          body: JSON.stringify({ milanId: pendingMilanId })
         }
       );
 
@@ -304,6 +320,7 @@ export default function Profile() {
           (data && (data.error || data.message)) ||
           'Failed to update Milan ID.';
         setMilanIdStatus({ text: msg, color: 'text-red-500' });
+        setShowMilanIdConfirm(false);
         return;
       }
 
@@ -314,6 +331,8 @@ export default function Profile() {
       });
       setIsEditingMilanId(false);
       setNewMilanId('');
+      setPendingMilanId('');
+      setShowMilanIdConfirm(false);
 
       try {
         const rawUser = localStorage.getItem('milanUser');
@@ -510,7 +529,7 @@ export default function Profile() {
                     Ye ID future me Add Friend / search ke liye use hogi.
                   </p>
                   <p className="text-xs text-purple-600 mt-1">
-                    Note: Aap ek baar Milan ID change karne ke baad agla change sirf 3 months baad hi kar sakte hain.
+                    Note: ID change ke baad agla change sirf 3 months baad hi possible hoga.
                   </p>
                 </div>
 
@@ -872,6 +891,44 @@ export default function Profile() {
         </div>
       )}
 
+      {/* Milan ID Confirm Modal */}
+      {showMilanIdConfirm && (
+        <div className="confirm-modal-overlay">
+          <div className="confirm-modal">
+            <div className="confirm-heart">💝</div>
+            <h2 className="confirm-title">Milan ID change karein?</h2>
+            <p className="confirm-text">
+              Ye aapki pehchaan hai Milan par. Is ID ko change karne ke baad
+              agla change sirf <b>3 months</b> baad possible hoga.
+              <br />
+              Pakka isi ID par rehna hai?
+            </p>
+            <div className="confirm-actions">
+              <button
+                className="confirm-btn-secondary"
+                onClick={() => {
+                  setShowMilanIdConfirm(false);
+                  setPendingMilanId('');
+                  setMilanIdStatus({
+                    text: 'Milan ID change cancel kar diya gaya.',
+                    color: 'text-gray-500'
+                  });
+                }}
+              >
+                Nahi, purani hi theek hai
+              </button>
+              <button
+                className="confirm-btn-primary"
+                onClick={performMilanIdChange}
+                disabled={milanIdUpdating}
+              >
+                {milanIdUpdating ? 'Updating...' : 'Haan, change karo'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       <style jsx global>{`
         .success-modal-overlay {
           position: fixed;
@@ -1035,6 +1092,104 @@ export default function Profile() {
             padding: 12px 30px;
             font-size: 15px;
           }
+        }
+
+        /* ⭐ Milan ID confirm modal styles */
+        .confirm-modal-overlay {
+          position: fixed;
+          inset: 0;
+          z-index: 10050;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          background: rgba(10, 6, 20, 0.75);
+          backdrop-filter: blur(10px);
+          padding: 16px;
+        }
+
+        .confirm-modal {
+          width: min(420px, 100%);
+          background: radial-gradient(circle at top, #ff9fd0 0, #ffffff 45%, #f5e9ff 100%);
+          border-radius: 24px;
+          padding: 24px 20px 20px;
+          box-shadow: 0 24px 60px rgba(255, 105, 180, 0.35);
+          text-align: center;
+          position: relative;
+        }
+
+        .confirm-heart {
+          font-size: 32px;
+          margin-bottom: 8px;
+          animation: heartBeatSuccess 1.2s ease-in-out infinite;
+        }
+
+        .confirm-title {
+          font-size: 20px;
+          font-weight: 800;
+          margin-bottom: 8px;
+          background: linear-gradient(90deg, #c026d3, #ec4899);
+          -webkit-background-clip: text;
+          background-clip: text;
+          color: transparent;
+        }
+
+        .confirm-text {
+          font-size: 14px;
+          color: #4b5563;
+          margin-bottom: 18px;
+          line-height: 1.5;
+        }
+
+        .confirm-actions {
+          display: flex;
+          gap: 10px;
+          justify-content: center;
+          flex-wrap: wrap;
+        }
+
+        .confirm-btn-secondary {
+          flex: 1;
+          min-width: 150px;
+          padding: 10px 14px;
+          border-radius: 999px;
+          border: none;
+          background: #f3f4f6;
+          color: #374151;
+          font-size: 13px;
+          font-weight: 600;
+          cursor: pointer;
+          transition: all 0.2s ease;
+        }
+
+        .confirm-btn-secondary:hover {
+          background: #e5e7eb;
+        }
+
+        .confirm-btn-primary {
+          flex: 1;
+          min-width: 150px;
+          padding: 10px 14px;
+          border-radius: 999px;
+          border: none;
+          background: linear-gradient(90deg, #ec4899, #a855f7);
+          color: #ffffff;
+          font-size: 13px;
+          font-weight: 700;
+          cursor: pointer;
+          box-shadow: 0 10px 30px rgba(236, 72, 153, 0.45);
+          transition: all 0.2s ease;
+        }
+
+        .confirm-btn-primary:hover {
+          transform: translateY(-1px);
+          box-shadow: 0 14px 36px rgba(236, 72, 153, 0.55);
+        }
+
+        .confirm-btn-primary:disabled {
+          opacity: 0.7;
+          cursor: default;
+          transform: none;
+          box-shadow: none;
         }
       `}</style>
     </div>
