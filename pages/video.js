@@ -7,7 +7,7 @@ import io from "socket.io-client";
 // FIX 1: get() function moved to global scope of the component for use in JSX
 const get = (id) => typeof document !== 'undefined' ? document.getElementById(id) : null; 
 
-// FIX 2: Core functions moved to global scope for use in handlers like handleConfirmDisconnect
+// FIX 2: Core utility functions moved to global scope for use in JSX handlers
 const log = (...args) => { try { console.log("[video]", ...args); } catch (e) {} };
 const showRating = () => { var r = get("ratingOverlay"); if (r) r.style.display = "flex"; };
 const showToast = (msg, ms) => {
@@ -18,97 +18,16 @@ const showToast = (msg, ms) => {
     setTimeout(() => { t.style.display = "none"; }, ms || 2000);
 };
 
-// Global utility functions - will be defined in useEffect, but needed for safeEmit default
-let socketInstance = null;
-let timerInterval = null;
-let timerStartTS = null;
-let elapsedBeforePause = 0;
-let pcInstance = null;
-
-const getRoomCode = () => {
-    try {
-        var q = new URLSearchParams(window.location.search);
-        return q.get("room") || sessionStorage.getItem("roomCode") || localStorage.getItem("lastRoomCode");
-    } catch (e) {
-        return sessionStorage.getItem("roomCode") || localStorage.getItem("lastRoomCode");
-    }
-};
-
-const safeEmit = (event, data = {}) => {
-    try {
-        if (!socketInstance || !socketInstance.connected) return log("safeEmit: socket not connected, skip", event);
-        const roomCode = getRoomCode();
-        const payload = (data && typeof data === "object") ? { ...data } : { data };
-        if (roomCode && !payload.roomCode) payload.roomCode = roomCode;
-        socketInstance.emit(event, payload);
-    } catch (e) { log("safeEmit err", e); }
-};
-
-// Timer helpers moved to global scope for use in cleanupPC
-function formatTime(ms) {
-    const total = Math.floor(ms / 1000);
-    const mm = String(Math.floor(total / 60)).padStart(2, '0');
-    const ss = String(total % 60).padStart(2, '0');
-    return `${mm}:${ss}`;
-}
-function stopTimer(preserve = false) {
-    try {
-        if (timerInterval) { clearInterval(timerInterval); timerInterval = null; }
-        if (timerStartTS) {
-            elapsedBeforePause = elapsedBeforePause + (Date.now() - timerStartTS);
-        }
-        timerStartTS = null;
-        if (!preserve) {
-            elapsedBeforePause = 0;
-            const el = get('callTimer'); if (el) el.textContent = '00:00';
-        }
-        log('call timer stopped', { preserve });
-    } catch (e) { console.warn('stopTimer err', e); }
-}
-
-// Peer Connection Cleanup moved to global scope
-function cleanupPeerConnection() {
-    try {
-        if (pcInstance) {
-            try {
-                var senders = pcInstance.getSenders ? pcInstance.getSenders() : [];
-                senders.forEach((s) => { try { s.track && s.track.stop && s.track.stop(); } catch (e) {} });
-            } catch (e) {}
-            try { pcInstance.close && pcInstance.close(); } catch (e) {}
-        }
-    } catch (e) { log("pc cleanup error", e); }
-    pcInstance = null;
-    // Reset flags that are defined locally in useEffect but related to PC instance
-    // (Note: Other local flags are managed inside useEffect)
-    try { var rv = get("remoteVideo"); if (rv) rv.srcObject = null; } catch (e) {}
-    stopTimer(true);
-}
-
 export default function VideoPage() {
-  // START: AUTH GUARD STATE
+  // START: AUTH GUARD STATE (Only essential state maintained here)
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   // END: AUTH GUARD STATE
   
   // NEW STATE: Custom modal for disconnect confirmation
   const [showDisconnectConfirm, setShowDisconnectConfirm] = useState(false);
   
-  // Local state for flags previously managed inside useEffect.
-  const [hasOffered, setHasOffered] = useState(false);
-  const [makingOffer, setMakingOffer] = useState(false);
-  const [ignoreOffer, setIgnoreOffer] = useState(false);
-  const [polite, setPolite] = useState(false);
-  const [isCleaning, setIsCleaning] = useState(false);
-  const [localStream, setLocalStream] = useState(null);
-  const [cameraTrackSaved, setCameraTrackSaved] = useState(null);
-  const [socketConnected, setSocketConnected] = useState(false);
-  
-  // Utility for local state update helpers
-  const pendingCandidates = [];
-  let draining = false;
-
   // FIX 3: Centralized handler for closing Rating Overlay
   const handleRatingOverlayClose = () => {
-    // FIX: This closes the rating overlay and lets the user continue the call.
     const ratingOverlay = get("ratingOverlay");
     if (ratingOverlay) {
         ratingOverlay.style.display = "none";
@@ -116,80 +35,90 @@ export default function VideoPage() {
   };
   
   // ------------------------------------------
-  // NEW FUNCTIONS FOR DISCONNECT MODAL (Uses global functions)
+  // NEW FUNCTIONS FOR DISCONNECT MODAL (Uses global utility functions)
   // ------------------------------------------
   const handleConfirmDisconnect = () => {
-    // 1. Close confirmation modal
+    // We rely on the instance variables inside the cleanup logic triggered by safeEmit("partnerLeft")
     setShowDisconnectConfirm(false);
     
-    // 2. Signal disconnection to partner
+    // safeEmit logic will run the rest of the cleanup in useEffect context
     safeEmit("partnerLeft"); 
     
-    // 3. Clean up PC resources and show rating modal
-    cleanupPeerConnection(); 
-    showRating(); 
+    // Immediate cleanup logic moved to useEffect cleanup functions
+    // Note: We don't call showRating/cleanupPeerConnection here directly, 
+    // we let the socket event ("partnerLeft" or disconnect cleanup) handle it 
+    // to avoid race conditions with the socket.
   };
   
   const handleKeepChatting = () => {
-    // FIX: This function just closes the confirmation modal, letting the chat continue.
     setShowDisconnectConfirm(false);
   };
   
+  // Define safeEmit outside of useEffect so it can be used in handleConfirmDisconnect
+  // but let it access the live socket and roomCode context defined in useEffect closure.
+  let safeEmit;
 
-  const drainPendingCandidates = async () => {
-    if (draining) return;
-    draining = true;
-    try {
-        if (!pendingCandidates || pendingCandidates.length === 0) return;
-        log("[video] draining", pendingCandidates.length, "pending candidates");
-        const copy = pendingCandidates.slice();
-        pendingCandidates.length = 0;
-        for (const cand of copy) {
-            try {
-                if (!pcInstance || !pcInstance.remoteDescription || !pcInstance.remoteDescription.type) {
-                    log("[video] drain: remoteDescription not ready yet, re-queueing candidate", cand);
-                    pendingCandidates.push(cand);
-                    continue;
-                }
-                await pcInstance.addIceCandidate(new RTCIceCandidate(cand));
-                log("[video] drained candidate success");
-            } catch (err) {
-                console.warn("[video] drained candidate failed", err, cand);
-                pendingCandidates.push(cand);
-            }
-        }
-    } catch (err) {
-        console.error("[video] drainPendingCandidates unexpected error", err);
-    } finally {
-        draining = false;
-        if (pendingCandidates && pendingCandidates.length > 0) {
-            setTimeout(() => { drainPendingCandidates(); }, 250);
-        }
-    }
-  };
-
-  
   useEffect(() => {
-    // START: AUTH GUARD LOGIC
+    // Start fresh instances for each effect run
     if (typeof window === "undefined") return;
 
+    // --- Variables now defined locally to useEffect closure ---
+    let socket = null;
+    let pc = null;
+    let localStream = null;
+    let cameraTrackSaved = null;
+    let isCleaning = false;
+    let socketConnected = false;
+    let hasOffered = false;
+    let makingOffer = false;
+    let ignoreOffer = false;
+    let polite = false;
+
+    // timer vars
+    let timerInterval = null;
+    let timerStartTS = null;
+    let elapsedBeforePause = 0;
+    
+    // Candidate draining vars
+    const pendingCandidates = [];
+    let draining = false;
+
+    // --- AUTH GUARD LOGIC ---
     const token = localStorage.getItem("token");
     if (!token) {
       window.location.href = "/";
       return;
     }
-    
     setIsAuthenticated(true);
-    // END: AUTH GUARD LOGIC
-    
-    const BACKEND_URL = window.BACKEND_URL || process.env.NEXT_PUBLIC_BACKEND_URL || "https://milan-j9u9.onrender.com";
-    const ICE_CONFIG = { iceServers: [{ urls: "stun:stun.l.google.com:19302" }] };
+    // -------------------------
 
-    // Set local variables to global instances defined outside useEffect
-    let socket = null;
-    let pc = null;
+    const getRoomCode = () => {
+      try {
+        var q = new URLSearchParams(window.location.search);
+        return q.get("room") || sessionStorage.getItem("roomCode") || localStorage.getItem("lastRoomCode");
+      } catch (e) {
+        return sessionStorage.getItem("roomCode") || localStorage.getItem("lastRoomCode");
+      }
+    };
     
-    // timer helpers (already defined globally)
+    // FIX: Redefine safeEmit locally so it accesses the correct local 'socket' instance
+    safeEmit = (event, data = {}) => {
+        try {
+            if (!socket || !socketConnected) return log("safeEmit: socket not connected, skip", event);
+            const roomCode = getRoomCode();
+            const payload = (data && typeof data === "object") ? { ...data } : { data };
+            if (roomCode && !payload.roomCode) payload.roomCode = roomCode;
+            socket.emit(event, payload);
+        } catch (e) { log("safeEmit err", e); }
+    };
+    
+    // --- Timer Helpers ---
+    function formatTime(ms) {
+      const total = Math.floor(ms / 1000);
+      const mm = String(Math.floor(total / 60)).padStart(2, '0');
+      const ss = String(total % 60).padStart(2, '0');
+      return `${mm}:${ss}`;
+    }
     function updateTimerDisplay() {
       const el = get('callTimer');
       if (!el) return;
@@ -206,70 +135,118 @@ export default function VideoPage() {
             log('call timer started');
         } catch (e) { console.warn('startTimer err', e); }
     }
+    function stopTimer(preserve = false) {
+        try {
+            if (timerInterval) { clearInterval(timerInterval); timerInterval = null; }
+            if (timerStartTS) {
+                elapsedBeforePause = elapsedBeforePause + (Date.now() - timerStartTS);
+            }
+            timerStartTS = null;
+            if (!preserve) {
+                elapsedBeforePause = 0;
+                const el = get('callTimer'); if (el) el.textContent = '00:00';
+            }
+            log('call timer stopped', { preserve });
+        } catch (e) { console.warn('stopTimer err', e); }
+    }
+    // ---------------------
 
+    const drainPendingCandidates = async () => {
+      if (draining) return;
+      draining = true;
+      try {
+        if (!pendingCandidates || pendingCandidates.length === 0) return;
+        log("[video] draining", pendingCandidates.length, "pending candidates");
+        const copy = pendingCandidates.slice();
+        pendingCandidates.length = 0;
+        for (const cand of copy) {
+          try {
+            if (!pc || !pc.remoteDescription || !pc.remoteDescription.type) {
+              log("[video] drain: remoteDescription not ready yet, re-queueing candidate", cand);
+              pendingCandidates.push(cand);
+              continue;
+            }
+            await pc.addIceCandidate(new RTCIceCandidate(cand));
+            log("[video] drained candidate success");
+          } catch (err) {
+            console.warn("[video] drained candidate failed", err, cand);
+            pendingCandidates.push(cand);
+          }
+        }
+      } catch (err) {
+        console.error("[video] drainPendingCandidates unexpected error", err);
+      } finally {
+        draining = false;
+        if (pendingCandidates && pendingCandidates.length > 0) {
+          setTimeout(() => { drainPendingCandidates(); }, 250);
+        }
+      }
+    };
+
+    function cleanupPeerConnection() {
+      try {
+        if (pc) {
+          try {
+            var senders = pc.getSenders ? pc.getSenders() : [];
+            senders.forEach((s) => { try { s.track && s.track.stop && s.track.stop(); } catch (e) {} });
+          } catch (e) {}
+          try { pc.close && pc.close(); } catch (e) {}
+        }
+      } catch (e) { log("pc cleanup error", e); }
+      pc = null;
+      hasOffered = false;
+      makingOffer = false;
+      ignoreOffer = false;
+      try { var rv = get("remoteVideo"); if (rv) rv.srcObject = null; } catch (e) {}
+      pendingCandidates.length = 0;
+      stopTimer(true);
+    }
 
     const cleanup = function (opts) {
-        opts = opts || {};
-        if (isCleaning) return;
-        setIsCleaning(true);
+      opts = opts || {};
+      if (isCleaning) return;
+      isCleaning = true;
+      try {
+        if (socket) {
+          try { socket.removeAllListeners && socket.removeAllListeners(); } catch (e) {}
+          try { socket.disconnect && socket.disconnect(); } catch (e) {}
+          socket = null;
+        }
+      } catch (e) { log("socket cleanup err", e); }
 
-        try {
-            if (socket) {
-                try { socket.removeAllListeners && socket.removeAllListeners(); } catch (e) {}
-                try { socket.disconnect && socket.disconnect(); } catch (e) {}
-                socketInstance = null;
-            }
-        } catch (e) { log("socket cleanup err", e); }
+      cleanupPeerConnection();
 
-        cleanupPeerConnection();
+      try {
+        if (localStream) {
+          localStream.getTracks().forEach((t) => { try { t.stop(); } catch (e) {} });
+        }
+      } catch (e) {}
 
-        try {
-            if (localStream) {
-                localStream.getTracks().forEach((t) => { try { t.stop(); } catch (e) {} });
-            }
-        } catch (e) {}
-
-        setLocalStream(null);
-        setCameraTrackSaved(null);
-        setTimeout(() => { setIsCleaning(false); }, 300);
-        if (opts.goToConnect) window.location.href = "/connect"; 
+      localStream = null;
+      cameraTrackSaved = null;
+      setTimeout(() => { isCleaning = false; }, 300);
+      if (opts.goToConnect) window.location.href = "/connect"; 
     };
+
+    const BACKEND_URL = window.BACKEND_URL || process.env.NEXT_PUBLIC_BACKEND_URL || "https://milan-j9u9.onrender.com";
+    const ICE_CONFIG = { iceServers: [{ urls: "stun:stun.l.google.com:19302" }] };
     
-    // Two-Option / Spin state helpers (remains local to useEffect but simplified)
-    let currentQuestion = null;
-    let pendingAnswers = {};
-    let twoOptionScore = { total: 0, matched: 0, asked: 0 };
-
-    // NEW: Activity state helpers
-    let rapidFireInterval = null;
-    let rapidFireCount = 0;
-    let mirrorTimer = null;
-    let staringTimer = null;
-    let lyricsCurrentSong = null;
-
-
     (async function start() {
       log("video page start");
       
       if (!isAuthenticated) return;
 
-      let currentLocalStream = null;
-      let currentCameraTrackSaved = null;
-      
       try {
-        currentLocalStream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
-        var vtracks = (currentLocalStream && typeof currentLocalStream.getVideoTracks === "function") ? currentLocalStream.getVideoTracks() : [];
-        currentCameraTrackSaved = (vtracks && vtracks.length) ? vtracks[0] : null;
-
-        setLocalStream(currentLocalStream);
-        setCameraTrackSaved(currentCameraTrackSaved);
+        localStream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
+        var vtracks = (localStream && typeof localStream.getVideoTracks === "function") ? localStream.getVideoTracks() : [];
+        cameraTrackSaved = (vtracks && vtracks.length) ? vtracks[0] : null;
         
         var lv = get("localVideo");
         if (lv) {
           lv.muted = true;
           lv.playsInline = true;
           lv.autoplay = true;
-          lv.srcObject = currentLocalStream;
+          lv.srcObject = localStream;
           try { await (lv.play && lv.play()); } catch (e) { log("local video play warning", e); }
         } else { log("localVideo element not found"); }
       } catch (err) {
@@ -286,11 +263,10 @@ export default function VideoPage() {
         reconnectionDelay: 1000,
         path: '/socket.io'
       });
-      socketInstance = socket; // Set global instance
 
       socket.on("connect", () => {
         log("socket connected", socket.id);
-        setSocketConnected(true);
+        socketConnected = true;
         const roomCode = getRoomCode();
         if (!roomCode) {
           showToast("Room not found. Redirecting...");
@@ -298,21 +274,20 @@ export default function VideoPage() {
           return;
         }
         var token = localStorage.getItem("token") || null;
-        safeEmit("joinVideo", { token });
+        safeEmit("joinVideo", { token }); // This safeEmit now uses the locally defined `socket` instance.
       });
 
-      socket.on("disconnect", (reason) => { log("socket disconnected:", reason); setSocketConnected(false); });
+      socket.on("disconnect", (reason) => { log("socket disconnected:", reason); socketConnected = false; });
       socket.on("connect_error", (err) => { log("socket connect_error:", err); showToast("Socket connect error"); });
 
       const createPC = () => {
-        if (pcInstance) return;
+        if (pc) return;
         log("creating RTCPeerConnection");
         pc = new RTCPeerConnection(ICE_CONFIG);
-        pcInstance = pc; // Set global instance
 
         // Add local tracks to senders using addTransceiver (for proper enable/disable via senders)
-        try { pc.addTransceiver(currentLocalStream.getAudioTracks()[0], { direction: "sendrecv" }); } catch (e) { log("addTransceiver audio failed", e); }
-        try { pc.addTransceiver(currentLocalStream.getVideoTracks()[0], { direction: "sendrecv" }); } catch (e) { log("addTransceiver video failed", e); }
+        try { pc.addTransceiver(localStream.getAudioTracks()[0], { direction: "sendrecv" }); } catch (e) { log("addTransceiver audio failed", e); }
+        try { pc.addTransceiver(localStream.getVideoTracks()[0], { direction: "sendrecv" }); } catch (e) { log("addTransceiver video failed", e); }
 
         pc.ontrack = (e) => {
           try {
@@ -320,13 +295,12 @@ export default function VideoPage() {
             const rv = get("remoteVideo");
             const stream = (e && e.streams && e.streams[0]) ? e.streams[0] : new MediaStream([e.track]);
             
-            // FIX for remote play rejected AbortError: Check if stream already assigned
             if (rv) {
               rv.playsInline = true;
               rv.autoplay = true;
               const prevMuted = rv.muted;
               rv.muted = true;
-              if (rv.srcObject !== stream) { // Only assign if different stream
+              if (rv.srcObject !== stream) { 
                 rv.srcObject = stream;
                 rv.play && rv.play().then(() => {
                   setTimeout(() => { try { rv.muted = prevMuted; } catch (e) {} }, 250);
@@ -367,7 +341,7 @@ export default function VideoPage() {
         pc.onnegotiationneeded = async () => {
           if (!socketConnected) { log("negotiation: socket not connected"); return; }
           if (makingOffer) { log("negotiationneeded: already makingOffer"); return; }
-          setMakingOffer(true);
+          makingOffer = true;
           try {
             const offer = await pc.createOffer();
             await pc.setLocalDescription(offer);
@@ -375,28 +349,28 @@ export default function VideoPage() {
             log("negotiationneeded: offer sent");
           } catch (err) {
             log("negotiationneeded error", err);
-          } finally { setMakingOffer(false); }
+          } finally { makingOffer = false; }
         };
       };
 
       // SIGNALING HANDLERS
       socket.on("ready", (data) => {
         log("socket ready", data);
-        try { if (data && typeof data.polite !== "undefined") setPolite(!!data.polite); } catch (e) {}
+        try { if (data && typeof data.polite !== "undefined") polite = !!data.polite; } catch (e) {}
         createPC();
         (async () => {
           try {
-            if (!hasOffered && pcInstance && pcInstance.signalingState === "stable" && !makingOffer) {
-              setMakingOffer(true);
-              const off = await pcInstance.createOffer();
-              await pcInstance.setLocalDescription(off);
-              safeEmit("offer", { type: pcInstance.localDescription && pcInstance.localDescription.type, sdp: pcInstance.localDescription && pcInstance.localDescription.sdp });
-              setHasOffered(true);
+            if (!hasOffered && pc && pc.signalingState === "stable" && !makingOffer) {
+              makingOffer = true;
+              const off = await pc.createOffer();
+              await pc.setLocalDescription(off);
+              safeEmit("offer", { type: pc.localDescription && pc.localDescription.type, sdp: pc.localDescription && pc.localDescription.sdp });
+              hasOffered = true;
               log("ready: offer emitted");
             } else {
-              log("ready: skipped offer", { hasOffered, signalingState: pcInstance ? pcInstance.signalingState : null });
+              log("ready: skipped offer", { hasOffered, signalingState: pc ? pc.signalingState : null });
             }
-          } catch (e) { log("ready-offer error", e); } finally { setMakingOffer(false); }
+          } catch (e) { log("ready-offer error", e); } finally { makingOffer = false; }
         })();
       });
 
@@ -407,23 +381,23 @@ export default function VideoPage() {
             log("[video] invalid offer payload - ignoring", offer);
             return;
           }
-          if (!pcInstance) createPC();
+          if (!pc) createPC();
           const offerDesc = { type: offer.type, sdp: offer.sdp };
-          const readyForOffer = !makingOffer && (pcInstance.signalingState === "stable" || pcInstance.signalingState === "have-local-offer");
-          setIgnoreOffer(!readyForOffer && !polite);
+          const readyForOffer = !makingOffer && (pc.signalingState === "stable" || pc.signalingState === "have-local-offer");
+          ignoreOffer = !readyForOffer && !polite;
           if (ignoreOffer) { log("ignoring offer (not ready & not polite)"); return; }
 
-          if (pcInstance.signalingState !== "stable") {
-            try { log("doing rollback to accept incoming offer"); await pcInstance.setLocalDescription({ type: "rollback" }); } catch (e) { log("rollback failed", e); }
+          if (pc.signalingState !== "stable") {
+            try { log("doing rollback to accept incoming offer"); await pc.setLocalDescription({ type: "rollback" }); } catch (e) { log("rollback failed", e); }
           }
 
-          await pcInstance.setRemoteDescription(offerDesc);
+          await pc.setRemoteDescription(offerDesc);
           log("[video] remoteDescription set -> draining candidates");
           try { await drainPendingCandidates(); } catch (e) { console.warn("[video] drain after offer failed", e); }
 
-          const answer = await pcInstance.createAnswer();
-          await pcInstance.setLocalDescription(answer);
-          safeEmit("answer", { type: pcInstance.localDescription && pcInstance.localDescription.type, sdp: pcInstance.localDescription && pcInstance.localDescription.sdp });
+          const answer = await pc.createAnswer();
+          await pc.setLocalDescription(answer);
+          safeEmit("answer", { type: pc.localDescription && pc.localDescription.type, sdp: pc.localDescription && pc.localDescription.sdp });
           log("answer created & sent");
         } catch (err) { log("handle offer error", err); }
       });
@@ -435,13 +409,13 @@ export default function VideoPage() {
             log("[video] invalid answer payload - ignoring", answer);
             return;
           }
-          if (!pcInstance) createPC();
-          if (pcInstance.signalingState === "have-local-offer" || pcInstance.signalingState === "have-remote-offer" || pcInstance.signalingState === "stable") {
-            await pcInstance.setRemoteDescription({ type: answer.type, sdp: answer.sdp });
+          if (!pc) createPC();
+          if (pc.signalingState === "have-local-offer" || pc.signalingState === "have-remote-offer" || pc.signalingState === "stable") {
+            await pc.setRemoteDescription({ type: answer.type, sdp: answer.sdp });
             log("answer set as remoteDescription");
             try { await drainPendingCandidates(); } catch (e) { console.warn("[video] drain after answer failed", e); }
           } else {
-            log("skipping answer set - wrong state:", pcInstance.signalingState);
+            log("skipping answer set - wrong state:", pc.signalingState);
           }
         } catch (err) { log("set remote answer failed", err); }
       });
@@ -449,7 +423,6 @@ export default function VideoPage() {
       socket.on("candidate", async (payload) => {
         try {
           log("socket candidate payload:", payload);
-          // Simplified payload parsing logic
           const wrapper = payload && payload.candidate !== undefined ? payload : (payload && payload.payload ? payload.payload : payload);
 
           if (!wrapper) {
@@ -469,13 +442,13 @@ export default function VideoPage() {
              return;
           }
 
-          if (!pcInstance) {
+          if (!pc) {
             log("[video] no RTCPeerConnection yet, creating one before adding candidate");
             if (typeof createPC === "function") createPC();
             else { console.warn("[video] createPC not found"); }
           }
 
-          if (!pcInstance || !pcInstance.remoteDescription || !pcInstance.remoteDescription.type) {
+          if (!pc || !pc.remoteDescription || !pc.remoteDescription.type) {
             log("[video] remoteDescription not set yet – queueing candidate");
             pendingCandidates.push(wrapper);
             setTimeout(() => drainPendingCandidates(), 200);
@@ -483,7 +456,7 @@ export default function VideoPage() {
           }
 
           try {
-            await pcInstance.addIceCandidate(new RTCIceCandidate(wrapper));
+            await pc.addIceCandidate(new RTCIceCandidate(wrapper));
             log("[video] addIceCandidate success");
           } catch (err) {
             console.warn("[video] addIceCandidate failed", err, wrapper);
@@ -509,17 +482,53 @@ export default function VideoPage() {
         showRating(); 
       }); 
       socket.on("errorMessage", (e) => { console.warn("server errorMessage:", e); showToast(e && e.message ? e.message : "Server error"); });
-
+      
       // Omitted Activity Handlers for brevity...
+
+      // UI WIRING for MIC/CAM/SCREEN (Using local scope variables)
+      setTimeout(() => {
+        var micBtn = get("micBtn");
+        if (micBtn) {
+          micBtn.onclick = function () {
+            const audioSender = pc ? pc.getSenders().find(s => s.track && s.track.kind === "audio") : null;
+            const t = audioSender && audioSender.track;
+            if (!t) return showToast("Mic track not found in connection.");
+            
+            t.enabled = !t.enabled; 
+            micBtn.classList.toggle("inactive", !t.enabled);
+            var i = micBtn.querySelector("i");
+            if (i) i.className = t.enabled ? "fas fa-microphone" : "fas fa-microphone-slash";
+            showToast(t.enabled ? "Mic On" : "Mic Off");
+          };
+        }
+
+        var camBtn = get("camBtn");
+        if (camBtn) {
+          camBtn.onclick = function () {
+            const videoSender = pc ? pc.getSenders().find(s => s.track && s.track.kind === "video") : null;
+            const t = videoSender && videoSender.track;
+            if (!t) return showToast("Camera track not found in connection.");
+            
+            t.enabled = !t.enabled; 
+            camBtn.classList.toggle("inactive", !t.enabled);
+            var ii = camBtn.querySelector("i");
+            if (ii) ii.className = t.enabled ? "fas fa-video" : "fas fa-video-slash";
+            showToast(t.enabled ? "Camera On" : "Camera Off");
+          };
+        }
+        
+        // Disconnect button logic remains the same (uses state hook)
+
+      }, 800);
+
 
     })();
 
     return function () { cleanup(); };
-  }, [isAuthenticated, hasOffered, makingOffer, polite, ignoreOffer, isCleaning, localStream, socketConnected]); // Added necessary dependencies
+  }, []); // FIX: Empty dependency array ensures useEffect runs only once on mount, preventing the re-render loop.
 
   function escapeHtml(s) { return String(s).replace(/[&<>\"']/g, (m) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[m]); }
   
-  // Check isAuthenticated and show a loading screen if not authenticated yet
   if (!isAuthenticated) {
     return (
         <div style={{ 
@@ -548,7 +557,7 @@ export default function VideoPage() {
     );
   }
 
-
+  // --- JSX Rendering (Rest of the file is mainly unchanged JSX and CSS) ---
   return (
     <>
       <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css" referrerPolicy="no-referrer" />
@@ -587,7 +596,7 @@ export default function VideoPage() {
         </button>
       </div>
 
-      {/* Disconnect Confirmation Modal - ADDED */}
+      {/* Disconnect Confirmation Modal */}
       {showDisconnectConfirm && (
         <div className="modal-overlay">
           <div className="disconnect-confirm-modal">
@@ -615,11 +624,8 @@ export default function VideoPage() {
           </div>
         </div>
       )}
-      {/* End Disconnect Confirmation Modal */}
 
-      {/* Activities Modal - Omitted for brevity */}
-
-      {/* EXISTING MODALS (Omitted for brevity) */}
+      {/* Other Modals (Omitted for brevity) */}
       <div id="twoOptionModal" className="overlay-modal" style={{display:'none'}}>
         <div className="modal-card small">
           <div className="q-counter" style={{textAlign:'right',opacity:.8}}>1/10</div>
@@ -672,7 +678,6 @@ export default function VideoPage() {
         </div>
       </div>
 
-      {/* NEW ACTIVITY MODALS Omitted for brevity */}
 
       {/* Rating Overlay */}
       <div id="ratingOverlay">
@@ -686,7 +691,6 @@ export default function VideoPage() {
             <i className="far fa-heart" data-value="5" aria-label="5 stars"></i>
           </div>
           <div className="rating-buttons">
-            {/* FIX: Continue Call button added here */}
             <button 
                 id="continueCallBtn" 
                 onClick={handleRatingOverlayClose} 
@@ -694,8 +698,6 @@ export default function VideoPage() {
             >
                 Continue Call
             </button>
-            {/* End FIX */}
-            
             <button id="newPartnerBtn" onClick={() => window.location.href = "/connect"}>Search New Partner</button>
           </div>
           <div className="emoji-container" aria-hidden="true"></div>
