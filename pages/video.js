@@ -225,12 +225,23 @@ export default function VideoPage() {
           lv.muted = true;
           lv.playsInline = true;
           lv.autoplay = true;
+          // **FIX:** Assign srcObject as soon as possible to ensure MediaElement is ready
           lv.srcObject = localStream;
           try { 
             // Attempt playing local video, ignoring play warnings/errors
             await (lv.play && lv.play()); 
           } catch (e) { log("local video play warning", e); }
         } else { log("localVideo element not found"); }
+        
+        // **POTENTIAL FIX FOR AudioContext ERROR:** // Force preload/load metadata if it helps audio context initialization (though usually not needed)
+        try {
+            if (lv) {
+                lv.load();
+                lv.muted = true; // Ensure it remains muted
+            }
+        } catch(e) { log("local video load setup failed", e); }
+
+
       } catch (err) {
         console.error("Camera/Mic error:", err);
         showToast("Camera/Mic access needed");
@@ -285,16 +296,15 @@ export default function VideoPage() {
                 rv.srcObject = stream;
               }
 
-              // **FIXED: Ensure remote playback starts and audio is not muted.**
-              // We try to play the remote video/audio, and ensure it's unmuted.
+              // FIXED: Ensure remote playback starts and audio is not muted.
               const playRemoteStream = () => {
                   if (rv.srcObject) {
-                      rv.muted = false; // MUST be unmuted for audio
+                      rv.muted = false; // MUST be unmuted for remote audio
                       rv.play && rv.play().then(() => {
                           log("Remote video/audio play SUCCESS");
                       }).catch((err) => { 
                           log("Remote play rejected. Retrying unmute and play in 500ms.", err); 
-                          // If auto-play is rejected, re-attempt unmute and play after a short delay
+                          // If auto-play is rejected (AbortError), re-attempt unmute and play after a short delay
                           setTimeout(() => playRemoteStream(), 500);
                       });
                   }
