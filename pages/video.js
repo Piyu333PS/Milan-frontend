@@ -144,8 +144,7 @@ export default function VideoPage() {
       try { var rv = get("remoteVideo"); if (rv) rv.srcObject = null; } catch (e) {}
       pendingCandidates.length = 0;
       stopTimer(true);
-      // Ensure rating is shown after cleanup
-      showRating(); 
+       
     }
 
     var cleanup = function (opts) {
