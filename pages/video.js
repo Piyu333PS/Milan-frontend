@@ -73,7 +73,8 @@ export default function VideoPage() {
       t.style.display = "block";
       setTimeout(() => { t.style.display = "none"; }, ms || 2000);
     };
-    const showRating = () => { var r = get("ratingOverlay"); if (r) r.style.display = "flex"; };
+    // REMOVED showRating() function as the overlay is removed.
+    // const showRating = () => { var r = get("ratingOverlay"); if (r) r.style.display = "flex"; };
     const log = (...args) => { try { console.log("[video]", ...args); } catch (e) {} };
 
     const getRoomCode = () => {
@@ -144,8 +145,7 @@ export default function VideoPage() {
       try { var rv = get("remoteVideo"); if (rv) rv.srcObject = null; } catch (e) {}
       pendingCandidates.length = 0;
       stopTimer(true);
-      // Ensure rating is shown after cleanup
-      showRating(); 
+      // Removed showRating(); here as per request.
     }
 
     var cleanup = function (opts) {
@@ -160,7 +160,7 @@ export default function VideoPage() {
         }
       } catch (e) { log("socket cleanup err", e); }
 
-      cleanupPeerConnection(); // This now calls showRating
+      cleanupPeerConnection(); // No longer calls showRating
 
       try {
         if (localStream) {
@@ -280,15 +280,15 @@ export default function VideoPage() {
             if (rv) {
               rv.playsInline = true;
               rv.autoplay = true;
-              const prevMuted = rv.muted;
-              rv.muted = true;
+              // FIX: Removed rv.muted = true; to ensure remote audio plays (line 372 in original file)
+              // The logic below ensures rv.muted is false for the remote stream to allow audio playback.
               if (rv.srcObject !== stream) {
                 rv.srcObject = stream;
                 rv.play && rv.play().then(() => {
-                  setTimeout(() => { try { rv.muted = prevMuted; } catch (e) {} }, 250);
-                }).catch((err) => { log("remote play rejected", err); try { rv.muted = prevMuted; } catch (e) {} });
+                  setTimeout(() => { try { rv.muted = false; } catch (e) {} }, 250); // Ensure unmute after play
+                }).catch((err) => { log("remote play rejected", err); try { rv.muted = false; } catch (e) {} });
               } else {
-                try { rv.muted = prevMuted; } catch (e) {}
+                try { rv.muted = false; } catch (e) {} // Ensure unmute
               }
             }
           } catch (err) { console.error("ontrack error", err); }
@@ -304,8 +304,10 @@ export default function VideoPage() {
         pc.onconnectionstatechange = () => {
           log("pc.connectionState:", pc.connectionState);
           if (pc.connectionState === "disconnected" || pc.connectionState === "failed") {
-            showToast("Partner disconnected");
-            cleanupPeerConnection(); // Triggers showRating inside
+            // Updated disconnect message and redirect on connection failure (line 405)
+            showToast("🥺 Connection failed. Starting a new search.");
+            setTimeout(() => { window.location.href = "/connect"; }, 3000);
+            cleanupPeerConnection(); 
           }
         };
 
@@ -462,8 +464,23 @@ export default function VideoPage() {
       });
 
       socket.on("waitingForPeer", (d) => { log("waitingForPeer", d); showToast("Waiting for partner..."); });
-      socket.on("partnerDisconnected", () => { log("partnerDisconnected"); showToast("Partner disconnected"); cleanupPeerConnection(); }); // showRating moved inside cleanupPC
-      socket.on("partnerLeft", () => { log("partnerLeft"); showToast("Partner left"); cleanupPeerConnection(); }); // showRating moved inside cleanupPC
+      
+      // UPDATED: Partner Disconnect message and redirect (line 607)
+      socket.on("partnerDisconnected", () => { 
+        log("partnerDisconnected"); 
+        showToast("🥺 Partner suddenly went away. Starting a new search."); 
+        cleanupPeerConnection();
+        setTimeout(() => { window.location.href = "/connect"; }, 3000); // Redirect after 3s to search
+      }); 
+      
+      // UPDATED: Partner Left message and redirect (line 608)
+      socket.on("partnerLeft", () => { 
+        log("partnerLeft"); 
+        showToast("👋 Partner ended the chat. Starting a new search."); 
+        cleanupPeerConnection(); 
+        setTimeout(() => { window.location.href = "/connect"; }, 3000); // Redirect after 3s to search
+      }); 
+
       socket.on("errorMessage", (e) => { console.warn("server errorMessage:", e); showToast(e && e.message ? e.message : "Server error"); });
 
       // ========== ACTIVITIES SIGNALS (Omitted for brevity, kept consistent with previous versions) ==========
@@ -1072,10 +1089,11 @@ socket.on("danceDareEnd", (data) => {
     // 2. Signal disconnection to partner
     try { safeEmit("partnerLeft"); } catch (e) { log("emit partnerLeft err", e); }
     
-    // 3. Clean up PC resources and show rating modal (showRating is now inside cleanupPeerConnection)
+    // 3. Clean up PC resources
     cleanupPeerConnection(); 
     
-    // Note: Redirection happens via the 'Search New Partner' button on the Rating Overlay.
+    // 4. Redirect immediately after cleanup as Rating Overlay is removed
+    window.location.href = "/connect";
   };
   
   const handleKeepChatting = () => {
@@ -1391,25 +1409,8 @@ socket.on("danceDareEnd", (data) => {
         </div>
       </div>
 
-      {/* Rating Overlay */}
-      <div id="ratingOverlay">
-        <div className="rating-content">
-          <h2>Rate your partner ❤️</h2>
-          <div className="hearts">
-            <i className="far fa-heart" data-value="1" aria-label="1 star"></i>
-            <i className="far fa-heart" data-value="2" aria-label="2 stars"></i>
-            <i className="far fa-heart" data-value="3" aria-label="3 stars"></i>
-            <i className="far fa-heart" data-value="4" aria-label="4 stars"></i>
-            <i className="far fa-heart" data-value="5" aria-label="5 stars"></i>
-          </div>
-          <div className="rating-buttons">
-            {/* Quit button removed, New Partner is the new target */}
-            <button id="newPartnerBtn" onClick={() => window.location.href = "/connect"}>Search New Partner</button>
-          </div>
-          <div className="emoji-container" aria-hidden="true"></div>
-        </div>
-      </div>
-
+      {/* Rating Overlay is REMOVED as per user request */}
+      
       <div id="toast"></div>
 
       <style jsx global>{`
@@ -1513,10 +1514,9 @@ socket.on("danceDareEnd", (data) => {
         .video-box::after{content:"";position:absolute; inset:0;pointer-events:none;box-shadow: inset 0 80px 120px rgba(0,0,0,0.25);border-radius: inherit;z-index:16;}
         #localVideo{ transform: scaleX(-1); }
         .label{position:absolute;left:10px;bottom:10px;padding:6px 10px;font-size:12px;color:#fff;background:rgba(0,0,0,.5);border:1px solid rgba(255,255,255,.05);border-radius:10px;pointer-events:none}
-        .control-bar{position:fixed;bottom:calc(18px + env(safe-area-inset-bottom));left:50%;transform:translateX(-50%);display:flex;gap:12px;padding:8px 10px;background:linear-gradient(90deg, rgba(255,255,255,0.04), rgba(255,255,255,0.02));border-radius:16px;z-index:3000;backdrop-filter: blur(8px);max-width:calc(100% - 24px);overflow-x:auto;align-items:center;box-shadow:0 12px 30px rgba(0,0,0,.6)}
+        .control-bar{position:fixed;bottom:calc(18px + env(safe-area-area-inset-bottom));left:50%;transform:translateX(-50%);display:flex;gap:12px;padding:8px 10px;background:linear-gradient(90deg, rgba(255,255,255,0.04), rgba(255,255,255,0.02));border-radius:16px;z-index:3000;backdrop-filter: blur(8px);max-width:calc(100% - 24px);overflow-x:auto;align-items:center;box-shadow:0 12px 30px rgba(0,0,0,.6)}
         .control-btn{display:flex;flex-direction:column;align-items:center;justify-content:center;background:rgba(255,255,255,0.03);color:#fff;border-radius:14px;width:64px;height:64px;cursor:pointer;flex:0 0 auto;border:1px solid rgba(255,255,255,0.03);transition:transform .12s ease, box-shadow .12s ease}
         .control-btn:hover{ transform: translateY(-4px); box-shadow:0 10px 22px rgba(0,0,0,0.45)}
-        .control-btn span{font-size:12px;margin-top:6px}
         .control-btn.inactive{opacity:0.5}.control-btn.active{box-shadow:0 6px 18px rgba(255,77,141,0.18);transform:translateY(-2px)}.control-btn.danger{background:linear-gradient(135deg,#ff4d8d,#b51751);border:none}
         #ratingOverlay{position:fixed;inset:0;display:none;align-items:center;justify-content:center;background:rgba(0,0,0,.9);color:#fff;z-index:4000;padding:20px}
         .rating-content{position:relative;min-width: min(720px, 92vw);max-width:920px;max-height:80vh;padding:28px 36px;border-radius:20px;text-align:center;background:linear-gradient(180deg, rgba(255,255,255,0.02), rgba(255,255,255,0.01));border:1px solid rgba(255,255,255,.03);box-shadow:0 20px 60px rgba(0,0,0,.6);z-index:1;overflow:auto}
