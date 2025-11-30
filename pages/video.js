@@ -1107,17 +1107,14 @@ socket.on("danceDareEnd", (data) => {
   // NEW FUNCTIONS FOR DISCONNECT MODAL
   // ------------------------------------------
   const handleConfirmDisconnect = () => {
-    // 1. Close confirmation modal
-    setShowDisconnectConfirm(false);
-    
-    // 2. Signal disconnection to partner
-    try { safeEmit("partnerLeft"); } catch (e) { log("emit partnerLeft err", e); }
-    
-    // 3. Clean up PC resources and show rating modal (showRating is now inside cleanupPeerConnection)
-    cleanupPeerConnection(); 
-    
-    // Note: Redirection happens via the 'Search New Partner' button on the Rating Overlay.
-  };
+  // Pehle modal band karo
+  setShowDisconnectConfirm(false);
+
+  // Phir actual disconnect logic call karo jo humne window pe expose kiya hai
+  if (typeof window !== "undefined" && window.__milanVideoDisconnect) {
+    window.__milanVideoDisconnect();
+  }
+};
   
   const handleKeepChatting = () => {
     setShowDisconnectConfirm(false);
