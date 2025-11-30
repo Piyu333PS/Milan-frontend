@@ -1058,7 +1058,7 @@ socket.on("danceDareEnd", (data) => {
     })();
 
     return function () { cleanup(); };
-  }, [isAuthenticated]); // Added isAuthenticated as dependency
+    }, []); // Run only once on mount
 
   function escapeHtml(s) { return String(s).replace(/[&<>\"']/g, (m) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[m]); }
 
