@@ -15,6 +15,13 @@ export default function Profile() {
   const [showSuccessModal, setShowSuccessModal] = useState(false);
   // END: ADDED STATE FOR SUCCESS MODAL
 
+  // ⭐ MILAN ID STATE
+  const [milanId, setMilanId] = useState('');
+  const [isEditingMilanId, setIsEditingMilanId] = useState(false);
+  const [newMilanId, setNewMilanId] = useState('');
+  const [milanIdStatus, setMilanIdStatus] = useState({ text: '', color: '' });
+  const [milanIdUpdating, setMilanIdUpdating] = useState(false);
+
   // Default state structure
   const initialProfileState = {
     name: '',
@@ -37,7 +44,7 @@ export default function Profile() {
   const [activeTab, setActiveTab] = useState('basic');
   const [profileData, setProfileData] = useState(initialProfileState);
 
-  // START: AUTH GUARD LOGIC & DATA LOADING FIX (FINAL ATTEMPT)
+  // START: AUTH GUARD LOGIC & DATA LOADING FIX
   useEffect(() => {
     if (typeof window === "undefined") return;
 
@@ -48,31 +55,29 @@ export default function Profile() {
       return;
     }
     
-    // Load saved profile data from local storage
+    // Load saved profile/user data from local storage
     try {
-      // 🚨 FIX: Prioritize 'milanUser' (backend data) over 'milanProfile' (client fallback)
+      // Prioritize 'milanUser' (backend data) over 'milanProfile' (client fallback)
       const savedProfile = localStorage.getItem('milanUser') || localStorage.getItem('milanProfile');
       if (savedProfile) {
         const parsed = JSON.parse(savedProfile);
-        
-        // Use Object.assign for a cleaner and more explicit merge of initial state and saved data
-        // This ensures any missing keys get the default value, and saved data overwrites the empty state.
+
         const mergedProfile = Object.assign({}, initialProfileState, parsed);
-        
         setProfileData(mergedProfile);
+
+        // ⭐ Load Milan ID from saved user if available
+        if (parsed.milanId) {
+          setMilanId(parsed.milanId);
+        }
       } else {
-        // If no saved profile found, ensure state is set to clean initial state
         setProfileData(initialProfileState);
       }
     } catch (error) {
       console.error('Error loading profile:', error);
-       // Fallback to initial state on parsing error
       setProfileData(initialProfileState);
     }
     
-    // Set authenticated state LAST
     setIsAuthenticated(true);
-
   }, [router]);
   // END: AUTH GUARD LOGIC
 
@@ -114,7 +119,6 @@ export default function Profile() {
     const fd = new FormData();
     fd.append('image', file);
 
-    // backend URL (Render)
     const res = await fetch('https://milan-j9u9.onrender.com/api/upload/profile', {
       method: 'POST',
       headers: {
@@ -130,7 +134,7 @@ export default function Profile() {
     return res.json(); // { url, public_id }
   }
 
-  // New handler: uploads to Cloudinary via backend and sets the returned URL for preview + notifies header
+  // New handler: uploads to Cloudinary via backend and sets the returned URL
   const handlePhotoChange = async (e) => {
     const file = e.target.files?.[0];
     if (!file) return;
@@ -142,14 +146,10 @@ export default function Profile() {
         const newProfile = { ...profileData, photo: data.url };
         setProfileData(newProfile);
 
-        // Update localStorage so header can read it
         try {
-          // If backend saved user and returned user object on save, we will store that later.
-          // For now we store the profile preview data so header shows preview immediately.
           localStorage.setItem('milanProfile', JSON.stringify(newProfile));
         } catch (err) { console.warn('localStorage set failed', err); }
 
-        // Dispatch event to update header UI instantly
         window.dispatchEvent(new CustomEvent('milan:user-updated', { detail: newProfile }));
       } else {
         console.warn('Upload returned unexpected data:', data);
@@ -182,7 +182,7 @@ export default function Profile() {
     });
   };
 
-  // SAVE: calls backend to persist profile (requires JWT in localStorage.token)
+  // SAVE PROFILE -> backend
   const handleSaveProfile = async () => {
     try {
       const token = localStorage.getItem('token') || '';
@@ -203,21 +203,21 @@ export default function Profile() {
       }
 
       const json = await res.json();
-      // if backend returns updated user, store it
       if (json.user) {
         localStorage.setItem('milanUser', JSON.stringify(json.user));
         window.dispatchEvent(new CustomEvent('milan:user-updated', { detail: json.user }));
-        // 🚨 ADDED DEBUG LOG
         console.log("✅ PROFILE SAVE SUCCESS: Data saved to milanUser in localStorage:", json.user);
+
+        // ensure Milan ID is updated if backend sent it
+        if (json.user.milanId) {
+          setMilanId(json.user.milanId);
+        }
       } else {
-        // fallback: store profile preview
         localStorage.setItem('milanProfile', JSON.stringify(profileData));
         window.dispatchEvent(new CustomEvent('milan:user-updated', { detail: profileData }));
-        // 🚨 ADDED DEBUG LOG
         console.log("⚠️ PROFILE SAVE SUCCESS (Fallback): Data saved to milanProfile in localStorage:", profileData);
       }
 
-      // Show custom success modal
       setShowSuccessModal(true); 
       
     } catch (error) {
@@ -226,20 +226,119 @@ export default function Profile() {
     }
   };
   
-  // New handler to close modal and redirect
+  // Success modal close handler
   const handleSuccessModalClose = () => {
-      setShowSuccessModal(false);
-      router.push('/connect');
+    setShowSuccessModal(false);
+    router.push('/connect');
+  };
+
+  // ⭐ Milan ID edit handlers
+  const handleStartEditMilanId = () => {
+    setIsEditingMilanId(true);
+    setNewMilanId(milanId || '');
+    setMilanIdStatus({
+      text: 'Use 3–20 characters: a-z, 0-9, underscore (_)',
+      color: 'text-gray-500',
+    });
+  };
+
+  const handleCancelMilanIdEdit = () => {
+    setIsEditingMilanId(false);
+    setNewMilanId('');
+    setMilanIdStatus({ text: '', color: '' });
+  };
+
+  const handleSaveMilanId = async () => {
+    const trimmed = (newMilanId || '').trim();
+
+    if (!trimmed) {
+      setMilanIdStatus({ text: 'Milan ID cannot be empty.', color: 'text-red-500' });
+      return;
+    }
+
+    const regex = /^[a-z0-9_]{3,20}$/;
+    if (!regex.test(trimmed)) {
+      setMilanIdStatus({
+        text: 'Use 3–20 characters: a-z, 0-9, underscore (_).',
+        color: 'text-red-500',
+      });
+      return;
+    }
+
+    const token = (typeof window !== 'undefined' && localStorage.getItem('token')) || '';
+    if (!token) {
+      setMilanIdStatus({
+        text: 'Session expired. Please login again.',
+        color: 'text-red-500',
+      });
+      return;
+    }
+
+    try {
+      setMilanIdUpdating(true);
+      setMilanIdStatus({
+        text: 'Updating your Milan ID...',
+        color: 'text-gray-500',
+      });
+
+      const res = await fetch('https://milan-j9u9.onrender.com/api/user/milan-id', {
+        method: 'PATCH',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: 'Bearer ' + token,
+        },
+        body: JSON.stringify({ milanId: trimmed }),
+      });
+
+      const data = await res.json().catch(() => ({}));
+
+      if (!res.ok || !data.ok) {
+        const msg = (data && (data.error || data.message)) || 'Failed to update Milan ID.';
+        setMilanIdStatus({ text: msg, color: 'text-red-500' });
+        return;
+      }
+
+      // ✅ Success
+      setMilanId(data.milanId);
+      setMilanIdStatus({
+        text: 'Milan ID updated successfully 💖',
+        color: 'text-green-600',
+      });
+      setIsEditingMilanId(false);
+      setNewMilanId('');
+
+      // Update localStorage.milanUser as well
+      try {
+        const rawUser = localStorage.getItem('milanUser');
+        if (rawUser) {
+          const userObj = JSON.parse(rawUser);
+          const updatedUser = { ...userObj, milanId: data.milanId };
+          localStorage.setItem('milanUser', JSON.stringify(updatedUser));
+          window.dispatchEvent(new CustomEvent('milan:user-updated', { detail: updatedUser }));
+        }
+      } catch (err) {
+        console.warn('Failed to update milanUser in localStorage after Milan ID change:', err);
+      }
+
+    } catch (err) {
+      console.error('Error updating Milan ID:', err);
+      setMilanIdStatus({
+        text: 'Server error. Please try again.',
+        color: 'text-red-500',
+      });
+    } finally {
+      setMilanIdUpdating(false);
+    }
   };
 
   // If user is not authenticated yet, show a loading screen/spinner
   if (!isAuthenticated) {
     return (
-        <div className="min-h-screen bg-gradient-to-br from-pink-50 via-white to-purple-50 flex items-center justify-center">
-            <div className="text-2xl text-pink-600 font-bold flex items-center gap-2 animate-pulse">
-                <Heart className="fill-pink-600 w-8 h-8" /> Loading Profile...
-            </div>
+      <div className="min-h-screen bg-gradient-to-br from-pink-50 via-white to-purple-50 flex items-center justify-center">
+        <div className="text-2xl text-pink-600 font-bold flex items-center gap-2 animate-pulse">
+          <Heart className="fill-pink-600 w-8 h-8" /> Loading Profile...
         </div>
+      </div>
     );
   }
 
@@ -294,7 +393,7 @@ export default function Profile() {
           </div>
         </div>
 
-        {/* Tabs and other UI (same as before) */}
+        {/* Tabs */}
         <div className="flex overflow-x-auto gap-2 mb-6 pb-2">
           {['basic', 'vibe', 'personality', 'preferences'].map((tab) => (
             <button
@@ -359,6 +458,64 @@ export default function Profile() {
                 className="w-full px-4 py-2 border-2 border-pink-200 rounded-lg focus:border-pink-500 focus:outline-none h-24 text-gray-900 bg-white placeholder-gray-400"
                 placeholder="Apne baare mein kuch batao..."
               />
+            </div>
+
+            {/* ⭐ Milan ID block */}
+            <div className="mt-6 p-4 rounded-xl border-2 border-purple-100 bg-purple-50/60">
+              <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-3">
+                <div>
+                  <p className="text-sm font-semibold text-purple-700">Your Milan ID</p>
+                  <p className="mt-1 text-lg font-bold text-gray-900">
+                    @{milanId || 'not-set-yet'}
+                  </p>
+                  <p className="text-xs text-gray-500">
+                    Ye ID future me Add Friend / search ke liye use hogi.
+                  </p>
+                </div>
+
+                {!isEditingMilanId && (
+                  <button
+                    type="button"
+                    onClick={handleStartEditMilanId}
+                    className="px-4 py-2 rounded-full text-sm font-semibold bg-gradient-to-r from-pink-500 to-purple-600 text-white shadow hover:shadow-md transition"
+                  >
+                    {milanId ? 'Change Milan ID' : 'Set Milan ID'}
+                  </button>
+                )}
+              </div>
+
+              {isEditingMilanId && (
+                <div className="mt-3 flex flex-col sm:flex-row gap-2 items-stretch sm:items-center">
+                  <input
+                    type="text"
+                    value={newMilanId}
+                    onChange={(e) => setNewMilanId(e.target.value)}
+                    placeholder="enter new Milan ID (a-z, 0-9, _)"
+                    className="flex-1 px-4 py-2 border-2 border-pink-200 rounded-full focus:border-pink-500 focus:outline-none text-gray-900 bg-white placeholder-gray-400 text-sm"
+                  />
+                  <button
+                    type="button"
+                    onClick={handleSaveMilanId}
+                    disabled={milanIdUpdating}
+                    className="px-4 py-2 rounded-full text-sm font-semibold bg-pink-500 text-white shadow hover:bg-pink-600 disabled:opacity-60 disabled:cursor-not-allowed"
+                  >
+                    {milanIdUpdating ? 'Saving...' : 'Save'}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={handleCancelMilanIdEdit}
+                    className="px-3 py-2 rounded-full text-xs font-medium bg-gray-100 text-gray-700 hover:bg-gray-200"
+                  >
+                    Cancel
+                  </button>
+                </div>
+              )}
+
+              {milanIdStatus.text && (
+                <p className={`mt-2 text-xs ${milanIdStatus.color}`}>
+                  {milanIdStatus.text}
+                </p>
+              )}
             </div>
           </div>
         )}
@@ -448,7 +605,7 @@ export default function Profile() {
         {activeTab === 'personality' && (
           <div className="bg-white rounded-2xl shadow-xl p-6 space-y-6">
             <div>
-              <h2 className="text-2xl font-bold text-gray-800 mb-4 flex items-center gap-2">
+              <h2 className="text-2xl font-bold text-gray-800 mb-4 flex itemscenter gap-2">
                 <Star className="text-pink-500" /> Hobbies & Interests
               </h2>
               <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
@@ -732,7 +889,7 @@ export default function Profile() {
 
         .modal-btn-action {
           padding: 15px 40px;
-          background: linear-gradient(135deg, #4cd964, #34c759); /* Green for action/go */
+          background: linear-gradient(135deg, #4cd964, #34c759);
           color: #ffffff;
           border: none;
           border-radius: 14px;
